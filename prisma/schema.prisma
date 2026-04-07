@@ -1,0 +1,141 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// --- РОЛИ И ТИПЫ ---
+
+enum Role {
+  STUDENT
+  CURATOR
+  ADMIN
+}
+
+enum QuestionType {
+  AUTO
+  MANUAL
+  ORAL
+}
+
+// --- ТАБЛИЦЫ ---
+
+model User {
+  id            String        @id @default(uuid())
+  email         String        @unique
+  password_hash String
+  role          Role          @default(STUDENT)
+  refresh_token String? 
+  created_at    DateTime      @default(now())
+  
+  TestAttempt   TestAttempt[]
+  enrollments   Enrollment[]  // Связь с записями на курс
+}
+
+model Course {
+  id          String  @id @default(uuid())
+  title       String
+  description String? @db.Text
+  cover_url   String?
+
+  themes      Theme[]
+  enrollments Enrollment[] // Связь с записями на курс
+
+  @@map("courses")
+}
+
+model Theme {
+  id          String @id @default(uuid())
+  course_id   String
+  title       String
+  order_index Int
+
+  course  Course   @relation(fields: [course_id], references: [id], onDelete: Cascade)
+  lessons Lesson[]
+  tests   Test[]
+
+  @@map("themes")
+}
+
+model Lesson {
+  id          String   @id @default(uuid())
+  title       String
+  video_url   String?
+  content     String? 
+  order_index Int
+  theme_id    String
+  theme       Theme    @relation(fields: [theme_id], references: [id], onDelete: Cascade)
+  created_at  DateTime @default(now())
+}
+
+model Test {
+  id           String @id @default(uuid())
+  theme_id     String
+  title        String
+  max_attempts Int    @default(1)
+
+  theme     Theme         @relation(fields: [theme_id], references: [id], onDelete: Cascade)
+  questions Question[]
+  attempts  TestAttempt[]
+
+  @@map("tests")
+}
+
+model Question {
+  id             String       @id @default(uuid())
+  test_id        String
+  type           QuestionType @default(AUTO)
+  content        String       @db.Text
+  correct_answer String?      @db.Text
+  points         Int          @default(1)
+
+  test    Test     @relation(fields: [test_id], references: [id], onDelete: Cascade)
+  answers Answer[]
+
+  @@map("questions")
+}
+
+model TestAttempt {
+  id             String   @id @default(uuid())
+  test_id        String
+  user_id        String
+  score          Int      @default(0)
+  attempt_number Int
+  created_at     DateTime @default(now())
+
+  test    Test     @relation(fields: [test_id], references: [id], onDelete: Cascade)
+  user    User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  answers Answer[]
+
+  @@map("test_attempts")
+}
+
+model Answer {
+  id             String  @id @default(uuid())
+  attempt_id     String
+  question_id    String
+  user_answer    String  @db.Text
+  is_correct     Boolean @default(false)
+  points_awarded Int     @default(0)
+
+  attempt  TestAttempt @relation(fields: [attempt_id], references: [id], onDelete: Cascade)
+  question Question    @relation(fields: [question_id], references: [id], onDelete: Cascade)
+
+  @@map("answers")
+}
+
+// --- НОВАЯ ТАБЛИЦА: ЗАПИСИ НА КУРС ---
+model Enrollment {
+  id         String   @id @default(uuid())
+  user_id    String
+  course_id  String
+  created_at DateTime @default(now())
+
+  user       User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  course     Course   @relation(fields: [course_id], references: [id], onDelete: Cascade)
+
+  @@map("enrollments")
+}

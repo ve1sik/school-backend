@@ -1,0 +1,37 @@
+/* Подключаем ядро Tailwind v4 */
+@import "tailwindcss";
+/* Подключаем наш элитный шрифт */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+/* В 4-й версии наши фирменные цвета добавляются вот так: */
+@theme {
+  --color-brand: #3B1099;
+  --color-brand-light: #5A2BC5;
+  --color-brand-dark: #250A66;
+  --color-dark: #121214;
+  --color-surface: #1E1E22;
+  --font-sans: "Inter", sans-serif;
+}
+
+/* Настройки страницы без конфликтующего @apply */
+body {
+  background-color: #f9fafb;
+  color: #111827;
+  font-family: "Inter", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Красивый скроллбар */
+::-webkit-scrollbar {
+  width: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background-color: #d1d5db;
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background-color: var(--color-brand);
+}
