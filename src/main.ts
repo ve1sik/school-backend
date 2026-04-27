@@ -16,6 +16,7 @@ async function bootstrap() {
   app.use(json({ limit: '50mb' }));
   app.use(urlencoded({ extended: true, limit: '50mb' }));
 
-  await app.listen(3000);
+  // 🔥 ОТКРЫВАЕМ СЕРВЕР В МИР (0.0.0.0 обязательно для работы на сервере!)
+  await app.listen(3000, '0.0.0.0');
 }
 bootstrap();
