@@ -1,13 +1,11 @@
 import { Module } from '@nestjs/common';
-import { CourseController } from './course.controller';
+import { CourseController } from './course.controller'; // <-- Убедись, что есть импорт
 import { CourseService } from './course.service';
-import { AuthModule } from '../auth/auth.module';
-import { PrismaService } from '../prisma/prisma.service'; // Тот самый путь, который мы нашли!
+// ... твои другие импорты
 
 @Module({
-  imports: [AuthModule],
-  controllers: [CourseController],
-  providers: [CourseService, PrismaService], // Теперь PrismaService доступен сервису
-  exports: [CourseService],
+  imports: [ /* твои импорты, например PrismaModule */ ],
+  controllers: [CourseController], // <--- ВОТ ЭТО САМОЕ ГЛАВНОЕ!
+  providers: [CourseService],
 })
 export class CoursesModule {}

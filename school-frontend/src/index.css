@@ -1,37 +1,39 @@
-/* Подключаем ядро Tailwind v4 */
 @import "tailwindcss";
-/* Подключаем наш элитный шрифт */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 
-/* В 4-й версии наши фирменные цвета добавляются вот так: */
-@theme {
-  --color-brand: #3B1099;
-  --color-brand-light: #5A2BC5;
-  --color-brand-dark: #250A66;
-  --color-dark: #121214;
-  --color-surface: #1E1E22;
-  --font-sans: "Inter", sans-serif;
-}
+@layer components {
+  /* --- КНОПКИ --- */
+  .btn-primary {
+    @apply px-4 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold transition-all flex items-center justify-center gap-2 shadow-sm hover:shadow-md;
+  }
+  
+  .btn-secondary {
+    @apply px-4 py-3 bg-gray-50 hover:bg-gray-100 text-gray-700 rounded-xl font-bold transition-all flex items-center justify-center gap-2;
+  }
 
-/* Настройки страницы без конфликтующего @apply */
-body {
-  background-color: #f9fafb;
-  color: #111827;
-  font-family: "Inter", sans-serif;
-  -webkit-font-smoothing: antialiased;
-}
+  .btn-danger {
+    @apply px-4 py-3 bg-red-50 hover:bg-red-500 text-red-500 hover:text-white rounded-xl font-bold transition-all flex items-center justify-center gap-2;
+  }
 
-/* Красивый скроллбар */
-::-webkit-scrollbar {
-  width: 8px;
-}
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-::-webkit-scrollbar-thumb {
-  background-color: #d1d5db;
-  border-radius: 9999px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background-color: var(--color-brand);
+  /* --- КАРТОЧКИ --- */
+  .card-panel {
+    @apply bg-white rounded-[2rem] border border-gray-100 shadow-sm p-6 hover:shadow-md transition-shadow;
+  }
+
+  /* --- ИНПУТЫ (ПОЛЯ ВВОДА) --- */
+  .input-field {
+    @apply w-full px-4 py-3 bg-white border border-gray-200 rounded-xl outline-none focus:border-indigo-600 focus:ring-4 focus:ring-indigo-50 transition-all shadow-sm;
+  }
+
+  /* --- ТЕКСТЫ И ЗАГОЛОВКИ --- */
+  .heading-1 {
+    @apply text-4xl font-black text-gray-900;
+  }
+  
+  .heading-2 {
+    @apply text-2xl font-bold text-gray-900;
+  }
+
+  .text-muted {
+    @apply text-gray-500 font-medium;
+  }
 }

@@ -1,27 +1,24 @@
-// Файл: src/theme/theme.controller.ts
-import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
+import { Controller, Post, Body, Delete, Param, Patch } from '@nestjs/common';
 import { ThemeService } from './theme.service';
-import { CreateThemeDto } from './dto/theme.dto';
-import { AuthGuard } from '@nestjs/passport';
-import { RolesGuard } from '../auth/roles.guard';
-import { Roles } from '../auth/roles.decorator';
-import { Role } from '@prisma/client';
 
 @Controller('themes')
 export class ThemeController {
   constructor(private readonly themeService: ThemeService) {}
 
-  // Создать тему (Только Админ)
-  @UseGuards(AuthGuard('jwt'), RolesGuard)
-  @Roles(Role.ADMIN)
   @Post()
-  async create(@Body() dto: CreateThemeDto) {
+  create(@Body() dto: any) {
     return this.themeService.create(dto);
   }
 
-  // Получить все темы курса по его ID
-  @Get('course/:courseId')
-  async getByCourse(@Param('courseId') courseId: string) {
-    return this.themeService.getByCourse(courseId);
+  // Удаление темы
+  @Delete(':id')
+  delete(@Param('id') id: string) {
+    return this.themeService.delete(id);
+  }
+
+  // Скрытие/Показ темы (глазик)
+  @Patch(':id')
+  updateVisibility(@Param('id') id: string, @Body('is_visible') is_visible: boolean) {
+    return this.themeService.updateVisibility(id, is_visible);
   }
 }

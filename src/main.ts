@@ -1,20 +1,21 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
+import { json, urlencoded } from 'express';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
-  // Настройка "Бетонный CORS"
+  // 🔥 МОЩНЫЙ CORS (чтобы не было красных ошибок в консоли на фронтенде)
   app.enableCors({
-    origin: (origin, callback) => callback(null, true), // Разрешаем вообще всё
+    origin: true, // Разрешаем любые подключения (туннели, localhost и т.д.)
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
     credentials: true,
-    preflightContinue: false,
-    optionsSuccessStatus: 204,
-    allowedHeaders: '*', // Принимаем любые заголовки
   });
 
+  // 🔥 СНИМАЕМ ЛИМИТЫ: Разрешаем загружать файлы и картинки до 50 мегабайт
+  app.use(json({ limit: '50mb' }));
+  app.use(urlencoded({ extended: true, limit: '50mb' }));
+
   await app.listen(3000);
-  console.log('Backend is live on port 3000');
 }
 bootstrap();

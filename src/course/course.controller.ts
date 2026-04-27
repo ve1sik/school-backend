@@ -1,43 +1,52 @@
 import { Body, Controller, Get, Post, Patch, Delete, Param, UseGuards } from '@nestjs/common';
 import { CourseService } from './course.service';
-import { CreateCourseDto } from './dto/course.dto';
-// import { AuthGuard } from '@nestjs/passport'; // Временно не используем
-// import { RolesGuard } from '../auth/roles.guard';
-// import { Roles } from '../auth/roles.decorator';
-// import { Role } from '@prisma/client';
+import { AuthGuard } from '@nestjs/passport'; 
+import { RolesGuard } from '../auth/roles.guard'; 
+import { Roles } from '../auth/roles.decorator';
+import { Role } from '@prisma/client';
 
 @Controller('courses')
 export class CourseController {
   constructor(private readonly courseService: CourseService) {}
 
-  // Получить все курсы (доступно всем)
+  @Get(':id')
+  findOne(@Param('id') id: string) {
+    return this.courseService.findOne(id);
+  }
+
   @Get()
   async getAll() {
     return this.courseService.getAllCourses();
   }
 
-  // Создать курс
-  // Брат, я закомментировал Guards, чтобы тебя пустило без токена и роли админа
-  // @UseGuards(AuthGuard('jwt'), RolesGuard)
-  // @Roles(Role.ADMIN)
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles(Role.ADMIN, Role.CURATOR)
   @Post()
-  async create(@Body() dto: CreateCourseDto) {
-    return this.courseService.createCourse(dto);
+  async createCourse(@Body() dto: any) {
+    return this.courseService.create(dto);
   }
 
-  // Обновить курс 
-  // @UseGuards(AuthGuard('jwt'), RolesGuard)
-  // @Roles(Role.ADMIN)
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles(Role.ADMIN, Role.CURATOR)
+  @Post(':courseId/themes')
+  async createTheme(
+    @Param('courseId') courseId: string,
+    @Body() body: any 
+  ) {
+    return { message: 'Тема создана (заглушка)', courseId, body };
+  }
+
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles(Role.ADMIN, Role.CURATOR)
   @Patch(':id')
-  async update(@Param('id') id: string, @Body() dto: CreateCourseDto) {
+  async update(@Param('id') id: string, @Body() dto: any) {
     return this.courseService.updateCourse(id, dto);
   }
 
-  // Удалить курс
-  // @UseGuards(AuthGuard('jwt'), RolesGuard)
-  // @Roles(Role.ADMIN)
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles(Role.ADMIN, Role.CURATOR)
   @Delete(':id')
-  async remove(@Param('id') id: string) {
-    return this.courseService.deleteCourse(id);
+  async deleteCourse(@Param('id') id: string) {
+    return this.courseService.delete(id); 
   }
 }

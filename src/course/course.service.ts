@@ -1,45 +1,69 @@
-// Файл: src/course/course.service.ts (Полный код)
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
-import { CreateCourseDto } from './dto/course.dto';
+import { PrismaService } from '../prisma/prisma.service'; 
 
 @Injectable()
 export class CourseService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private prisma: PrismaService) {}
 
-  // Создать новый курс
-  async createCourse(dto: CreateCourseDto) {
-    return this.prisma.course.create({
-      data: {
-        title: dto.title,
-        description: dto.description,
-        cover_url: dto.cover_url,
+  async findOne(id: string) {
+    const course = await this.prisma.course.findUnique({
+      where: { id },
+      include: {
+        themes: {
+          orderBy: { order_index: 'asc' },
+          include: {
+            lessons: {
+              orderBy: { order_index: 'asc' }, 
+            },
+          },
+        },
       },
     });
+
+    if (!course) throw new NotFoundException('Курс не найден');
+    return course;
   }
 
-  // Получить все курсы
   async getAllCourses() {
     return this.prisma.course.findMany({
-      include: { themes: true },
+      include: {
+        themes: {
+          orderBy: { order_index: 'asc' },
+          include: {
+            lessons: {
+              orderBy: { order_index: 'asc' },
+            },
+          },
+        },
+      },
+      orderBy: { title: 'asc' }, 
     });
   }
 
-  // Обновить курс по ID
-  async updateCourse(id: string, dto: CreateCourseDto) {
-    const course = await this.prisma.course.findUnique({ where: { id } });
-    if (!course) throw new NotFoundException('Курс не найден');
+  async create(dto: any) {
+    return this.prisma.course.create({ data: dto });
+  }
 
+  async updateCourse(id: string, dto: any) {
     return this.prisma.course.update({
       where: { id },
       data: dto,
     });
   }
 
-  // Удалить курс
-  async deleteCourse(id: string) {
-    const course = await this.prisma.course.findUnique({ where: { id } });
-    if (!course) throw new NotFoundException('Курс не найден');
+  async delete(id: string) {
+    const themes = await this.prisma.theme.findMany({ where: { course_id: id } });
+    const themeIds = themes.map(t => t.id);
+
+    if (themeIds.length > 0) {
+      await this.prisma.lesson.deleteMany({
+        where: { theme_id: { in: themeIds } }
+      });
+    }
+
+    await this.prisma.theme.deleteMany({
+      where: { course_id: id }
+    });
 
     return this.prisma.course.delete({ where: { id } });
   }

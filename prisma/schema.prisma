@@ -3,16 +3,17 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL") // 🔥 Вот она, спасительная строчка для Supabase!
 }
 
 // --- РОЛИ И ТИПЫ ---
-
 enum Role {
   STUDENT
   CURATOR
   ADMIN
+  PARENT
 }
 
 enum QuestionType {
@@ -21,18 +22,51 @@ enum QuestionType {
   ORAL
 }
 
-// --- ТАБЛИЦЫ ---
+enum LessonType {
+  VIDEO
+  TEXT
+  TEST
+}
 
+enum SubmissionStatus {
+  PENDING
+  GRADED
+}
+
+// 🔥 НОВОЕ: Типы событий для расписания
+enum EventType {
+  WEBINAR
+  DEADLINE
+  OFFLINE
+}
+
+// --- ТАБЛИЦЫ ---
 model User {
-  id            String        @id @default(uuid())
-  email         String        @unique
+  id            String  @id @default(uuid())
+  email         String  @unique
   password_hash String
-  role          Role          @default(STUDENT)
-  refresh_token String? 
-  created_at    DateTime      @default(now())
-  
-  TestAttempt   TestAttempt[]
-  enrollments   Enrollment[]  // Связь с записями на курс
+  role          Role    @default(STUDENT)
+  refresh_token String?
+
+  name       String?
+  surname    String?
+  patronymic String?
+  birthday   String?
+  city       String?
+  avatar     String? @db.Text
+
+  invite_code String? @unique
+  parent_id   String?
+  parent      User?   @relation("ParentChildren", fields: [parent_id], references: [id])
+  children    User[]  @relation("ParentChildren")
+
+  created_at DateTime @default(now())
+
+  test_attempts TestAttempt[]
+  enrollments   Enrollment[]
+  submissions   Submission[]
+
+  @@map("users")
 }
 
 model Course {
@@ -42,16 +76,17 @@ model Course {
   cover_url   String?
 
   themes      Theme[]
-  enrollments Enrollment[] // Связь с записями на курс
+  enrollments Enrollment[]
 
   @@map("courses")
 }
 
 model Theme {
-  id          String @id @default(uuid())
+  id          String  @id @default(uuid())
   course_id   String
   title       String
   order_index Int
+  is_visible  Boolean @default(true)
 
   course  Course   @relation(fields: [course_id], references: [id], onDelete: Cascade)
   lessons Lesson[]
@@ -61,14 +96,24 @@ model Theme {
 }
 
 model Lesson {
-  id          String   @id @default(uuid())
+  id          String     @id @default(uuid())
   title       String
+  type        LessonType @default(VIDEO)
   video_url   String?
-  content     String? 
+  content     String?    @db.Text
+  test_data   Json?
+  is_visible  Boolean    @default(true)
   order_index Int
   theme_id    String
-  theme       Theme    @relation(fields: [theme_id], references: [id], onDelete: Cascade)
-  created_at  DateTime @default(now())
+
+  theme      Theme    @relation(fields: [theme_id], references: [id], onDelete: Cascade)
+  created_at DateTime @default(now())
+
+  submissions Submission[]
+
+  is_homework Boolean @default(false)
+
+  @@map("lessons")
 }
 
 model Test {
@@ -77,7 +122,7 @@ model Test {
   title        String
   max_attempts Int    @default(1)
 
-  theme     Theme         @relation(fields: [theme_id], references: [id], onDelete: Cascade)
+  theme    Theme         @relation(fields: [theme_id], references: [id], onDelete: Cascade)
   questions Question[]
   attempts  TestAttempt[]
 
@@ -127,15 +172,47 @@ model Answer {
   @@map("answers")
 }
 
-// --- НОВАЯ ТАБЛИЦА: ЗАПИСИ НА КУРС ---
 model Enrollment {
   id         String   @id @default(uuid())
   user_id    String
   course_id  String
   created_at DateTime @default(now())
 
-  user       User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
-  course     Course   @relation(fields: [course_id], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  course Course @relation(fields: [course_id], references: [id], onDelete: Cascade)
 
   @@map("enrollments")
+}
+
+model Submission {
+  id         String           @id @default(uuid())
+  user_id    String
+  lesson_id  String
+  block_id   String
+  question   String           @db.Text
+  answer     String           @db.Text
+  max_score  Int              @default(3)
+  score      Int?
+  comment    String?          @db.Text
+  status     SubmissionStatus @default(PENDING)
+  created_at DateTime         @default(now())
+  updated_at DateTime         @updatedAt
+
+  user   User   @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  lesson Lesson @relation(fields: [lesson_id], references: [id], onDelete: Cascade)
+
+  @@map("submissions")
+}
+
+// 🔥 НОВОЕ: ТАБЛИЦА РАСПИСАНИЯ
+model Event {
+  id          String    @id @default(uuid())
+  title       String
+  description String?   @db.Text
+  date        DateTime
+  type        EventType @default(WEBINAR)
+  link        String?
+  created_at  DateTime  @default(now())
+
+  @@map("events")
 }

@@ -1,185 +1,205 @@
 import { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Mail, Lock, User, ArrowRight, Shield, GraduationCap, Sparkles } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import { Mail, Lock, GraduationCap, Sparkles, ShieldCheck, Loader2, ArrowRight, MessageSquare } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+
+const API_URL = 'http://localhost:3000';
 
 export default function Auth() {
   const navigate = useNavigate();
-  
-  const [isLogin, setIsLogin] = useState(true);
-  const [name, setName] = useState('');
+  const [isLogin, setIsLogin] = useState(true); 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
-  const [successMsg, setSuccessMsg] = useState('');
 
-  const handleSubmit = async (e: React.FormEvent) => {
+const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError('');
-    setSuccessMsg('');
     setIsLoading(true);
+    setError('');
 
     try {
-      const baseUrl = 'https://9bd56d0b1eef2b86-141-105-25-14.serveousercontent.com';
-
-      if (isLogin) {
-        // === ЛОГИКА ВХОДА ===
-        const res = await axios.post(`${baseUrl}/auth/login`, { email, password }, {
-          headers: { 'ngrok-skip-browser-warning': 'true' }
-        });
+      const endpoint = isLogin ? '/auth/login' : '/auth/register';
+      const res = await axios.post(`${API_URL}${endpoint}`, { email, password });
+      
+      const token = res.data.token || res.data.access_token;
+      
+      if (token) {
+        localStorage.setItem('token', token);
         
-        const token = res.data?.token || res.data?.access_token || res.data?.accessToken;
-        if (token) {
-          localStorage.setItem('token', token);
-          navigate('/'); // Летим в кабинет!
-        } else {
-          setError('Бэкенд ответил, но не дал токен.');
+        // РАСШИФРОВЫВАЕМ ТОКЕН И ДОСТАЕМ РОЛЬ
+        try {
+          const base64Url = token.split('.')[1];
+          const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+          const payload = JSON.parse(window.atob(base64));
+          
+          // РАСПРЕДЕЛЯЕМ ПОТОКИ
+          if (payload.role === 'ADMIN' || payload.role === 'CURATOR') {
+            navigate('/admin'); // Кидаем препода в админку
+          } else {
+            navigate('/courses'); // Кидаем студента учиться
+          }
+        } catch (e) {
+          navigate('/courses'); // Если что-то пошло не так, кидаем как обычного юзера
         }
-
-      } else {
-        // === ЛОГИКА РЕГИСТРАЦИИ ===
-        await axios.post(`${baseUrl}/auth/register`, { name, email, password }, {
-          headers: { 'ngrok-skip-browser-warning': 'true' }
-        });
         
-        // Если дошли сюда — ошибок нет, юзер создан!
-        setSuccessMsg('Аккаунт создан! Введите пароль и нажмите "Продолжить".');
-        setIsLogin(true); // Перекидываем на Вход
-        setPassword(''); // Сбрасываем пароль
-      }
-
-    } catch (err: any) {
-      if (err.response?.status === 401 || err.response?.status === 404) {
-        setError('Неверный email или пароль!');
-      } else if (err.response?.status === 409 || err.response?.status === 400) {
-        setError('Ошибка: Возможно, такой email уже есть.');
       } else {
-        setError('Ошибка соединения с сервером. Бэкенд запущен?');
+        if (!isLogin) {
+          setIsLogin(true);
+          setError('Регистрация успешна! Теперь войдите с этими данными.');
+        }
       }
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Ошибка авторизации. Проверьте данные.');
     } finally {
       setIsLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen flex font-sans bg-white">
+    <div className="min-h-screen w-full flex font-sans bg-white selection:bg-indigo-200">
       
-      {/* ЛЕВАЯ ЧАСТЬ - ФОРМА */}
+      {/* ЛЕВАЯ ЧАСТЬ: ФОРМА */}
       <div className="w-full lg:w-1/2 flex flex-col justify-center items-center p-8 relative">
         <div className="w-full max-w-[400px]">
           
-          <div className="mb-10">
-            <h1 className="text-3xl font-extrabold text-gray-900 mb-3 flex items-center gap-2">
-              {isLogin ? 'Добро пожаловать! 👋' : 'Регистрация 🚀'}
+          {/* Заголовки */}
+          <div className="mb-8">
+            <h1 className="text-3xl font-bold text-gray-900 mb-2 flex items-center gap-2">
+              Добро пожаловать! <span className="text-2xl">👋</span>
             </h1>
-            <p className="text-gray-500 font-medium">
-              {isLogin ? 'Создайте аккаунт или войдите, чтобы начать подготовку.' : 'Введите свои данные, чтобы присоединиться к платформе.'}
+            <p className="text-gray-500 text-sm leading-relaxed">
+              Создайте аккаунт или войдите, чтобы начать подготовку.
             </p>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-5">
-            <AnimatePresence mode="popLayout">
-              {!isLogin && (
-                <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}>
-                  <label className="block text-xs font-bold text-gray-700 mb-2">Имя ученика</label>
-                  <div className="relative">
-                    <User className="w-5 h-5 text-gray-400 absolute left-4 top-1/2 -translate-y-1/2" />
-                    <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="Иван Иванов" className="w-full pl-11 pr-4 py-3.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:bg-white focus:border-[#3b1c94] focus:ring-1 focus:ring-[#3b1c94] outline-none transition-all text-gray-900 font-medium" required={!isLogin} />
-                  </div>
-                </motion.div>
+          <AnimatePresence mode="wait">
+            {error && (
+              <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="mb-4">
+                <div className={`p-3 rounded-xl text-sm font-medium ${error.includes('успешна') ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
+                  {error}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* Форма */}
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label className="block text-xs font-semibold text-gray-600 mb-1.5 ml-1">Ваша почта</label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                  <Mail className="h-4 w-4 text-gray-400" />
+                </div>
+                <input 
+                  type="email" 
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="w-full pl-11 pr-4 py-3.5 bg-gray-50/50 border border-gray-200 rounded-xl text-sm font-medium outline-none focus:border-indigo-600 focus:bg-white transition-all" 
+                  placeholder="student@mail.ru"
+                  required 
+                />
+              </div>
+            </div>
+
+            <div>
+              <div className="flex justify-between items-center mb-1.5 ml-1 mr-1">
+                <label className="block text-xs font-semibold text-gray-600">Пароль</label>
+                <a href="#" className="text-xs text-indigo-600 hover:text-indigo-800 font-medium">Забыли пароль?</a>
+              </div>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                  <Lock className="h-4 w-4 text-gray-400" />
+                </div>
+                <input 
+                  type="password" 
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="w-full pl-11 pr-4 py-3.5 bg-white border-2 border-indigo-500 rounded-xl text-sm font-medium outline-none shadow-[0_0_10px_rgba(79,70,229,0.1)] transition-all" 
+                  placeholder="••••••••"
+                  required 
+                />
+              </div>
+            </div>
+
+            <button 
+              type="submit" 
+              disabled={isLoading}
+              className="w-full py-3.5 mt-2 bg-[#31118A] hover:bg-[#250d6e] text-white rounded-xl font-medium transition-all active:scale-[0.98] disabled:opacity-70 flex justify-center items-center gap-2"
+            >
+              {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : (
+                <>Продолжить <ArrowRight className="w-4 h-4" /></>
               )}
-            </AnimatePresence>
-
-            <div>
-              <label className="block text-xs font-bold text-gray-700 mb-2">Email ученика</label>
-              <div className="relative">
-                <Mail className="w-5 h-5 text-gray-400 absolute left-4 top-1/2 -translate-y-1/2" />
-                <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="student@mail.ru" className="w-full pl-11 pr-4 py-3.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:bg-white focus:border-[#3b1c94] focus:ring-1 focus:ring-[#3b1c94] outline-none transition-all text-gray-900 font-medium" required />
-              </div>
-            </div>
-
-            <div>
-              <div className="flex justify-between items-center mb-2">
-                <label className="block text-xs font-bold text-gray-700">Пароль</label>
-                {isLogin && <button type="button" className="text-xs text-[#3b1c94] font-bold hover:underline">Забыли пароль?</button>}
-              </div>
-              <div className="relative">
-                <Lock className="w-5 h-5 text-gray-400 absolute left-4 top-1/2 -translate-y-1/2" />
-                <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" className="w-full pl-11 pr-4 py-3.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:bg-white focus:border-[#3b1c94] focus:ring-1 focus:ring-[#3b1c94] outline-none transition-all text-gray-900 font-medium" required />
-              </div>
-            </div>
-
-            {error && <div className="p-3 bg-red-50 text-red-600 text-sm font-bold rounded-xl text-center border border-red-100">{error}</div>}
-            {successMsg && <div className="p-3 bg-green-50 text-green-600 text-sm font-bold rounded-xl text-center border border-green-100">{successMsg}</div>}
-
-            <button type="submit" disabled={isLoading} className="w-full py-4 bg-[#2f1181] hover:bg-[#200b5e] text-white rounded-xl font-bold transition-all flex items-center justify-center gap-2 shadow-lg shadow-indigo-900/20 active:scale-[0.98]">
-              {isLoading ? 'Загрузка...' : ( <>{isLogin ? 'Продолжить' : 'Зарегистрироваться'} <ArrowRight className="w-4 h-4" /></> )}
             </button>
           </form>
 
-          {isLogin && (
-            <div className="mt-8">
-              <div className="relative flex items-center justify-center mb-6">
-                <div className="border-t border-gray-200 w-full absolute"></div>
-                <span className="bg-white px-4 text-xs text-gray-400 font-bold uppercase tracking-wider relative">Быстрый вход</span>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <button type="button" className="py-3 bg-white border border-gray-200 rounded-xl text-sm font-bold text-gray-700 hover:bg-gray-50 flex justify-center items-center gap-2 transition-colors">
-                  <span className="text-[#0077FF] font-extrabold">VK</span> ID
-                </button>
-                <button type="button" className="py-3 bg-white border border-gray-200 rounded-xl text-sm font-bold text-gray-700 hover:bg-gray-50 flex justify-center items-center gap-2 transition-colors">
-                  <span className="text-[#2AABEE] font-extrabold">TG</span> Telegram
-                </button>
-              </div>
-            </div>
-          )}
+          {/* Быстрый вход */}
+          <div className="mt-8 relative flex items-center justify-center">
+            <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-gray-100"></div></div>
+            <div className="relative bg-white px-4 text-xs font-medium text-gray-400">Быстрый вход</div>
+          </div>
 
-          <p className="mt-8 text-center text-sm text-gray-500 font-medium">
-            {isLogin ? 'Нет аккаунта?' : 'Уже зарегистрированы?'} 
-            <button type="button" onClick={() => { setIsLogin(!isLogin); setError(''); setSuccessMsg(''); }} className="ml-2 text-[#3b1c94] font-bold hover:underline">
-              {isLogin ? 'Создать аккаунт' : 'Войти'}
+          {/* Кнопки соцсетей - теперь их 3 */}
+          <div className="mt-6 flex gap-2">
+            <button type="button" className="flex-1 py-3 border border-gray-200 hover:border-gray-300 rounded-xl flex items-center justify-center gap-1.5 text-xs sm:text-sm font-semibold hover:bg-gray-50 transition-all">
+              <span className="font-bold text-[#0077FF]">VK</span> ID
             </button>
-          </p>
+            <button type="button" className="flex-1 py-3 border border-gray-200 hover:border-gray-300 rounded-xl flex items-center justify-center gap-1.5 text-xs sm:text-sm font-semibold text-sky-500 hover:bg-gray-50 transition-all">
+              TG Telegram
+            </button>
+            <button type="button" className="flex-1 py-3 border border-gray-200 hover:border-gray-300 rounded-xl flex items-center justify-center gap-1.5 text-xs sm:text-sm font-semibold text-rose-500 hover:bg-gray-50 transition-all">
+              <MessageSquare className="w-4 h-4" /> MAX
+            </button>
+          </div>
+
+          {/* Переключатель логики */}
+          <div className="mt-6 text-center">
+            <button onClick={() => setIsLogin(!isLogin)} type="button" className="text-xs text-gray-400 hover:text-indigo-600 transition-colors">
+              {isLogin ? 'Нужна регистрация? Нажмите здесь' : 'Уже есть аккаунт? Войти'}
+            </button>
+          </div>
 
         </div>
       </div>
 
-      {/* ПРАВАЯ ЧАСТЬ - ФИОЛЕТОВЫЙ БАННЕР */}
-      <div className="hidden lg:flex w-1/2 bg-gradient-to-br from-[#4c22b5] to-[#2a0e73] relative flex-col justify-center p-16 overflow-hidden">
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] border-[1px] border-white/10 rounded-full"></div>
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] border-[1px] border-white/5 rounded-full border-dashed"></div>
+      {/* ПРАВАЯ ЧАСТЬ: ПРОМО-БЛОК */}
+      <div className="hidden lg:flex w-1/2 bg-gradient-to-br from-[#4A1DCA] to-[#6D28D9] p-12 flex-col justify-center relative overflow-hidden text-white">
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] border border-white/10 rounded-full"></div>
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] border border-white/5 rounded-full"></div>
 
-        <div className="relative z-10 max-w-[500px] mx-auto">
-          <div className="w-16 h-16 bg-white/10 backdrop-blur-md rounded-2xl flex items-center justify-center mb-8 border border-white/20 shadow-xl">
-            <GraduationCap className="w-8 h-8 text-white" />
+        <div className="relative z-10 max-w-lg mx-auto">
+          
+          <div className="w-14 h-14 bg-white/10 backdrop-blur-md rounded-2xl flex items-center justify-center mb-8 border border-white/20">
+            <GraduationCap className="w-7 h-7 text-white" />
           </div>
 
-          <div className="inline-flex items-center gap-2 px-4 py-2 bg-white/10 backdrop-blur-md rounded-full border border-white/20 mb-6 shadow-sm">
-            <Sparkles className="w-4 h-4 text-yellow-400" />
-            <span className="text-white text-xs font-bold tracking-wide">Инновационный формат обучения</span>
+          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/10 backdrop-blur-sm border border-white/10 text-xs font-semibold mb-6">
+            <Sparkles className="w-4 h-4 text-yellow-300" />
+            Инновационный формат обучения
           </div>
 
-          <h2 className="text-5xl font-extrabold text-white leading-tight mb-6">
+          <h2 className="text-5xl font-bold leading-[1.1] mb-6">
             Подготовка, которая дает <span className="text-yellow-400">результат.</span>
           </h2>
-          
-          <p className="text-indigo-200 text-lg mb-12 leading-relaxed font-medium">
+
+          <p className="text-indigo-100/80 text-lg leading-relaxed mb-10">
             Индивидуальный трек обучения, умная аналитика твоих ошибок и поддержка кураторов 24/7.
           </p>
 
-          <div className="bg-white/10 backdrop-blur-md border border-white/20 p-5 rounded-2xl flex items-start gap-4 shadow-xl">
-            <div className="w-10 h-10 bg-yellow-400 rounded-full flex items-center justify-center shrink-0">
-              <Shield className="w-5 h-5 text-[#2a0e73]" />
+          <div className="bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl p-5 flex items-center gap-4">
+            <div className="w-12 h-12 bg-amber-500 rounded-xl flex items-center justify-center shrink-0">
+              <ShieldCheck className="w-6 h-6 text-white" />
             </div>
             <div>
-              <h4 className="text-white font-bold mb-1">Умные алгоритмы</h4>
-              <p className="text-indigo-200 text-sm font-medium">Автоматический анализ ошибок в тестах</p>
+              <h4 className="font-bold text-white mb-0.5">Умные алгоритмы</h4>
+              <p className="text-sm text-indigo-200">Автоматический анализ ошибок в тестах</p>
             </div>
           </div>
+
         </div>
       </div>
+
     </div>
   );
 }

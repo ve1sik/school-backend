@@ -1,29 +1,30 @@
-// Файл: src/theme/theme.service.ts
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { CreateThemeDto } from './dto/theme.dto';
 
 @Injectable()
 export class ThemeService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private prisma: PrismaService) {}
 
-  // Создать тему
-  async create(dto: CreateThemeDto) {
+  async create(dto: any) {
     return this.prisma.theme.create({
       data: {
+        course_id: dto.courseId,
         title: dto.title,
         order_index: dto.order_index,
-        course_id: dto.course_id,
       },
     });
   }
 
-  // Получить темы конкретного курса
-  async getByCourse(courseId: string) {
-    return this.prisma.theme.findMany({
-      where: { course_id: courseId },
-      orderBy: { order_index: 'asc' }, // Сортируем по порядку
-      include: { lessons: true } // Сразу подтянем будущие уроки
+  async delete(id: string) {
+    return this.prisma.theme.delete({
+      where: { id },
+    });
+  }
+
+  async updateVisibility(id: string, is_visible: boolean) {
+    return this.prisma.theme.update({
+      where: { id },
+      data: { is_visible },
     });
   }
 }

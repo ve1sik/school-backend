@@ -1,27 +1,33 @@
-// Файл: src/lesson/lesson.controller.ts
-import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Body, Param } from '@nestjs/common';
 import { LessonService } from './lesson.service';
-import { CreateLessonDto } from './dto/lesson.dto';
-import { AuthGuard } from '@nestjs/passport';
-import { RolesGuard } from '../auth/roles.guard';
-import { Roles } from '../auth/roles.decorator';
-import { Role } from '@prisma/client';
 
 @Controller('lessons')
 export class LessonController {
   constructor(private readonly lessonService: LessonService) {}
 
-  // Создать урок (Только Админ)
-  @UseGuards(AuthGuard('jwt'), RolesGuard)
-  @Roles(Role.ADMIN)
   @Post()
-  async create(@Body() dto: CreateLessonDto) {
+  create(@Body() dto: any) {
     return this.lessonService.create(dto);
   }
 
-  // Получить уроки по ID темы (Доступно всем авторизованным или вообще всем - пока оставим открытым для тестов)
   @Get('theme/:themeId')
-  async getByTheme(@Param('themeId') themeId: string) {
+  getByTheme(@Param('themeId') themeId: string) {
     return this.lessonService.getByTheme(themeId);
+  }
+
+  // 🔥 ИСПРАВЛЕНО: Теперь контроллер понимает, когда мы сохраняем весь урок
+  @Patch(':id')
+  update(@Param('id') id: string, @Body() dto: any) {
+    // Если прислали только глазик (is_visible), обновляем только его
+    if (Object.keys(dto).length === 1 && 'is_visible' in dto) {
+      return this.lessonService.updateVisibility(id, dto.is_visible);
+    }
+    // Во всех остальных случаях (кнопка "Сохранить изменения") — сохраняем всё, включая попытки!
+    return this.lessonService.update(id, dto);
+  }
+
+  @Delete(':id')
+  delete(@Param('id') id: string) {
+    return this.lessonService.delete(id);
   }
 }
