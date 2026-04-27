@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 
-const API_URL = 'http://localhost:3000';
+const API_URL = 'http://85.193.89.154:3000';
 
 const getEmbedUrl = (url: string) => {
   if (!url) return '';

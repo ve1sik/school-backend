@@ -4,7 +4,7 @@ import axios from 'axios';
 import { ArrowLeft, CheckCircle2, Clock, Search, User, PenTool, MessageSquare, Send, ShieldCheck, Inbox, Loader2, X, ChevronDown, ChevronRight, FolderOpen, BookOpen } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-const API_URL = 'http://localhost:3000';
+const API_URL = 'http://85.193.89.154:3000';
 
 export default function CuratorDashboard() {
   const navigate = useNavigate();

@@ -4,7 +4,7 @@ import axios from 'axios';
 import { Mail, Lock, GraduationCap, Sparkles, ShieldCheck, Loader2, ArrowRight, MessageSquare } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-const API_URL = 'http://localhost:3000';
+const API_URL = 'http://85.193.89.154:3000';
 
 export default function Auth() {
   const navigate = useNavigate();

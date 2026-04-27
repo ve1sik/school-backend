@@ -4,7 +4,7 @@ import axios from 'axios';
 import { ArrowLeft, PlayCircle, Loader2, BookOpen, CheckSquare, CheckCircle2, XCircle, Type, PenTool, Clock, FileDown, Link2, ExternalLink } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-const API_URL = 'http://localhost:3000';
+const API_URL = 'http://85.193.89.154:3000';
 
 export default function CourseView() {
   const { courseId, themeId } = useParams();
