@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { ArrowLeft, Loader2, CheckCircle2, Clock, PenTool } from 'lucide-react';
 
-const API_URL = 'http://85.193.89.154:3000';
+const API_URL = 'http://85.193.89.154';
 
 export default function HomeworkView() {
   const { id } = useParams();

@@ -4,7 +4,7 @@ import axios from 'axios';
 import { BookOpen, Loader2, FolderOpen, GraduationCap } from 'lucide-react';
 import { motion, AnimatePresence, type Variants } from 'framer-motion';
 
-const API_URL = 'http://85.193.89.154:3000';
+const API_URL = 'http://85.193.89.154';
 
 export default function StudentCourses() {
   const navigate = useNavigate();

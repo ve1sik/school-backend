@@ -4,7 +4,7 @@ import axios from 'axios';
 import { ArrowLeft, Loader2, PlayCircle, Layers } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-const API_URL = 'http://85.193.89.154:3000';
+const API_URL = 'http://85.193.89.154';
 
 export default function CourseThemes() {
   const { courseId } = useParams();
