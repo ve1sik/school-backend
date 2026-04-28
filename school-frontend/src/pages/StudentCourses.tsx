@@ -16,16 +16,20 @@ export default function StudentCourses() {
       try {
         const token = localStorage.getItem('token');
         
-        // Грузим курсы и наши сданные работы одновременно
+        // 🔥 СТАВИМ БРОНЮ: Теперь если бэкенд ругнется (например, токен протух), 
+        // код не упадет, а просто вернет пустой массив { data: [] }
         const [coursesRes, subsRes] = await Promise.all([
-          axios.get(`${API_URL}/courses`, { headers: { Authorization: `Bearer ${token}` } }),
+          axios.get(`${API_URL}/courses`, { headers: { Authorization: `Bearer ${token}` } }).catch(() => ({ data: [] })),
           axios.get(`${API_URL}/submissions/my`, { headers: { Authorization: `Bearer ${token}` } }).catch(() => ({ data: [] }))
         ]);
 
-        const mySubs = subsRes.data;
+        // 🔥 ЖЕЛЕЗОБЕТОННАЯ ПРОВЕРКА ДАННЫХ
+        // Проверяем, точно ли пришел массив. Если бэкенд завернул ответ в { data: [...] }, достаем оттуда.
+        const rawCourses = Array.isArray(coursesRes.data) ? coursesRes.data : (Array.isArray(coursesRes.data?.data) ? coursesRes.data.data : []);
+        const mySubs = Array.isArray(subsRes.data) ? subsRes.data : (Array.isArray(subsRes.data?.data) ? subsRes.data.data : []);
 
-        // 🔥 УМНЫЙ СЧЕТЧИК ПРАКТИКИ
-        const coursesWithRealProgress = coursesRes.data.map((course: any) => {
+        // УМНЫЙ СЧЕТЧИК ПРАКТИКИ
+        const coursesWithRealProgress = rawCourses.map((course: any) => {
           let totalTasks = 0;
           let completedTasks = 0;
 
@@ -76,6 +80,8 @@ export default function StudentCourses() {
         setCourses(coursesWithRealProgress);
       } catch (error) {
         console.error('Ошибка загрузки курсов:', error);
+        // Если вообще всё сломалось, ставим пустой массив, чтобы не ронять интерфейс
+        setCourses([]);
       } finally {
         setIsLoading(false);
       }
