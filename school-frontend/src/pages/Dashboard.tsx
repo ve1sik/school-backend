@@ -5,7 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
 
-const API_URL = 'http://85.193.89.154';
+const API_URL = 'https://prepodmgy.ru/api';
 
 export default function Dashboard() {
   const navigate = useNavigate();

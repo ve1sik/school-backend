@@ -3,7 +3,7 @@ import { ChevronLeft, ChevronRight, Video, Clock, Link as LinkIcon, Plus, X, Tra
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 
-const API_URL = 'http://85.193.89.154';
+const API_URL = 'https://prepodmgy.ru/api';
 
 export default function Schedule() {
   const [currentDate, setCurrentDate] = useState(new Date());

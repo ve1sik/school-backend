@@ -16,7 +16,7 @@ import {
   User 
 } from 'lucide-react';
 
-const API_URL = 'http://85.193.89.154';
+const API_URL = 'https://prepodmgy.ru/api';
 
 export default function Layout() {
   const location = useLocation();

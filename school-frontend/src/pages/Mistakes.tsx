@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, BrainCircuit, AlertTriangle, BookOpen } from 'lucide-react';
 import axios from 'axios';
 
-const API_URL = 'http://85.193.89.154';
+const API_URL = 'https://prepodmgy.ru/api';
 
 export default function Mistakes() {
   const { themeId } = useParams();

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Mail, Lock, LogIn, Loader2, GraduationCap, Users, MessageCircle, Share2 } from 'lucide-react';
 import axios from 'axios';
 
-const API_URL = 'http://85.193.89.154';
+const API_URL = 'https://prepodmgy.ru/api';
 
 type Mode = 'login' | 'register_student' | 'register_parent';
 

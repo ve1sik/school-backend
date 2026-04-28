@@ -4,7 +4,7 @@ import { TrendingUp, ShieldCheck, LogOut, User, Lock, ArrowRight, BrainCircuit, 
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 
-const API_URL = 'http://85.193.89.154';
+const API_URL = 'https://prepodmgy.ru/api';
 
 export default function ParentDashboard() {
   const navigate = useNavigate();

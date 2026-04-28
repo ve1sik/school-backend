@@ -3,7 +3,7 @@ import { User, MapPin, Calendar, ShieldCheck, Copy, CheckCircle2, Loader2, Mail 
 import { motion } from 'framer-motion';
 import axios from 'axios';
 
-const API_URL = 'http://85.193.89.154';
+const API_URL = 'https://prepodmgy.ru/api';
 
 export default function Profile() {
   const [user, setUser] = useState<any>(null);
