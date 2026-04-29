@@ -4,7 +4,29 @@ import axios from 'axios';
 import { ArrowLeft, CheckCircle2, Clock, Search, User, PenTool, MessageSquare, Send, ShieldCheck, Inbox, Loader2, X, ChevronDown, ChevronRight, FolderOpen, BookOpen } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
+import 'react-quill-new/dist/quill.snow.css';
+
 const API_URL = 'https://prepodmgy.ru/api';
+
+// 🔥 Наша бронебойная функция для путей и HTTPS
+const getFullUrl = (url: string) => {
+  if (!url) return '';
+  let finalUrl = url;
+
+  if (finalUrl.startsWith('http://prepodmgy.ru')) {
+    finalUrl = finalUrl.replace('http://', 'https://');
+  }
+
+  if (finalUrl.startsWith('http')) return finalUrl;
+  
+  const cleanPath = finalUrl.startsWith('/') ? finalUrl.slice(1) : finalUrl;
+  
+  if (cleanPath.startsWith('uploads/')) {
+    return `https://prepodmgy.ru/${cleanPath}`;
+  }
+  
+  return `${API_URL}/${cleanPath}`;
+};
 
 export default function CuratorDashboard() {
   const navigate = useNavigate();
@@ -15,7 +37,7 @@ export default function CuratorDashboard() {
   const [expandedCourse, setExpandedCourse] = useState<string | null>(null);
   const [selectedCourse, setSelectedCourse] = useState<string | null>(null);
   const [selectedLesson, setSelectedLesson] = useState<string | null>(null);
-  const [activeSub, setActiveSub] = useState<any>(null); // Конкретная работа для проверки
+  const [activeSub, setActiveSub] = useState<any>(null); 
   
   // Состояния для проверки
   const [score, setScore] = useState<number | ''>('');
@@ -39,25 +61,13 @@ export default function CuratorDashboard() {
         });
 
         if (res.data.length === 0) {
-          // 🔥 Улучшенные демо-данные для демонстрации группировки
+          // Демо-данные
           setSubmissions([
             {
               id: 'demo-1', studentId: 's1', studentName: 'Михаил Романов',
               courseName: 'История ЕГЭ', lessonTitle: 'Эпоха дворцовых переворотов',
               question: 'Опишите причины начала эпохи дворцовых переворотов.',
-              answer: 'Главной причиной стал Указ о престолонаследии 1722 года...', maxScore: 4, date: '12:30'
-            },
-            {
-              id: 'demo-3', studentId: 's3', studentName: 'Иван Иванов',
-              courseName: 'История ЕГЭ', lessonTitle: 'Эпоха дворцовых переворотов',
-              question: 'Опишите причины начала эпохи дворцовых переворотов.',
-              answer: 'Отсутствие законного наследника после смерти Петра I.', maxScore: 4, date: '14:00'
-            },
-            {
-              id: 'demo-2', studentId: 's2', studentName: 'Анна Смирнова',
-              courseName: 'Обществознание ЕГЭ', lessonTitle: 'Макроэкономика',
-              question: 'Приведите 3 примера основных макроэкономических показателей государства.',
-              answer: '1. ВВП\n2. Инфляция\n3. Безработица', maxScore: 3, date: '10:15'
+              answer: '<p>Главной причиной стал Указ о престолонаследии 1722 года...</p>', maxScore: 4, date: '12:30'
             }
           ]);
         } else {
@@ -72,12 +82,11 @@ export default function CuratorDashboard() {
     fetchPendingSubmissions();
   }, [navigate]);
 
-  // 🔥 ГЕНИАЛЬНАЯ ГРУППИРОВКА ДАННЫХ ДЛЯ САЙДБАРА
+  // ГРУППИРОВКА ДАННЫХ ДЛЯ САЙДБАРА
   const groupedData = useMemo(() => {
     const courses: Record<string, Record<string, any[]>> = {};
     
     submissions.forEach(sub => {
-      // Учитываем поиск по имени ученика
       if (searchQuery && !sub.studentName.toLowerCase().includes(searchQuery.toLowerCase())) return;
 
       if (!courses[sub.courseName]) courses[sub.courseName] = {};
@@ -129,7 +138,11 @@ export default function CuratorDashboard() {
   return (
     <div className="flex h-screen bg-[#F4F7FE] font-sans text-gray-900 overflow-hidden">
       
-      {/* 🔥 ЛЕВАЯ ПАНЕЛЬ: ИЕРАРХИЯ (КУРСЫ -> УРОКИ) */}
+      <style>{`
+        .ql-editor { min-height: auto; font-family: inherit; font-size: 16px; padding: 0; }
+      `}</style>
+
+      {/* ЛЕВАЯ ПАНЕЛЬ */}
       <aside className={`w-full md:w-[400px] bg-white border-r border-gray-100 flex flex-col h-full shrink-0 z-20 shadow-xl ${activeSub || selectedLesson ? 'hidden md:flex' : 'flex'}`}>
         <div className="p-6 border-b border-gray-50 bg-white shrink-0">
           <button onClick={() => navigate('/')} className="text-[10px] font-black text-gray-400 hover:text-purple-600 flex items-center gap-2 mb-6 transition-colors uppercase tracking-widest">
@@ -171,7 +184,6 @@ export default function CuratorDashboard() {
 
               return (
                 <div key={courseName} className="bg-white rounded-3xl border border-gray-100 overflow-hidden shadow-sm">
-                  {/* КНОПКА КУРСА */}
                   <button 
                     onClick={() => setExpandedCourse(isExpanded ? null : courseName)}
                     className="w-full p-5 flex items-center justify-between bg-white hover:bg-purple-50/50 transition-colors"
@@ -188,7 +200,6 @@ export default function CuratorDashboard() {
                     {isExpanded ? <ChevronDown className="w-5 h-5 text-gray-400" /> : <ChevronRight className="w-5 h-5 text-gray-400" />}
                   </button>
 
-                  {/* СПИСОК УРОКОВ В КУРСЕ */}
                   <AnimatePresence>
                     {isExpanded && (
                       <motion.div 
@@ -205,7 +216,7 @@ export default function CuratorDashboard() {
                               onClick={() => {
                                 setSelectedCourse(courseName);
                                 setSelectedLesson(lessonTitle);
-                                setActiveSub(null); // Сбрасываем активную работу при смене урока
+                                setActiveSub(null); 
                               }}
                               className={`w-full text-left px-5 py-4 flex items-center justify-between border-b border-gray-50 last:border-0 transition-colors ${isSelected ? 'bg-purple-50' : 'hover:bg-white'}`}
                             >
@@ -229,10 +240,9 @@ export default function CuratorDashboard() {
         </div>
       </aside>
 
-      {/* 🔥 ЦЕНТРАЛЬНАЯ/ПРАВАЯ ПАНЕЛЬ */}
+      {/* ЦЕНТРАЛЬНАЯ ПАНЕЛЬ */}
       <main className={`flex-1 flex flex-col bg-[#F4F7FE] overflow-y-auto ${!activeSub && !selectedLesson ? 'hidden md:flex' : 'flex'}`}>
         
-        {/* ЕСЛИ УРОК ВЫБРАН, НО РАБОТА ЕЩЕ НЕ ОТКРЫТА -> ПОКАЗЫВАЕМ СПИСОК УЧЕНИКОВ */}
         {!activeSub && selectedLesson && selectedCourse ? (
           <div className="p-6 md:p-10 max-w-5xl mx-auto w-full">
             <div className="mb-8">
@@ -261,7 +271,7 @@ export default function CuratorDashboard() {
                     </div>
                     <div>
                       <h3 className="font-black text-lg text-gray-900 group-hover:text-purple-700 transition-colors">{sub.studentName}</h3>
-                      <p className="text-xs font-bold text-gray-400 flex items-center gap-1 mt-1"><Clock className="w-3 h-3"/> Сдано: {sub.date}</p>
+                      <p className="text-xs font-bold text-gray-400 flex items-center gap-1 mt-1"><Clock className="w-3 h-3"/> Сдано: {sub.date || 'Недавно'}</p>
                     </div>
                   </div>
                   <ChevronRight className="w-5 h-5 text-gray-300 group-hover:text-purple-500 transition-colors" />
@@ -270,7 +280,6 @@ export default function CuratorDashboard() {
             </div>
           </div>
         ) : activeSub ? (
-          // 🔥 ИНТЕРФЕЙС ПРОВЕРКИ КОНКРЕТНОЙ РАБОТЫ (ТОТ ЖЕ САМЫЙ, КРАСИВЫЙ)
           <motion.div key={activeSub.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="p-6 md:p-10 max-w-4xl mx-auto w-full space-y-6 pb-20">
             
             <button onClick={() => setActiveSub(null)} className="flex items-center gap-2 text-gray-500 hover:text-purple-600 transition-colors font-bold mb-4">
@@ -292,7 +301,6 @@ export default function CuratorDashboard() {
                       </div>
                    </div>
                    
-                   {/* КНОПКА ЧАТА */}
                    <button 
                       onClick={() => navigate(`/curator/messages?student=${activeSub.studentId}`)}
                       className="group flex flex-col items-center justify-center w-16 h-16 bg-purple-50 hover:bg-purple-600 rounded-[1.5rem] transition-all duration-300 shadow-sm hover:shadow-xl hover:shadow-purple-500/20 active:scale-95 shrink-0 ml-4"
@@ -314,8 +322,13 @@ export default function CuratorDashboard() {
                 <div className="flex items-center gap-2 text-gray-500 font-black text-xs uppercase tracking-widest mb-6 relative z-10">
                   <PenTool className="w-4 h-4 text-purple-500" /> Текст задания:
                 </div>
-                <p className="text-xl md:text-2xl text-gray-900 font-black leading-snug relative z-10">{questionText}</p>
-                {questionImage && (<div className="mt-8 relative z-10"><img src={questionImage} alt="Схема" className="max-h-96 rounded-[2rem] border border-gray-200 shadow-sm" /></div>)}
+                {/* 🔥 ФИКС: Рендерим HTML для вопроса */}
+                <div 
+                  className="text-xl md:text-2xl text-gray-900 font-black leading-snug relative z-10 ql-editor" 
+                  dangerouslySetInnerHTML={{ __html: questionText.includes('<') ? questionText : questionText.replace(/\n/g, '<br/>') }} 
+                />
+                {/* 🔥 ФИКС: Безопасный путь для картинки */}
+                {questionImage && (<div className="mt-8 relative z-10"><img src={getFullUrl(questionImage)} alt="Схема" className="max-h-96 rounded-[2rem] border border-gray-200 shadow-sm" /></div>)}
               </div>
               
               <div className="p-8 md:p-12">
@@ -323,7 +336,8 @@ export default function CuratorDashboard() {
                   <User className="w-4 h-4" /> Ответ студента:
                 </div>
                 <div className="bg-[#F8FAFC] p-8 md:p-10 rounded-[2.5rem] border border-gray-100 shadow-inner">
-                  <p className="text-lg text-gray-800 font-medium leading-relaxed whitespace-pre-wrap">{activeSub.answer}</p>
+                  {/* 🔥 ФИКС: Рендерим HTML-ответ из Ворд-редактора */}
+                  <div className="text-lg text-gray-800 font-medium leading-relaxed ql-editor" dangerouslySetInnerHTML={{ __html: activeSub.answer }} />
                 </div>
               </div>
             </div>
@@ -371,7 +385,6 @@ export default function CuratorDashboard() {
 
           </motion.div>
         ) : (
-          // ДЕФОЛТНЫЙ ЭКРАН (НИЧЕГО НЕ ВЫБРАНО)
           <div className="h-full flex items-center justify-center text-center p-12">
             <div className="max-w-sm">
               <div className="w-32 h-32 bg-white rounded-[2.5rem] flex items-center justify-center mx-auto mb-8 shadow-sm border border-gray-100 rotate-12 hover:rotate-0 transition-all duration-500">
