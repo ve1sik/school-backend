@@ -14,7 +14,7 @@ import 'react-quill-new/dist/quill.snow.css';
 
 const API_URL = 'https://prepodmgy.ru/api';
 
-// 🔥 УЛЬТИМАТИВНЫЙ ФИКС: исправляет Mixed Content (HTTP -> HTTPS) и пути
+// УЛЬТИМАТИВНЫЙ ФИКС: исправляет Mixed Content (HTTP -> HTTPS) и пути
 const getFullUrl = (url: string) => {
   if (!url) return '';
   let finalUrl = url;
@@ -41,6 +41,26 @@ const studentQuillModules = {
     ['clean']
   ],
 };
+
+// 🔥 НОВЫЙ КОМПОНЕНТ КАРТИНКИ: Плавное увеличение по клику
+function ExpandableImage({ src, alt, className = '' }: { src: string, alt?: string, className?: string }) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  return (
+    <div className={`relative ${className} w-full flex justify-start`}>
+      <img 
+        src={src} 
+        alt={alt || "Изображение"} 
+        onClick={(e) => { e.preventDefault(); setIsExpanded(!isExpanded); }}
+        className={`bg-white cursor-pointer transition-all duration-500 ease-in-out origin-top-left rounded-2xl border border-gray-200 shadow-sm hover:shadow-md hover:ring-2 hover:ring-purple-300/50 ${
+          isExpanded 
+            ? 'w-full max-h-[85vh] object-contain object-left' 
+            : 'max-w-[280px] sm:max-w-sm max-h-[300px] object-contain object-left'
+        }`} 
+        title={isExpanded ? "Нажмите, чтобы уменьшить" : "Нажмите, чтобы увеличить"}
+      />
+    </div>
+  );
+}
 
 export default function CourseView() {
   const { courseId, themeId } = useParams();
@@ -142,11 +162,8 @@ export default function CourseView() {
     let isSuccess = false;
     let isPending = false;
 
-    // 🔥 ИСПРАВЛЕННАЯ СБОРКА ВОПРОСА С КАРТИНКОЙ ДЛЯ КУРАТОРА
     const img = block.questionImage || block.image;
-    const questionWithImage = img 
-      ? `${block.question}|||IMG|||${img}` 
-      : block.question;
+    const questionWithImage = img ? `${block.question}|||IMG|||${img}` : block.question;
 
     if (['written', 'homework'].includes(block.type)) {
       try {
@@ -158,7 +175,7 @@ export default function CourseView() {
           maxScore: block.maxScore || 10
         }, { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } });
         
-        isPending = true; // Улетает куратору
+        isPending = true;
       } catch (err) {
         console.error('Ошибка отправки куратору:', err);
         return; 
@@ -178,7 +195,7 @@ export default function CourseView() {
         const res = await axios.post(`${API_URL}/submissions`, {
           lessonId: activeLesson.id,
           blockId: block.id,
-          question: questionWithImage, // И для тестов тоже передаем картинку
+          question: questionWithImage,
           answer: selected.join(', '),
           maxScore: block.maxScore || 100
         }, { headers: { Authorization: `Bearer ${token}` } });
@@ -236,7 +253,6 @@ export default function CourseView() {
     }
   }
 
-  // Разделяем блоки (с учетом фикса типа written)
   const theoryBlocks = blocks.filter(b => !['test', 'test_short', 'written'].includes(b.type) && !b.isHomework);
   const practiceBlocks = blocks.filter(b => ['test', 'test_short', 'written'].includes(b.type) && !b.isHomework);
   const homeworkBlocks = blocks.filter(b => b.isHomework);
@@ -375,10 +391,7 @@ export default function CourseView() {
                       <div key={block.id} className="space-y-3 w-full overflow-hidden">
                         {block.title && <h3 className="text-xl font-black text-gray-900 break-words">{block.title}</h3>}
                         {(block.image || block.url) && (
-                          <div className="my-4">
-                            {/* 🔥 ФИКС: Картинки растягиваются без ограничения высоты */}
-                            <img src={getFullUrl(block.image || block.url)} alt="Материал" className="w-full h-auto rounded-2xl border border-gray-100 shadow-sm" />
-                          </div>
+                          <ExpandableImage src={getFullUrl(block.image || block.url)} alt="Материал" className="my-4" />
                         )}
                         <div className="prose prose-sm sm:prose-base max-w-none text-gray-700 leading-relaxed break-words ql-editor px-0">
                           <div dangerouslySetInnerHTML={{ 
@@ -389,9 +402,9 @@ export default function CourseView() {
                     );
 
                     if (block.type === 'image' || block.type === 'img') return (
-                      <div key={block.id} className="my-4">
+                      <div key={block.id}>
                         {(block.url || block.image) && (
-                          <img src={getFullUrl(block.url || block.image)} alt="Изображение" className="w-full h-auto rounded-2xl border border-gray-100 shadow-sm" />
+                          <ExpandableImage src={getFullUrl(block.url || block.image)} alt="Изображение" className="my-4" />
                         )}
                       </div>
                     );
@@ -435,7 +448,7 @@ export default function CourseView() {
 
                   {/* --- БЛОК 2: ПРАКТИКА --- */}
                   {practiceBlocks.length > 0 && (
-                    <div id="practice-section" className="mt-12 pt-10 border-t border-dashed border-gray-200">
+                    <div className="mt-12 pt-10 border-t border-dashed border-gray-200">
                       {!areTestsRevealed ? (
                         <div className="bg-indigo-50 border border-indigo-100 rounded-[2rem] p-8 text-center flex flex-col items-center">
                           <div className="w-16 h-16 bg-white rounded-2xl flex items-center justify-center shadow-sm mb-4">
@@ -448,7 +461,6 @@ export default function CourseView() {
                             onClick={(e) => {
                               e.preventDefault();
                               setAreTestsRevealed(true);
-                              setTimeout(() => document.getElementById('practice-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
                             }}
                             className="px-8 py-4 bg-[#5A4BFF] hover:bg-indigo-600 text-white rounded-xl font-bold transition-all shadow-lg shadow-indigo-500/30 active:scale-95"
                           >
@@ -531,7 +543,7 @@ export default function CourseView() {
                                 <div className="text-xl md:text-2xl font-black mb-6 leading-snug text-gray-800 break-words w-full overflow-hidden ql-editor px-0" dangerouslySetInnerHTML={{ __html: block.question?.includes('<') ? block.question : block.question?.replace(/\n/g, '<br/>') }} />
                                 
                                 {(block.questionImage || block.image) && (
-                                  <img src={getFullUrl(block.questionImage || block.image)} alt="Схема" className="mb-6 w-full h-auto rounded-xl border border-gray-200 shadow-sm" />
+                                  <ExpandableImage src={getFullUrl(block.questionImage || block.image)} alt="Схема" className="mb-6" />
                                 )}
                                 
                                 {block.type === 'test' && (
@@ -609,7 +621,7 @@ export default function CourseView() {
 
                   {/* 🔥 БЛОК 3: ДОМАШНЕЕ ЗАДАНИЕ */}
                   {homeworkBlocks.length > 0 && (
-                    <div id="homework-section" className="mt-12 pt-10 border-t-4 border-dashed border-purple-200">
+                    <div className="mt-12 pt-10 border-t-4 border-dashed border-purple-200">
                       <div className="bg-purple-600 p-6 md:p-8 rounded-[2rem] shadow-sm overflow-hidden flex flex-col md:flex-row md:items-center justify-between gap-6 relative">
                         <div className="absolute -right-10 -top-10 w-32 h-32 bg-purple-400 rounded-full opacity-30 blur-2xl pointer-events-none"></div>
                         <div className="flex items-center gap-5 relative z-10 w-full md:w-auto">
@@ -627,9 +639,6 @@ export default function CourseView() {
                           onClick={(e) => {
                             e.preventDefault();
                             setIsHomeworkRevealed(prev => !prev);
-                            if (!isHomeworkRevealed) {
-                              setTimeout(() => document.getElementById('homework-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
-                            }
                           }}
                           className="w-full md:w-auto shrink-0 px-8 py-4 bg-white text-purple-700 hover:bg-purple-50 rounded-xl font-black text-sm transition-all shadow-lg active:scale-95 flex items-center justify-center gap-2 relative z-10"
                         >
@@ -682,7 +691,7 @@ export default function CourseView() {
                                   )}
 
                                   {(block.type === 'image' || block.type === 'img') && (block.url || block.image) && (
-                                    <img src={getFullUrl(block.url || block.image)} alt="Материал ДЗ" className="mb-6 w-full h-auto rounded-2xl border border-gray-100 shadow-sm" />
+                                    <ExpandableImage src={getFullUrl(block.url || block.image)} alt="Материал ДЗ" className="mb-6" />
                                   )}
 
                                   {['test', 'test_short', 'written', 'homework'].includes(block.type) && (
@@ -690,7 +699,7 @@ export default function CourseView() {
                                   )}
                                   
                                   {(block.questionImage || block.image) && (
-                                    <img src={getFullUrl(block.questionImage || block.image)} alt="Схема" className="mb-6 w-full h-auto rounded-xl border border-gray-200 shadow-sm" />
+                                    <ExpandableImage src={getFullUrl(block.questionImage || block.image)} alt="Схема" className="mb-6" />
                                   )}
                                   
                                   {block.type === 'test' && (
