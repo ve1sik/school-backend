@@ -17,6 +17,12 @@ const API_URL = 'https://prepodmgy.ru/api';
 const getFullUrl = (url: string) => {
   if (!url) return '';
   if (url.startsWith('http')) return url;
+  
+  // Если это файл из папки uploads, не добавляем /api
+  if (url.startsWith('/uploads')) {
+    return `https://prepodmgy.ru${url}`;
+  }
+  
   return `${API_URL}${url.startsWith('/') ? '' : '/'}${url}`;
 };
 
@@ -597,7 +603,7 @@ export default function CourseView() {
                                   )}
 
                                   {block.type === 'image' && block.url && (
-                                    <img src={block.url} alt="Материал ДЗ" className="max-w-full rounded-2xl border border-gray-100 shadow-sm mb-6" />
+                                    src={getFullUrl(block.url)} alt="Материал" className="max-w-full rounded-2xl border border-gray-100 shadow-sm" />
                                   )}
 
                                   {/* Вопрос (Для тестов и эссе) */}
