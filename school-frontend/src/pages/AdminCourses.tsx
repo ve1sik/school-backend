@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { GraduationCap, X, PlayCircle, Trash2, ArrowLeft, FileText, CheckSquare, Eye, EyeOff, Pencil, Type, PenTool, CheckCircle2, ArrowUp, ArrowDown, Image as ImageIcon, UploadCloud, Plus, FileDown, Link2, BookOpen, Loader2, FileEdit, Link, FileSignature } from 'lucide-react';
+import { GraduationCap, X, PlayCircle, Trash2, ArrowLeft, FileText, CheckSquare, Eye, EyeOff, Pencil, Type, PenTool, CheckCircle2, ArrowUp, ArrowDown, Image as ImageIcon, UploadCloud, Plus, FileDown, Link2, BookOpen, Loader2, FileSignature } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
@@ -18,12 +18,42 @@ const getEmbedUrl = (url: string) => {
   return url;
 };
 
-// 🔥 ФУНКЦИЯ ДЛЯ ПРАВИЛЬНОГО ПУТИ К ФАЙЛАМ
+// 🔥 ФУНКЦИЯ ДЛЯ ПРАВИЛЬНОГО ПУТИ К ФАЙЛАМ И HTTPS
 const getFullUrl = (url: string) => {
   if (!url) return '';
-  if (url.startsWith('http')) return url;
-  return `${API_URL}${url.startsWith('/') ? '' : '/'}${url}`;
+  let finalUrl = url;
+
+  if (finalUrl.startsWith('http://prepodmgy.ru')) {
+    finalUrl = finalUrl.replace('http://', 'https://');
+  }
+
+  if (finalUrl.startsWith('http')) return finalUrl;
+  const cleanPath = finalUrl.startsWith('/') ? finalUrl.slice(1) : finalUrl;
+  if (cleanPath.startsWith('uploads/')) {
+    return `https://prepodmgy.ru/${cleanPath}`;
+  }
+  return `${API_URL}/${cleanPath}`;
 };
+
+// 🔥 УМНАЯ КАРТИНКА ДЛЯ АДМИНКИ (Разворачивается по клику)
+function ExpandableImage({ src, alt, className = '' }: { src: string, alt?: string, className?: string }) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  return (
+    <div className={`relative ${className} w-full flex justify-start`}>
+      <img 
+        src={src} 
+        alt={alt || "Изображение"} 
+        onClick={(e) => { e.preventDefault(); setIsExpanded(!isExpanded); }}
+        className={`bg-white cursor-pointer transition-all duration-500 ease-in-out origin-top-left rounded-2xl border border-gray-200 shadow-sm hover:shadow-md hover:ring-2 hover:ring-indigo-300/50 ${
+          isExpanded 
+            ? 'w-full max-h-[85vh] object-contain object-left' 
+            : 'max-w-[280px] sm:max-w-sm max-h-[300px] object-contain object-left'
+        }`} 
+        title={isExpanded ? "Нажмите, чтобы уменьшить" : "Нажмите, чтобы увеличить"}
+      />
+    </div>
+  );
+}
 
 // Настройки кнопок для Ворд-редактора
 const quillModules = {
@@ -36,7 +66,6 @@ const quillModules = {
 };
 
 export default function AdminCourses() {
-  const [activeSection, setActiveSection] = useState<'courses' | 'homework'>('courses');
   const [items, setItems] = useState<any[]>([]);
   const [title, setTitle] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -159,8 +188,14 @@ export default function AdminCourses() {
     if (type === 'test_short') { newBlock.question = ''; newBlock.correctAnswer = ''; newBlock.maxAttempts = 3; newBlock.explanation = ''; newBlock.questionImage = ''; newBlock.questionImageName = ''; newBlock.title = 'Тест с кратким ответом'; }
     if (type === 'written') { newBlock.question = ''; newBlock.maxScore = 3; newBlock.questionImage = ''; newBlock.questionImageName = ''; newBlock.title = 'Развернутый ответ'; }
     
-    if (isHw) setHwBlocks([...hwBlocks, newBlock]);
-    else setBlocks([...blocks, newBlock]);
+    // 🔥 ФИКС: Умный скролл к новому блоку
+    if (isHw) {
+      setHwBlocks(prev => [...prev, newBlock]);
+      setTimeout(() => document.getElementById('hw-section-end')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 100);
+    } else {
+      setBlocks(prev => [...prev, newBlock]);
+      setTimeout(() => document.getElementById('theory-section-end')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 100);
+    }
   };
 
   const updateBlock = (id: string, data: any, isHw: boolean) => { 
@@ -223,7 +258,7 @@ export default function AdminCourses() {
     setBlocks(initialBlocks);
     setHwBlocks(initialHwBlocks);
     setHasHomeworkSection(initialHwBlocks.length > 0);
-    setTimeout(() => document.getElementById('lesson-form')?.scrollIntoView({ behavior: 'smooth' }), 100);
+    setTimeout(() => document.getElementById('lesson-form')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
   };
 
   const handleSaveLesson = async (theme: any) => {
@@ -302,15 +337,15 @@ export default function AdminCourses() {
           <div key={block.id} className={`relative p-6 pt-16 rounded-[2rem] border-2 bg-white group shadow-sm hover:shadow-md transition-all ${isHw ? 'border-purple-100' : 'border-gray-100'}`}>
             
             <div className="absolute top-4 right-4 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all z-10 bg-gray-50 p-1.5 rounded-xl border border-gray-200">
-              <button onClick={() => moveBlockUp(index, isHw)} disabled={index === 0} className="p-2 bg-white rounded-lg shadow-sm text-gray-500 hover:text-gray-900 disabled:opacity-30"><ArrowUp className="w-4 h-4"/></button>
-              <button onClick={() => moveBlockDown(index, isHw)} disabled={index === blockArray.length - 1} className="p-2 bg-white rounded-lg shadow-sm text-gray-500 hover:text-gray-900 disabled:opacity-30"><ArrowDown className="w-4 h-4"/></button>
-              <button onClick={() => removeBlock(block.id, isHw)} className="p-2 bg-white rounded-lg shadow-sm text-rose-500 hover:text-rose-700 ml-2"><Trash2 className="w-4 h-4"/></button>
+              <button type="button" onClick={() => moveBlockUp(index, isHw)} disabled={index === 0} className="p-2 bg-white rounded-lg shadow-sm text-gray-500 hover:text-gray-900 disabled:opacity-30"><ArrowUp className="w-4 h-4" /></button>
+              <button type="button" onClick={() => moveBlockDown(index, isHw)} disabled={index === blockArray.length - 1} className="p-2 bg-white rounded-lg shadow-sm text-gray-500 hover:text-gray-900 disabled:opacity-30"><ArrowDown className="w-4 h-4" /></button>
+              <button type="button" onClick={() => removeBlock(block.id, isHw)} className="p-2 bg-white rounded-lg shadow-sm text-rose-500 hover:text-rose-700 ml-2"><Trash2 className="w-4 h-4" /></button>
             </div>
             
             {block.type === 'video' && (
               <div>
                 <div className="flex items-center gap-3 mb-6 group/header bg-indigo-50 p-4 rounded-xl">
-                  <PlayCircle className="w-6 h-6 text-indigo-600 shrink-0"/>
+                  <PlayCircle className="w-6 h-6 text-indigo-600 shrink-0" />
                   <input value={block.title !== undefined ? block.title : 'Видео'} onChange={(e) => updateBlock(block.id, { title: e.target.value }, isHw)} className="flex-1 bg-transparent border-b-2 border-dashed border-transparent hover:border-indigo-300 focus:border-indigo-600 outline-none font-black text-xl transition-all text-indigo-900 placeholder:text-indigo-300" placeholder="Заголовок блока..." />
                 </div>
                 <input value={block.url} onChange={(e) => updateBlock(block.id, { url: e.target.value }, isHw)} placeholder="Вставьте ссылку на YouTube/VK/Яндекс.Диск..." className="w-full p-4 rounded-xl border border-gray-200 outline-none mb-4 font-medium focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition-all" />
@@ -320,11 +355,10 @@ export default function AdminCourses() {
             {block.type === 'text' && (
               <div className="flex flex-col gap-4">
                 <div className="flex items-center gap-3 group/header bg-emerald-50 p-4 rounded-xl">
-                  <FileText className="w-6 h-6 text-emerald-600 shrink-0"/>
+                  <FileText className="w-6 h-6 text-emerald-600 shrink-0" />
                   <input value={block.title !== undefined ? block.title : 'Текст'} onChange={(e) => updateBlock(block.id, { title: e.target.value }, isHw)} className="flex-1 bg-transparent border-b-2 border-dashed border-transparent hover:border-emerald-300 focus:border-emerald-600 outline-none font-black text-xl transition-all text-emerald-900 placeholder:text-emerald-300" placeholder="Заголовок блока..." />
                 </div>
                 
-                {/* 🔥 ИСПРАВЛЕНО: min-h и pb-12 чтобы тулбар не вылезал */}
                 <div className="bg-white rounded-2xl overflow-visible border border-gray-200 focus-within:border-emerald-400 focus-within:ring-2 focus-within:ring-emerald-100 transition-all z-10 relative">
                   <ReactQuill theme="snow" modules={quillModules} value={block.content || ''} onChange={(val) => updateBlock(block.id, { content: val }, isHw)} placeholder="Введите текст лекции..." className="min-h-[200px] pb-12" />
                 </div>
@@ -334,18 +368,17 @@ export default function AdminCourses() {
                     <UploadCloud className="w-4 h-4" /> Прикрепить картинку
                     <input type="file" accept="image/*" className="hidden" onChange={(e) => handleFileUpload(block.id, e, isHw, 'image', 'imageName')} />
                   </label>
-                  {block.imageName && <span className="text-xs font-bold text-emerald-600 flex items-center gap-1 bg-emerald-50 px-3 py-1.5 rounded-lg"><CheckCircle2 className="w-4 h-4"/> {block.imageName}</span>}
-                  {block.image && <button type="button" onClick={() => updateBlock(block.id, { image: '', imageName: '' }, isHw)} className="p-2 bg-white rounded-lg shadow-sm text-gray-400 hover:text-red-500 transition-colors"><Trash2 className="w-4 h-4"/></button>}
+                  {block.imageName && <span className="text-xs font-bold text-emerald-600 flex items-center gap-1 bg-emerald-50 px-3 py-1.5 rounded-lg"><CheckCircle2 className="w-4 h-4" /> {block.imageName}</span>}
+                  {block.image && <button type="button" onClick={() => updateBlock(block.id, { image: '', imageName: '' }, isHw)} className="p-2 bg-white rounded-lg shadow-sm text-gray-400 hover:text-red-500 transition-colors"><Trash2 className="w-4 h-4" /></button>}
                 </div>
-                {/* 🔥 ИСПРАВЛЕНО: Добавлен getFullUrl */}
-                {block.image && <img src={getFullUrl(block.image)} alt="preview" className="mt-4 max-h-48 rounded-xl border border-gray-200 shadow-sm" />}
+                {block.image && <ExpandableImage src={getFullUrl(block.image)} className="mt-4" />}
               </div>
             )}
 
             {block.type === 'image' && (
               <div>
                 <div className="flex items-center gap-3 mb-6 group/header bg-blue-50 p-4 rounded-xl">
-                  <ImageIcon className="w-6 h-6 text-blue-600 shrink-0"/>
+                  <ImageIcon className="w-6 h-6 text-blue-600 shrink-0" />
                   <input value={block.title !== undefined ? block.title : 'Изображение'} onChange={(e) => updateBlock(block.id, { title: e.target.value }, isHw)} className="flex-1 bg-transparent border-b-2 border-dashed border-transparent hover:border-blue-300 focus:border-blue-600 outline-none font-black text-xl transition-all text-blue-900 placeholder:text-blue-300" placeholder="Заголовок блока..." />
                 </div>
                 <div className="flex items-center gap-4">
@@ -353,17 +386,16 @@ export default function AdminCourses() {
                     <UploadCloud className="w-5 h-5" /> Выбрать картинку
                     <input type="file" accept="image/*" className="hidden" onChange={(e) => handleFileUpload(block.id, e, isHw)} />
                   </label>
-                  {block.fileName && <span className="text-sm font-bold text-emerald-600 flex items-center gap-2 bg-emerald-50 px-4 py-2 rounded-lg"><CheckCircle2 className="w-4 h-4"/> {block.fileName}</span>}
+                  {block.fileName && <span className="text-sm font-bold text-emerald-600 flex items-center gap-2 bg-emerald-50 px-4 py-2 rounded-lg"><CheckCircle2 className="w-4 h-4" /> {block.fileName}</span>}
                 </div>
-                {/* 🔥 ИСПРАВЛЕНО: Добавлен getFullUrl */}
-                {block.url && <img src={getFullUrl(block.url)} alt="preview" className="mt-6 max-h-64 rounded-[1.5rem] shadow-sm border border-gray-100" />}
+                {block.url && <ExpandableImage src={getFullUrl(block.url)} className="mt-6" />}
               </div>
             )}
 
             {block.type === 'video_file' && (
               <div>
                 <div className="flex items-center gap-3 mb-6 group/header bg-indigo-50 p-4 rounded-xl">
-                  <PlayCircle className="w-6 h-6 text-indigo-600 shrink-0"/>
+                  <PlayCircle className="w-6 h-6 text-indigo-600 shrink-0" />
                   <input value={block.title !== undefined ? block.title : 'Видео-файл'} onChange={(e) => updateBlock(block.id, { title: e.target.value }, isHw)} className="flex-1 bg-transparent border-b-2 border-dashed border-transparent hover:border-indigo-300 focus:border-indigo-600 outline-none font-black text-xl transition-all text-indigo-900 placeholder:text-indigo-300" placeholder="Заголовок блока..." />
                 </div>
                 <div className="flex items-center gap-4 mb-4">
@@ -371,7 +403,7 @@ export default function AdminCourses() {
                     <UploadCloud className="w-5 h-5" /> Загрузить видео (MP4)
                     <input type="file" accept="video/*" className="hidden" onChange={(e) => handleFileUpload(block.id, e, isHw)} />
                   </label>
-                  {block.fileName && <span className="text-sm font-bold text-emerald-600 flex items-center gap-2 bg-emerald-50 px-4 py-2 rounded-lg"><CheckCircle2 className="w-4 h-4"/> {block.fileName}</span>}
+                  {block.fileName && <span className="text-sm font-bold text-emerald-600 flex items-center gap-2 bg-emerald-50 px-4 py-2 rounded-lg"><CheckCircle2 className="w-4 h-4" /> {block.fileName}</span>}
                 </div>
               </div>
             )}
@@ -379,7 +411,7 @@ export default function AdminCourses() {
             {block.type === 'file' && (
               <div>
                 <div className="flex items-center gap-3 mb-6 group/header bg-cyan-50 p-4 rounded-xl">
-                  <FileDown className="w-6 h-6 text-cyan-600 shrink-0"/>
+                  <FileDown className="w-6 h-6 text-cyan-600 shrink-0" />
                   <input value={block.title !== undefined ? block.title : 'Файл для скачивания'} onChange={(e) => updateBlock(block.id, { title: e.target.value }, isHw)} className="flex-1 bg-transparent border-b-2 border-dashed border-transparent hover:border-cyan-300 focus:border-cyan-600 outline-none font-black text-xl transition-all text-cyan-900 placeholder:text-cyan-300" placeholder="Заголовок блока..." />
                 </div>
                 <div className="flex items-center gap-4 mb-4">
@@ -387,7 +419,7 @@ export default function AdminCourses() {
                     <UploadCloud className="w-5 h-5" /> Загрузить файл (PDF/Word)
                     <input type="file" className="hidden" onChange={(e) => handleFileUpload(block.id, e, isHw)} />
                   </label>
-                  {block.fileName && <span className="text-sm font-bold text-emerald-600 flex items-center gap-2 bg-emerald-50 px-4 py-2 rounded-lg"><CheckCircle2 className="w-4 h-4"/> {block.fileName}</span>}
+                  {block.fileName && <span className="text-sm font-bold text-emerald-600 flex items-center gap-2 bg-emerald-50 px-4 py-2 rounded-lg"><CheckCircle2 className="w-4 h-4" /> {block.fileName}</span>}
                 </div>
                 <textarea value={block.content || ''} onChange={(e) => updateBlock(block.id, { content: e.target.value }, isHw)} placeholder="Краткое описание файла (необязательно)..." rows={2} className="w-full p-4 rounded-xl border border-gray-200 outline-none focus:border-cyan-400 transition-all" />
               </div>
@@ -396,7 +428,7 @@ export default function AdminCourses() {
             {block.type === 'link' && (
               <div>
                 <div className="flex items-center gap-3 mb-6 group/header bg-pink-50 p-4 rounded-xl">
-                  <Link2 className="w-6 h-6 text-pink-600 shrink-0"/>
+                  <Link2 className="w-6 h-6 text-pink-600 shrink-0" />
                   <input value={block.title !== undefined ? block.title : 'Ссылка / Кнопка'} onChange={(e) => updateBlock(block.id, { title: e.target.value }, isHw)} className="flex-1 bg-transparent border-b-2 border-dashed border-transparent hover:border-pink-300 focus:border-pink-600 outline-none font-black text-xl transition-all text-pink-900 placeholder:text-pink-300" placeholder="Заголовок блока..." />
                 </div>
                 <div className="flex flex-col sm:flex-row gap-6">
@@ -415,7 +447,7 @@ export default function AdminCourses() {
             {block.type === 'test' && (
               <div>
                 <div className="flex items-center gap-3 mb-6 group/header bg-rose-50 p-4 rounded-xl">
-                  <CheckSquare className="w-6 h-6 text-rose-600 shrink-0"/>
+                  <CheckSquare className="w-6 h-6 text-rose-600 shrink-0" />
                   <input value={block.title !== undefined ? block.title : 'Тест'} onChange={(e) => updateBlock(block.id, { title: e.target.value }, isHw)} className="flex-1 bg-transparent border-b-2 border-dashed border-transparent hover:border-rose-300 focus:border-rose-600 outline-none font-black text-xl transition-all text-rose-900 placeholder:text-rose-300" placeholder="Заголовок блока..." />
                 </div>
                 
@@ -437,11 +469,10 @@ export default function AdminCourses() {
                       <UploadCloud className="w-4 h-4" /> Прикрепить картинку
                       <input type="file" accept="image/*" className="hidden" onChange={(e) => handleFileUpload(block.id, e, isHw, 'questionImage', 'questionImageName')} />
                     </label>
-                    {block.questionImageName && <span className="text-xs font-bold text-emerald-600 flex items-center gap-1 bg-emerald-50 px-3 py-1.5 rounded-lg"><CheckCircle2 className="w-4 h-4"/> {block.questionImageName}</span>}
-                    {block.questionImage && <button type="button" onClick={() => updateBlock(block.id, { questionImage: '', questionImageName: '' }, isHw)} className="p-2 bg-white rounded-lg shadow-sm text-gray-400 hover:text-red-500"><Trash2 className="w-4 h-4"/></button>}
+                    {block.questionImageName && <span className="text-xs font-bold text-emerald-600 flex items-center gap-1 bg-emerald-50 px-3 py-1.5 rounded-lg"><CheckCircle2 className="w-4 h-4" /> {block.questionImageName}</span>}
+                    {block.questionImage && <button type="button" onClick={() => updateBlock(block.id, { questionImage: '', questionImageName: '' }, isHw)} className="p-2 bg-white rounded-lg shadow-sm text-gray-400 hover:text-red-500"><Trash2 className="w-4 h-4" /></button>}
                   </div>
-                  {/* 🔥 ИСПРАВЛЕНО: Добавлен getFullUrl */}
-                  {block.questionImage && <img src={getFullUrl(block.questionImage)} alt="preview" className="mt-4 max-h-48 rounded-xl border border-gray-200 shadow-sm" />}
+                  {block.questionImage && <ExpandableImage src={getFullUrl(block.questionImage)} className="mt-4" />}
                 </div>
                 
                 <div className="space-y-3">
@@ -455,7 +486,7 @@ export default function AdminCourses() {
                         </div>
                       </label>
                       <input value={opt.text} onChange={(e) => { const newOpts = [...block.options]; newOpts[optIdx].text = e.target.value; updateBlock(block.id, { options: newOpts }, isHw); }} placeholder={`Вариант ${optIdx + 1}`} className="flex-1 p-2 bg-transparent outline-none font-bold text-gray-800" />
-                      <button type="button" onClick={() => { const newOpts = block.options.filter((_:any, i:number) => i !== optIdx); updateBlock(block.id, { options: newOpts }, isHw); }} className="p-2 text-gray-400 hover:text-red-500"><Trash2 className="w-5 h-5"/></button>
+                      <button type="button" onClick={() => { const newOpts = block.options.filter((_:any, i:number) => i !== optIdx); updateBlock(block.id, { options: newOpts }, isHw); }} className="p-2 text-gray-400 hover:text-red-500"><Trash2 className="w-5 h-5" /></button>
                     </div>
                   ))}
                   <button type="button" onClick={() => { updateBlock(block.id, { options: [...(block.options || []), { text: '', isCorrect: false }] }, isHw); }} className="mt-4 px-5 py-4 w-full border-2 border-dashed border-rose-300 text-rose-600 hover:bg-rose-50 rounded-2xl font-black transition-all flex items-center justify-center gap-2">
@@ -468,7 +499,7 @@ export default function AdminCourses() {
             {block.type === 'test_short' && (
               <div>
                 <div className="flex items-center gap-3 mb-6 group/header bg-amber-50 p-4 rounded-xl">
-                  <Type className="w-6 h-6 text-amber-600 shrink-0"/>
+                  <Type className="w-6 h-6 text-amber-600 shrink-0" />
                   <input value={block.title !== undefined ? block.title : 'Краткий ответ'} onChange={(e) => updateBlock(block.id, { title: e.target.value }, isHw)} className="flex-1 bg-transparent border-b-2 border-dashed border-transparent hover:border-amber-300 focus:border-amber-600 outline-none font-black text-xl transition-all text-amber-900 placeholder:text-amber-300" placeholder="Заголовок блока..." />
                 </div>
                 
@@ -490,18 +521,16 @@ export default function AdminCourses() {
               </div>
             )}
 
-            {/* 🔥 БЛОК: РАЗВЕРНУТЫЙ ОТВЕТ */}
             {block.type === 'written' && (
               <div className="flex flex-col gap-4">
                 <div className="flex items-center gap-3 group/header bg-purple-50 p-4 rounded-xl">
-                  <PenTool className="w-6 h-6 text-purple-600 shrink-0"/>
+                  <PenTool className="w-6 h-6 text-purple-600 shrink-0" />
                   <input value={block.title !== undefined ? block.title : 'Развернутый ответ'} onChange={(e) => updateBlock(block.id, { title: e.target.value }, isHw)} className="flex-1 bg-transparent border-b-2 border-dashed border-transparent hover:border-purple-300 focus:border-purple-600 outline-none font-black text-xl transition-all text-purple-900 placeholder:text-purple-300" placeholder="Заголовок блока..." />
                 </div>
                 
                 <div className="flex flex-col sm:flex-row gap-4 mb-6">
                   <div className="flex-1">
                     <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">Текст задания (С Ворд-редактором)</label>
-                    {/* 🔥 ИСПРАВЛЕНО: min-h и pb-12 чтобы тулбар не вылезал */}
                     <div className="bg-white rounded-2xl overflow-visible border border-gray-200 focus-within:border-purple-400 focus-within:ring-2 focus-within:ring-purple-100 transition-all z-10 relative">
                       <ReactQuill theme="snow" modules={quillModules} value={block.question || ''} onChange={(val) => updateBlock(block.id, { question: val }, isHw)} placeholder="Опишите задание..." className="min-h-[160px] pb-12" />
                     </div>
@@ -517,11 +546,10 @@ export default function AdminCourses() {
                     <UploadCloud className="w-4 h-4" /> Прикрепить картинку
                     <input type="file" accept="image/*" className="hidden" onChange={(e) => handleFileUpload(block.id, e, isHw, 'questionImage', 'questionImageName')} />
                   </label>
-                  {block.questionImageName && <span className="text-xs font-bold text-emerald-600 flex items-center gap-1 bg-emerald-50 px-3 py-1.5 rounded-lg"><CheckCircle2 className="w-4 h-4"/> {block.questionImageName}</span>}
-                  {block.questionImage && <button type="button" onClick={() => updateBlock(block.id, { questionImage: '', questionImageName: '' }, isHw)} className="p-2 bg-white rounded-lg shadow-sm text-gray-400 hover:text-red-500"><Trash2 className="w-4 h-4"/></button>}
+                  {block.questionImageName && <span className="text-xs font-bold text-emerald-600 flex items-center gap-1 bg-emerald-50 px-3 py-1.5 rounded-lg"><CheckCircle2 className="w-4 h-4" /> {block.questionImageName}</span>}
+                  {block.questionImage && <button type="button" onClick={() => updateBlock(block.id, { questionImage: '', questionImageName: '' }, isHw)} className="p-2 bg-white rounded-lg shadow-sm text-gray-400 hover:text-red-500"><Trash2 className="w-4 h-4" /></button>}
                 </div>
-                {/* 🔥 ИСПРАВЛЕНО: Добавлен getFullUrl */}
-                {block.questionImage && <img src={getFullUrl(block.questionImage)} alt="preview" className="mt-4 max-h-48 rounded-xl border border-gray-200 shadow-sm" />}
+                {block.questionImage && <ExpandableImage src={getFullUrl(block.questionImage)} className="mt-4" />}
               </div>
             )}
           </div>
@@ -530,31 +558,62 @@ export default function AdminCourses() {
     );
   };
 
-  // 🔥 ИСПРАВЛЕНО: Добавлен mt-8 для панели, чтобы она не прилипала к блокам
-  const renderBlockToolbar = (isHw: boolean) => (
-    <div className={`flex flex-wrap gap-2 mt-8 p-5 rounded-3xl justify-center border-2 border-dashed ${isHw ? 'bg-purple-50/50 border-purple-200' : 'bg-gray-50 border-gray-200'}`}>
-      <span className={`text-sm font-black uppercase tracking-widest w-full text-center mb-3 ${isHw ? 'text-purple-400' : 'text-gray-400'}`}>
-        Добавить {isHw ? 'в домашнее задание' : 'в урок'}
-      </span>
-      <button type="button" onClick={() => addBlock('video', isHw)} className="px-4 py-2.5 bg-white text-indigo-700 rounded-xl font-bold shadow-sm hover:-translate-y-0.5 transition-all flex items-center gap-2 text-sm border border-gray-100"><PlayCircle className="w-4 h-4"/> Видео-ссылка</button>
-      <button type="button" onClick={() => addBlock('video_file', isHw)} className="px-4 py-2.5 bg-white text-indigo-700 rounded-xl font-bold shadow-sm hover:-translate-y-0.5 transition-all flex items-center gap-2 text-sm border border-gray-100"><UploadCloud className="w-4 h-4"/> Видео-файл</button>
-      <button type="button" onClick={() => addBlock('image', isHw)} className="px-4 py-2.5 bg-white text-blue-700 rounded-xl font-bold shadow-sm hover:-translate-y-0.5 transition-all flex items-center gap-2 text-sm border border-gray-100"><ImageIcon className="w-4 h-4"/> Изображение</button>
-      <button type="button" onClick={() => addBlock('text', isHw)} className="px-4 py-2.5 bg-white text-emerald-700 rounded-xl font-bold shadow-sm hover:-translate-y-0.5 transition-all flex items-center gap-2 text-sm border border-gray-100"><FileText className="w-4 h-4"/> Текст (Лекция)</button>
-      <button type="button" onClick={() => addBlock('file', isHw)} className="px-4 py-2.5 bg-white text-cyan-700 rounded-xl font-bold shadow-sm hover:-translate-y-0.5 transition-all flex items-center gap-2 text-sm border border-gray-100"><FileDown className="w-4 h-4"/> Файл (PDF/Doc)</button>
-      <button type="button" onClick={() => addBlock('link', isHw)} className="px-4 py-2.5 bg-white text-pink-700 rounded-xl font-bold shadow-sm hover:-translate-y-0.5 transition-all flex items-center gap-2 text-sm border border-gray-100"><Link2 className="w-4 h-4"/> Ссылка</button>
-      
-      <div className="w-full h-px bg-gray-200/50 my-1"></div>
-      
-      <button type="button" onClick={() => addBlock('test', isHw)} className="px-4 py-2.5 bg-white text-rose-700 rounded-xl font-bold shadow-sm hover:-translate-y-0.5 transition-all flex items-center gap-2 text-sm border border-gray-100"><CheckSquare className="w-4 h-4"/> Тест (с вариантами)</button>
-      <button type="button" onClick={() => addBlock('test_short', isHw)} className="px-4 py-2.5 bg-white text-amber-700 rounded-xl font-bold shadow-sm hover:-translate-y-0.5 transition-all flex items-center gap-2 text-sm border border-gray-100"><Type className="w-4 h-4"/> Краткий ответ</button>
-      <button type="button" onClick={() => addBlock('written', isHw)} className="px-4 py-2.5 bg-white text-purple-700 rounded-xl font-bold shadow-sm hover:-translate-y-0.5 transition-all flex items-center gap-2 text-sm border border-purple-100"><PenTool className="w-4 h-4"/> Развернутый ответ</button>
-    </div>
-  );
+  // 🔥 НОВЫЕ БОКОВЫЕ ПАНЕЛИ ДОБАВЛЕНИЯ БЛОКОВ
+  const renderSidebarToolbar = (isHw: boolean) => {
+    const color = isHw ? 'purple' : 'indigo';
+    const bgClass = isHw ? 'bg-purple-50/50 border-purple-200' : 'bg-white border-indigo-100';
+    const titleColor = isHw ? 'text-purple-600' : 'text-indigo-600';
+    
+    const btnClass = `flex flex-col items-center justify-center p-3 bg-white rounded-xl border border-gray-100 hover:border-${color}-300 hover:shadow-md transition-all gap-2 text-[11px] font-bold text-gray-700 text-center active:scale-95`;
+
+    return (
+      <div className={`p-6 rounded-[2rem] border-2 shadow-xl flex flex-col gap-4 shadow-${color}-500/10 ${bgClass}`}>
+        <h4 className={`font-black text-xs uppercase tracking-widest text-center ${titleColor}`}>
+          Добавить {isHw ? 'в домашку' : 'в теорию'}
+        </h4>
+        
+        <div className="grid grid-cols-2 gap-2">
+          <button type="button" onClick={() => addBlock('text', isHw)} className={btnClass}>
+            <FileText className="w-5 h-5 text-emerald-500" /> Текст
+          </button>
+          <button type="button" onClick={() => addBlock('image', isHw)} className={btnClass}>
+            <ImageIcon className="w-5 h-5 text-blue-500" /> Картинка
+          </button>
+          <button type="button" onClick={() => addBlock('video', isHw)} className={btnClass}>
+            <PlayCircle className="w-5 h-5 text-indigo-500" /> Видео-ссылка
+          </button>
+          <button type="button" onClick={() => addBlock('video_file', isHw)} className={btnClass}>
+            <UploadCloud className="w-5 h-5 text-indigo-400" /> Видео-файл
+          </button>
+          <button type="button" onClick={() => addBlock('file', isHw)} className={btnClass}>
+            <FileDown className="w-5 h-5 text-cyan-500" /> Файл
+          </button>
+          <button type="button" onClick={() => addBlock('link', isHw)} className={btnClass}>
+            <Link2 className="w-5 h-5 text-pink-500" /> Ссылка
+          </button>
+        </div>
+
+        <div className="w-full h-px bg-gray-200/50 my-1"></div>
+        
+        <div className="grid grid-cols-1 gap-2">
+          <button type="button" onClick={() => addBlock('test', isHw)} className={`${btnClass} !flex-row !justify-start px-4`}>
+            <CheckSquare className="w-5 h-5 text-rose-500" /> Тест (Варианты)
+          </button>
+          <button type="button" onClick={() => addBlock('test_short', isHw)} className={`${btnClass} !flex-row !justify-start px-4`}>
+            <Type className="w-5 h-5 text-amber-500" /> Краткий ответ
+          </button>
+          <button type="button" onClick={() => addBlock('written', isHw)} className={`${btnClass} !flex-row !justify-start px-4`}>
+            <PenTool className="w-5 h-5 text-purple-500" /> Развернутый ответ
+          </button>
+        </div>
+      </div>
+    );
+  };
 
   return (
     <div className="min-h-screen bg-gray-50 font-sans flex text-gray-900">
       
-      <aside className="w-72 bg-white border-r border-gray-100 flex flex-col h-screen sticky top-0 z-10 shadow-xl">
+      <aside className="w-72 bg-white border-r border-gray-100 flex flex-col h-screen sticky top-0 z-10 shadow-xl shrink-0">
         <div className="p-6 flex items-center gap-3 border-b border-gray-50">
           <div className="w-12 h-12 bg-gray-900 rounded-2xl flex items-center justify-center"><GraduationCap className="w-6 h-6 text-white" /></div>
           <span className="text-2xl font-black tracking-tight">Admin<span className="text-indigo-600">Pro</span></span>
@@ -562,19 +621,19 @@ export default function AdminCourses() {
 
         <div className="flex-1 px-4 py-8 space-y-3">
           <h3 className="px-4 text-[10px] font-black text-gray-400 uppercase tracking-widest mb-4">Разделы управления</h3>
-          <button className="w-full flex items-center gap-4 px-5 py-4 rounded-2xl font-bold transition-all bg-[#5A4BFF] text-white shadow-lg shadow-indigo-500/20">
+          <button type="button" className="w-full flex items-center gap-4 px-5 py-4 rounded-2xl font-bold transition-all bg-[#5A4BFF] text-white shadow-lg shadow-indigo-500/20">
             <BookOpen className="w-5 h-5" /> Курсы и Уроки
           </button>
         </div>
 
         <div className="p-4 border-t border-gray-100">
-          <button onClick={() => navigate('/')} className="flex items-center gap-3 px-5 py-4 w-full text-gray-500 hover:bg-gray-100 rounded-2xl font-bold transition-colors">
+          <button type="button" onClick={() => navigate('/')} className="flex items-center gap-3 px-5 py-4 w-full text-gray-500 hover:bg-gray-100 rounded-2xl font-bold transition-colors">
             <ArrowLeft className="w-5 h-5" /> На портал
           </button>
         </div>
       </aside>
 
-      <main className="flex-1 p-8 overflow-y-auto relative">
+      <main className="flex-1 p-8 overflow-y-auto relative scroll-smooth min-w-0">
         <div className="max-w-7xl mx-auto">
           <h1 className="text-4xl font-black mb-8">Создание контента</h1>
           
@@ -604,8 +663,8 @@ export default function AdminCourses() {
                     )}
                   </div>
                   <div className="flex items-center gap-3 shrink-0">
-                    <button className="px-6 py-2.5 bg-gray-50 group-hover:bg-[#5A4BFF] group-hover:text-white text-gray-600 rounded-xl font-bold text-sm transition-colors">Модули и Уроки</button>
-                    <button onClick={(e) => { e.stopPropagation(); handleDeleteItem(item.id); }} className="p-2.5 text-gray-400 hover:bg-red-50 hover:text-red-500 rounded-xl transition-colors z-10"><Trash2 className="w-5 h-5" /></button>
+                    <button type="button" className="px-6 py-2.5 bg-gray-50 group-hover:bg-[#5A4BFF] group-hover:text-white text-gray-600 rounded-xl font-bold text-sm transition-colors">Модули и Уроки</button>
+                    <button type="button" onClick={(e) => { e.stopPropagation(); handleDeleteItem(item.id); }} className="p-2.5 text-gray-400 hover:bg-red-50 hover:text-red-500 rounded-xl transition-colors z-10"><Trash2 className="w-5 h-5" /></button>
                   </div>
                 </div>
               ))}
@@ -616,12 +675,12 @@ export default function AdminCourses() {
 
       <AnimatePresence>
         {showThemeModal && selectedCourseForThemes && (
-          <motion.div className="fixed inset-0 z-50 bg-gray-900/60 backdrop-blur-sm flex justify-center p-4">
-            <motion.div className="bg-[#F8FAFC] rounded-[2.5rem] w-full max-w-6xl max-h-[90vh] overflow-hidden flex flex-col relative">
-              <button onClick={() => { setShowThemeModal(false); resetLessonForm(); }} className="absolute top-6 right-6 p-2 bg-white rounded-full z-10 shadow-sm"><X className="w-5 h-5" /></button>
+          <motion.div className="fixed inset-0 z-50 bg-gray-900/60 backdrop-blur-sm flex justify-center items-center p-4 lg:p-8">
+            <motion.div className="bg-[#F8FAFC] rounded-[2.5rem] w-full max-w-[1400px] max-h-[95vh] overflow-hidden flex flex-col relative shadow-2xl">
+              <button type="button" onClick={() => { setShowThemeModal(false); resetLessonForm(); }} className="absolute top-6 right-6 p-2 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-full z-10 shadow-sm transition-colors"><X className="w-5 h-5" /></button>
               
-              <div className="p-8 pb-6 bg-white border-b border-gray-100 flex items-center">
-                <div className="flex-1 mr-4 min-w-0">
+              <div className="p-8 pb-6 bg-white border-b border-gray-100 flex items-center shrink-0">
+                <div className="flex-1 mr-12 min-w-0">
                   {editingCourseId === selectedCourseForThemes.id ? (
                     <input autoFocus value={editCourseTitle} onChange={(e) => setEditCourseTitle(e.target.value)} onBlur={() => saveItemTitle(selectedCourseForThemes.id)} onKeyDown={(e) => e.key === 'Enter' && saveItemTitle(selectedCourseForThemes.id)} className="text-3xl font-black px-4 py-2 border-2 rounded-xl outline-none w-full max-w-2xl bg-indigo-50 border-[#5A4BFF]" />
                   ) : (
@@ -632,28 +691,32 @@ export default function AdminCourses() {
                 </div>
               </div>
 
-              <div className="flex-1 overflow-y-auto overflow-x-hidden p-8 flex flex-col lg:flex-row gap-8">
+              {/* 🔥 ОСНОВНОЙ КОНТЕЙНЕР (Прокручивается) */}
+              <div className="flex-1 overflow-y-auto overflow-x-hidden p-6 lg:p-8 flex flex-col lg:flex-row gap-8 scroll-smooth relative items-start">
                 
-                <div className="flex-1 space-y-6 min-w-0">
+                {/* ЛЕВАЯ КОЛОНКА (Лекции и Форма) */}
+                <div className="flex-1 space-y-6 min-w-0 pb-20">
                   {(selectedCourseForThemes.themes || []).map((theme: any) => {
                     const visibleLessons = theme.lessons || [];
 
                     return (
-                      <div key={theme.id} className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-gray-100">
-                        <div className="flex justify-between items-center mb-8">
-                          <div className="flex-1 mr-4 min-w-0">
+                      <div key={theme.id} className="bg-white rounded-[2.5rem] p-6 lg:p-8 shadow-sm border border-gray-100">
+                        <div className="flex flex-col lg:flex-row lg:justify-between lg:items-center gap-4 mb-8">
+                          <div className="flex-1 min-w-0">
                             {editingThemeId === theme.id ? (
                               <input autoFocus value={editThemeTitle} onChange={(e) => setEditThemeTitle(e.target.value)} onBlur={() => saveThemeTitle(theme.id)} onKeyDown={(e) => e.key === 'Enter' && saveThemeTitle(theme.id)} className="font-black text-2xl px-3 py-1.5 bg-indigo-50 border-2 border-[#5A4BFF] rounded-xl outline-none w-full" />
                             ) : (
-                              <h4 className="font-black text-2xl cursor-pointer hover:text-indigo-600 transition-colors flex items-center gap-2 group min-w-0" onClick={() => { setEditingThemeId(theme.id); setEditThemeTitle(theme.title); }}>
+                              <h4 className="font-black text-xl lg:text-2xl cursor-pointer hover:text-indigo-600 transition-colors flex items-center gap-2 group min-w-0" onClick={() => { setEditingThemeId(theme.id); setEditThemeTitle(theme.title); }}>
                                 <span className="truncate">Модуль {theme.order_index}. {theme.title}</span> <Pencil className="w-5 h-5 text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
                               </h4>
                             )}
                           </div>
                           <div className="flex gap-2 shrink-0 bg-gray-50 p-1.5 rounded-2xl">
-                            <button onClick={() => handleToggleThemeVisibility(theme.id, theme.is_visible)} className="p-2.5 bg-white rounded-xl shadow-sm text-gray-400 hover:text-gray-900 transition-colors">{theme.is_visible === false ? <EyeOff className="w-5 h-5"/> : <Eye className="w-5 h-5"/>}</button>
-                            <button onClick={() => handleDeleteTheme(theme.id)} className="p-2.5 bg-white rounded-xl shadow-sm text-gray-400 hover:text-red-500 transition-colors"><Trash2 className="w-5 h-5"/></button>
-                            <button onClick={() => { resetLessonForm(); setSelectedThemeForLesson(theme); }} className="px-5 py-2.5 ml-2 bg-[#5A4BFF] text-white rounded-xl text-sm font-black shadow-md transition-colors">+ Новый урок</button>
+                            <button type="button" onClick={() => handleToggleThemeVisibility(theme.id, theme.is_visible)} className="p-2.5 bg-white rounded-xl shadow-sm text-gray-400 hover:text-gray-900 transition-colors">
+                              {theme.is_visible === false ? (<EyeOff className="w-5 h-5" />) : (<Eye className="w-5 h-5" />)}
+                            </button>
+                            <button type="button" onClick={() => handleDeleteTheme(theme.id)} className="p-2.5 bg-white rounded-xl shadow-sm text-gray-400 hover:text-red-500 transition-colors"><Trash2 className="w-5 h-5" /></button>
+                            <button type="button" onClick={() => { resetLessonForm(); setSelectedThemeForLesson(theme); setTimeout(() => document.getElementById('lesson-form')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100); }} className="px-5 py-2.5 ml-2 bg-[#5A4BFF] text-white rounded-xl text-sm font-black shadow-md transition-colors">+ Новый урок</button>
                           </div>
                         </div>
 
@@ -679,9 +742,9 @@ export default function AdminCourses() {
                             }
                             
                             return (
-                              <div key={lesson.id} className="bg-gray-50 p-4 rounded-2xl flex items-center justify-between group border border-gray-100 hover:bg-white hover:shadow-md hover:border-gray-200 transition-all">
+                              <div key={lesson.id} className="bg-gray-50 p-4 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 group border border-gray-100 hover:bg-white hover:shadow-md hover:border-gray-200 transition-all">
                                 
-                                <div className="flex-1 mr-4 flex items-center gap-4 font-bold text-base text-gray-700 min-w-0">
+                                <div className="flex-1 flex items-center gap-4 font-bold text-base text-gray-700 min-w-0">
                                   <div className="px-3 py-2.5 bg-white rounded-xl shadow-sm flex gap-2 border border-gray-100 shrink-0">
                                     {(hasVideo || hasVideoFile) && <PlayCircle className="w-4 h-4 text-indigo-500" />}
                                     {hasImage && <ImageIcon className="w-4 h-4 text-blue-500" />}
@@ -701,7 +764,7 @@ export default function AdminCourses() {
                                       onChange={(e) => setEditLessonInlineTitle(e.target.value)} 
                                       onBlur={() => saveLessonTitle(lesson.id)} 
                                       onKeyDown={(e) => e.key === 'Enter' && saveLessonTitle(lesson.id)} 
-                                      className="flex-1 px-3 py-1.5 border-2 rounded-lg outline-none font-bold bg-indigo-50 border-[#5A4BFF]"
+                                      className="flex-1 px-3 py-1.5 border-2 rounded-lg outline-none font-bold bg-indigo-50 border-[#5A4BFF] min-w-0"
                                     />
                                   ) : (
                                     <span 
@@ -715,9 +778,11 @@ export default function AdminCourses() {
                                 </div>
 
                                 <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 shrink-0 transition-opacity">
-                                   <button onClick={() => startEditingLesson(theme, lesson)} className="p-2 bg-white rounded-xl shadow-sm text-indigo-600 hover:bg-gray-50"><Pencil className="w-4 h-4"/></button>
-                                   <button onClick={() => handleToggleLessonVisibility(lesson.id, lesson.is_visible)} className="p-2 bg-white rounded-xl shadow-sm text-gray-400 hover:text-gray-900"><Eye className="w-4 h-4"/></button>
-                                   <button onClick={() => handleDeleteLesson(lesson.id)} className="p-2 bg-white rounded-xl shadow-sm text-gray-400 hover:text-red-500"><Trash2 className="w-4 h-4"/></button>
+                                   <button type="button" onClick={() => startEditingLesson(theme, lesson)} className="p-2 bg-white rounded-xl shadow-sm text-indigo-600 hover:bg-gray-50"><Pencil className="w-4 h-4" /></button>
+                                   <button type="button" onClick={() => handleToggleLessonVisibility(lesson.id, lesson.is_visible)} className="p-2 bg-white rounded-xl shadow-sm text-gray-400 hover:text-gray-900">
+                                      {lesson.is_visible === false ? (<EyeOff className="w-4 h-4" />) : (<Eye className="w-4 h-4" />)}
+                                   </button>
+                                   <button type="button" onClick={() => handleDeleteLesson(lesson.id)} className="p-2 bg-white rounded-xl shadow-sm text-gray-400 hover:text-red-500"><Trash2 className="w-4 h-4" /></button>
                                 </div>
                               </div>
                             );
@@ -729,8 +794,8 @@ export default function AdminCourses() {
                         </div>
 
                         {selectedThemeForLesson?.id === theme.id && (
-                          <div id="lesson-form" className="mt-8 p-8 bg-white rounded-[2rem] border-[4px] border-[#5A4BFF] shadow-2xl relative">
-                            <button onClick={resetLessonForm} className="absolute top-6 right-6 p-2 bg-gray-50 text-gray-400 rounded-full hover:text-gray-900 transition-colors"><X className="w-5 h-5"/></button>
+                          <div id="lesson-form" className="mt-8 p-6 lg:p-8 bg-white rounded-[2rem] border-[4px] border-[#5A4BFF] shadow-2xl relative">
+                            <button type="button" onClick={resetLessonForm} className="absolute top-6 right-6 p-2 bg-gray-50 text-gray-400 rounded-full hover:text-gray-900 transition-colors"><X className="w-5 h-5" /></button>
                             <h5 className="font-black text-2xl mb-8">{editingLessonId ? 'Редактирование' : 'Создание'} урока</h5>
                             
                             <input 
@@ -744,38 +809,45 @@ export default function AdminCourses() {
 
                             {/* РЕНДЕР ОСНОВНЫХ БЛОКОВ */}
                             {renderBlocksList(blocks, false)}
-                            {renderBlockToolbar(false)}
+                            <div id="theory-section-end"></div>
 
-                            {/* РАЗДЕЛИТЕЛЬ ДЛЯ ДЗ */}
                             <div className="w-full h-px border-t border-dashed border-gray-300 my-10"></div>
 
                             {/* БЛОК УПРАВЛЕНИЯ ДОМАШНИМ ЗАДАНИЕМ */}
                             {!hasHomeworkSection ? (
                               <div className="flex justify-center mb-8">
-                                <button type="button" onClick={() => setHasHomeworkSection(true)} className="px-8 py-5 bg-purple-600 text-white rounded-2xl font-black shadow-lg hover:bg-purple-700 hover:-translate-y-1 transition-all flex items-center gap-3 text-lg border border-purple-700">
-                                  <FileSignature className="w-6 h-6"/> ДОБАВИТЬ ДОМАШНЕЕ ЗАДАНИЕ
+                                <button 
+                                  type="button" 
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    setHasHomeworkSection(true);
+                                    setTimeout(() => document.getElementById('hw-section-admin')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 100);
+                                  }} 
+                                  className="px-8 py-5 bg-purple-600 text-white rounded-2xl font-black shadow-lg hover:bg-purple-700 hover:-translate-y-1 transition-all flex items-center gap-3 text-lg border border-purple-700"
+                                >
+                                  <FileSignature className="w-6 h-6" /> ДОБАВИТЬ ДОМАШНЕЕ ЗАДАНИЕ
                                 </button>
                               </div>
                             ) : (
-                              <div className="bg-purple-50/30 p-8 rounded-[2rem] border-2 border-purple-200 shadow-inner mb-8">
-                                <div className="flex justify-between items-center mb-8">
-                                  <h3 className="text-2xl font-black text-purple-700 flex items-center gap-3"><FileSignature className="w-6 h-6"/> Домашнее задание</h3>
+                              <div id="hw-section-admin" className="bg-purple-50/30 p-6 lg:p-8 rounded-[2rem] border-2 border-purple-200 shadow-inner mb-8">
+                                <div className="flex flex-col sm:flex-row justify-between items-center gap-4 mb-8">
+                                  <h3 className="text-2xl font-black text-purple-700 flex items-center gap-3"><FileSignature className="w-6 h-6" /> Домашнее задание</h3>
                                   <button type="button" onClick={() => { setHasHomeworkSection(false); setHwBlocks([]); }} className="text-red-500 hover:text-red-700 font-bold text-sm flex items-center gap-2 bg-white px-4 py-2 rounded-xl shadow-sm border border-red-100">
                                      <Trash2 className="w-4 h-4" /> Удалить ДЗ
                                   </button>
                                 </div>
                                 
                                 {renderBlocksList(hwBlocks, true)}
-                                {renderBlockToolbar(true)}
+                                <div id="hw-section-end"></div>
                               </div>
                             )}
 
-                            <div className="flex gap-4 border-t border-gray-100 pt-8">
-                                <button onClick={() => handleSaveLesson(theme)} className="flex-1 py-5 bg-[#5A4BFF] hover:bg-[#4a3dec] text-white rounded-2xl font-black text-xl transition-all shadow-xl active:scale-95 flex justify-center items-center gap-2">
+                            <div className="flex flex-col sm:flex-row gap-4 border-t border-gray-100 pt-8 mt-8">
+                                <button type="button" onClick={() => handleSaveLesson(theme)} className="flex-1 py-5 bg-[#5A4BFF] hover:bg-[#4a3dec] text-white rounded-2xl font-black text-xl transition-all shadow-xl active:scale-95 flex justify-center items-center gap-2">
                                   {editingLessonId ? 'Сохранить изменения' : 'Создать урок'}
                                 </button>
                                 {editingLessonId && (
-                                    <button onClick={resetLessonForm} className="px-10 py-5 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-2xl font-black text-lg transition-colors">Отмена</button>
+                                    <button type="button" onClick={resetLessonForm} className="px-10 py-5 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-2xl font-black text-lg transition-colors">Отмена</button>
                                 )}
                             </div>
                           </div>
@@ -785,8 +857,11 @@ export default function AdminCourses() {
                   })}
                 </div>
 
-                <div className="w-full lg:w-80 shrink-0">
-                  <div className="bg-gray-900 rounded-[2rem] p-8 text-white sticky top-0 shadow-2xl">
+                {/* 🔥 ПРАВАЯ КОЛОНКА (Прилипает к верху экрана) */}
+                <div className="w-full lg:w-[320px] shrink-0 sticky top-0 flex flex-col gap-6 pb-8 z-30">
+                  
+                  {/* БЛОК "НОВЫЙ МОДУЛЬ" */}
+                  <div className="bg-gray-900 rounded-[2rem] p-8 text-white shadow-2xl">
                     <h3 className="font-black text-2xl mb-6">Новый модуль</h3>
                     <form onSubmit={handleCreateTheme} className="space-y-4">
                       <input 
@@ -800,6 +875,15 @@ export default function AdminCourses() {
                       <button type="submit" className="w-full py-4 bg-[#5A4BFF] hover:bg-[#4a3dec] rounded-xl font-black transition-colors">Добавить</button>
                     </form>
                   </div>
+
+                  {/* БОКОВЫЕ ПАНЕЛИ ДОБАВЛЕНИЯ БЛОКОВ */}
+                  {selectedThemeForLesson && (
+                    <>
+                      {renderSidebarToolbar(false)}
+                      {hasHomeworkSection && renderSidebarToolbar(true)}
+                    </>
+                  )}
+
                 </div>
               </div>
             </motion.div>
