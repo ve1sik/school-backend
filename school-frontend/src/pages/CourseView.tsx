@@ -142,12 +142,14 @@ export default function CourseView() {
     let isSuccess = false;
     let isPending = false;
 
+    // 🔥 ИСПРАВЛЕННАЯ СБОРКА ВОПРОСА С КАРТИНКОЙ ДЛЯ КУРАТОРА
+    const img = block.questionImage || block.image;
+    const questionWithImage = img 
+      ? `${block.question}|||IMG|||${img}` 
+      : block.question;
+
     if (['written', 'homework'].includes(block.type)) {
       try {
-        const questionWithImage = block.questionImage 
-          ? `${block.question}|||IMG|||${block.questionImage}` 
-          : block.question;
-
         await axios.post(`${API_URL}/submissions`, {
           lessonId: activeLesson.id,
           blockId: block.id,
@@ -176,7 +178,7 @@ export default function CourseView() {
         const res = await axios.post(`${API_URL}/submissions`, {
           lessonId: activeLesson.id,
           blockId: block.id,
-          question: block.question,
+          question: questionWithImage, // И для тестов тоже передаем картинку
           answer: selected.join(', '),
           maxScore: block.maxScore || 100
         }, { headers: { Authorization: `Bearer ${token}` } });
@@ -248,7 +250,7 @@ export default function CourseView() {
 
       <aside className="w-[340px] bg-white border-r border-gray-100 flex flex-col h-full shrink-0 z-20 shadow-lg">
         <div className="p-5 border-b border-gray-100 bg-white">
-          <button onClick={() => navigate(`/course/${courseId}`)} className="text-[11px] font-black tracking-wider text-gray-400 hover:text-[#5A4BFF] flex items-center gap-2 mb-4 transition-colors uppercase">
+          <button type="button" onClick={() => navigate(`/course/${courseId}`)} className="text-[11px] font-black tracking-wider text-gray-400 hover:text-[#5A4BFF] flex items-center gap-2 mb-4 transition-colors uppercase">
             <ArrowLeft className="w-4 h-4" /> Назад к модулям
           </button>
           <h2 className="text-xl font-black leading-tight text-gray-900 mb-4 line-clamp-2">{course.title}</h2>
@@ -272,7 +274,8 @@ export default function CourseView() {
             return (
               <div key={theme.id} className="bg-gray-50/50 rounded-xl overflow-hidden border border-gray-100">
                 <button 
-                  onClick={() => toggleTheme(theme.id)}
+                  type="button"
+                  onClick={(e) => { e.preventDefault(); toggleTheme(theme.id); }}
                   className="w-full flex items-center justify-between p-3.5 hover:bg-gray-100 transition-colors"
                 >
                   <div className="text-left pr-4">
@@ -297,8 +300,9 @@ export default function CourseView() {
                         const isHw = lesson.is_homework;
                         return (
                           <button 
+                            type="button"
                             key={lesson.id} 
-                            onClick={() => setActiveLesson(lesson)} 
+                            onClick={(e) => { e.preventDefault(); setActiveLesson(lesson); }} 
                             className={`w-full text-left px-3 py-2.5 rounded-lg text-sm font-bold flex gap-3 transition-all items-center ${isActive ? (isHw ? 'bg-purple-600 text-white shadow-md shadow-purple-500/20' : 'bg-[#5A4BFF] text-white shadow-md shadow-[#5A4BFF]/20') : 'text-gray-600 hover:bg-white hover:shadow-sm border border-transparent hover:border-gray-200'}`}
                           >
                             {isHw ? (
@@ -372,7 +376,8 @@ export default function CourseView() {
                         {block.title && <h3 className="text-xl font-black text-gray-900 break-words">{block.title}</h3>}
                         {(block.image || block.url) && (
                           <div className="my-4">
-                            <img src={getFullUrl(block.image || block.url)} alt="Материал" className="max-w-full rounded-2xl border border-gray-100 shadow-sm" />
+                            {/* 🔥 ФИКС: Картинки растягиваются без ограничения высоты */}
+                            <img src={getFullUrl(block.image || block.url)} alt="Материал" className="w-full h-auto rounded-2xl border border-gray-100 shadow-sm" />
                           </div>
                         )}
                         <div className="prose prose-sm sm:prose-base max-w-none text-gray-700 leading-relaxed break-words ql-editor px-0">
@@ -386,7 +391,7 @@ export default function CourseView() {
                     if (block.type === 'image' || block.type === 'img') return (
                       <div key={block.id} className="my-4">
                         {(block.url || block.image) && (
-                          <img src={getFullUrl(block.url || block.image)} alt="Изображение" className="max-w-full rounded-2xl border border-gray-100 shadow-sm" />
+                          <img src={getFullUrl(block.url || block.image)} alt="Изображение" className="w-full h-auto rounded-2xl border border-gray-100 shadow-sm" />
                         )}
                       </div>
                     );
@@ -430,7 +435,7 @@ export default function CourseView() {
 
                   {/* --- БЛОК 2: ПРАКТИКА --- */}
                   {practiceBlocks.length > 0 && (
-                    <div className="mt-12 pt-10 border-t border-dashed border-gray-200">
+                    <div id="practice-section" className="mt-12 pt-10 border-t border-dashed border-gray-200">
                       {!areTestsRevealed ? (
                         <div className="bg-indigo-50 border border-indigo-100 rounded-[2rem] p-8 text-center flex flex-col items-center">
                           <div className="w-16 h-16 bg-white rounded-2xl flex items-center justify-center shadow-sm mb-4">
@@ -439,7 +444,12 @@ export default function CourseView() {
                           <h3 className="text-2xl font-black text-gray-900 mb-2">Практика к уроку</h3>
                           <p className="text-gray-600 mb-6">В этом уроке доступно {practiceBlocks.length} заданий для закрепления материала.</p>
                           <button 
-                            onClick={() => setAreTestsRevealed(true)}
+                            type="button"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              setAreTestsRevealed(true);
+                              setTimeout(() => document.getElementById('practice-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
+                            }}
                             className="px-8 py-4 bg-[#5A4BFF] hover:bg-indigo-600 text-white rounded-xl font-bold transition-all shadow-lg shadow-indigo-500/30 active:scale-95"
                           >
                             Показать задания
@@ -488,7 +498,8 @@ export default function CourseView() {
                                     </div>
                                   </div>
                                   <button 
-                                    onClick={() => setOpenedTasks(prev => ({...prev, [block.id]: true}))} 
+                                    type="button"
+                                    onClick={(e) => { e.preventDefault(); setOpenedTasks(prev => ({...prev, [block.id]: true})); }} 
                                     className={`shrink-0 px-6 py-3 font-bold rounded-xl transition-all shadow-sm active:scale-95 ${result === 'SUCCESS' ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-900 hover:bg-black text-white'}`}
                                   >
                                     {result === 'SUCCESS' ? 'Выполнено' : 'Приступить'}
@@ -499,7 +510,7 @@ export default function CourseView() {
 
                             return (
                               <div key={block.id} className={`bg-[#F8FAFC] rounded-[2rem] p-6 md:p-8 border-2 transition-colors relative ${isExhausted && result !== 'SUCCESS' ? 'border-rose-200' : 'border-gray-100'}`}>
-                                <button onClick={() => setOpenedTasks(prev => ({...prev, [block.id]: false}))} className="absolute top-4 right-4 p-2 text-gray-400 hover:text-gray-700 bg-white rounded-full border border-gray-200 shadow-sm z-10">
+                                <button type="button" onClick={(e) => { e.preventDefault(); setOpenedTasks(prev => ({...prev, [block.id]: false})); }} className="absolute top-4 right-4 p-2 text-gray-400 hover:text-gray-700 bg-white rounded-full border border-gray-200 shadow-sm z-10">
                                   <ChevronUpIcon className="w-5 h-5" />
                                 </button>
 
@@ -520,7 +531,7 @@ export default function CourseView() {
                                 <div className="text-xl md:text-2xl font-black mb-6 leading-snug text-gray-800 break-words w-full overflow-hidden ql-editor px-0" dangerouslySetInnerHTML={{ __html: block.question?.includes('<') ? block.question : block.question?.replace(/\n/g, '<br/>') }} />
                                 
                                 {(block.questionImage || block.image) && (
-                                  <img src={getFullUrl(block.questionImage || block.image)} alt="Схема" className="mb-6 max-w-full max-h-[400px] rounded-xl border border-gray-200 shadow-sm" />
+                                  <img src={getFullUrl(block.questionImage || block.image)} alt="Схема" className="mb-6 w-full h-auto rounded-xl border border-gray-200 shadow-sm" />
                                 )}
                                 
                                 {block.type === 'test' && (
@@ -553,7 +564,6 @@ export default function CourseView() {
                                   </div>
                                 )}
 
-                                {/* 🔥 РЕДАКТОР ДЛЯ ПРАКТИКИ С РАЗВЕРНУТЫМ ОТВЕТОМ */}
                                 {block.type === 'written' && (
                                   <div className="mb-6">
                                     <label className="text-[10px] font-black text-purple-600 uppercase tracking-widest mb-3 block">Ваш развернутый ответ:</label>
@@ -574,7 +584,8 @@ export default function CourseView() {
                                 <div className="flex flex-col items-start gap-4 pt-6 border-t border-gray-200">
                                   <div className="flex flex-col sm:flex-row sm:items-center gap-4 w-full">
                                     <button 
-                                      onClick={() => handleSubmitTest(block)} 
+                                      type="button"
+                                      onClick={(e) => { e.preventDefault(); handleSubmitTest(block); }} 
                                       disabled={selected.length === 0 || selected[0] === '' || selected[0] === '<p><br></p>' || isLocked} 
                                       className={`w-full sm:w-auto shrink-0 px-8 py-3.5 rounded-xl font-black text-sm transition-all active:scale-95 disabled:opacity-50 ${isExhausted && block.type !== 'written' ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-[#5A4BFF] hover:bg-indigo-500 text-white shadow-lg shadow-indigo-500/20'}`}
                                     >
@@ -598,7 +609,7 @@ export default function CourseView() {
 
                   {/* 🔥 БЛОК 3: ДОМАШНЕЕ ЗАДАНИЕ */}
                   {homeworkBlocks.length > 0 && (
-                    <div className="mt-12 pt-10 border-t-4 border-dashed border-purple-200">
+                    <div id="homework-section" className="mt-12 pt-10 border-t-4 border-dashed border-purple-200">
                       <div className="bg-purple-600 p-6 md:p-8 rounded-[2rem] shadow-sm overflow-hidden flex flex-col md:flex-row md:items-center justify-between gap-6 relative">
                         <div className="absolute -right-10 -top-10 w-32 h-32 bg-purple-400 rounded-full opacity-30 blur-2xl pointer-events-none"></div>
                         <div className="flex items-center gap-5 relative z-10 w-full md:w-auto">
@@ -612,7 +623,14 @@ export default function CourseView() {
                         </div>
                         
                         <button 
-                          onClick={() => setIsHomeworkRevealed(!isHomeworkRevealed)}
+                          type="button"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            setIsHomeworkRevealed(prev => !prev);
+                            if (!isHomeworkRevealed) {
+                              setTimeout(() => document.getElementById('homework-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
+                            }
+                          }}
                           className="w-full md:w-auto shrink-0 px-8 py-4 bg-white text-purple-700 hover:bg-purple-50 rounded-xl font-black text-sm transition-all shadow-lg active:scale-95 flex items-center justify-center gap-2 relative z-10"
                         >
                           {isHomeworkRevealed ? 'Скрыть задание' : 'Показать задание'}
@@ -625,6 +643,7 @@ export default function CourseView() {
                       <AnimatePresence>
                         {isHomeworkRevealed && (
                           <motion.div
+                            key="hw-content"
                             initial={{ height: 0, opacity: 0, marginTop: 0 }}
                             animate={{ height: 'auto', opacity: 1, marginTop: 32 }}
                             exit={{ height: 0, opacity: 0, marginTop: 0 }}
@@ -663,7 +682,7 @@ export default function CourseView() {
                                   )}
 
                                   {(block.type === 'image' || block.type === 'img') && (block.url || block.image) && (
-                                    <img src={getFullUrl(block.url || block.image)} alt="Материал ДЗ" className="max-w-full rounded-2xl border border-gray-100 shadow-sm mb-6" />
+                                    <img src={getFullUrl(block.url || block.image)} alt="Материал ДЗ" className="mb-6 w-full h-auto rounded-2xl border border-gray-100 shadow-sm" />
                                   )}
 
                                   {['test', 'test_short', 'written', 'homework'].includes(block.type) && (
@@ -671,7 +690,7 @@ export default function CourseView() {
                                   )}
                                   
                                   {(block.questionImage || block.image) && (
-                                    <img src={getFullUrl(block.questionImage || block.image)} alt="Схема" className="mb-6 max-w-full max-h-[400px] rounded-xl border border-gray-200 shadow-sm" />
+                                    <img src={getFullUrl(block.questionImage || block.image)} alt="Схема" className="mb-6 w-full h-auto rounded-xl border border-gray-200 shadow-sm" />
                                   )}
                                   
                                   {block.type === 'test' && (
@@ -712,7 +731,8 @@ export default function CourseView() {
                                     <div className="flex flex-col items-start gap-4 pt-6 border-t border-purple-50">
                                       <div className="flex flex-col sm:flex-row sm:items-center gap-4 w-full">
                                         <button 
-                                          onClick={() => handleSubmitTest(block)} 
+                                          type="button"
+                                          onClick={(e) => { e.preventDefault(); handleSubmitTest(block); }} 
                                           disabled={selected.length === 0 || selected[0] === '' || selected[0] === '<p><br></p>' || isLocked} 
                                           className="w-full sm:w-auto shrink-0 px-8 py-3.5 rounded-xl font-black text-sm transition-all active:scale-95 disabled:opacity-50 bg-purple-600 hover:bg-purple-500 text-white shadow-lg shadow-purple-600/30"
                                         >
@@ -750,26 +770,6 @@ export default function CourseView() {
   );
 }
 
-function ChevronUpIcon(props: any) {
-  return (
-    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
-      <path d="m18 15-6-6-6 6"/>
-    </svg>
-  );
-}
-
-function ChevronDownIcon(props: any) {
-  return (
-    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
-      <path d="m6 9l6 6 6-6"/>
-    </svg>
-  );
-}
-
-function ChevronRightIcon(props: any) {
-    return (
-      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
-        <path d="m9 18 6-6-6-6"/>
-      </svg>
-    );
-}
+function ChevronUpIcon(props: any) { return <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m18 15-6-6-6 6"/></svg>; }
+function ChevronDownIcon(props: any) { return <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>; }
+function ChevronRightIcon(props: any) { return <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6"/></svg>; }
