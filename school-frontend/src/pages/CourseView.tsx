@@ -14,16 +14,29 @@ import 'react-quill-new/dist/quill.snow.css';
 
 const API_URL = 'https://prepodmgy.ru/api';
 
+// 🔥 УЛЬТИМАТИВНЫЙ ФИКС: исправляет Mixed Content (HTTP -> HTTPS) и пути
 const getFullUrl = (url: string) => {
   if (!url) return '';
-  if (url.startsWith('http')) return url;
+  let finalUrl = url;
+
+  // Если ссылка ведет на наш домен по http, принудительно меняем на https (чтобы браузер не блокировал)
+  if (finalUrl.startsWith('http://prepodmgy.ru')) {
+    finalUrl = finalUrl.replace('http://', 'https://');
+  }
+
+  // Если это уже полная внешняя ссылка (http/https), возвращаем как есть
+  if (finalUrl.startsWith('http')) return finalUrl;
   
-  // Если это файл из папки uploads, не добавляем /api
-  if (url.startsWith('/uploads')) {
-    return `https://prepodmgy.ru${url}`;
+  // Чистим путь от лишних слэшей
+  const cleanPath = finalUrl.startsWith('/') ? finalUrl.slice(1) : finalUrl;
+  
+  // Если файл лежит в uploads, тянем напрямую с домена (не через /api)
+  if (cleanPath.startsWith('uploads/')) {
+    return `https://prepodmgy.ru/${cleanPath}`;
   }
   
-  return `${API_URL}${url.startsWith('/') ? '' : '/'}${url}`;
+  // Для всего остального склеиваем с API_URL
+  return `${API_URL}/${cleanPath}`;
 };
 
 const studentQuillModules = {
@@ -226,6 +239,7 @@ export default function CourseView() {
     }
   }
 
+  // Разделяем блоки
   const theoryBlocks = blocks.filter(b => !['test', 'test_short'].includes(b.type) && !b.isHomework);
   const practiceBlocks = blocks.filter(b => ['test', 'test_short'].includes(b.type) && !b.isHomework);
   const homeworkBlocks = blocks.filter(b => b.isHomework);
@@ -272,7 +286,7 @@ export default function CourseView() {
                     </span>
                     <span className="text-sm font-bold text-gray-800 line-clamp-1 break-words">{theme.title}</span>
                   </div>
-                  {isExpanded ? <ChevronDown className="w-5 h-5 text-gray-400 shrink-0" /> : <ChevronRight className="w-5 h-5 text-gray-400 shrink-0" />}
+                  {isExpanded ? <ChevronDownIcon className="w-5 h-5 text-gray-400 shrink-0" /> : <ChevronRightIcon className="w-5 h-5 text-gray-400 shrink-0" />}
                 </button>
 
                 <AnimatePresence>
@@ -358,20 +372,26 @@ export default function CourseView() {
                       );
                     }
 
-                    if (block.type === 'text' && block.content) return (
+                    if (block.type === 'text' || block.type === 'paragraph') return (
                       <div key={block.id} className="space-y-3 w-full overflow-hidden">
                         {block.title && <h3 className="text-xl font-black text-gray-900 break-words">{block.title}</h3>}
-                        {block.image && (
+                        {(block.image || block.url) && (
                           <div className="my-4">
-                            <img src={getFullUrl(block.image)} alt="Материал" className="max-w-full rounded-2xl border border-gray-100 shadow-sm" />
+                            <img src={getFullUrl(block.image || block.url)} alt="Материал" className="max-w-full rounded-2xl border border-gray-100 shadow-sm" />
                           </div>
                         )}
                         <div className="prose prose-sm sm:prose-base max-w-none text-gray-700 leading-relaxed break-words ql-editor px-0">
                           <div dangerouslySetInnerHTML={{ 
-                            __html: block.content.includes('<') ? block.content : block.content.replace(/\n/g, '<br/>') 
+                            __html: block.content ? (block.content.includes('<') ? block.content : block.content.replace(/\n/g, '<br/>')) : ''
                           }} />
                         </div>
                       </div>
+                    );
+
+                    if (block.type === 'image' || block.type === 'img') return (
+                        <div key={block.id} className="my-4">
+                          <img src={getFullUrl(block.url || block.image)} alt="Изображение" className="max-w-full rounded-2xl border border-gray-100 shadow-sm" />
+                        </div>
                     );
 
                     if (block.type === 'file' && block.url) return (
@@ -391,8 +411,7 @@ export default function CourseView() {
                       </div>
                     );
 
-                    // 🔥 НОВЫЙ БЛОК ДЛЯ КНОПКИ-ССЫЛКИ
-                    if (block.type === 'link' && block.url) return (
+                    if ((block.type === 'link' || block.type === 'button') && block.url) return (
                       <div key={block.id} className="bg-pink-50/50 border border-pink-100 rounded-[1.5rem] p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-all hover:bg-pink-50">
                         <div className="flex items-center gap-4 min-w-0">
                           <div className="w-12 h-12 bg-pink-100 rounded-xl flex items-center justify-center shrink-0">
@@ -400,11 +419,11 @@ export default function CourseView() {
                           </div>
                           <div className="min-w-0">
                             <h3 className="text-lg font-black text-gray-900 leading-tight break-words">{block.title || 'Полезная ссылка'}</h3>
-                            <p className="text-xs font-medium text-gray-600 mt-1 break-words">{block.url}</p>
+                            <p className="text-xs text-gray-500 truncate">{block.url}</p>
                           </div>
                         </div>
-                        <a href={block.url} target="_blank" rel="noopener noreferrer" className="shrink-0 w-full sm:w-auto px-6 py-3 bg-pink-600 hover:bg-pink-500 text-white rounded-xl font-bold text-sm transition-all shadow-md active:scale-95 flex items-center justify-center gap-2">
-                          {block.buttonText || 'ПЕРЕЙТИ'} <ExternalLink className="w-4 h-4" />
+                        <a href={block.url} target="_blank" rel="noopener noreferrer" className="shrink-0 w-full sm:w-auto px-8 py-4 bg-pink-600 hover:bg-pink-500 text-white rounded-xl font-black text-sm flex items-center justify-center gap-2 shadow-lg transition-all active:scale-95">
+                          {block.buttonText || 'ОТКРЫТЬ'} <ExternalLink className="w-4 h-4" />
                         </a>
                       </div>
                     );
@@ -492,7 +511,7 @@ export default function CourseView() {
 
                                 <div className="text-xl md:text-2xl font-black mb-6 leading-snug text-gray-800 break-words w-full overflow-hidden ql-editor px-0" dangerouslySetInnerHTML={{ __html: block.question?.includes('<') ? block.question : block.question?.replace(/\n/g, '<br/>') }} />
                                 
-                                {block.questionImage && <img src={getFullUrl(block.questionImage)} alt="Схема" className="mb-6 max-w-full max-h-[400px] rounded-xl border border-gray-200 shadow-sm" />}
+                                {(block.questionImage || block.image) && <img src={getFullUrl(block.questionImage || block.image)} alt="Схема" className="mb-6 max-w-full max-h-[400px] rounded-xl border border-gray-200 shadow-sm" />}
                                 
                                 {block.type === 'test' && (
                                   <div className="space-y-3 mb-6">
@@ -551,7 +570,6 @@ export default function CourseView() {
                   {/* 🔥 БЛОК 3: ДОМАШНЕЕ ЗАДАНИЕ */}
                   {homeworkBlocks.length > 0 && (
                     <div className="mt-12 pt-10 border-t-4 border-dashed border-purple-200">
-                      
                       <div className="bg-purple-600 p-6 md:p-8 rounded-[2rem] shadow-sm overflow-hidden flex flex-col md:flex-row md:items-center justify-between gap-6 relative">
                         <div className="absolute -right-10 -top-10 w-32 h-32 bg-purple-400 rounded-full opacity-30 blur-2xl pointer-events-none"></div>
                         <div className="flex items-center gap-5 relative z-10 w-full md:w-auto">
@@ -609,21 +627,21 @@ export default function CourseView() {
                                     </div>
                                   )}
 
-                                  {block.type === 'text' && block.content && (
+                                  {(block.type === 'text' || block.type === 'paragraph') && block.content && (
                                     <div className="prose prose-sm sm:prose-base max-w-none text-gray-700 leading-relaxed break-words ql-editor px-0 mb-6">
-                                      <div dangerouslySetInnerHTML={{ __html: block.content.includes('<') ? block.content : block.content.replace(/\n/g, '<br/>') }} />
+                                      <div dangerouslySetInnerHTML={{ __html: block.content ? (block.content.includes('<') ? block.content : block.content.replace(/\n/g, '<br/>')) : '' }} />
                                     </div>
                                   )}
 
-                                  {block.type === 'image' && block.url && (
-                                    <img src={getFullUrl(block.url)} alt="Материал ДЗ" className="max-w-full rounded-2xl border border-gray-100 shadow-sm mb-6" />
+                                  {(block.type === 'image' || block.type === 'img') && (block.url || block.image) && (
+                                    <img src={getFullUrl(block.url || block.image)} alt="Материал ДЗ" className="max-w-full rounded-2xl border border-gray-100 shadow-sm mb-6" />
                                   )}
 
                                   {['test', 'test_short', 'written', 'homework'].includes(block.type) && (
-                                    <div className="text-xl md:text-2xl font-black mb-6 leading-snug text-gray-800 break-words w-full overflow-hidden ql-editor px-0" dangerouslySetInnerHTML={{ __html: block.question?.includes('<') ? block.question : block.question?.replace(/\n/g, '<br/>') }} />
+                                    <div className="text-xl md:text-2xl font-black mb-6 leading-snug text-gray-800 break-words w-full overflow-hidden ql-editor px-0" dangerouslySetInnerHTML={{ __html: block.question?.includes('<') ? block.question : (block.question?.replace(/\n/g, '<br/>') || '') }} />
                                   )}
                                   
-                                  {block.questionImage && <img src={getFullUrl(block.questionImage)} alt="Схема" className="mb-6 max-w-full max-h-[400px] rounded-xl border border-gray-200 shadow-sm" />}
+                                  {(block.questionImage || block.image) && <img src={getFullUrl(block.questionImage || block.image)} alt="Схема" className="mb-6 max-w-full max-h-[400px] rounded-xl border border-gray-200 shadow-sm" />}
                                   
                                   {block.type === 'test' && (
                                     <div className="space-y-3 mb-6">
@@ -715,4 +733,12 @@ function ChevronDownIcon(props: any) {
       <path d="m6 9l6 6 6-6"/>
     </svg>
   );
+}
+
+function ChevronRightIcon(props: any) {
+    return (
+      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+        <path d="m9 18 6-6-6-6"/>
+      </svg>
+    );
 }
