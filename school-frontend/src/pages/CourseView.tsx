@@ -19,23 +19,18 @@ const getFullUrl = (url: string) => {
   if (!url) return '';
   let finalUrl = url;
 
-  // Если ссылка ведет на наш домен по http, принудительно меняем на https (чтобы браузер не блокировал)
   if (finalUrl.startsWith('http://prepodmgy.ru')) {
     finalUrl = finalUrl.replace('http://', 'https://');
   }
 
-  // Если это уже полная внешняя ссылка (http/https), возвращаем как есть
   if (finalUrl.startsWith('http')) return finalUrl;
   
-  // Чистим путь от лишних слэшей
   const cleanPath = finalUrl.startsWith('/') ? finalUrl.slice(1) : finalUrl;
   
-  // Если файл лежит в uploads, тянем напрямую с домена (не через /api)
   if (cleanPath.startsWith('uploads/')) {
     return `https://prepodmgy.ru/${cleanPath}`;
   }
   
-  // Для всего остального склеиваем с API_URL
   return `${API_URL}/${cleanPath}`;
 };
 
@@ -161,9 +156,9 @@ export default function CourseView() {
           maxScore: block.maxScore || 10
         }, { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } });
         
-        isPending = true;
+        isPending = true; // Улетает куратору
       } catch (err) {
-        console.error('Ошибка отправки', err);
+        console.error('Ошибка отправки куратору:', err);
         return; 
       }
     } else if (block.type === 'test') {
@@ -239,9 +234,9 @@ export default function CourseView() {
     }
   }
 
-  // Разделяем блоки
-  const theoryBlocks = blocks.filter(b => !['test', 'test_short'].includes(b.type) && !b.isHomework);
-  const practiceBlocks = blocks.filter(b => ['test', 'test_short'].includes(b.type) && !b.isHomework);
+  // Разделяем блоки (с учетом фикса типа written)
+  const theoryBlocks = blocks.filter(b => !['test', 'test_short', 'written'].includes(b.type) && !b.isHomework);
+  const practiceBlocks = blocks.filter(b => ['test', 'test_short', 'written'].includes(b.type) && !b.isHomework);
   const homeworkBlocks = blocks.filter(b => b.isHomework);
 
   return (
@@ -389,9 +384,11 @@ export default function CourseView() {
                     );
 
                     if (block.type === 'image' || block.type === 'img') return (
-                        <div key={block.id} className="my-4">
+                      <div key={block.id} className="my-4">
+                        {(block.url || block.image) && (
                           <img src={getFullUrl(block.url || block.image)} alt="Изображение" className="max-w-full rounded-2xl border border-gray-100 shadow-sm" />
-                        </div>
+                        )}
+                      </div>
                     );
 
                     if (block.type === 'file' && block.url) return (
@@ -461,7 +458,7 @@ export default function CourseView() {
                             const maxAttempts = block.maxAttempts || 3;
                             const attemptsLeft = maxAttempts - currentAttempts;
                             const isExhausted = attemptsLeft <= 0;
-                            const isLocked = isExhausted || result === 'SUCCESS';
+                            const isLocked = isExhausted || result === 'SUCCESS' || result === 'PENDING';
                             
                             let badgeText = block.title || 'Практика';
                             let badgeColor = 'bg-indigo-100 text-indigo-700 border-indigo-200';
@@ -470,6 +467,10 @@ export default function CourseView() {
                             if (block.type === 'test_short') {
                               badgeColor = 'bg-amber-100 text-amber-700 border-amber-200';
                               icon = <Type className="w-5 h-5 text-amber-600"/>;
+                            } else if (block.type === 'written') {
+                              badgeColor = 'bg-purple-100 text-purple-700 border-purple-200';
+                              icon = <PenTool className="w-5 h-5 text-purple-600"/>;
+                              badgeText = block.title || 'Развернутый ответ';
                             }
 
                             const isTaskOpen = openedTasks[block.id];
@@ -504,14 +505,23 @@ export default function CourseView() {
 
                                 <div className="flex flex-wrap items-center gap-3 mb-6 pr-10">
                                   <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-md text-[10px] font-black uppercase tracking-widest ${badgeColor} border-none`}>{badgeText}</div>
-                                  <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-md text-[10px] font-black uppercase tracking-widest ${isExhausted ? 'bg-rose-100 text-rose-600' : 'bg-gray-200 text-gray-600'}`}>
-                                    Попыток: {attemptsLeft} из {maxAttempts}
-                                  </div>
+                                  {block.type !== 'written' && (
+                                    <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-md text-[10px] font-black uppercase tracking-widest ${isExhausted ? 'bg-rose-100 text-rose-600' : 'bg-gray-200 text-gray-600'}`}>
+                                      Попыток: {attemptsLeft} из {maxAttempts}
+                                    </div>
+                                  )}
+                                  {block.type === 'written' && (
+                                    <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-md bg-gray-200 text-gray-600 text-[10px] font-black uppercase tracking-widest">
+                                      Макс. балл: {block.maxScore || 10}
+                                    </div>
+                                  )}
                                 </div>
 
                                 <div className="text-xl md:text-2xl font-black mb-6 leading-snug text-gray-800 break-words w-full overflow-hidden ql-editor px-0" dangerouslySetInnerHTML={{ __html: block.question?.includes('<') ? block.question : block.question?.replace(/\n/g, '<br/>') }} />
                                 
-                                {(block.questionImage || block.image) && <img src={getFullUrl(block.questionImage || block.image)} alt="Схема" className="mb-6 max-w-full max-h-[400px] rounded-xl border border-gray-200 shadow-sm" />}
+                                {(block.questionImage || block.image) && (
+                                  <img src={getFullUrl(block.questionImage || block.image)} alt="Схема" className="mb-6 max-w-full max-h-[400px] rounded-xl border border-gray-200 shadow-sm" />
+                                )}
                                 
                                 {block.type === 'test' && (
                                   <div className="space-y-3 mb-6">
@@ -543,19 +553,38 @@ export default function CourseView() {
                                   </div>
                                 )}
 
+                                {/* 🔥 РЕДАКТОР ДЛЯ ПРАКТИКИ С РАЗВЕРНУТЫМ ОТВЕТОМ */}
+                                {block.type === 'written' && (
+                                  <div className="mb-6">
+                                    <label className="text-[10px] font-black text-purple-600 uppercase tracking-widest mb-3 block">Ваш развернутый ответ:</label>
+                                    <div className={`rounded-xl border-2 overflow-hidden transition-all bg-white ${isLocked ? 'border-gray-200 opacity-70 pointer-events-none' : 'border-purple-200 focus-within:border-purple-500 focus-within:shadow-md'}`}>
+                                      <ReactQuill 
+                                        theme="snow"
+                                        modules={studentQuillModules}
+                                        value={selected[0] || ''} 
+                                        onChange={(val) => handleTextAnswerChange(block.id, val)} 
+                                        readOnly={isLocked}
+                                        placeholder="Напишите подробный ответ..." 
+                                        className="min-h-[120px]"
+                                      />
+                                    </div>
+                                  </div>
+                                )}
+
                                 <div className="flex flex-col items-start gap-4 pt-6 border-t border-gray-200">
                                   <div className="flex flex-col sm:flex-row sm:items-center gap-4 w-full">
                                     <button 
                                       onClick={() => handleSubmitTest(block)} 
-                                      disabled={selected.length === 0 || selected[0] === '' || isLocked} 
-                                      className={`w-full sm:w-auto shrink-0 px-8 py-3.5 rounded-xl font-black text-sm transition-all active:scale-95 disabled:opacity-50 ${isExhausted ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-[#5A4BFF] hover:bg-indigo-500 text-white shadow-lg shadow-indigo-500/20'}`}
+                                      disabled={selected.length === 0 || selected[0] === '' || selected[0] === '<p><br></p>' || isLocked} 
+                                      className={`w-full sm:w-auto shrink-0 px-8 py-3.5 rounded-xl font-black text-sm transition-all active:scale-95 disabled:opacity-50 ${isExhausted && block.type !== 'written' ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-[#5A4BFF] hover:bg-indigo-500 text-white shadow-lg shadow-indigo-500/20'}`}
                                     >
-                                      {isExhausted ? 'ЛИМИТ ИСЧЕРПАН' : 'ОТВЕТИТЬ'}
+                                      {result === 'PENDING' ? 'ОТПРАВЛЕНО НА ПРОВЕРКУ' : (isExhausted && block.type !== 'written' ? 'ЛИМИТ ИСЧЕРПАН' : 'ОТВЕТИТЬ')}
                                     </button>
                                     
                                     <AnimatePresence>
                                       {result === 'SUCCESS' && <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} className="flex items-center gap-2 text-emerald-600 font-bold bg-emerald-50 px-4 py-3 rounded-lg shrink-0"><CheckCircle2 className="w-5 h-5" /> Верно</motion.div>}
                                       {result === 'ERROR' && !isExhausted && <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} className="flex items-center gap-2 text-rose-500 font-bold bg-rose-50 px-4 py-3 rounded-lg shrink-0"><XCircle className="w-5 h-5" /> Неверно</motion.div>}
+                                      {result === 'PENDING' && <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} className="flex items-center gap-2 text-indigo-600 font-bold bg-indigo-50 px-4 py-3 rounded-lg border border-indigo-100 shrink-0"><Clock className="w-5 h-5" /> Ушло куратору</motion.div>}
                                     </AnimatePresence>
                                   </div>
                                 </div>
@@ -641,7 +670,9 @@ export default function CourseView() {
                                     <div className="text-xl md:text-2xl font-black mb-6 leading-snug text-gray-800 break-words w-full overflow-hidden ql-editor px-0" dangerouslySetInnerHTML={{ __html: block.question?.includes('<') ? block.question : (block.question?.replace(/\n/g, '<br/>') || '') }} />
                                   )}
                                   
-                                  {(block.questionImage || block.image) && <img src={getFullUrl(block.questionImage || block.image)} alt="Схема" className="mb-6 max-w-full max-h-[400px] rounded-xl border border-gray-200 shadow-sm" />}
+                                  {(block.questionImage || block.image) && (
+                                    <img src={getFullUrl(block.questionImage || block.image)} alt="Схема" className="mb-6 max-w-full max-h-[400px] rounded-xl border border-gray-200 shadow-sm" />
+                                  )}
                                   
                                   {block.type === 'test' && (
                                     <div className="space-y-3 mb-6">
