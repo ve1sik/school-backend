@@ -45,9 +45,8 @@ export default function CourseView() {
   const [expandedThemes, setExpandedThemes] = useState<Record<string, boolean>>({});
   const [openedTasks, setOpenedTasks] = useState<Record<string, boolean>>({});
   
-  // 🔥 ВОТ ОНИ: ДВА НЕЗАВИСИМЫХ СТЕЙТА
-  const [areTestsRevealed, setAreTestsRevealed] = useState(false); // Для практики
-  const [isHomeworkRevealed, setIsHomeworkRevealed] = useState(false); // Для ДЗ
+  const [areTestsRevealed, setAreTestsRevealed] = useState(false); 
+  const [isHomeworkRevealed, setIsHomeworkRevealed] = useState(false); 
 
   const [testAnswers, setTestAnswers] = useState<Record<string, string[]>>(() => JSON.parse(localStorage.getItem('demo_answers') || '{}'));
   const [testResults, setTestResults] = useState<Record<string, 'SUCCESS' | 'ERROR' | 'PENDING'>>(() => JSON.parse(localStorage.getItem('demo_results') || '{}'));
@@ -91,7 +90,7 @@ export default function CourseView() {
   useEffect(() => {
     setOpenedTasks({});
     setAreTestsRevealed(false);
-    setIsHomeworkRevealed(false); // 🔥 Закрываем и то, и другое при переключении урока
+    setIsHomeworkRevealed(false);
   }, [activeLesson?.id]);
 
   const toggleTheme = (tId: string) => {
@@ -227,7 +226,6 @@ export default function CourseView() {
     }
   }
 
-  // Разделяем блоки
   const theoryBlocks = blocks.filter(b => !['test', 'test_short'].includes(b.type) && !b.isHomework);
   const practiceBlocks = blocks.filter(b => ['test', 'test_short'].includes(b.type) && !b.isHomework);
   const homeworkBlocks = blocks.filter(b => b.isHomework);
@@ -365,7 +363,7 @@ export default function CourseView() {
                         {block.title && <h3 className="text-xl font-black text-gray-900 break-words">{block.title}</h3>}
                         {block.image && (
                           <div className="my-4">
-                            <img src={block.image} alt="Материал" className="max-w-full rounded-2xl border border-gray-100 shadow-sm" />
+                            <img src={getFullUrl(block.image)} alt="Материал" className="max-w-full rounded-2xl border border-gray-100 shadow-sm" />
                           </div>
                         )}
                         <div className="prose prose-sm sm:prose-base max-w-none text-gray-700 leading-relaxed break-words ql-editor px-0">
@@ -392,6 +390,25 @@ export default function CourseView() {
                         </a>
                       </div>
                     );
+
+                    // 🔥 НОВЫЙ БЛОК ДЛЯ КНОПКИ-ССЫЛКИ
+                    if (block.type === 'link' && block.url) return (
+                      <div key={block.id} className="bg-pink-50/50 border border-pink-100 rounded-[1.5rem] p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-all hover:bg-pink-50">
+                        <div className="flex items-center gap-4 min-w-0">
+                          <div className="w-12 h-12 bg-pink-100 rounded-xl flex items-center justify-center shrink-0">
+                            <Link2 className="w-6 h-6 text-pink-600" />
+                          </div>
+                          <div className="min-w-0">
+                            <h3 className="text-lg font-black text-gray-900 leading-tight break-words">{block.title || 'Полезная ссылка'}</h3>
+                            <p className="text-xs font-medium text-gray-600 mt-1 break-words">{block.url}</p>
+                          </div>
+                        </div>
+                        <a href={block.url} target="_blank" rel="noopener noreferrer" className="shrink-0 w-full sm:w-auto px-6 py-3 bg-pink-600 hover:bg-pink-500 text-white rounded-xl font-bold text-sm transition-all shadow-md active:scale-95 flex items-center justify-center gap-2">
+                          {block.buttonText || 'ПЕРЕЙТИ'} <ExternalLink className="w-4 h-4" />
+                        </a>
+                      </div>
+                    );
+
                     return null;
                   })}
 
@@ -475,7 +492,7 @@ export default function CourseView() {
 
                                 <div className="text-xl md:text-2xl font-black mb-6 leading-snug text-gray-800 break-words w-full overflow-hidden ql-editor px-0" dangerouslySetInnerHTML={{ __html: block.question?.includes('<') ? block.question : block.question?.replace(/\n/g, '<br/>') }} />
                                 
-                                {block.questionImage && <img src={block.questionImage} alt="Схема" className="mb-6 max-w-full max-h-[400px] rounded-xl border border-gray-200 shadow-sm" />}
+                                {block.questionImage && <img src={getFullUrl(block.questionImage)} alt="Схема" className="mb-6 max-w-full max-h-[400px] rounded-xl border border-gray-200 shadow-sm" />}
                                 
                                 {block.type === 'test' && (
                                   <div className="space-y-3 mb-6">
@@ -531,11 +548,10 @@ export default function CourseView() {
                     </div>
                   )}
 
-                  {/* 🔥 БЛОК 3: ДОМАШНЕЕ ЗАДАНИЕ (ЗАКРЫТОЕ ПО УМОЛЧАНИЮ) */}
+                  {/* 🔥 БЛОК 3: ДОМАШНЕЕ ЗАДАНИЕ */}
                   {homeworkBlocks.length > 0 && (
                     <div className="mt-12 pt-10 border-t-4 border-dashed border-purple-200">
                       
-                      {/* ВСЕГДА ВИДИМАЯ ПЛАШКА ЗАДАНИЯ */}
                       <div className="bg-purple-600 p-6 md:p-8 rounded-[2rem] shadow-sm overflow-hidden flex flex-col md:flex-row md:items-center justify-between gap-6 relative">
                         <div className="absolute -right-10 -top-10 w-32 h-32 bg-purple-400 rounded-full opacity-30 blur-2xl pointer-events-none"></div>
                         <div className="flex items-center gap-5 relative z-10 w-full md:w-auto">
@@ -548,7 +564,6 @@ export default function CourseView() {
                           </div>
                         </div>
                         
-                        {/* 🔥 ЗДЕСЬ БЫЛА ОШИБКА: теперь используем правильный стейт isHomeworkRevealed */}
                         <button 
                           onClick={() => setIsHomeworkRevealed(!isHomeworkRevealed)}
                           className="w-full md:w-auto shrink-0 px-8 py-4 bg-white text-purple-700 hover:bg-purple-50 rounded-xl font-black text-sm transition-all shadow-lg active:scale-95 flex items-center justify-center gap-2 relative z-10"
@@ -560,7 +575,6 @@ export default function CourseView() {
                         </button>
                       </div>
 
-                      {/* СКРЫТЫЙ КОНТЕНТ ДОМАШНЕГО ЗАДАНИЯ */}
                       <AnimatePresence>
                         {isHomeworkRevealed && (
                           <motion.div
@@ -589,7 +603,6 @@ export default function CourseView() {
                                     )}
                                   </div>
 
-                                  {/* Если это обычное видео/текст/картинка внутри ДЗ */}
                                   {block.type === 'video' && block.url && (
                                     <div className="aspect-video bg-gray-900 rounded-[1.5rem] overflow-hidden shadow-lg relative border border-gray-100 mb-6">
                                       <iframe src={getEmbedUrl(block.url)} className="w-full h-full absolute inset-0" allowFullScreen></iframe>
@@ -603,21 +616,15 @@ export default function CourseView() {
                                   )}
 
                                   {block.type === 'image' && block.url && (
-                                  <img 
-                                    src={getFullUrl(block.url)} 
-                                    alt="Материал" 
-                                    className="max-w-full rounded-2xl border border-gray-100 shadow-sm" 
-                                    />
+                                    <img src={getFullUrl(block.url)} alt="Материал ДЗ" className="max-w-full rounded-2xl border border-gray-100 shadow-sm mb-6" />
                                   )}
 
-                                  {/* Вопрос (Для тестов и эссе) */}
                                   {['test', 'test_short', 'written', 'homework'].includes(block.type) && (
                                     <div className="text-xl md:text-2xl font-black mb-6 leading-snug text-gray-800 break-words w-full overflow-hidden ql-editor px-0" dangerouslySetInnerHTML={{ __html: block.question?.includes('<') ? block.question : block.question?.replace(/\n/g, '<br/>') }} />
                                   )}
                                   
-                                  {block.questionImage && <img src={block.questionImage} alt="Схема" className="mb-6 max-w-full max-h-[400px] rounded-xl border border-gray-200 shadow-sm" />}
+                                  {block.questionImage && <img src={getFullUrl(block.questionImage)} alt="Схема" className="mb-6 max-w-full max-h-[400px] rounded-xl border border-gray-200 shadow-sm" />}
                                   
-                                  {/* Варианты ответов для тестов внутри ДЗ */}
                                   {block.type === 'test' && (
                                     <div className="space-y-3 mb-6">
                                       {block.options?.map((opt: any, idx: number) => {
@@ -635,7 +642,6 @@ export default function CourseView() {
                                     </div>
                                   )}
 
-                                  {/* ВОРД-РЕДАКТОР ДЛЯ ОТВЕТА УЧЕНИКА (written / homework) */}
                                   {['written', 'homework'].includes(block.type) && (
                                     <div className="mb-6">
                                       <label className="text-[10px] font-black text-purple-600 uppercase tracking-widest mb-3 block">Ваш развернутый ответ:</label>
@@ -653,7 +659,6 @@ export default function CourseView() {
                                     </div>
                                   )}
 
-                                  {/* Кнопка отправки ответа */}
                                   {['test', 'test_short', 'written', 'homework'].includes(block.type) && (
                                     <div className="flex flex-col items-start gap-4 pt-6 border-t border-purple-50">
                                       <div className="flex flex-col sm:flex-row sm:items-center gap-4 w-full">
