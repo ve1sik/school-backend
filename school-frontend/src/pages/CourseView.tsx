@@ -603,12 +603,12 @@ export default function CourseView() {
                                   )}
 
                                   {block.type === 'image' && block.url && (
-  <img 
-    src={getFullUrl(block.url)} 
-    alt="Материал" 
-    className="max-w-full rounded-2xl border border-gray-100 shadow-sm" 
-  />
-)}
+                                  <img 
+                                    src={getFullUrl(block.url)} 
+                                    alt="Материал" 
+                                    className="max-w-full rounded-2xl border border-gray-100 shadow-sm" 
+                                    />
+                                  )}
 
                                   {/* Вопрос (Для тестов и эссе) */}
                                   {['test', 'test_short', 'written', 'homework'].includes(block.type) && (
