@@ -4,45 +4,29 @@ import axios from 'axios';
 import { 
   ArrowLeft, PlayCircle, Loader2, BookOpen, CheckSquare, CheckCircle2, 
   XCircle, Type, PenTool, Clock, FileDown, Link2, ExternalLink, 
-  Search, ChevronDown, ChevronRight, ListTodo, FileSignature
+  Search, ListTodo, FileSignature, X
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-// 🔥 Ворд-редактор для ответа ученика
-import ReactQuill from 'react-quill-new';
+// Стили ворд-редактора нужны для правильного отображения теории преподавателя
 import 'react-quill-new/dist/quill.snow.css';
 
 const API_URL = 'https://prepodmgy.ru/api';
 
-// УЛЬТИМАТИВНЫЙ ФИКС: исправляет Mixed Content (HTTP -> HTTPS) и пути
 const getFullUrl = (url: string) => {
   if (!url) return '';
   let finalUrl = url;
-
   if (finalUrl.startsWith('http://prepodmgy.ru')) {
     finalUrl = finalUrl.replace('http://', 'https://');
   }
-
   if (finalUrl.startsWith('http')) return finalUrl;
-  
   const cleanPath = finalUrl.startsWith('/') ? finalUrl.slice(1) : finalUrl;
-  
   if (cleanPath.startsWith('uploads/')) {
     return `https://prepodmgy.ru/${cleanPath}`;
   }
-  
   return `${API_URL}/${cleanPath}`;
 };
 
-const studentQuillModules = {
-  toolbar: [
-    ['bold', 'italic', 'underline', 'strike'],
-    [{ 'list': 'ordered'}, { 'list': 'bullet' }],
-    ['clean']
-  ],
-};
-
-// 🔥 НОВЫЙ КОМПОНЕНТ КАРТИНКИ: Плавное увеличение по клику
 function ExpandableImage({ src, alt, className = '' }: { src: string, alt?: string, className?: string }) {
   const [isExpanded, setIsExpanded] = useState(false);
   return (
@@ -52,15 +36,223 @@ function ExpandableImage({ src, alt, className = '' }: { src: string, alt?: stri
         alt={alt || "Изображение"} 
         onClick={(e) => { e.preventDefault(); setIsExpanded(!isExpanded); }}
         className={`bg-white cursor-pointer transition-all duration-500 ease-in-out origin-top-left rounded-2xl border border-gray-200 shadow-sm hover:shadow-md hover:ring-2 hover:ring-purple-300/50 ${
-          isExpanded 
-            ? 'w-full max-h-[85vh] object-contain object-left' 
-            : 'max-w-[280px] sm:max-w-sm max-h-[300px] object-contain object-left'
+          isExpanded ? 'w-full max-h-[85vh] object-contain object-left' : 'max-w-[280px] sm:max-w-sm max-h-[300px] object-contain object-left'
         }`} 
         title={isExpanded ? "Нажмите, чтобы уменьшить" : "Нажмите, чтобы увеличить"}
       />
     </div>
   );
 }
+
+// 🔥 НОВЫЙ КОМПОНЕНТ: Сгруппированные задания с пагинацией (как на скринах)
+const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswerToggle, handleTextAnswerChange, handleSubmitTest }: any) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [activeStep, setActiveStep] = useState(0);
+
+  // СБРОС ШАГА ПРИ ОТКРЫТИИ
+  useEffect(() => { if (!isOpen) setActiveStep(0); }, [isOpen]);
+
+  if (!isOpen) {
+    return (
+      <div className="bg-white border border-gray-100 rounded-3xl p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-all hover:shadow-md hover:border-gray-200 mb-4">
+        <div className="flex items-center gap-4 min-w-0">
+          <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${group.iconColor}`}>
+            <group.Icon className="w-6 h-6" />
+          </div>
+          <div className="min-w-0 pr-4">
+            <h4 className="font-black text-gray-900 text-lg leading-tight">{group.title}</h4>
+            <p className="text-sm font-medium text-gray-500 mt-1">{group.blocks.length} заданий внутри</p>
+          </div>
+        </div>
+        <button onClick={() => setIsOpen(true)} className="shrink-0 px-8 py-3.5 rounded-xl font-black text-sm transition-all active:scale-95 bg-gray-900 text-white hover:bg-black shadow-sm tracking-wide">
+          Приступить
+        </button>
+      </div>
+    );
+  }
+
+  const block = group.blocks[activeStep];
+  const selected = testAnswers[block.id] || [];
+  const result = testResults[block.id];
+  const currentAttempts = attemptsUsed[block.id] || 0;
+  const maxAttempts = block.maxAttempts || 3;
+  const attemptsLeft = maxAttempts - currentAttempts;
+  const isExhausted = attemptsLeft <= 0;
+  const isLocked = isExhausted || result === 'SUCCESS' || result === 'PENDING';
+
+  return (
+    <div className="bg-white border border-gray-100 rounded-[2rem] p-6 md:p-8 relative shadow-lg shadow-gray-200/50 mb-8">
+      {/* Шапка карточки */}
+      <div className="flex justify-between items-center mb-6">
+        <h4 className="font-black text-xl text-gray-900 flex items-center gap-3">
+          <group.Icon className={`w-6 h-6 ${group.iconColor.split(' ')[1]}`} />
+          {group.title}
+        </h4>
+        <button onClick={() => setIsOpen(false)} className="p-2.5 text-gray-400 hover:text-gray-700 bg-gray-50 hover:bg-gray-100 rounded-xl transition-colors border border-gray-200/50 shadow-sm">
+          <X className="w-5 h-5" />
+        </button>
+      </div>
+
+      {/* Кружочки пагинации (1, 2, 3...) */}
+      <div className="flex flex-wrap gap-2.5 mb-8">
+        {group.blocks.map((b: any, i: number) => {
+          const bRes = testResults[b.id];
+          const isActive = i === activeStep;
+          let circleClass = "w-11 h-11 rounded-full flex items-center justify-center font-black text-sm transition-all border-2 ";
+          
+          if (isActive) {
+            circleClass += "bg-[#5A4BFF] border-[#5A4BFF] text-white shadow-lg shadow-indigo-500/30 scale-110";
+          } else if (bRes === 'SUCCESS') {
+            circleClass += "bg-emerald-50 border-emerald-200 text-emerald-600 hover:bg-emerald-100";
+          } else if (bRes === 'ERROR' && (attemptsUsed[b.id] || 0) >= (b.maxAttempts || 3)) {
+            circleClass += "bg-rose-50 border-rose-200 text-rose-600 hover:bg-rose-100";
+          } else {
+            circleClass += "bg-white border-gray-200 text-gray-500 hover:border-[#5A4BFF] hover:text-[#5A4BFF]";
+          }
+
+          return (
+            <button key={b.id} onClick={() => setActiveStep(i)} className={circleClass}>
+              {i + 1}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Инфо-плашки текущего вопроса */}
+      <div className="flex flex-wrap items-center gap-2 mb-6">
+        <div className="px-3 py-1.5 rounded-md bg-indigo-50 text-indigo-600 text-[10px] font-black uppercase tracking-widest">
+          Вопрос {activeStep + 1}
+        </div>
+        {block.type !== 'written' ? (
+          <div className={`px-3 py-1.5 rounded-md text-[10px] font-black uppercase tracking-widest ${isExhausted && result !== 'SUCCESS' ? 'bg-rose-100 text-rose-600' : 'bg-gray-100 text-gray-500'}`}>
+            Попыток: {attemptsLeft} из {maxAttempts}
+          </div>
+        ) : (
+          <div className="px-3 py-1.5 rounded-md bg-gray-100 text-gray-500 text-[10px] font-black uppercase tracking-widest">
+            Макс. балл: {block.maxScore || 10}
+          </div>
+        )}
+      </div>
+
+      {/* Ошибка / Успех (Красная плашка как на видео) */}
+      <AnimatePresence mode="wait">
+        {result === 'ERROR' && !isExhausted && (
+          <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="bg-[#FF4A6B]/10 border border-[#FF4A6B]/20 p-4 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between font-bold mb-6 gap-2 text-[#FF4A6B]">
+            <span className="flex items-center gap-2 text-lg"><XCircle className="w-6 h-6" /> Ошибка!</span>
+            <span className="text-sm bg-white/50 px-3 py-1 rounded-lg">Используй вторую попытку ❤️</span>
+          </motion.div>
+        )}
+        {result === 'ERROR' && isExhausted && (
+          <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="bg-gray-50 border border-gray-200 p-4 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between font-bold mb-6 gap-2 text-gray-500">
+            <span className="flex items-center gap-2 text-lg"><XCircle className="w-6 h-6" /> Попытки закончились</span>
+            <span className="text-sm bg-white px-3 py-1 rounded-lg shadow-sm border border-gray-100">0 из {maxAttempts} 💔</span>
+          </motion.div>
+        )}
+        {result === 'SUCCESS' && (
+          <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="bg-emerald-50 border border-emerald-100 p-4 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between font-bold mb-6 text-emerald-600 gap-2">
+            <span className="flex items-center gap-2 text-lg"><CheckCircle2 className="w-6 h-6" /> Верно!</span>
+            <span className="text-sm bg-white px-3 py-1 rounded-lg shadow-sm border border-emerald-50">Отличная работа 🌟</span>
+          </motion.div>
+        )}
+        {result === 'PENDING' && (
+          <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="bg-purple-50 border border-purple-100 p-4 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between font-bold mb-6 text-purple-600 gap-2">
+            <span className="flex items-center gap-2 text-lg"><Clock className="w-6 h-6" /> Отправлено</span>
+            <span className="text-sm bg-white px-3 py-1 rounded-lg shadow-sm border border-purple-50">Ожидает проверки ⏳</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Текст вопроса */}
+      <div className="text-lg md:text-xl font-bold text-gray-900 mb-6 leading-relaxed break-words" dangerouslySetInnerHTML={{ __html: block.question?.includes('<') ? block.question : block.question?.replace(/\n/g, '<br/>') }} />
+      
+      {(block.questionImage || block.image) && (
+        <ExpandableImage src={getFullUrl(block.questionImage || block.image)} alt="Схема" className="mb-8" />
+      )}
+
+      {/* Блок ответов (Варианты / Текст) */}
+      <div className="space-y-3 mb-8">
+        {block.type === 'test' && block.options?.map((opt: any, idx: number) => {
+          const isChecked = selected.includes(opt.text);
+          let optClass = "flex items-center gap-4 p-4 md:p-5 rounded-2xl border-2 transition-all cursor-pointer ";
+          
+          if (result === 'SUCCESS' && isChecked) optClass += "border-emerald-500 bg-emerald-50/30";
+          else if (result === 'ERROR' && isChecked) optClass += "border-[#FF4A6B] bg-[#FF4A6B]/5";
+          else if (isChecked) optClass += "border-[#5A4BFF] bg-indigo-50/20 shadow-sm";
+          else optClass += "border-gray-100 hover:border-gray-200 bg-white";
+
+          if (isLocked) optClass += " opacity-70 pointer-events-none";
+
+          return (
+            <label key={idx} className={optClass}>
+              <div className="relative flex items-center justify-center w-6 h-6 shrink-0">
+                <input 
+                  type="checkbox" 
+                  checked={isChecked} 
+                  disabled={isLocked} 
+                  onChange={() => handleAnswerToggle(block.id, opt.text)} 
+                  className="peer w-6 h-6 rounded border-2 border-gray-300 appearance-none checked:bg-[#5A4BFF] checked:border-[#5A4BFF] transition-all cursor-pointer" 
+                />
+                <CheckSquare className="w-3.5 h-3.5 text-white absolute pointer-events-none opacity-0 peer-checked:opacity-100 transition-opacity" />
+              </div>
+              <span className={`font-bold text-base break-words ${isChecked ? 'text-gray-900' : 'text-gray-600'}`}>{opt.text}</span>
+            </label>
+          );
+        })}
+
+        {block.type === 'test_short' && (
+          <input 
+            type="text" 
+            value={selected[0] || ''} 
+            onChange={(e) => handleTextAnswerChange(block.id, e.target.value)} 
+            disabled={isLocked}
+            placeholder="Введите ответ" 
+            className={`w-full p-5 text-lg font-bold rounded-2xl border-2 transition-all outline-none ${isLocked ? 'bg-gray-50 border-gray-100 text-gray-500' : 'bg-white border-gray-100 focus:border-[#5A4BFF] focus:shadow-sm text-gray-900'}`}
+          />
+        )}
+
+        {/* 🔥 КРАСИВЫЙ РАЗВЕРНУТЫЙ ОТВЕТ (Без лишнего Ворда) */}
+        {block.type === 'written' && (
+          <div className="flex flex-col gap-2">
+            <textarea 
+              value={selected[0] || ''} 
+              onChange={(e) => handleTextAnswerChange(block.id, e.target.value)} 
+              disabled={isLocked}
+              placeholder="Введите развернутый ответ..." 
+              rows={5}
+              className={`w-full p-5 text-base font-medium rounded-2xl border-2 transition-all outline-none resize-y min-h-[140px] ${isLocked ? 'bg-gray-50 border-gray-100 text-gray-500' : 'bg-white border-gray-100 focus:border-[#5A4BFF] focus:shadow-sm text-gray-900'}`}
+            />
+          </div>
+        )}
+      </div>
+
+      {/* КНОПКИ ДЕЙСТВИЙ (ПРОВЕРИТЬ / ДАЛЕЕ) */}
+      <div className="flex flex-col sm:flex-row items-center gap-4 pt-6 border-t border-gray-100">
+        <button 
+          type="button"
+          onClick={(e) => { e.preventDefault(); handleSubmitTest(block); }} 
+          disabled={selected.length === 0 || selected[0] === '' || isLocked} 
+          className={`w-full sm:w-auto px-10 py-4 rounded-xl font-black text-sm transition-all active:scale-95 disabled:opacity-50 tracking-wide uppercase ${isExhausted && block.type !== 'written' ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : result === 'ERROR' ? 'bg-[#FF4A6B] hover:bg-red-500 text-white shadow-lg shadow-red-500/30' : 'bg-[#5A4BFF] hover:bg-[#4a3dec] text-white shadow-lg shadow-indigo-500/30'}`}
+        >
+          {result === 'PENDING' ? 'НА ПРОВЕРКЕ' : (isExhausted && block.type !== 'written' ? 'ЛИМИТ ИСЧЕРПАН' : result === 'ERROR' ? 'ЕЩЕ РАЗ' : 'ОТВЕТИТЬ')}
+        </button>
+        
+        {/* Навигация (Пропустить / Далее) */}
+        <div className="flex-1 w-full flex justify-end gap-3">
+          {activeStep > 0 && (
+            <button onClick={() => setActiveStep(p => p - 1)} className="px-6 py-4 rounded-xl font-bold text-sm bg-gray-50 text-gray-500 hover:bg-gray-100 transition-colors">
+              НАЗАД
+            </button>
+          )}
+          {activeStep < group.blocks.length - 1 && (
+            <button onClick={() => setActiveStep(p => p + 1)} className="px-6 py-4 rounded-xl font-bold text-sm bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors">
+              {isLocked || result === 'SUCCESS' ? 'ДАЛЕЕ' : 'ПРОПУСТИТЬ'}
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
 
 export default function CourseView() {
   const { courseId, themeId } = useParams();
@@ -71,7 +263,6 @@ export default function CourseView() {
   
   const [searchQuery, setSearchQuery] = useState('');
   const [expandedThemes, setExpandedThemes] = useState<Record<string, boolean>>({});
-  const [openedTasks, setOpenedTasks] = useState<Record<string, boolean>>({});
   
   const [areTestsRevealed, setAreTestsRevealed] = useState(false); 
   const [isHomeworkRevealed, setIsHomeworkRevealed] = useState(false); 
@@ -116,7 +307,6 @@ export default function CourseView() {
   }, [courseId, themeId]);
 
   useEffect(() => {
-    setOpenedTasks({});
     setAreTestsRevealed(false);
     setIsHomeworkRevealed(false);
   }, [activeLesson?.id]);
@@ -242,14 +432,12 @@ export default function CourseView() {
   if (!course) return <div className="p-8 text-center font-bold">Курс не найден</div>;
 
   let blocks: any[] = [];
-  if (activeLesson) {
-    if (activeLesson.content) {
-      try {
-        const parsed = JSON.parse(activeLesson.content);
-        blocks = Array.isArray(parsed) ? parsed : [{ id: 'text-1', type: 'text', content: activeLesson.content }];
-      } catch (e) {
-        blocks = [{ id: 'text-1', type: 'text', content: activeLesson.content }];
-      }
+  if (activeLesson && activeLesson.content) {
+    try {
+      const parsed = JSON.parse(activeLesson.content);
+      blocks = Array.isArray(parsed) ? parsed : [{ id: 'text-1', type: 'text', content: activeLesson.content }];
+    } catch (e) {
+      blocks = [{ id: 'text-1', type: 'text', content: activeLesson.content }];
     }
   }
 
@@ -257,12 +445,130 @@ export default function CourseView() {
   const practiceBlocks = blocks.filter(b => ['test', 'test_short', 'written'].includes(b.type) && !b.isHomework);
   const homeworkBlocks = blocks.filter(b => b.isHomework);
 
+  // 🔥 ФУНКЦИЯ ДЛЯ ГРУППИРОВКИ ЗАДАНИЙ (Собирает 3 стопки: Тесты, Краткие, Развернутые)
+  const groupInteractiveBlocks = (blocksToGroup: any[]) => {
+    const groups = [
+      { type: 'test', title: 'Тест', blocks: [] as any[], Icon: CheckSquare, iconColor: 'bg-indigo-50 text-indigo-600' },
+      { type: 'test_short', title: 'Тест с кратким ответом', blocks: [] as any[], Icon: Type, iconColor: 'bg-amber-50 text-amber-600' },
+      { type: 'written', title: 'Развернутый ответ', blocks: [] as any[], Icon: PenTool, iconColor: 'bg-purple-50 text-purple-600' }
+    ];
+
+    blocksToGroup.forEach(b => {
+      const group = groups.find(g => g.type === b.type);
+      if (group) group.blocks.push(b);
+    });
+
+    return groups.filter(g => g.blocks.length > 0);
+  };
+
+  const practiceGroups = groupInteractiveBlocks(practiceBlocks);
+  const hwGroups = groupInteractiveBlocks(homeworkBlocks);
+  const hwTheoryBlocks = homeworkBlocks.filter(b => !['test', 'test_short', 'written'].includes(b.type));
+
+  const renderTheoryBlock = (block: any) => {
+    if (block.type === 'video_file' && block.url) {
+      return (
+        <div key={block.id} className="space-y-3">
+          {block.title && <h3 className="text-xl font-black text-gray-900 break-words">{block.title}</h3>}
+          <div className="bg-black rounded-[1.5rem] overflow-hidden shadow-lg border border-gray-100 relative w-full flex justify-center">
+            <video src={getFullUrl(block.url)} controls playsInline preload="metadata" className="w-full max-h-[70vh] object-contain outline-none" />
+          </div>
+        </div>
+      );
+    }
+
+    if (block.type === 'video' && block.url) {
+      const isDirect = block.url.toLowerCase().match(/\.(mp4|mov|webm)$/) || block.url.includes('uploads/');
+      if (isDirect) {
+        return (
+          <div key={block.id} className="space-y-3">
+            {block.title && <h3 className="text-xl font-black text-gray-900 break-words">{block.title}</h3>}
+            <div className="bg-black rounded-[1.5rem] overflow-hidden shadow-lg border border-gray-100 relative w-full flex justify-center">
+              <video src={getFullUrl(block.url)} controls playsInline preload="metadata" className="w-full max-h-[70vh] object-contain outline-none" />
+            </div>
+          </div>
+        );
+      }
+      if (block.url.includes('disk.yandex.ru/')) {
+        return (
+          <div key={block.id} className="space-y-3">
+            {block.title && <h3 className="text-xl font-black text-gray-900 break-words">{block.title}</h3>}
+            <div className="bg-orange-50 border border-orange-200 rounded-[1.5rem] p-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="flex items-center gap-4 min-w-0">
+                <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center shrink-0 border border-orange-100 shadow-sm"><PlayCircle className="w-6 h-6 text-orange-500" /></div>
+                <div className="min-w-0">
+                  <h3 className="text-lg font-bold text-gray-900 truncate">Видео на Яндекс.Диске</h3>
+                  <p className="text-sm text-gray-600 truncate">Видео откроется в новой вкладке.</p>
+                </div>
+              </div>
+              <a href={block.url} target="_blank" rel="noopener noreferrer" className="shrink-0 px-6 py-3 bg-white border-2 border-orange-200 text-orange-600 hover:bg-orange-500 hover:border-orange-500 hover:text-white rounded-xl font-bold text-sm transition-all shadow-sm flex items-center justify-center gap-2">
+                Смотреть <ExternalLink className="w-4 h-4" />
+              </a>
+            </div>
+          </div>
+        );
+      }
+      return (
+        <div key={block.id} className="space-y-3">
+          {block.title && <h3 className="text-xl font-black text-gray-900 break-words">{block.title}</h3>}
+          <div className="aspect-video bg-gray-900 rounded-[1.5rem] overflow-hidden shadow-lg relative border border-gray-100">
+            <iframe src={getEmbedUrl(block.url)} className="w-full h-full absolute inset-0" allowFullScreen></iframe>
+          </div>
+        </div>
+      );
+    }
+
+    if (block.type === 'text' || block.type === 'paragraph') return (
+      <div key={block.id} className="space-y-3 w-full overflow-hidden">
+        {block.title && <h3 className="text-xl font-black text-gray-900 break-words">{block.title}</h3>}
+        {(block.image || block.url) && <ExpandableImage src={getFullUrl(block.image || block.url)} alt="Материал" className="my-4" />}
+        <div className="prose prose-sm sm:prose-base max-w-none text-gray-700 leading-relaxed break-words ql-editor px-0">
+          <div dangerouslySetInnerHTML={{ __html: block.content ? (block.content.includes('<') ? block.content : block.content.replace(/\n/g, '<br/>')) : '' }} />
+        </div>
+      </div>
+    );
+
+    if (block.type === 'image' || block.type === 'img') return (
+      <div key={block.id}>
+        {(block.url || block.image) && <ExpandableImage src={getFullUrl(block.url || block.image)} alt="Изображение" className="my-4" />}
+      </div>
+    );
+
+    if (block.type === 'file' && block.url) return (
+      <div key={block.id} className="bg-cyan-50/50 border border-cyan-100 rounded-[1.5rem] p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-all hover:bg-cyan-50">
+        <div className="flex items-center gap-4 min-w-0">
+          <div className="w-12 h-12 bg-cyan-100 rounded-xl flex items-center justify-center shrink-0"><FileDown className="w-6 h-6 text-cyan-600" /></div>
+          <div className="min-w-0">
+            <h3 className="text-lg font-black text-gray-900 leading-tight break-words">{block.title || 'Файл для скачивания'}</h3>
+            {block.content && <p className="text-xs font-medium text-gray-600 mt-1 break-words">{block.content}</p>}
+          </div>
+        </div>
+        <a href={getFullUrl(block.url)} target="_blank" rel="noopener noreferrer" download className="shrink-0 w-full sm:w-auto px-6 py-3 bg-cyan-600 hover:bg-cyan-500 text-white rounded-xl font-bold text-sm transition-all shadow-md active:scale-95 flex items-center justify-center gap-2">
+          <FileDown className="w-4 h-4" /> СКАЧАТЬ
+        </a>
+      </div>
+    );
+
+    if ((block.type === 'link' || block.type === 'button') && block.url) return (
+      <div key={block.id} className="bg-pink-50/50 border border-pink-100 rounded-[1.5rem] p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-all hover:bg-pink-50">
+        <div className="flex items-center gap-4 min-w-0">
+          <div className="w-12 h-12 bg-pink-100 rounded-xl flex items-center justify-center shrink-0"><Link2 className="w-6 h-6 text-pink-600" /></div>
+          <div className="min-w-0">
+            <h3 className="text-lg font-black text-gray-900 leading-tight break-words">{block.title || 'Полезная ссылка'}</h3>
+            <p className="text-xs text-gray-500 truncate">{block.url}</p>
+          </div>
+        </div>
+        <a href={block.url} target="_blank" rel="noopener noreferrer" className="shrink-0 w-full sm:w-auto px-8 py-4 bg-pink-600 hover:bg-pink-500 text-white rounded-xl font-black text-sm flex items-center justify-center gap-2 shadow-lg transition-all active:scale-95">
+          {block.buttonText || 'ОТКРЫТЬ'} <ExternalLink className="w-4 h-4" />
+        </a>
+      </div>
+    );
+    return null;
+  };
+
   return (
     <div className="flex h-screen bg-[#F4F7FE] font-sans text-gray-900">
-      
-      <style>{`
-        .ql-editor { min-height: 120px; font-family: inherit; font-size: 16px; }
-      `}</style>
+      <style>{`.ql-editor { min-height: 120px; font-family: inherit; font-size: 16px; }`}</style>
 
       <aside className="w-[340px] bg-white border-r border-gray-100 flex flex-col h-full shrink-0 z-20 shadow-lg">
         <div className="p-5 border-b border-gray-100 bg-white">
@@ -306,10 +612,7 @@ export default function CourseView() {
                 <AnimatePresence>
                   {isExpanded && (
                     <motion.div 
-                      initial={{ height: 0, opacity: 0 }} 
-                      animate={{ height: 'auto', opacity: 1 }} 
-                      exit={{ height: 0, opacity: 0 }}
-                      className="px-2 pb-2 space-y-1"
+                      initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="px-2 pb-2 space-y-1"
                     >
                       {theme.lessons?.map((lesson: any) => {
                         const isActive = activeLesson?.id === lesson.id;
@@ -353,101 +656,11 @@ export default function CourseView() {
                 </div>
 
                 <div className="p-6 md:p-10 space-y-8">
-                  {/* --- БЛОК 1: ТЕОРИЯ --- */}
-                  {theoryBlocks.map((block) => {
-                    if (block.type === 'video' && block.url) {
-                      if (block.url.includes('disk.yandex.ru/')) {
-                        return (
-                          <div key={block.id} className="space-y-3">
-                            {block.title && <h3 className="text-xl font-black text-gray-900 break-words">{block.title}</h3>}
-                            <div className="bg-orange-50 border border-orange-200 rounded-[1.5rem] p-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
-                              <div className="flex items-center gap-4 min-w-0">
-                                <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center shrink-0 border border-orange-100 shadow-sm">
-                                  <PlayCircle className="w-6 h-6 text-orange-500" />
-                                </div>
-                                <div className="min-w-0">
-                                  <h3 className="text-lg font-bold text-gray-900 truncate">Видео на Яндекс.Диске</h3>
-                                  <p className="text-sm text-gray-600 truncate">Видео откроется в новой вкладке.</p>
-                                </div>
-                              </div>
-                              <a href={block.url} target="_blank" rel="noopener noreferrer" className="shrink-0 px-6 py-3 bg-white border-2 border-orange-200 text-orange-600 hover:bg-orange-500 hover:border-orange-500 hover:text-white rounded-xl font-bold text-sm transition-all shadow-sm flex items-center justify-center gap-2">
-                                Смотреть <ExternalLink className="w-4 h-4" />
-                              </a>
-                            </div>
-                          </div>
-                        );
-                      }
-                      return (
-                        <div key={block.id} className="space-y-3">
-                          {block.title && <h3 className="text-xl font-black text-gray-900 break-words">{block.title}</h3>}
-                          <div className="aspect-video bg-gray-900 rounded-[1.5rem] overflow-hidden shadow-lg relative border border-gray-100">
-                            <iframe src={getEmbedUrl(block.url)} className="w-full h-full absolute inset-0" allowFullScreen></iframe>
-                          </div>
-                        </div>
-                      );
-                    }
+                  {/* РЕНДЕР ТЕОРИИ */}
+                  {theoryBlocks.map(block => renderTheoryBlock(block))}
 
-                    if (block.type === 'text' || block.type === 'paragraph') return (
-                      <div key={block.id} className="space-y-3 w-full overflow-hidden">
-                        {block.title && <h3 className="text-xl font-black text-gray-900 break-words">{block.title}</h3>}
-                        {(block.image || block.url) && (
-                          <ExpandableImage src={getFullUrl(block.image || block.url)} alt="Материал" className="my-4" />
-                        )}
-                        <div className="prose prose-sm sm:prose-base max-w-none text-gray-700 leading-relaxed break-words ql-editor px-0">
-                          <div dangerouslySetInnerHTML={{ 
-                            __html: block.content ? (block.content.includes('<') ? block.content : block.content.replace(/\n/g, '<br/>')) : ''
-                          }} />
-                        </div>
-                      </div>
-                    );
-
-                    if (block.type === 'image' || block.type === 'img') return (
-                      <div key={block.id}>
-                        {(block.url || block.image) && (
-                          <ExpandableImage src={getFullUrl(block.url || block.image)} alt="Изображение" className="my-4" />
-                        )}
-                      </div>
-                    );
-
-                    if (block.type === 'file' && block.url) return (
-                      <div key={block.id} className="bg-cyan-50/50 border border-cyan-100 rounded-[1.5rem] p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-all hover:bg-cyan-50">
-                        <div className="flex items-center gap-4 min-w-0">
-                          <div className="w-12 h-12 bg-cyan-100 rounded-xl flex items-center justify-center shrink-0">
-                            <FileDown className="w-6 h-6 text-cyan-600" />
-                          </div>
-                          <div className="min-w-0">
-                            <h3 className="text-lg font-black text-gray-900 leading-tight break-words">{block.title || 'Файл для скачивания'}</h3>
-                            {block.content && <p className="text-xs font-medium text-gray-600 mt-1 break-words">{block.content}</p>}
-                          </div>
-                        </div>
-                        <a href={getFullUrl(block.url)} target="_blank" rel="noopener noreferrer" download className="shrink-0 w-full sm:w-auto px-6 py-3 bg-cyan-600 hover:bg-cyan-500 text-white rounded-xl font-bold text-sm transition-all shadow-md active:scale-95 flex items-center justify-center gap-2">
-                          <FileDown className="w-4 h-4" /> СКАЧАТЬ
-                        </a>
-                      </div>
-                    );
-
-                    if ((block.type === 'link' || block.type === 'button') && block.url) return (
-                      <div key={block.id} className="bg-pink-50/50 border border-pink-100 rounded-[1.5rem] p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-all hover:bg-pink-50">
-                        <div className="flex items-center gap-4 min-w-0">
-                          <div className="w-12 h-12 bg-pink-100 rounded-xl flex items-center justify-center shrink-0">
-                            <Link2 className="w-6 h-6 text-pink-600" />
-                          </div>
-                          <div className="min-w-0">
-                            <h3 className="text-lg font-black text-gray-900 leading-tight break-words">{block.title || 'Полезная ссылка'}</h3>
-                            <p className="text-xs text-gray-500 truncate">{block.url}</p>
-                          </div>
-                        </div>
-                        <a href={block.url} target="_blank" rel="noopener noreferrer" className="shrink-0 w-full sm:w-auto px-8 py-4 bg-pink-600 hover:bg-pink-500 text-white rounded-xl font-black text-sm flex items-center justify-center gap-2 shadow-lg transition-all active:scale-95">
-                          {block.buttonText || 'ОТКРЫТЬ'} <ExternalLink className="w-4 h-4" />
-                        </a>
-                      </div>
-                    );
-
-                    return null;
-                  })}
-
-                  {/* --- БЛОК 2: ПРАКТИКА --- */}
-                  {practiceBlocks.length > 0 && (
+                  {/* РЕНДЕР ПРАКТИКИ (ГРУППИРОВКА ПО ТИПАМ) */}
+                  {practiceGroups.length > 0 && (
                     <div className="mt-12 pt-10 border-t border-dashed border-gray-200">
                       {!areTestsRevealed ? (
                         <div className="bg-indigo-50 border border-indigo-100 rounded-[2rem] p-8 text-center flex flex-col items-center">
@@ -455,174 +668,37 @@ export default function CourseView() {
                             <ListTodo className="w-8 h-8 text-indigo-600" />
                           </div>
                           <h3 className="text-2xl font-black text-gray-900 mb-2">Практика к уроку</h3>
-                          <p className="text-gray-600 mb-6">В этом уроке доступно {practiceBlocks.length} заданий для закрепления материала.</p>
+                          <p className="text-gray-600 mb-6">Доступно {practiceBlocks.length} заданий для закрепления материала.</p>
                           <button 
                             type="button"
-                            onClick={(e) => {
-                              e.preventDefault();
-                              setAreTestsRevealed(true);
-                            }}
-                            className="px-8 py-4 bg-[#5A4BFF] hover:bg-indigo-600 text-white rounded-xl font-bold transition-all shadow-lg shadow-indigo-500/30 active:scale-95"
+                            onClick={(e) => { e.preventDefault(); setAreTestsRevealed(true); }}
+                            className="px-8 py-4 bg-[#5A4BFF] hover:bg-indigo-600 text-white rounded-xl font-bold transition-all shadow-lg active:scale-95"
                           >
                             Показать задания
                           </button>
                         </div>
                       ) : (
-                        <div className="space-y-6">
-                          <h3 className="text-2xl font-black text-gray-900 flex items-center gap-3">
+                        <div className="space-y-4">
+                          <h3 className="text-2xl font-black text-gray-900 flex items-center gap-3 mb-6">
                             <ListTodo className="w-6 h-6 text-[#5A4BFF]" /> Практическая часть
                           </h3>
-                          
-                          {practiceBlocks.map(block => {
-                            const selected = testAnswers[block.id] || [];
-                            const result = testResults[block.id];
-                            const currentAttempts = attemptsUsed[block.id] || 0;
-                            const maxAttempts = block.maxAttempts || 3;
-                            const attemptsLeft = maxAttempts - currentAttempts;
-                            const isExhausted = attemptsLeft <= 0;
-                            const isLocked = isExhausted || result === 'SUCCESS' || result === 'PENDING';
-                            
-                            let badgeText = block.title || 'Практика';
-                            let badgeColor = 'bg-indigo-100 text-indigo-700 border-indigo-200';
-                            let icon = <CheckSquare className="w-5 h-5 text-indigo-600"/>;
-                            
-                            if (block.type === 'test_short') {
-                              badgeColor = 'bg-amber-100 text-amber-700 border-amber-200';
-                              icon = <Type className="w-5 h-5 text-amber-600"/>;
-                            } else if (block.type === 'written') {
-                              badgeColor = 'bg-purple-100 text-purple-700 border-purple-200';
-                              icon = <PenTool className="w-5 h-5 text-purple-600"/>;
-                              badgeText = block.title || 'Развернутый ответ';
-                            }
-
-                            const isTaskOpen = openedTasks[block.id];
-
-                            if (!isTaskOpen) {
-                              return (
-                                <div key={block.id} className={`border-2 border-dashed rounded-[1.5rem] p-5 md:p-6 flex flex-col md:flex-row md:items-center justify-between gap-4 transition-all bg-white hover:bg-gray-50 ${badgeColor.replace('bg-', 'hover:border-').split(' ')[0]}`}>
-                                  <div className="flex items-center gap-4 min-w-0">
-                                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${badgeColor}`}>
-                                      {icon}
-                                    </div>
-                                    <div className="min-w-0">
-                                      <h4 className="font-black text-gray-900 text-lg break-words">{badgeText}</h4>
-                                      <p className="text-sm text-gray-500 line-clamp-1 break-words">{block.question ? block.question.replace(/<[^>]*>?/gm, '') : ''}</p>
-                                    </div>
-                                  </div>
-                                  <button 
-                                    type="button"
-                                    onClick={(e) => { e.preventDefault(); setOpenedTasks(prev => ({...prev, [block.id]: true})); }} 
-                                    className={`shrink-0 px-6 py-3 font-bold rounded-xl transition-all shadow-sm active:scale-95 ${result === 'SUCCESS' ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-900 hover:bg-black text-white'}`}
-                                  >
-                                    {result === 'SUCCESS' ? 'Выполнено' : 'Приступить'}
-                                  </button>
-                                </div>
-                              );
-                            }
-
-                            return (
-                              <div key={block.id} className={`bg-[#F8FAFC] rounded-[2rem] p-6 md:p-8 border-2 transition-colors relative ${isExhausted && result !== 'SUCCESS' ? 'border-rose-200' : 'border-gray-100'}`}>
-                                <button type="button" onClick={(e) => { e.preventDefault(); setOpenedTasks(prev => ({...prev, [block.id]: false})); }} className="absolute top-4 right-4 p-2 text-gray-400 hover:text-gray-700 bg-white rounded-full border border-gray-200 shadow-sm z-10">
-                                  <ChevronUpIcon className="w-5 h-5" />
-                                </button>
-
-                                <div className="flex flex-wrap items-center gap-3 mb-6 pr-10">
-                                  <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-md text-[10px] font-black uppercase tracking-widest ${badgeColor} border-none`}>{badgeText}</div>
-                                  {block.type !== 'written' && (
-                                    <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-md text-[10px] font-black uppercase tracking-widest ${isExhausted ? 'bg-rose-100 text-rose-600' : 'bg-gray-200 text-gray-600'}`}>
-                                      Попыток: {attemptsLeft} из {maxAttempts}
-                                    </div>
-                                  )}
-                                  {block.type === 'written' && (
-                                    <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-md bg-gray-200 text-gray-600 text-[10px] font-black uppercase tracking-widest">
-                                      Макс. балл: {block.maxScore || 10}
-                                    </div>
-                                  )}
-                                </div>
-
-                                <div className="text-xl md:text-2xl font-black mb-6 leading-snug text-gray-800 break-words w-full overflow-hidden ql-editor px-0" dangerouslySetInnerHTML={{ __html: block.question?.includes('<') ? block.question : block.question?.replace(/\n/g, '<br/>') }} />
-                                
-                                {(block.questionImage || block.image) && (
-                                  <ExpandableImage src={getFullUrl(block.questionImage || block.image)} alt="Схема" className="mb-6" />
-                                )}
-                                
-                                {block.type === 'test' && (
-                                  <div className="space-y-3 mb-6">
-                                    {block.options?.map((opt: any, idx: number) => {
-                                      const isChecked = selected.includes(opt.text);
-                                      return (
-                                        <label key={idx} className={`flex items-center gap-4 p-4 md:p-5 rounded-xl border-2 transition-all bg-white ${isChecked ? 'border-[#5A4BFF] shadow-sm' : 'border-gray-100 hover:border-gray-200'} ${isLocked ? 'opacity-70 cursor-not-allowed' : 'cursor-pointer'}`}>
-                                          <input type="checkbox" className="hidden" checked={isChecked} disabled={isLocked} onChange={() => handleAnswerToggle(block.id, opt.text)} />
-                                          <div className={`w-6 h-6 rounded border-2 flex items-center justify-center shrink-0 transition-colors ${isChecked ? 'bg-[#5A4BFF] border-[#5A4BFF]' : 'border-gray-300'} ${isLocked && !isChecked ? 'bg-gray-100' : ''}`}>
-                                            {isChecked && <CheckSquare className="w-3.5 h-3.5 text-white" />}
-                                          </div>
-                                          <span className={`text-base font-bold break-words ${isChecked ? 'text-gray-900' : 'text-gray-600'}`}>{opt.text}</span>
-                                        </label>
-                                      );
-                                    })}
-                                  </div>
-                                )}
-
-                                {block.type === 'test_short' && (
-                                  <div className="mb-6">
-                                    <input 
-                                      type="text" 
-                                      value={selected[0] || ''} 
-                                      onChange={(e) => handleTextAnswerChange(block.id, e.target.value)} 
-                                      disabled={isLocked}
-                                      placeholder="Введите ваш ответ..." 
-                                      className={`w-full p-5 text-lg font-bold rounded-xl border-2 outline-none transition-all ${isLocked ? 'bg-gray-50 border-gray-200 text-gray-500 cursor-not-allowed' : 'bg-white border-gray-200 focus:border-[#5A4BFF] focus:shadow-sm text-gray-900'}`}
-                                    />
-                                  </div>
-                                )}
-
-                                {block.type === 'written' && (
-                                  <div className="mb-6">
-                                    <label className="text-[10px] font-black text-purple-600 uppercase tracking-widest mb-3 block">Ваш развернутый ответ:</label>
-                                    <div className={`rounded-xl border-2 overflow-hidden transition-all bg-white ${isLocked ? 'border-gray-200 opacity-70 pointer-events-none' : 'border-purple-200 focus-within:border-purple-500 focus-within:shadow-md'}`}>
-                                      <ReactQuill 
-                                        theme="snow"
-                                        modules={studentQuillModules}
-                                        value={selected[0] || ''} 
-                                        onChange={(val) => handleTextAnswerChange(block.id, val)} 
-                                        readOnly={isLocked}
-                                        placeholder="Напишите подробный ответ..." 
-                                        className="min-h-[120px]"
-                                      />
-                                    </div>
-                                  </div>
-                                )}
-
-                                <div className="flex flex-col items-start gap-4 pt-6 border-t border-gray-200">
-                                  <div className="flex flex-col sm:flex-row sm:items-center gap-4 w-full">
-                                    <button 
-                                      type="button"
-                                      onClick={(e) => { e.preventDefault(); handleSubmitTest(block); }} 
-                                      disabled={selected.length === 0 || selected[0] === '' || selected[0] === '<p><br></p>' || isLocked} 
-                                      className={`w-full sm:w-auto shrink-0 px-8 py-3.5 rounded-xl font-black text-sm transition-all active:scale-95 disabled:opacity-50 ${isExhausted && block.type !== 'written' ? 'bg-gray-300 text-gray-500 cursor-not-allowed' : 'bg-[#5A4BFF] hover:bg-indigo-500 text-white shadow-lg shadow-indigo-500/20'}`}
-                                    >
-                                      {result === 'PENDING' ? 'ОТПРАВЛЕНО НА ПРОВЕРКУ' : (isExhausted && block.type !== 'written' ? 'ЛИМИТ ИСЧЕРПАН' : 'ОТВЕТИТЬ')}
-                                    </button>
-                                    
-                                    <AnimatePresence>
-                                      {result === 'SUCCESS' && <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} className="flex items-center gap-2 text-emerald-600 font-bold bg-emerald-50 px-4 py-3 rounded-lg shrink-0"><CheckCircle2 className="w-5 h-5" /> Верно</motion.div>}
-                                      {result === 'ERROR' && !isExhausted && <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} className="flex items-center gap-2 text-rose-500 font-bold bg-rose-50 px-4 py-3 rounded-lg shrink-0"><XCircle className="w-5 h-5" /> Неверно</motion.div>}
-                                      {result === 'PENDING' && <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} className="flex items-center gap-2 text-indigo-600 font-bold bg-indigo-50 px-4 py-3 rounded-lg border border-indigo-100 shrink-0"><Clock className="w-5 h-5" /> Ушло куратору</motion.div>}
-                                    </AnimatePresence>
-                                  </div>
-                                </div>
-                              </div>
-                            );
-                          })}
+                          {practiceGroups.map(group => (
+                            <TaskGroup 
+                              key={`${activeLesson.id}-${group.type}`} 
+                              group={group} 
+                              testAnswers={testAnswers} testResults={testResults} attemptsUsed={attemptsUsed} 
+                              handleAnswerToggle={handleAnswerToggle} handleTextAnswerChange={handleTextAnswerChange} handleSubmitTest={handleSubmitTest} 
+                            />
+                          ))}
                         </div>
                       )}
                     </div>
                   )}
 
-                  {/* 🔥 БЛОК 3: ДОМАШНЕЕ ЗАДАНИЕ */}
+                  {/* РЕНДЕР ДОМАШНЕГО ЗАДАНИЯ (ГРУППИРОВКА ПО ТИПАМ) */}
                   {homeworkBlocks.length > 0 && (
                     <div className="mt-12 pt-10 border-t-4 border-dashed border-purple-200">
-                      <div className="bg-purple-600 p-6 md:p-8 rounded-[2rem] shadow-sm overflow-hidden flex flex-col md:flex-row md:items-center justify-between gap-6 relative">
+                      <div className="bg-purple-600 p-6 md:p-8 rounded-[2rem] shadow-sm overflow-hidden flex flex-col md:flex-row md:items-center justify-between gap-6 relative mb-8">
                         <div className="absolute -right-10 -top-10 w-32 h-32 bg-purple-400 rounded-full opacity-30 blur-2xl pointer-events-none"></div>
                         <div className="flex items-center gap-5 relative z-10 w-full md:w-auto">
                           <div className="hidden md:flex w-16 h-16 bg-white/10 rounded-2xl items-center justify-center border border-white/20 shrink-0">
@@ -636,10 +712,7 @@ export default function CourseView() {
                         
                         <button 
                           type="button"
-                          onClick={(e) => {
-                            e.preventDefault();
-                            setIsHomeworkRevealed(prev => !prev);
-                          }}
+                          onClick={(e) => { e.preventDefault(); setIsHomeworkRevealed(prev => !prev); }}
                           className="w-full md:w-auto shrink-0 px-8 py-4 bg-white text-purple-700 hover:bg-purple-50 rounded-xl font-black text-sm transition-all shadow-lg active:scale-95 flex items-center justify-center gap-2 relative z-10"
                         >
                           {isHomeworkRevealed ? 'Скрыть задание' : 'Показать задание'}
@@ -653,115 +726,29 @@ export default function CourseView() {
                         {isHomeworkRevealed && (
                           <motion.div
                             key="hw-content"
-                            initial={{ height: 0, opacity: 0, marginTop: 0 }}
-                            animate={{ height: 'auto', opacity: 1, marginTop: 32 }}
-                            exit={{ height: 0, opacity: 0, marginTop: 0 }}
-                            transition={{ duration: 0.3, ease: 'easeInOut' }}
+                            initial={{ height: 0, opacity: 0, marginTop: 0 }} animate={{ height: 'auto', opacity: 1, marginTop: 32 }} exit={{ height: 0, opacity: 0, marginTop: 0 }} transition={{ duration: 0.3, ease: 'easeInOut' }}
                             className="overflow-hidden space-y-8"
                           >
-                            {homeworkBlocks.map(block => {
-                              const selected = testAnswers[block.id] || [];
-                              const result = testResults[block.id];
-                              const isLocked = result === 'SUCCESS' || result === 'PENDING';
-                              
-                              return (
-                                <div key={block.id} className="bg-white rounded-[2rem] border-2 border-purple-100 shadow-sm overflow-hidden p-6 md:p-8 relative">
-                                  
-                                  <div className="flex flex-wrap items-center gap-3 mb-6 pr-10">
-                                    <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-md text-[10px] font-black uppercase tracking-widest bg-purple-100 text-purple-700">
-                                      {block.title || 'Задание ДЗ'}
-                                    </div>
-                                    {['written', 'homework'].includes(block.type) && (
-                                      <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-md bg-gray-200 text-gray-600 text-[10px] font-black uppercase tracking-widest">
-                                        Макс. балл: {block.maxScore || 10}
-                                      </div>
-                                    )}
-                                  </div>
+                            {/* Рендерим теорию ДЗ (видео, картинки, тексты) */}
+                            {hwTheoryBlocks.map(block => (
+                              <div key={block.id} className="bg-white rounded-[2rem] border border-gray-200 p-6 md:p-8 relative">
+                                <div className="inline-flex items-center gap-1.5 px-3 py-1 mb-6 rounded-md text-[10px] font-black uppercase tracking-widest bg-purple-100 text-purple-700">Материал к ДЗ</div>
+                                {renderTheoryBlock(block)}
+                              </div>
+                            ))}
 
-                                  {block.type === 'video' && block.url && (
-                                    <div className="aspect-video bg-gray-900 rounded-[1.5rem] overflow-hidden shadow-lg relative border border-gray-100 mb-6">
-                                      <iframe src={getEmbedUrl(block.url)} className="w-full h-full absolute inset-0" allowFullScreen></iframe>
-                                    </div>
-                                  )}
-
-                                  {(block.type === 'text' || block.type === 'paragraph') && block.content && (
-                                    <div className="prose prose-sm sm:prose-base max-w-none text-gray-700 leading-relaxed break-words ql-editor px-0 mb-6">
-                                      <div dangerouslySetInnerHTML={{ __html: block.content ? (block.content.includes('<') ? block.content : block.content.replace(/\n/g, '<br/>')) : '' }} />
-                                    </div>
-                                  )}
-
-                                  {(block.type === 'image' || block.type === 'img') && (block.url || block.image) && (
-                                    <ExpandableImage src={getFullUrl(block.url || block.image)} alt="Материал ДЗ" className="mb-6" />
-                                  )}
-
-                                  {['test', 'test_short', 'written', 'homework'].includes(block.type) && (
-                                    <div className="text-xl md:text-2xl font-black mb-6 leading-snug text-gray-800 break-words w-full overflow-hidden ql-editor px-0" dangerouslySetInnerHTML={{ __html: block.question?.includes('<') ? block.question : (block.question?.replace(/\n/g, '<br/>') || '') }} />
-                                  )}
-                                  
-                                  {(block.questionImage || block.image) && (
-                                    <ExpandableImage src={getFullUrl(block.questionImage || block.image)} alt="Схема" className="mb-6" />
-                                  )}
-                                  
-                                  {block.type === 'test' && (
-                                    <div className="space-y-3 mb-6">
-                                      {block.options?.map((opt: any, idx: number) => {
-                                        const isChecked = selected.includes(opt.text);
-                                        return (
-                                          <label key={idx} className={`flex items-center gap-4 p-4 md:p-5 rounded-xl border-2 transition-all bg-white ${isChecked ? 'border-purple-500 shadow-sm' : 'border-gray-100 hover:border-gray-200'} ${isLocked ? 'opacity-70 cursor-not-allowed' : 'cursor-pointer'}`}>
-                                            <input type="checkbox" className="hidden" checked={isChecked} disabled={isLocked} onChange={() => handleAnswerToggle(block.id, opt.text)} />
-                                            <div className={`w-6 h-6 rounded border-2 flex items-center justify-center shrink-0 transition-colors ${isChecked ? 'bg-purple-500 border-purple-500' : 'border-gray-300'} ${isLocked && !isChecked ? 'bg-gray-100' : ''}`}>
-                                              {isChecked && <CheckSquare className="w-3.5 h-3.5 text-white" />}
-                                            </div>
-                                            <span className={`text-base font-bold break-words ${isChecked ? 'text-gray-900' : 'text-gray-600'}`}>{opt.text}</span>
-                                          </label>
-                                        );
-                                      })}
-                                    </div>
-                                  )}
-
-                                  {['written', 'homework'].includes(block.type) && (
-                                    <div className="mb-6">
-                                      <label className="text-[10px] font-black text-purple-600 uppercase tracking-widest mb-3 block">Ваш развернутый ответ:</label>
-                                      <div className={`rounded-xl border-2 overflow-hidden transition-all bg-white ${isLocked ? 'border-gray-200 opacity-70 pointer-events-none' : 'border-purple-200 focus-within:border-purple-500 focus-within:shadow-md'}`}>
-                                        <ReactQuill 
-                                          theme="snow"
-                                          modules={studentQuillModules}
-                                          value={selected[0] || ''} 
-                                          onChange={(val) => handleTextAnswerChange(block.id, val)} 
-                                          readOnly={isLocked}
-                                          placeholder="Напишите подробный ответ..." 
-                                          className="min-h-[120px]"
-                                        />
-                                      </div>
-                                    </div>
-                                  )}
-
-                                  {['test', 'test_short', 'written', 'homework'].includes(block.type) && (
-                                    <div className="flex flex-col items-start gap-4 pt-6 border-t border-purple-50">
-                                      <div className="flex flex-col sm:flex-row sm:items-center gap-4 w-full">
-                                        <button 
-                                          type="button"
-                                          onClick={(e) => { e.preventDefault(); handleSubmitTest(block); }} 
-                                          disabled={selected.length === 0 || selected[0] === '' || selected[0] === '<p><br></p>' || isLocked} 
-                                          className="w-full sm:w-auto shrink-0 px-8 py-3.5 rounded-xl font-black text-sm transition-all active:scale-95 disabled:opacity-50 bg-purple-600 hover:bg-purple-500 text-white shadow-lg shadow-purple-600/30"
-                                        >
-                                          {result === 'PENDING' ? 'ОТПРАВЛЕНО НА ПРОВЕРКУ' : 'СДАТЬ ОТВЕТ'}
-                                        </button>
-                                        
-                                        <AnimatePresence>
-                                          {result === 'SUCCESS' && <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} className="flex items-center gap-2 text-emerald-600 font-bold bg-emerald-50 px-4 py-3 rounded-lg shrink-0"><CheckCircle2 className="w-5 h-5" /> Верно</motion.div>}
-                                          {result === 'PENDING' && <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} className="flex items-center gap-2 text-purple-600 font-bold bg-purple-50 px-4 py-3 rounded-lg border border-purple-100 shrink-0"><Clock className="w-5 h-5" /> Ушло куратору</motion.div>}
-                                        </AnimatePresence>
-                                      </div>
-                                    </div>
-                                  )}
-                                </div>
-                              );
-                            })}
+                            {/* Рендерим тесты ДЗ (группы) */}
+                            {hwGroups.map(group => (
+                              <TaskGroup 
+                                key={`hw-${activeLesson.id}-${group.type}`} 
+                                group={group} 
+                                testAnswers={testAnswers} testResults={testResults} attemptsUsed={attemptsUsed} 
+                                handleAnswerToggle={handleAnswerToggle} handleTextAnswerChange={handleTextAnswerChange} handleSubmitTest={handleSubmitTest} 
+                              />
+                            ))}
                           </motion.div>
                         )}
                       </AnimatePresence>
-
                     </div>
                   )}
 
