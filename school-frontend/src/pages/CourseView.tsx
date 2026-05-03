@@ -4,7 +4,7 @@ import axios from 'axios';
 import { 
   ArrowLeft, PlayCircle, Loader2, BookOpen, CheckSquare, CheckCircle2, 
   XCircle, Type, PenTool, Clock, FileDown, Link2, ExternalLink, 
-  Search, ListTodo, FileSignature, X
+  Search, ChevronDown, ChevronRight, ListTodo, FileSignature, X
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -44,12 +44,11 @@ function ExpandableImage({ src, alt, className = '' }: { src: string, alt?: stri
   );
 }
 
-// 🔥 НОВЫЙ КОМПОНЕНТ: Сгруппированные задания с пагинацией (как на скринах)
+// 🔥 ГРУППА ИНТЕРАКТИВНЫХ ЗАДАНИЙ С ПАГИНАЦИЕЙ
 const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswerToggle, handleTextAnswerChange, handleSubmitTest }: any) => {
   const [isOpen, setIsOpen] = useState(false);
   const [activeStep, setActiveStep] = useState(0);
 
-  // СБРОС ШАГА ПРИ ОТКРЫТИИ
   useEffect(() => { if (!isOpen) setActiveStep(0); }, [isOpen]);
 
   if (!isOpen) {
@@ -82,7 +81,6 @@ const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswer
 
   return (
     <div className="bg-white border border-gray-100 rounded-[2rem] p-6 md:p-8 relative shadow-lg shadow-gray-200/50 mb-8">
-      {/* Шапка карточки */}
       <div className="flex justify-between items-center mb-6">
         <h4 className="font-black text-xl text-gray-900 flex items-center gap-3">
           <group.Icon className={`w-6 h-6 ${group.iconColor.split(' ')[1]}`} />
@@ -93,7 +91,6 @@ const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswer
         </button>
       </div>
 
-      {/* Кружочки пагинации (1, 2, 3...) */}
       <div className="flex flex-wrap gap-2.5 mb-8">
         {group.blocks.map((b: any, i: number) => {
           const bRes = testResults[b.id];
@@ -111,14 +108,11 @@ const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswer
           }
 
           return (
-            <button key={b.id} onClick={() => setActiveStep(i)} className={circleClass}>
-              {i + 1}
-            </button>
+            <button key={b.id} onClick={() => setActiveStep(i)} className={circleClass}>{i + 1}</button>
           );
         })}
       </div>
 
-      {/* Инфо-плашки текущего вопроса */}
       <div className="flex flex-wrap items-center gap-2 mb-6">
         <div className="px-3 py-1.5 rounded-md bg-indigo-50 text-indigo-600 text-[10px] font-black uppercase tracking-widest">
           Вопрос {activeStep + 1}
@@ -132,9 +126,13 @@ const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswer
             Макс. балл: {block.maxScore || 10}
           </div>
         )}
+        {block.source && (
+          <div className="px-3 py-1.5 rounded-md bg-amber-50 text-amber-600 text-[10px] font-black uppercase tracking-widest border border-amber-100">
+            Источник: {block.source}
+          </div>
+        )}
       </div>
 
-      {/* Ошибка / Успех (Красная плашка как на видео) */}
       <AnimatePresence mode="wait">
         {result === 'ERROR' && !isExhausted && (
           <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="bg-[#FF4A6B]/10 border border-[#FF4A6B]/20 p-4 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between font-bold mb-6 gap-2 text-[#FF4A6B]">
@@ -162,14 +160,12 @@ const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswer
         )}
       </AnimatePresence>
 
-      {/* Текст вопроса */}
       <div className="text-lg md:text-xl font-bold text-gray-900 mb-6 leading-relaxed break-words" dangerouslySetInnerHTML={{ __html: block.question?.includes('<') ? block.question : block.question?.replace(/\n/g, '<br/>') }} />
       
       {(block.questionImage || block.image) && (
         <ExpandableImage src={getFullUrl(block.questionImage || block.image)} alt="Схема" className="mb-8" />
       )}
 
-      {/* Блок ответов (Варианты / Текст) */}
       <div className="space-y-3 mb-8">
         {block.type === 'test' && block.options?.map((opt: any, idx: number) => {
           const isChecked = selected.includes(opt.text);
@@ -185,13 +181,7 @@ const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswer
           return (
             <label key={idx} className={optClass}>
               <div className="relative flex items-center justify-center w-6 h-6 shrink-0">
-                <input 
-                  type="checkbox" 
-                  checked={isChecked} 
-                  disabled={isLocked} 
-                  onChange={() => handleAnswerToggle(block.id, opt.text)} 
-                  className="peer w-6 h-6 rounded border-2 border-gray-300 appearance-none checked:bg-[#5A4BFF] checked:border-[#5A4BFF] transition-all cursor-pointer" 
-                />
+                <input type="checkbox" checked={isChecked} disabled={isLocked} onChange={() => handleAnswerToggle(block.id, opt.text)} className="peer w-6 h-6 rounded border-2 border-gray-300 appearance-none checked:bg-[#5A4BFF] checked:border-[#5A4BFF] transition-all cursor-pointer" />
                 <CheckSquare className="w-3.5 h-3.5 text-white absolute pointer-events-none opacity-0 peer-checked:opacity-100 transition-opacity" />
               </div>
               <span className={`font-bold text-base break-words ${isChecked ? 'text-gray-900' : 'text-gray-600'}`}>{opt.text}</span>
@@ -210,7 +200,6 @@ const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswer
           />
         )}
 
-        {/* 🔥 КРАСИВЫЙ РАЗВЕРНУТЫЙ ОТВЕТ (Без лишнего Ворда) */}
         {block.type === 'written' && (
           <div className="flex flex-col gap-2">
             <textarea 
@@ -225,7 +214,6 @@ const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswer
         )}
       </div>
 
-      {/* КНОПКИ ДЕЙСТВИЙ (ПРОВЕРИТЬ / ДАЛЕЕ) */}
       <div className="flex flex-col sm:flex-row items-center gap-4 pt-6 border-t border-gray-100">
         <button 
           type="button"
@@ -236,12 +224,9 @@ const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswer
           {result === 'PENDING' ? 'НА ПРОВЕРКЕ' : (isExhausted && block.type !== 'written' ? 'ЛИМИТ ИСЧЕРПАН' : result === 'ERROR' ? 'ЕЩЕ РАЗ' : 'ОТВЕТИТЬ')}
         </button>
         
-        {/* Навигация (Пропустить / Далее) */}
         <div className="flex-1 w-full flex justify-end gap-3">
           {activeStep > 0 && (
-            <button onClick={() => setActiveStep(p => p - 1)} className="px-6 py-4 rounded-xl font-bold text-sm bg-gray-50 text-gray-500 hover:bg-gray-100 transition-colors">
-              НАЗАД
-            </button>
+            <button onClick={() => setActiveStep(p => p - 1)} className="px-6 py-4 rounded-xl font-bold text-sm bg-gray-50 text-gray-500 hover:bg-gray-100 transition-colors">НАЗАД</button>
           )}
           {activeStep < group.blocks.length - 1 && (
             <button onClick={() => setActiveStep(p => p + 1)} className="px-6 py-4 rounded-xl font-bold text-sm bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors">
@@ -250,6 +235,17 @@ const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswer
           )}
         </div>
       </div>
+
+      <AnimatePresence>
+        {(isLocked || isExhausted) && block.explanation && (
+          <motion.div initial={{ opacity: 0, height: 0, marginTop: 0 }} animate={{ opacity: 1, height: 'auto', marginTop: 24 }} exit={{ opacity: 0, height: 0, marginTop: 0 }} className="bg-indigo-50/50 border border-indigo-100 rounded-2xl p-6 overflow-hidden">
+            <h5 className="flex items-center gap-2 text-indigo-700 font-black text-sm uppercase tracking-widest mb-4">
+              <BookOpen className="w-5 h-5" /> Разбор задания
+            </h5>
+            <div className="prose prose-sm max-w-none text-gray-800 ql-editor px-0" dangerouslySetInnerHTML={{ __html: block.explanation.includes('<') ? block.explanation : block.explanation.replace(/\n/g, '<br/>') }} />
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };
@@ -364,19 +360,20 @@ export default function CourseView() {
           answer: selected[0] || '',
           maxScore: block.maxScore || 10
         }, { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } });
-        
         isPending = true;
-      } catch (err) {
-        console.error('Ошибка отправки куратору:', err);
-        return; 
-      }
+      } catch (err) { return; }
     } else if (block.type === 'test') {
       const correctOptions = block.options.filter((opt: any) => opt.isCorrect).map((opt: any) => opt.text);
       isSuccess = correctOptions.length === selected.length && correctOptions.every((val: string) => selected.includes(val));
     } else if (block.type === 'test_short') {
-      const userAnswer = (selected[0] || '').trim().toLowerCase();
-      const correctAnswer = (block.correctAnswer || '').trim().toLowerCase();
-      isSuccess = userAnswer === correctAnswer && userAnswer !== '';
+      // 🔥 УМНАЯ ПРОВЕРКА КРАТКОГО ОТВЕТА
+      const userAnswer = (selected[0] || '').trim();
+      if (block.ignoreTypos !== false) {
+        const cleanUser = userAnswer.toLowerCase().replace(/ё/g, 'е');
+        isSuccess = (block.correctAnswers || []).some((ans: string) => ans.trim().toLowerCase().replace(/ё/g, 'е') === cleanUser);
+      } else {
+        isSuccess = (block.correctAnswers || []).some((ans: string) => ans.trim() === userAnswer);
+      }
     }
     
     if (!['written', 'homework'].includes(block.type) && isSuccess) {
@@ -396,9 +393,7 @@ export default function CourseView() {
             comment: '🤖 Автоматическая проверка: Верно!'
           });
         }
-      } catch (error) {
-        console.error('Ошибка авто-проверки:', error);
-      }
+      } catch (error) {}
     }
 
     if (!['written', 'homework'].includes(block.type)) {
@@ -445,17 +440,19 @@ export default function CourseView() {
   const practiceBlocks = blocks.filter(b => ['test', 'test_short', 'written'].includes(b.type) && !b.isHomework);
   const homeworkBlocks = blocks.filter(b => b.isHomework);
 
-  // 🔥 ФУНКЦИЯ ДЛЯ ГРУППИРОВКИ ЗАДАНИЙ (Собирает 3 стопки: Тесты, Краткие, Развернутые)
+  // 🔥 ОБНОВЛЕННАЯ ФУНКЦИЯ: Склеиваем test и test_short в одну группу
   const groupInteractiveBlocks = (blocksToGroup: any[]) => {
     const groups = [
-      { type: 'test', title: 'Тест', blocks: [] as any[], Icon: CheckSquare, iconColor: 'bg-indigo-50 text-indigo-600' },
-      { type: 'test_short', title: 'Тест с кратким ответом', blocks: [] as any[], Icon: Type, iconColor: 'bg-amber-50 text-amber-600' },
+      { type: 'tests', title: 'Тесты', blocks: [] as any[], Icon: CheckSquare, iconColor: 'bg-indigo-50 text-indigo-600' },
       { type: 'written', title: 'Развернутый ответ', blocks: [] as any[], Icon: PenTool, iconColor: 'bg-purple-50 text-purple-600' }
     ];
 
     blocksToGroup.forEach(b => {
-      const group = groups.find(g => g.type === b.type);
-      if (group) group.blocks.push(b);
+      if (b.type === 'test' || b.type === 'test_short') {
+        groups.find(g => g.type === 'tests')?.blocks.push(b);
+      } else if (b.type === 'written') {
+        groups.find(g => g.type === 'written')?.blocks.push(b);
+      }
     });
 
     return groups.filter(g => g.blocks.length > 0);
@@ -729,7 +726,6 @@ export default function CourseView() {
                             initial={{ height: 0, opacity: 0, marginTop: 0 }} animate={{ height: 'auto', opacity: 1, marginTop: 32 }} exit={{ height: 0, opacity: 0, marginTop: 0 }} transition={{ duration: 0.3, ease: 'easeInOut' }}
                             className="overflow-hidden space-y-8"
                           >
-                            {/* Рендерим теорию ДЗ (видео, картинки, тексты) */}
                             {hwTheoryBlocks.map(block => (
                               <div key={block.id} className="bg-white rounded-[2rem] border border-gray-200 p-6 md:p-8 relative">
                                 <div className="inline-flex items-center gap-1.5 px-3 py-1 mb-6 rounded-md text-[10px] font-black uppercase tracking-widest bg-purple-100 text-purple-700">Материал к ДЗ</div>
@@ -737,7 +733,6 @@ export default function CourseView() {
                               </div>
                             ))}
 
-                            {/* Рендерим тесты ДЗ (группы) */}
                             {hwGroups.map(group => (
                               <TaskGroup 
                                 key={`hw-${activeLesson.id}-${group.type}`} 

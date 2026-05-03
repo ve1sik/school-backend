@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { GraduationCap, X, PlayCircle, Trash2, ArrowLeft, FileText, CheckSquare, Eye, EyeOff, Pencil, Type, PenTool, CheckCircle2, ArrowUp, ArrowDown, Image as ImageIcon, UploadCloud, Plus, FileDown, Link2, BookOpen, Loader2, FileSignature } from 'lucide-react';
+import { GraduationCap, X, PlayCircle, Trash2, ArrowLeft, FileText, CheckSquare, Eye, EyeOff, Pencil, Type, PenTool, CheckCircle2, ArrowUp, ArrowDown, Image as ImageIcon, UploadCloud, Plus, FileDown, Link2, BookOpen, Loader2, FileSignature, SaveAll } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
@@ -18,15 +18,12 @@ const getEmbedUrl = (url: string) => {
   return url;
 };
 
-// 🔥 ФУНКЦИЯ ДЛЯ ПРАВИЛЬНОГО ПУТИ К ФАЙЛАМ И HTTPS
 const getFullUrl = (url: string) => {
   if (!url) return '';
   let finalUrl = url;
-
   if (finalUrl.startsWith('http://prepodmgy.ru')) {
     finalUrl = finalUrl.replace('http://', 'https://');
   }
-
   if (finalUrl.startsWith('http')) return finalUrl;
   const cleanPath = finalUrl.startsWith('/') ? finalUrl.slice(1) : finalUrl;
   if (cleanPath.startsWith('uploads/')) {
@@ -35,7 +32,6 @@ const getFullUrl = (url: string) => {
   return `${API_URL}/${cleanPath}`;
 };
 
-// 🔥 УМНАЯ КАРТИНКА ДЛЯ АДМИНКИ (Разворачивается по клику)
 function ExpandableImage({ src, alt, className = '' }: { src: string, alt?: string, className?: string }) {
   const [isExpanded, setIsExpanded] = useState(false);
   return (
@@ -55,7 +51,6 @@ function ExpandableImage({ src, alt, className = '' }: { src: string, alt?: stri
   );
 }
 
-// Настройки кнопок для Ворд-редактора
 const quillModules = {
   toolbar: [
     [{ 'header': [1, 2, 3, false] }],
@@ -91,11 +86,16 @@ export default function AdminCourses() {
   const [hwBlocks, setHwBlocks] = useState<any[]>([]);
   const [hasHomeworkSection, setHasHomeworkSection] = useState(false);
 
+  // 🔥 Стейты для новых фич
+  const [shortAnswerInputs, setShortAnswerInputs] = useState<Record<string, string>>({});
+  const [errors, setErrors] = useState<Record<string, boolean>>({});
+  const [hasDraft, setHasDraft] = useState(false);
+
   const [toast, setToast] = useState<{ text: string, type: 'success' | 'error' } | null>(null);
 
   const showToast = (text: string, type: 'success' | 'error' = 'success') => {
     setToast({ text, type });
-    setTimeout(() => setToast(null), 3000);
+    setTimeout(() => setToast(null), 4000);
   };
 
   const navigate = useNavigate();
@@ -105,21 +105,44 @@ export default function AdminCourses() {
     fetchItems();
     setShowThemeModal(false);
     setSelectedCourseForThemes(null);
+    // Проверяем, есть ли сохраненный черновик
+    if (localStorage.getItem('lesson_draft')) {
+      setHasDraft(true);
+    }
   }, []);
+
+  // 🔥 АВТОСОХРАНЕНИЕ ЧЕРНОВИКА
+  useEffect(() => {
+    if (selectedThemeForLesson && (newLessonTitle || blocks.length > 0 || hwBlocks.length > 0)) {
+      const draft = { newLessonTitle, blocks, hwBlocks, hasHomeworkSection, editingLessonId };
+      localStorage.setItem('lesson_draft', JSON.stringify(draft));
+    }
+  }, [newLessonTitle, blocks, hwBlocks, hasHomeworkSection, editingLessonId, selectedThemeForLesson]);
+
+  const restoreDraft = () => {
+    try {
+      const draftStr = localStorage.getItem('lesson_draft');
+      if (draftStr) {
+        const draft = JSON.parse(draftStr);
+        setNewLessonTitle(draft.newLessonTitle || '');
+        setBlocks(draft.blocks || []);
+        setHwBlocks(draft.hwBlocks || []);
+        setHasHomeworkSection(draft.hasHomeworkSection || false);
+        setEditingLessonId(draft.editingLessonId || null);
+        showToast('Черновик успешно восстановлен!');
+      }
+    } catch (e) {
+      showToast('Не удалось восстановить черновик', 'error');
+    }
+  };
 
   const fetchItems = async () => {
     setIsLoading(true);
     try {
       const res = await axios.get(`${API_URL}/courses`, getTokenConfig());
       setItems(res.data);
-      
-      setSelectedCourseForThemes((prev: any) => {
-        if (!prev) return null;
-        const updated = res.data.find((c: any) => c.id === prev.id);
-        return updated || null;
-      });
+      setSelectedCourseForThemes((prev: any) => prev ? (res.data.find((c: any) => c.id === prev.id) || null) : null);
     } catch (err) { 
-      console.error('Ошибка загрузки данных', err);
       setItems([]); 
     } finally {
       setIsLoading(false);
@@ -132,22 +155,15 @@ export default function AdminCourses() {
     setIsLoading(true);
     try {
       await axios.post(`${API_URL}/courses`, { title, description: '', cover_url: "" }, getTokenConfig());
-      setTitle(''); 
-      fetchItems();
-      showToast('Программа успешно создана!');
-    } catch (err) { 
-      showToast('Ошибка при создании', 'error'); 
-    } finally { 
-      setIsLoading(false); 
-    }
+      setTitle(''); fetchItems(); showToast('Программа успешно создана!');
+    } catch (err) { showToast('Ошибка при создании', 'error'); } finally { setIsLoading(false); }
   };
 
   const handleCreateTheme = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
       await axios.post(`${API_URL}/themes`, { courseId: selectedCourseForThemes.id, title: newThemeTitle, order_index: ((selectedCourseForThemes.themes || []).length) + 1 }, getTokenConfig());
-      setNewThemeTitle(''); fetchItems();
-      showToast('Новый модуль добавлен!');
+      setNewThemeTitle(''); fetchItems(); showToast('Новый модуль добавлен!');
     } catch (err) { showToast('Ошибка при добавлении', 'error'); }
   };
 
@@ -155,67 +171,63 @@ export default function AdminCourses() {
     if (!editCourseTitle.trim()) { setEditingCourseId(null); return; }
     setItems(prev => prev.map(c => c.id === id ? { ...c, title: editCourseTitle } : c));
     setEditingCourseId(null);
-    try { await axios.patch(`${API_URL}/courses/${id}`, { title: editCourseTitle }, getTokenConfig()); fetchItems(); showToast('Название сохранено'); } catch (err) { fetchItems(); showToast('Ошибка сохранения', 'error'); }
+    try { await axios.patch(`${API_URL}/courses/${id}`, { title: editCourseTitle }, getTokenConfig()); fetchItems(); } catch (err) { fetchItems(); }
   };
 
   const saveThemeTitle = async (id: string) => {
     if (!editThemeTitle.trim()) { setEditingThemeId(null); return; }
     setSelectedCourseForThemes((prev: any) => prev ? { ...prev, themes: (prev.themes || []).map((t: any) => t.id === id ? { ...t, title: editThemeTitle } : t) } : null);
     setEditingThemeId(null);
-    try { await axios.patch(`${API_URL}/themes/${id}`, { title: editThemeTitle }, getTokenConfig()); fetchItems(); showToast('Название сохранено'); } catch (err) { fetchItems(); showToast('Ошибка сохранения', 'error'); }
+    try { await axios.patch(`${API_URL}/themes/${id}`, { title: editThemeTitle }, getTokenConfig()); fetchItems(); } catch (err) { fetchItems(); }
   };
 
   const saveLessonTitle = async (id: string) => {
     if (!editLessonInlineTitle.trim()) { setEditingLessonTitleId(null); return; }
     setSelectedCourseForThemes((prev: any) => prev ? {
-      ...prev, themes: (prev.themes || []).map((t: any) => ({
-        ...t, lessons: (t.lessons || []).map((l: any) => l.id === id ? { ...l, title: editLessonInlineTitle } : l)
-      }))
+      ...prev, themes: (prev.themes || []).map((t: any) => ({ ...t, lessons: (t.lessons || []).map((l: any) => l.id === id ? { ...l, title: editLessonInlineTitle } : l) }))
     } : null);
     setEditingLessonTitleId(null);
-    try { await axios.patch(`${API_URL}/lessons/${id}`, { title: editLessonInlineTitle }, getTokenConfig()); fetchItems(); showToast('Название сохранено'); } catch (err) { fetchItems(); showToast('Ошибка сохранения', 'error'); }
+    try { await axios.patch(`${API_URL}/lessons/${id}`, { title: editLessonInlineTitle }, getTokenConfig()); fetchItems(); } catch (err) { fetchItems(); }
   };
 
   const addBlock = (type: string, isHw: boolean) => {
     const newBlock: any = { id: Date.now().toString(), type };
     if (type === 'video') { newBlock.url = ''; newBlock.title = 'Видео'; }
-    if (type === 'text') { newBlock.content = ''; newBlock.title = 'Текст'; newBlock.image = ''; newBlock.imageName = ''; }
-    if (type === 'image') { newBlock.url = ''; newBlock.fileName = ''; newBlock.title = 'Изображение'; }
-    if (type === 'video_file') { newBlock.url = ''; newBlock.fileName = ''; newBlock.title = 'Видео-файл'; }
-    if (type === 'file') { newBlock.url = ''; newBlock.fileName = ''; newBlock.content = ''; newBlock.title = 'Файл для скачивания'; }
+    if (type === 'text') { newBlock.content = ''; newBlock.title = 'Текст'; }
+    if (type === 'image') { newBlock.url = ''; newBlock.title = 'Изображение'; }
+    if (type === 'video_file') { newBlock.url = ''; newBlock.title = 'Видео-файл'; }
+    if (type === 'file') { newBlock.url = ''; newBlock.title = 'Файл для скачивания'; }
     if (type === 'link') { newBlock.url = ''; newBlock.buttonText = 'Перейти'; newBlock.title = 'Ссылка / Кнопка'; }
-    if (type === 'test') { newBlock.question = ''; newBlock.maxAttempts = 3; newBlock.options = [{ text: '', isCorrect: false }]; newBlock.explanation = ''; newBlock.questionImage = ''; newBlock.questionImageName = ''; newBlock.title = 'Тест'; }
-    if (type === 'test_short') { newBlock.question = ''; newBlock.correctAnswer = ''; newBlock.maxAttempts = 3; newBlock.explanation = ''; newBlock.questionImage = ''; newBlock.questionImageName = ''; newBlock.title = 'Тест с кратким ответом'; }
-    if (type === 'written') { newBlock.question = ''; newBlock.maxScore = 3; newBlock.questionImage = ''; newBlock.questionImageName = ''; newBlock.title = 'Развернутый ответ'; }
+    if (type === 'test') { newBlock.question = ''; newBlock.maxAttempts = 3; newBlock.options = [{ text: '', isCorrect: false }]; newBlock.explanation = ''; newBlock.source = ''; newBlock.title = 'Тест'; }
+    if (type === 'test_short') { newBlock.question = ''; newBlock.correctAnswers = []; newBlock.ignoreTypos = true; newBlock.maxAttempts = 3; newBlock.explanation = ''; newBlock.source = ''; newBlock.title = 'Тест с кратким ответом'; }
+    if (type === 'written') { newBlock.question = ''; newBlock.maxScore = 3; newBlock.explanation = ''; newBlock.source = ''; newBlock.title = 'Развернутый ответ'; }
     
-    // 🔥 ФИКС: Умный скролл к новому блоку
-    if (isHw) {
-      setHwBlocks(prev => [...prev, newBlock]);
-      setTimeout(() => document.getElementById('hw-section-end')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 100);
-    } else {
-      setBlocks(prev => [...prev, newBlock]);
-      setTimeout(() => document.getElementById('theory-section-end')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 100);
-    }
+    if (isHw) { setHwBlocks(prev => [...prev, newBlock]); setTimeout(() => document.getElementById('hw-section-end')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 100); } 
+    else { setBlocks(prev => [...prev, newBlock]); setTimeout(() => document.getElementById('theory-section-end')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 100); }
   };
 
   const updateBlock = (id: string, data: any, isHw: boolean) => { 
     if (isHw) setHwBlocks(hwBlocks.map(b => b.id === id ? { ...b, ...data } : b));
     else setBlocks(blocks.map(b => b.id === id ? { ...b, ...data } : b));
+    
+    // Снимаем ошибку при изменении
+    if (errors[id]) {
+      const newErr = {...errors};
+      delete newErr[id];
+      setErrors(newErr);
+    }
   };
+
   const removeBlock = (id: string, isHw: boolean) => { 
     if (isHw) setHwBlocks(hwBlocks.filter(b => b.id !== id));
     else setBlocks(blocks.filter(b => b.id !== id));
   };
   const moveBlockUp = (index: number, isHw: boolean) => { 
-    if (index === 0) return; 
-    const arr = isHw ? [...hwBlocks] : [...blocks]; 
-    [arr[index - 1], arr[index]] = [arr[index], arr[index - 1]]; 
+    if (index === 0) return; const arr = isHw ? [...hwBlocks] : [...blocks]; [arr[index - 1], arr[index]] = [arr[index], arr[index - 1]]; 
     if (isHw) setHwBlocks(arr); else setBlocks(arr); 
   };
   const moveBlockDown = (index: number, isHw: boolean) => { 
-    const arr = isHw ? [...hwBlocks] : [...blocks]; 
-    if (index === arr.length - 1) return; 
-    [arr[index + 1], arr[index]] = [arr[index], arr[index + 1]]; 
+    const arr = isHw ? [...hwBlocks] : [...blocks]; if (index === arr.length - 1) return; [arr[index + 1], arr[index]] = [arr[index], arr[index + 1]]; 
     if (isHw) setHwBlocks(arr); else setBlocks(arr); 
   };
 
@@ -236,6 +248,7 @@ export default function AdminCourses() {
     setSelectedThemeForLesson(theme);
     setEditingLessonId(lesson.id);
     setNewLessonTitle(lesson.title);
+    setErrors({});
     
     let initialBlocks: any[] = [];
     let initialHwBlocks: any[] = [];
@@ -247,9 +260,7 @@ export default function AdminCourses() {
           const parsed = JSON.parse(trimmed); 
           initialBlocks = parsed.filter((b: any) => !b.isHomework);
           initialHwBlocks = parsed.filter((b: any) => b.isHomework);
-        } catch (e) {
-          initialBlocks.push({ id: 'text-recovery', type: 'text', content: lesson.content, title: 'Текст (Восстановлен)' });
-        }
+        } catch (e) {}
       } else {
         initialBlocks.push({ id: 'text-legacy', type: 'text', content: lesson.content, title: 'Текст' });
       }
@@ -261,22 +272,48 @@ export default function AdminCourses() {
     setTimeout(() => document.getElementById('lesson-form')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
   };
 
-  const handleSaveLesson = async (theme: any) => {
-    if (!newLessonTitle || !theme) return;
-    
-    const cleanedBlocks = blocks.map(b => {
-      let cb = { ...b, isHomework: false };
-      if (cb.type === 'test' || cb.type === 'test_short') cb.maxAttempts = cb.maxAttempts === '' ? 1 : cb.maxAttempts;
-      if (cb.type === 'written') cb.maxScore = cb.maxScore === '' ? 3 : cb.maxScore;
-      return cb;
-    });
+  // 🔥 ПРОВЕРКА ПУСТЫХ ПОЛЕЙ (ВАЛИДАЦИЯ)
+  const isQuillEmpty = (html: string) => !html || html.replace(/<[^>]*>?/gm, '').trim().length === 0;
 
-    const cleanedHwBlocks = hwBlocks.map(b => {
-      let cb = { ...b, isHomework: true };
-      if (cb.type === 'test' || cb.type === 'test_short') cb.maxAttempts = cb.maxAttempts === '' ? 1 : cb.maxAttempts;
-      if (cb.type === 'written') cb.maxScore = cb.maxScore === '' ? 3 : cb.maxScore;
-      return cb;
-    });
+  const handleSaveLesson = async (theme: any) => {
+    let newErrors: Record<string, boolean> = {};
+
+    if (!newLessonTitle.trim()) newErrors['lessonTitle'] = true;
+
+    const validateArr = (arr: any[]) => {
+      arr.forEach(b => {
+        if (['test', 'test_short', 'written'].includes(b.type)) {
+          if (isQuillEmpty(b.question)) newErrors[b.id] = true;
+          
+          if (b.type === 'test') {
+            if (!b.options || b.options.length === 0) newErrors[b.id] = true;
+            b.options?.forEach((opt: any) => { if (!opt.text.trim()) newErrors[b.id] = true; });
+            if (!b.options?.some((opt: any) => opt.isCorrect)) newErrors[b.id] = true;
+          }
+          if (b.type === 'test_short') {
+            if (!b.correctAnswers || b.correctAnswers.length === 0) newErrors[b.id] = true;
+          }
+        }
+      });
+    };
+
+    validateArr(blocks);
+    validateArr(hwBlocks);
+
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
+      showToast('Заполните все выделенные красным поля!', 'error');
+      setTimeout(() => {
+        const errorEl = document.querySelector('.border-red-500');
+        if (errorEl) errorEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 100);
+      return;
+    }
+
+    setErrors({});
+    
+    const cleanedBlocks = blocks.map(b => ({ ...b, isHomework: false }));
+    const cleanedHwBlocks = hwBlocks.map(b => ({ ...b, isHomework: true }));
 
     const payload = { 
       themeId: theme.id, 
@@ -294,11 +331,13 @@ export default function AdminCourses() {
         await axios.post(`${API_URL}/lessons`, { ...payload, order_index: ((theme.lessons || []).length) + 1 }, getTokenConfig());
         showToast('Успешно создано!');
       }
+      localStorage.removeItem('lesson_draft'); // Успешно сохранили - удаляем черновик
+      setHasDraft(false);
       resetLessonForm(); fetchItems();
     } catch (err) { showToast('Ошибка сохранения', 'error'); }
   };
 
-  const resetLessonForm = () => { setSelectedThemeForLesson(null); setEditingLessonId(null); setNewLessonTitle(''); setBlocks([]); setHwBlocks([]); setHasHomeworkSection(false); };
+  const resetLessonForm = () => { setSelectedThemeForLesson(null); setEditingLessonId(null); setNewLessonTitle(''); setBlocks([]); setHwBlocks([]); setHasHomeworkSection(false); setErrors({}); };
 
   const handleDeleteItem = async (id: string) => {
     setItems(prev => prev.filter(c => c.id !== id));
@@ -309,15 +348,13 @@ export default function AdminCourses() {
 
   const handleDeleteTheme = async (id: string) => {
     setSelectedCourseForThemes((prev: any) => prev ? { ...prev, themes: (prev.themes || []).filter((t: any) => t.id !== id) } : null);
-    showToast('Удалено');
-    try { await axios.delete(`${API_URL}/themes/${id}`, getTokenConfig()); fetchItems(); } catch (err) { showToast('Ошибка удаления', 'error'); }
+    try { await axios.delete(`${API_URL}/themes/${id}`, getTokenConfig()); fetchItems(); } catch (err) {}
   };
 
   const handleDeleteLesson = async (id: string) => {
     setSelectedCourseForThemes((prev: any) => prev ? { ...prev, themes: (prev.themes || []).map((t: any) => ({ ...t, lessons: (t.lessons || []).filter((l: any) => l.id !== id) })) } : null);
     if (editingLessonId === id) resetLessonForm();
-    showToast('Удалено');
-    try { await axios.delete(`${API_URL}/lessons/${id}`, getTokenConfig()); fetchItems(); } catch (err) { showToast('Ошибка удаления', 'error'); }
+    try { await axios.delete(`${API_URL}/lessons/${id}`, getTokenConfig()); fetchItems(); } catch (err) {}
   };
 
   const handleToggleThemeVisibility = async (id: string, status: boolean) => {
@@ -333,8 +370,11 @@ export default function AdminCourses() {
   const renderBlocksList = (blockArray: any[], isHw: boolean) => {
     return (
       <div className="space-y-6">
-        {blockArray.map((block, index) => (
-          <div key={block.id} className={`relative p-6 pt-16 rounded-[2rem] border-2 bg-white group shadow-sm hover:shadow-md transition-all ${isHw ? 'border-purple-100' : 'border-gray-100'}`}>
+        {blockArray.map((block, index) => {
+          const isError = errors[block.id];
+          
+          return (
+          <div key={block.id} className={`relative p-6 pt-16 rounded-[2rem] border-2 bg-white group shadow-sm hover:shadow-md transition-all ${isError ? 'border-red-500 shadow-red-500/20' : isHw ? 'border-purple-100' : 'border-gray-100'}`}>
             
             <div className="absolute top-4 right-4 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all z-10 bg-gray-50 p-1.5 rounded-xl border border-gray-200">
               <button type="button" onClick={() => moveBlockUp(index, isHw)} disabled={index === 0} className="p-2 bg-white rounded-lg shadow-sm text-gray-500 hover:text-gray-900 disabled:opacity-30"><ArrowUp className="w-4 h-4" /></button>
@@ -444,121 +484,138 @@ export default function AdminCourses() {
               </div>
             )}
 
-            {block.type === 'test' && (
-              <div>
-                <div className="flex items-center gap-3 mb-6 group/header bg-rose-50 p-4 rounded-xl">
-                  <CheckSquare className="w-6 h-6 text-rose-600 shrink-0" />
-                  <input value={block.title !== undefined ? block.title : 'Тест'} onChange={(e) => updateBlock(block.id, { title: e.target.value }, isHw)} className="flex-1 bg-transparent border-b-2 border-dashed border-transparent hover:border-rose-300 focus:border-rose-600 outline-none font-black text-xl transition-all text-rose-900 placeholder:text-rose-300" placeholder="Заголовок блока..." />
+            {/* 🔥 ОБЩАЯ ВЕРХУШКА ДЛЯ ИНТЕРАКТИВНЫХ БЛОКОВ (Тест, Краткий ответ, Развернутый ответ) */}
+            {['test', 'test_short', 'written'].includes(block.type) && (
+              <>
+                <div className={`flex items-center gap-3 mb-6 group/header p-4 rounded-xl ${block.type === 'test' ? 'bg-rose-50' : block.type === 'test_short' ? 'bg-amber-50' : 'bg-purple-50'}`}>
+                  {block.type === 'test' ? <CheckSquare className="w-6 h-6 text-rose-600 shrink-0" /> : block.type === 'test_short' ? <Type className="w-6 h-6 text-amber-600 shrink-0" /> : <PenTool className="w-6 h-6 text-purple-600 shrink-0" />}
+                  <input value={block.title !== undefined ? block.title : (block.type === 'test' ? 'Тест' : block.type === 'test_short' ? 'Краткий ответ' : 'Развернутый ответ')} onChange={(e) => updateBlock(block.id, { title: e.target.value }, isHw)} className={`flex-1 bg-transparent border-b-2 border-dashed border-transparent outline-none font-black text-xl transition-all ${block.type === 'test' ? 'hover:border-rose-300 focus:border-rose-600 text-rose-900 placeholder:text-rose-300' : block.type === 'test_short' ? 'hover:border-amber-300 focus:border-amber-600 text-amber-900 placeholder:text-amber-300' : 'hover:border-purple-300 focus:border-purple-600 text-purple-900 placeholder:text-purple-300'}`} placeholder="Заголовок блока..." />
                 </div>
                 
                 <div className="flex flex-col sm:flex-row gap-4 mb-6">
                   <div className="flex-1">
-                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">Текст вопроса</label>
-                    <input value={block.question} onChange={(e) => updateBlock(block.id, { question: e.target.value }, isHw)} placeholder="Введите вопрос..." className="w-full p-4 rounded-xl border border-gray-200 outline-none font-bold focus:border-rose-400 transition-all" />
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">
+                      Текст задания {isError && isQuillEmpty(block.question) && <span className="text-red-500">* Обязательное поле</span>}
+                    </label>
+                    <div className={`bg-white rounded-2xl overflow-visible border transition-all z-10 relative ${isError && isQuillEmpty(block.question) ? 'border-red-400 ring-2 ring-red-100' : 'border-gray-200 focus-within:border-indigo-400 focus-within:ring-2 focus-within:ring-indigo-100'}`}>
+                      <ReactQuill theme="snow" modules={quillModules} value={block.question || ''} onChange={(val) => updateBlock(block.id, { question: val }, isHw)} placeholder="Введите вопрос или текст задания..." className="min-h-[120px] pb-12" />
+                    </div>
                   </div>
-                  <div className="w-full sm:w-32">
-                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">Попыток</label>
-                    <input type="number" min="1" max="99" value={block.maxAttempts === '' ? '' : (block.maxAttempts || 3)} onChange={(e) => updateBlock(block.id, { maxAttempts: e.target.value === '' ? '' : parseInt(e.target.value) }, isHw)} className="w-full p-4 rounded-xl border border-gray-200 outline-none font-black text-center text-rose-600 focus:border-rose-400 transition-all" />
+                  <div className="w-full sm:w-32 shrink-0">
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">{block.type === 'written' ? 'Макс. балл' : 'Попыток'}</label>
+                    <input type="number" min="1" max="100" value={block.type === 'written' ? (block.maxScore || 3) : (block.maxAttempts || 3)} onChange={(e) => updateBlock(block.id, block.type === 'written' ? { maxScore: parseInt(e.target.value) || '' } : { maxAttempts: parseInt(e.target.value) || '' }, isHw)} className={`w-full p-4 rounded-xl border border-gray-200 outline-none font-black text-center transition-all ${block.type === 'test' ? 'text-rose-600 focus:border-rose-400' : block.type === 'test_short' ? 'text-amber-600 focus:border-amber-400' : 'text-purple-600 focus:border-purple-400'}`} />
                   </div>
                 </div>
 
-                <div className="mb-8 p-5 bg-gray-50 rounded-2xl border border-gray-100">
-                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3 block">Картинка к вопросу (необязательно)</label>
-                  <div className="flex items-center gap-4">
+                <div className="mb-8 p-5 bg-gray-50 rounded-2xl border border-gray-100 flex flex-col sm:flex-row sm:items-center gap-4">
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest sm:mb-0 block shrink-0">Картинка к вопросу:</label>
+                  <div className="flex items-center gap-4 flex-1">
                     <label className="cursor-pointer px-5 py-3 bg-white border-2 border-dashed border-gray-300 rounded-xl hover:border-indigo-400 transition-all flex items-center gap-2 font-bold text-gray-500 text-sm">
-                      <UploadCloud className="w-4 h-4" /> Прикрепить картинку
+                      <UploadCloud className="w-4 h-4" /> Прикрепить
                       <input type="file" accept="image/*" className="hidden" onChange={(e) => handleFileUpload(block.id, e, isHw, 'questionImage', 'questionImageName')} />
                     </label>
                     {block.questionImageName && <span className="text-xs font-bold text-emerald-600 flex items-center gap-1 bg-emerald-50 px-3 py-1.5 rounded-lg"><CheckCircle2 className="w-4 h-4" /> {block.questionImageName}</span>}
                     {block.questionImage && <button type="button" onClick={() => updateBlock(block.id, { questionImage: '', questionImageName: '' }, isHw)} className="p-2 bg-white rounded-lg shadow-sm text-gray-400 hover:text-red-500"><Trash2 className="w-4 h-4" /></button>}
                   </div>
-                  {block.questionImage && <ExpandableImage src={getFullUrl(block.questionImage)} className="mt-4" />}
                 </div>
-                
-                <div className="space-y-3">
-                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block">Варианты ответов</label>
-                  {block.options?.map((opt: any, optIdx: number) => (
-                    <div key={optIdx} className={`flex items-center gap-3 p-3 rounded-2xl border-2 transition-all ${opt.isCorrect ? 'border-emerald-400 bg-emerald-50 shadow-sm' : 'border-gray-200 bg-white'}`}>
-                      <label className="flex items-center justify-center cursor-pointer relative w-8 h-8 shrink-0">
-                        <input type="checkbox" checked={opt.isCorrect} onChange={(e) => { const newOpts = [...block.options]; newOpts[optIdx].isCorrect = e.target.checked; updateBlock(block.id, { options: newOpts }, isHw); }} className="sr-only" />
-                        <div className={`w-6 h-6 rounded border-2 flex items-center justify-center transition-colors ${opt.isCorrect ? 'bg-emerald-500 border-emerald-500' : 'bg-gray-100 border-gray-300'}`}>
-                          {opt.isCorrect && <CheckSquare className="w-4 h-4 text-white" />}
-                        </div>
-                      </label>
-                      <input value={opt.text} onChange={(e) => { const newOpts = [...block.options]; newOpts[optIdx].text = e.target.value; updateBlock(block.id, { options: newOpts }, isHw); }} placeholder={`Вариант ${optIdx + 1}`} className="flex-1 p-2 bg-transparent outline-none font-bold text-gray-800" />
-                      <button type="button" onClick={() => { const newOpts = block.options.filter((_:any, i:number) => i !== optIdx); updateBlock(block.id, { options: newOpts }, isHw); }} className="p-2 text-gray-400 hover:text-red-500"><Trash2 className="w-5 h-5" /></button>
-                    </div>
-                  ))}
-                  <button type="button" onClick={() => { updateBlock(block.id, { options: [...(block.options || []), { text: '', isCorrect: false }] }, isHw); }} className="mt-4 px-5 py-4 w-full border-2 border-dashed border-rose-300 text-rose-600 hover:bg-rose-50 rounded-2xl font-black transition-all flex items-center justify-center gap-2">
-                    <Plus className="w-5 h-5" /> ДОБАВИТЬ ВАРИАНТ
-                  </button>
-                </div>
+                {block.questionImage && <ExpandableImage src={getFullUrl(block.questionImage)} className="mb-6" />}
+              </>
+            )}
+
+            {/* СПЕЦИФИКА ТЕСТА С ВАРИАНТАМИ */}
+            {block.type === 'test' && (
+              <div className="space-y-3">
+                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block">Варианты ответов {isError && (!block.options || block.options.length === 0 || !block.options.some((o:any)=>o.isCorrect)) && <span className="text-red-500">* Добавьте хотя бы один правильный</span>}</label>
+                {block.options?.map((opt: any, optIdx: number) => (
+                  <div key={optIdx} className={`flex items-center gap-3 p-3 rounded-2xl border-2 transition-all ${opt.isCorrect ? 'border-emerald-400 bg-emerald-50 shadow-sm' : isError && !opt.text.trim() ? 'border-red-400 bg-red-50' : 'border-gray-200 bg-white'}`}>
+                    <label className="flex items-center justify-center cursor-pointer relative w-8 h-8 shrink-0">
+                      <input type="checkbox" checked={opt.isCorrect} onChange={(e) => { const newOpts = [...block.options]; newOpts[optIdx].isCorrect = e.target.checked; updateBlock(block.id, { options: newOpts }, isHw); }} className="sr-only" />
+                      <div className={`w-6 h-6 rounded border-2 flex items-center justify-center transition-colors ${opt.isCorrect ? 'bg-emerald-500 border-emerald-500' : 'bg-gray-100 border-gray-300'}`}>
+                        {opt.isCorrect && <CheckSquare className="w-4 h-4 text-white" />}
+                      </div>
+                    </label>
+                    <input value={opt.text} onChange={(e) => { const newOpts = [...block.options]; newOpts[optIdx].text = e.target.value; updateBlock(block.id, { options: newOpts }, isHw); }} placeholder={`Вариант ${optIdx + 1}`} className="flex-1 p-2 bg-transparent outline-none font-bold text-gray-800" />
+                    <button type="button" onClick={() => { const newOpts = block.options.filter((_:any, i:number) => i !== optIdx); updateBlock(block.id, { options: newOpts }, isHw); }} className="p-2 text-gray-400 hover:text-red-500"><Trash2 className="w-5 h-5" /></button>
+                  </div>
+                ))}
+                <button type="button" onClick={() => { updateBlock(block.id, { options: [...(block.options || []), { text: '', isCorrect: false }] }, isHw); }} className="mt-4 px-5 py-4 w-full border-2 border-dashed border-rose-300 text-rose-600 hover:bg-rose-50 rounded-2xl font-black transition-all flex items-center justify-center gap-2">
+                  <Plus className="w-5 h-5" /> ДОБАВИТЬ ВАРИАНТ
+                </button>
               </div>
             )}
 
+            {/* 🔥 СПЕЦИФИКА ТЕСТА С КРАТКИМ ОТВЕТОМ (С тегами) */}
             {block.type === 'test_short' && (
               <div>
-                <div className="flex items-center gap-3 mb-6 group/header bg-amber-50 p-4 rounded-xl">
-                  <Type className="w-6 h-6 text-amber-600 shrink-0" />
-                  <input value={block.title !== undefined ? block.title : 'Краткий ответ'} onChange={(e) => updateBlock(block.id, { title: e.target.value }, isHw)} className="flex-1 bg-transparent border-b-2 border-dashed border-transparent hover:border-amber-300 focus:border-amber-600 outline-none font-black text-xl transition-all text-amber-900 placeholder:text-amber-300" placeholder="Заголовок блока..." />
-                </div>
+                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3 block">
+                  Правильные ответы (Ученик может ввести любой из них) {isError && (!block.correctAnswers || block.correctAnswers.length === 0) && <span className="text-red-500">* Добавьте хотя бы один</span>}
+                </label>
                 
-                <div className="flex flex-col sm:flex-row gap-4 mb-6">
-                  <div className="flex-1">
-                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">Задание</label>
-                    <input value={block.question} onChange={(e) => updateBlock(block.id, { question: e.target.value }, isHw)} placeholder="Например: Укажите век..." className="w-full p-4 rounded-xl border border-gray-200 outline-none font-bold focus:border-amber-400 transition-all" />
-                  </div>
-                  <div className="w-full sm:w-32">
-                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">Попыток</label>
-                    <input type="number" min="1" max="99" value={block.maxAttempts === '' ? '' : (block.maxAttempts || 3)} onChange={(e) => updateBlock(block.id, { maxAttempts: e.target.value === '' ? '' : parseInt(e.target.value) }, isHw)} className="w-full p-4 rounded-xl border border-gray-200 outline-none font-black text-center text-amber-600 focus:border-amber-400 transition-all" />
-                  </div>
+                <div className="flex flex-wrap gap-2 mb-4">
+                  {(block.correctAnswers || []).map((ans: string, idx: number) => (
+                    <span key={idx} className="px-4 py-2 bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-xl flex items-center gap-2 font-bold text-sm shadow-sm">
+                      {ans}
+                      <button type="button" onClick={() => { const newAns = block.correctAnswers.filter((_:any, i:number) => i !== idx); updateBlock(block.id, { correctAnswers: newAns }, isHw); }} className="hover:text-red-500 bg-white/50 rounded-md p-0.5 transition-colors"><X className="w-3.5 h-3.5" /></button>
+                    </span>
+                  ))}
                 </div>
 
+                <div className="flex flex-col sm:flex-row gap-2 mb-4">
+                  <input 
+                    type="text" 
+                    value={shortAnswerInputs[block.id] || ''} 
+                    onChange={(e) => setShortAnswerInputs({ ...shortAnswerInputs, [block.id]: e.target.value })} 
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        const val = shortAnswerInputs[block.id]?.trim();
+                        if (val) { updateBlock(block.id, { correctAnswers: [...(block.correctAnswers || []), val] }, isHw); setShortAnswerInputs({ ...shortAnswerInputs, [block.id]: '' }); }
+                      }
+                    }}
+                    placeholder="Например: Москва" 
+                    className={`flex-1 p-4 rounded-xl border-2 outline-none font-bold transition-colors ${isError && (!block.correctAnswers || block.correctAnswers.length === 0) ? 'border-red-400 bg-red-50' : 'border-gray-200 focus:border-amber-400'}`} 
+                  />
+                  <button 
+                    type="button" 
+                    onClick={() => {
+                      const val = shortAnswerInputs[block.id]?.trim();
+                      if (val) { updateBlock(block.id, { correctAnswers: [...(block.correctAnswers || []), val] }, isHw); setShortAnswerInputs({ ...shortAnswerInputs, [block.id]: '' }); }
+                    }} 
+                    className="px-6 py-4 bg-amber-100 hover:bg-amber-200 text-amber-700 rounded-xl font-black transition-all shrink-0 flex items-center gap-2"
+                  >
+                    <Plus className="w-4 h-4" /> Добавить
+                  </button>
+                </div>
+
+                <label className="flex items-center gap-3 cursor-pointer p-3 bg-gray-50 rounded-xl border border-gray-100 hover:bg-gray-100 transition-colors w-max">
+                  <input type="checkbox" checked={block.ignoreTypos !== false} onChange={(e) => updateBlock(block.id, { ignoreTypos: e.target.checked }, isHw)} className="w-5 h-5 rounded border-gray-300 text-amber-500 focus:ring-amber-500 cursor-pointer" />
+                  <span className="text-sm font-bold text-gray-700">Игнорировать опечатки, регистр и букву Ё при проверке</span>
+                </label>
+              </div>
+            )}
+
+            {/* 🔥 ОБЩИЙ ПОДВАЛ (ИСТОЧНИК И РАЗБОР) ДЛЯ ИНТЕРАКТИВНЫХ БЛОКОВ */}
+            {['test', 'test_short', 'written'].includes(block.type) && (
+              <div className="mt-8 pt-8 border-t-2 border-dashed border-gray-200 space-y-6">
                 <div>
-                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">Правильный ответ</label>
-                  <input value={block.correctAnswer} onChange={(e) => updateBlock(block.id, { correctAnswer: e.target.value }, isHw)} placeholder="Система проверит 1в1" className="w-full p-4 rounded-2xl border-2 border-gray-200 outline-none bg-white focus:border-amber-400 transition-colors font-bold text-lg" />
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-2">Источник / Тип задания (необязательно)</label>
+                  <input value={block.source || ''} onChange={(e) => updateBlock(block.id, { source: e.target.value }, isHw)} placeholder="Например: Тип 5 №2 (Решу ЕГЭ)" className="w-full p-4 rounded-xl border-2 border-gray-100 outline-none focus:border-indigo-400 font-bold text-gray-700 bg-gray-50 focus:bg-white transition-all" />
+                </div>
+                <div>
+                  <label className="text-[10px] font-black text-indigo-500 uppercase tracking-widest flex items-center gap-2 mb-2"><BookOpen className="w-3.5 h-3.5" /> Пояснение / Разбор задания (покажется ученику после ответа)</label>
+                  <div className="bg-indigo-50/30 rounded-2xl overflow-hidden border-2 border-indigo-100 focus-within:border-indigo-400 focus-within:shadow-md transition-all relative z-0">
+                    <ReactQuill theme="snow" modules={quillModules} value={block.explanation || ''} onChange={(val) => updateBlock(block.id, { explanation: val }, isHw)} placeholder="Напишите подробное правило или разбор..." className="min-h-[140px] pb-12" />
+                  </div>
                 </div>
               </div>
             )}
 
-            {block.type === 'written' && (
-              <div className="flex flex-col gap-4">
-                <div className="flex items-center gap-3 group/header bg-purple-50 p-4 rounded-xl">
-                  <PenTool className="w-6 h-6 text-purple-600 shrink-0" />
-                  <input value={block.title !== undefined ? block.title : 'Развернутый ответ'} onChange={(e) => updateBlock(block.id, { title: e.target.value }, isHw)} className="flex-1 bg-transparent border-b-2 border-dashed border-transparent hover:border-purple-300 focus:border-purple-600 outline-none font-black text-xl transition-all text-purple-900 placeholder:text-purple-300" placeholder="Заголовок блока..." />
-                </div>
-                
-                <div className="flex flex-col sm:flex-row gap-4 mb-6">
-                  <div className="flex-1">
-                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">Текст задания (С Ворд-редактором)</label>
-                    <div className="bg-white rounded-2xl overflow-visible border border-gray-200 focus-within:border-purple-400 focus-within:ring-2 focus-within:ring-purple-100 transition-all z-10 relative">
-                      <ReactQuill theme="snow" modules={quillModules} value={block.question || ''} onChange={(val) => updateBlock(block.id, { question: val }, isHw)} placeholder="Опишите задание..." className="min-h-[160px] pb-12" />
-                    </div>
-                  </div>
-                  <div className="w-full sm:w-40 shrink-0">
-                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">Макс. балл</label>
-                    <input type="number" min="1" max="100" value={block.maxScore === '' ? '' : (block.maxScore || 3)} onChange={(e) => updateBlock(block.id, { maxScore: e.target.value === '' ? '' : parseInt(e.target.value) }, isHw)} className="w-full p-5 rounded-2xl border border-gray-200 outline-none font-black text-3xl text-center text-purple-600 focus:border-purple-400 transition-all shadow-inner" />
-                  </div>
-                </div>
-
-                <div className="p-5 bg-gray-50 rounded-2xl border border-gray-100 flex items-center gap-4 mt-2">
-                  <label className="cursor-pointer px-5 py-3 bg-white border-2 border-dashed border-gray-300 rounded-xl hover:border-purple-400 transition-all flex items-center gap-2 font-bold text-gray-500 text-sm">
-                    <UploadCloud className="w-4 h-4" /> Прикрепить картинку
-                    <input type="file" accept="image/*" className="hidden" onChange={(e) => handleFileUpload(block.id, e, isHw, 'questionImage', 'questionImageName')} />
-                  </label>
-                  {block.questionImageName && <span className="text-xs font-bold text-emerald-600 flex items-center gap-1 bg-emerald-50 px-3 py-1.5 rounded-lg"><CheckCircle2 className="w-4 h-4" /> {block.questionImageName}</span>}
-                  {block.questionImage && <button type="button" onClick={() => updateBlock(block.id, { questionImage: '', questionImageName: '' }, isHw)} className="p-2 bg-white rounded-lg shadow-sm text-gray-400 hover:text-red-500"><Trash2 className="w-4 h-4" /></button>}
-                </div>
-                {block.questionImage && <ExpandableImage src={getFullUrl(block.questionImage)} className="mt-4" />}
-              </div>
-            )}
           </div>
-        ))}
+        )})}
       </div>
     );
   };
 
-  // 🔥 НОВЫЕ БОКОВЫЕ ПАНЕЛИ ДОБАВЛЕНИЯ БЛОКОВ
   const renderSidebarToolbar = (isHw: boolean) => {
     const color = isHw ? 'purple' : 'indigo';
     const bgClass = isHw ? 'bg-purple-50/50 border-purple-200' : 'bg-white border-indigo-100';
@@ -568,43 +625,20 @@ export default function AdminCourses() {
 
     return (
       <div className={`p-6 rounded-[2rem] border-2 shadow-xl flex flex-col gap-4 shadow-${color}-500/10 ${bgClass}`}>
-        <h4 className={`font-black text-xs uppercase tracking-widest text-center ${titleColor}`}>
-          Добавить {isHw ? 'в домашку' : 'в теорию'}
-        </h4>
-        
+        <h4 className={`font-black text-xs uppercase tracking-widest text-center ${titleColor}`}>Добавить {isHw ? 'в домашку' : 'в теорию'}</h4>
         <div className="grid grid-cols-2 gap-2">
-          <button type="button" onClick={() => addBlock('text', isHw)} className={btnClass}>
-            <FileText className="w-5 h-5 text-emerald-500" /> Текст
-          </button>
-          <button type="button" onClick={() => addBlock('image', isHw)} className={btnClass}>
-            <ImageIcon className="w-5 h-5 text-blue-500" /> Картинка
-          </button>
-          <button type="button" onClick={() => addBlock('video', isHw)} className={btnClass}>
-            <PlayCircle className="w-5 h-5 text-indigo-500" /> Видео-ссылка
-          </button>
-          <button type="button" onClick={() => addBlock('video_file', isHw)} className={btnClass}>
-            <UploadCloud className="w-5 h-5 text-indigo-400" /> Видео-файл
-          </button>
-          <button type="button" onClick={() => addBlock('file', isHw)} className={btnClass}>
-            <FileDown className="w-5 h-5 text-cyan-500" /> Файл
-          </button>
-          <button type="button" onClick={() => addBlock('link', isHw)} className={btnClass}>
-            <Link2 className="w-5 h-5 text-pink-500" /> Ссылка
-          </button>
+          <button type="button" onClick={() => addBlock('text', isHw)} className={btnClass}><FileText className="w-5 h-5 text-emerald-500" /> Текст</button>
+          <button type="button" onClick={() => addBlock('image', isHw)} className={btnClass}><ImageIcon className="w-5 h-5 text-blue-500" /> Картинка</button>
+          <button type="button" onClick={() => addBlock('video', isHw)} className={btnClass}><PlayCircle className="w-5 h-5 text-indigo-500" /> Видео-ссылка</button>
+          <button type="button" onClick={() => addBlock('video_file', isHw)} className={btnClass}><UploadCloud className="w-5 h-5 text-indigo-400" /> Видео-файл</button>
+          <button type="button" onClick={() => addBlock('file', isHw)} className={btnClass}><FileDown className="w-5 h-5 text-cyan-500" /> Файл</button>
+          <button type="button" onClick={() => addBlock('link', isHw)} className={btnClass}><Link2 className="w-5 h-5 text-pink-500" /> Ссылка</button>
         </div>
-
         <div className="w-full h-px bg-gray-200/50 my-1"></div>
-        
         <div className="grid grid-cols-1 gap-2">
-          <button type="button" onClick={() => addBlock('test', isHw)} className={`${btnClass} !flex-row !justify-start px-4`}>
-            <CheckSquare className="w-5 h-5 text-rose-500" /> Тест (Варианты)
-          </button>
-          <button type="button" onClick={() => addBlock('test_short', isHw)} className={`${btnClass} !flex-row !justify-start px-4`}>
-            <Type className="w-5 h-5 text-amber-500" /> Краткий ответ
-          </button>
-          <button type="button" onClick={() => addBlock('written', isHw)} className={`${btnClass} !flex-row !justify-start px-4`}>
-            <PenTool className="w-5 h-5 text-purple-500" /> Развернутый ответ
-          </button>
+          <button type="button" onClick={() => addBlock('test', isHw)} className={`${btnClass} !flex-row !justify-start px-4`}><CheckSquare className="w-5 h-5 text-rose-500" /> Тест (Варианты)</button>
+          <button type="button" onClick={() => addBlock('test_short', isHw)} className={`${btnClass} !flex-row !justify-start px-4`}><Type className="w-5 h-5 text-amber-500" /> Краткий ответ</button>
+          <button type="button" onClick={() => addBlock('written', isHw)} className={`${btnClass} !flex-row !justify-start px-4`}><PenTool className="w-5 h-5 text-purple-500" /> Развернутый ответ</button>
         </div>
       </div>
     );
@@ -612,30 +646,30 @@ export default function AdminCourses() {
 
   return (
     <div className="min-h-screen bg-gray-50 font-sans flex text-gray-900">
-      
       <aside className="w-72 bg-white border-r border-gray-100 flex flex-col h-screen sticky top-0 z-10 shadow-xl shrink-0">
         <div className="p-6 flex items-center gap-3 border-b border-gray-50">
           <div className="w-12 h-12 bg-gray-900 rounded-2xl flex items-center justify-center"><GraduationCap className="w-6 h-6 text-white" /></div>
           <span className="text-2xl font-black tracking-tight">Admin<span className="text-indigo-600">Pro</span></span>
         </div>
-
         <div className="flex-1 px-4 py-8 space-y-3">
           <h3 className="px-4 text-[10px] font-black text-gray-400 uppercase tracking-widest mb-4">Разделы управления</h3>
-          <button type="button" className="w-full flex items-center gap-4 px-5 py-4 rounded-2xl font-bold transition-all bg-[#5A4BFF] text-white shadow-lg shadow-indigo-500/20">
-            <BookOpen className="w-5 h-5" /> Курсы и Уроки
-          </button>
+          <button type="button" className="w-full flex items-center gap-4 px-5 py-4 rounded-2xl font-bold transition-all bg-[#5A4BFF] text-white shadow-lg shadow-indigo-500/20"><BookOpen className="w-5 h-5" /> Курсы и Уроки</button>
         </div>
-
         <div className="p-4 border-t border-gray-100">
-          <button type="button" onClick={() => navigate('/')} className="flex items-center gap-3 px-5 py-4 w-full text-gray-500 hover:bg-gray-100 rounded-2xl font-bold transition-colors">
-            <ArrowLeft className="w-5 h-5" /> На портал
-          </button>
+          <button type="button" onClick={() => navigate('/')} className="flex items-center gap-3 px-5 py-4 w-full text-gray-500 hover:bg-gray-100 rounded-2xl font-bold transition-colors"><ArrowLeft className="w-5 h-5" /> На портал</button>
         </div>
       </aside>
 
       <main className="flex-1 p-8 overflow-y-auto relative scroll-smooth min-w-0">
         <div className="max-w-7xl mx-auto">
-          <h1 className="text-4xl font-black mb-8">Создание контента</h1>
+          <div className="flex justify-between items-center mb-8">
+            <h1 className="text-4xl font-black">Создание контента</h1>
+            {hasDraft && !showThemeModal && (
+               <button onClick={() => { setShowThemeModal(true); setTimeout(restoreDraft, 500); }} className="px-6 py-3 bg-purple-100 text-purple-700 hover:bg-purple-200 rounded-xl font-bold flex items-center gap-2 transition-all shadow-sm">
+                 <SaveAll className="w-5 h-5" /> Восстановить незаконченный урок
+               </button>
+            )}
+          </div>
           
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             <div className="lg:col-span-1">
@@ -691,10 +725,7 @@ export default function AdminCourses() {
                 </div>
               </div>
 
-              {/* 🔥 ОСНОВНОЙ КОНТЕЙНЕР (Прокручивается) */}
               <div className="flex-1 overflow-y-auto overflow-x-hidden p-6 lg:p-8 flex flex-col lg:flex-row gap-8 scroll-smooth relative items-start">
-                
-                {/* ЛЕВАЯ КОЛОНКА (Лекции и Форма) */}
                 <div className="flex-1 space-y-6 min-w-0 pb-20">
                   {(selectedCourseForThemes.themes || []).map((theme: any) => {
                     const visibleLessons = theme.lessons || [];
@@ -712,9 +743,7 @@ export default function AdminCourses() {
                             )}
                           </div>
                           <div className="flex gap-2 shrink-0 bg-gray-50 p-1.5 rounded-2xl">
-                            <button type="button" onClick={() => handleToggleThemeVisibility(theme.id, theme.is_visible)} className="p-2.5 bg-white rounded-xl shadow-sm text-gray-400 hover:text-gray-900 transition-colors">
-                              {theme.is_visible === false ? (<EyeOff className="w-5 h-5" />) : (<Eye className="w-5 h-5" />)}
-                            </button>
+                            <button type="button" onClick={() => handleToggleThemeVisibility(theme.id, theme.is_visible)} className="p-2.5 bg-white rounded-xl shadow-sm text-gray-400 hover:text-gray-900 transition-colors">{theme.is_visible === false ? (<EyeOff className="w-5 h-5" />) : (<Eye className="w-5 h-5" />)}</button>
                             <button type="button" onClick={() => handleDeleteTheme(theme.id)} className="p-2.5 bg-white rounded-xl shadow-sm text-gray-400 hover:text-red-500 transition-colors"><Trash2 className="w-5 h-5" /></button>
                             <button type="button" onClick={() => { resetLessonForm(); setSelectedThemeForLesson(theme); setTimeout(() => document.getElementById('lesson-form')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100); }} className="px-5 py-2.5 ml-2 bg-[#5A4BFF] text-white rounded-xl text-sm font-black shadow-md transition-colors">+ Новый урок</button>
                           </div>
@@ -728,22 +757,16 @@ export default function AdminCourses() {
                             if (lesson.content) {
                               try {
                                 const parsed = JSON.parse(lesson.content.trim());
-                                hasVideo = parsed.some((b:any) => b.type === 'video');
-                                hasText = parsed.some((b:any) => b.type === 'text');
-                                hasTest = parsed.some((b:any) => b.type === 'test');
-                                hasShort = parsed.some((b:any) => b.type === 'test_short');
-                                hasWritten = parsed.some((b:any) => b.type === 'written');
-                                hasHomework = parsed.some((b:any) => b.isHomework); 
-                                hasImage = parsed.some((b:any) => b.type === 'image');
-                                hasVideoFile = parsed.some((b:any) => b.type === 'video_file');
-                                hasFile = parsed.some((b:any) => b.type === 'file');
-                                hasLink = parsed.some((b:any) => b.type === 'link');
+                                hasVideo = parsed.some((b:any) => b.type === 'video'); hasText = parsed.some((b:any) => b.type === 'text');
+                                hasTest = parsed.some((b:any) => b.type === 'test'); hasShort = parsed.some((b:any) => b.type === 'test_short');
+                                hasWritten = parsed.some((b:any) => b.type === 'written'); hasHomework = parsed.some((b:any) => b.isHomework); 
+                                hasImage = parsed.some((b:any) => b.type === 'image'); hasVideoFile = parsed.some((b:any) => b.type === 'video_file');
+                                hasFile = parsed.some((b:any) => b.type === 'file'); hasLink = parsed.some((b:any) => b.type === 'link');
                               } catch(e) { hasText = true; }
                             }
                             
                             return (
                               <div key={lesson.id} className="bg-gray-50 p-4 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 group border border-gray-100 hover:bg-white hover:shadow-md hover:border-gray-200 transition-all">
-                                
                                 <div className="flex-1 flex items-center gap-4 font-bold text-base text-gray-700 min-w-0">
                                   <div className="px-3 py-2.5 bg-white rounded-xl shadow-sm flex gap-2 border border-gray-100 shrink-0">
                                     {(hasVideo || hasVideoFile) && <PlayCircle className="w-4 h-4 text-indigo-500" />}
@@ -758,39 +781,24 @@ export default function AdminCourses() {
                                   </div>
                                   
                                   {editingLessonTitleId === lesson.id ? (
-                                    <input 
-                                      autoFocus 
-                                      value={editLessonInlineTitle} 
-                                      onChange={(e) => setEditLessonInlineTitle(e.target.value)} 
-                                      onBlur={() => saveLessonTitle(lesson.id)} 
-                                      onKeyDown={(e) => e.key === 'Enter' && saveLessonTitle(lesson.id)} 
-                                      className="flex-1 px-3 py-1.5 border-2 rounded-lg outline-none font-bold bg-indigo-50 border-[#5A4BFF] min-w-0"
-                                    />
+                                    <input autoFocus value={editLessonInlineTitle} onChange={(e) => setEditLessonInlineTitle(e.target.value)} onBlur={() => saveLessonTitle(lesson.id)} onKeyDown={(e) => e.key === 'Enter' && saveLessonTitle(lesson.id)} className="flex-1 px-3 py-1.5 border-2 rounded-lg outline-none font-bold bg-indigo-50 border-[#5A4BFF] min-w-0" />
                                   ) : (
-                                    <span 
-                                      className="cursor-pointer hover:text-indigo-600 transition-colors flex items-center gap-2 group/title min-w-0"
-                                      onClick={() => { setEditingLessonTitleId(lesson.id); setEditLessonInlineTitle(lesson.title); }}
-                                    >
-                                      <span className="truncate">{lesson.title}</span>
-                                      <Pencil className="w-3 h-3 text-gray-300 opacity-0 group-hover/title:opacity-100 transition-opacity shrink-0" />
+                                    <span className="cursor-pointer hover:text-indigo-600 transition-colors flex items-center gap-2 group/title min-w-0" onClick={() => { setEditingLessonTitleId(lesson.id); setEditLessonInlineTitle(lesson.title); }}>
+                                      <span className="truncate">{lesson.title}</span> <Pencil className="w-3 h-3 text-gray-300 opacity-0 group-hover/title:opacity-100 transition-opacity shrink-0" />
                                     </span>
                                   )}
                                 </div>
 
                                 <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 shrink-0 transition-opacity">
                                    <button type="button" onClick={() => startEditingLesson(theme, lesson)} className="p-2 bg-white rounded-xl shadow-sm text-indigo-600 hover:bg-gray-50"><Pencil className="w-4 h-4" /></button>
-                                   <button type="button" onClick={() => handleToggleLessonVisibility(lesson.id, lesson.is_visible)} className="p-2 bg-white rounded-xl shadow-sm text-gray-400 hover:text-gray-900">
-                                      {lesson.is_visible === false ? (<EyeOff className="w-4 h-4" />) : (<Eye className="w-4 h-4" />)}
-                                   </button>
+                                   <button type="button" onClick={() => handleToggleLessonVisibility(lesson.id, lesson.is_visible)} className="p-2 bg-white rounded-xl shadow-sm text-gray-400 hover:text-gray-900">{lesson.is_visible === false ? (<EyeOff className="w-4 h-4" />) : (<Eye className="w-4 h-4" />)}</button>
                                    <button type="button" onClick={() => handleDeleteLesson(lesson.id)} className="p-2 bg-white rounded-xl shadow-sm text-gray-400 hover:text-red-500"><Trash2 className="w-4 h-4" /></button>
                                 </div>
                               </div>
                             );
                           })}
                           
-                          {visibleLessons.length === 0 && (
-                            <p className="text-gray-400 text-sm font-bold pl-4 py-2 border border-dashed border-gray-200 rounded-xl">В этом модуле пока пусто.</p>
-                          )}
+                          {visibleLessons.length === 0 && <p className="text-gray-400 text-sm font-bold pl-4 py-2 border border-dashed border-gray-200 rounded-xl">В этом модуле пока пусто.</p>}
                         </div>
 
                         {selectedThemeForLesson?.id === theme.id && (
@@ -798,13 +806,15 @@ export default function AdminCourses() {
                             <button type="button" onClick={resetLessonForm} className="absolute top-6 right-6 p-2 bg-gray-50 text-gray-400 rounded-full hover:text-gray-900 transition-colors"><X className="w-5 h-5" /></button>
                             <h5 className="font-black text-2xl mb-8">{editingLessonId ? 'Редактирование' : 'Создание'} урока</h5>
                             
+                            <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">
+                              Название урока {errors['lessonTitle'] && <span className="text-red-500">* Обязательное поле</span>}
+                            </label>
                             <input 
                               type="text" 
                               value={newLessonTitle} 
-                              onChange={(e) => setNewLessonTitle(e.target.value)} 
-                              placeholder="Название урока..." 
-                              className="w-full px-6 py-5 bg-gray-50 rounded-2xl font-black text-lg outline-none mb-6 border border-gray-100 focus:bg-white transition-all focus:border-[#5A4BFF]" 
-                              required 
+                              onChange={(e) => { setNewLessonTitle(e.target.value); if(errors['lessonTitle']) setErrors({...errors, lessonTitle: false}); }} 
+                              placeholder="Например: Введение в историю..." 
+                              className={`w-full px-6 py-5 bg-gray-50 rounded-2xl font-black text-lg outline-none mb-6 border-2 transition-all ${errors['lessonTitle'] ? 'border-red-400 bg-red-50' : 'border-transparent focus:bg-white focus:border-[#5A4BFF]'}`} 
                             />
 
                             {/* РЕНДЕР ОСНОВНЫХ БЛОКОВ */}
@@ -816,15 +826,7 @@ export default function AdminCourses() {
                             {/* БЛОК УПРАВЛЕНИЯ ДОМАШНИМ ЗАДАНИЕМ */}
                             {!hasHomeworkSection ? (
                               <div className="flex justify-center mb-8">
-                                <button 
-                                  type="button" 
-                                  onClick={(e) => {
-                                    e.preventDefault();
-                                    setHasHomeworkSection(true);
-                                    setTimeout(() => document.getElementById('hw-section-admin')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 100);
-                                  }} 
-                                  className="px-8 py-5 bg-purple-600 text-white rounded-2xl font-black shadow-lg hover:bg-purple-700 hover:-translate-y-1 transition-all flex items-center gap-3 text-lg border border-purple-700"
-                                >
+                                <button type="button" onClick={(e) => { e.preventDefault(); setHasHomeworkSection(true); setTimeout(() => document.getElementById('hw-section-admin')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 100); }} className="px-8 py-5 bg-purple-600 text-white rounded-2xl font-black shadow-lg hover:bg-purple-700 hover:-translate-y-1 transition-all flex items-center gap-3 text-lg border border-purple-700">
                                   <FileSignature className="w-6 h-6" /> ДОБАВИТЬ ДОМАШНЕЕ ЗАДАНИЕ
                                 </button>
                               </div>
@@ -836,7 +838,6 @@ export default function AdminCourses() {
                                      <Trash2 className="w-4 h-4" /> Удалить ДЗ
                                   </button>
                                 </div>
-                                
                                 {renderBlocksList(hwBlocks, true)}
                                 <div id="hw-section-end"></div>
                               </div>
@@ -857,33 +858,20 @@ export default function AdminCourses() {
                   })}
                 </div>
 
-                {/* 🔥 ПРАВАЯ КОЛОНКА (Прилипает к верху экрана) */}
                 <div className="w-full lg:w-[320px] shrink-0 sticky top-0 flex flex-col gap-6 pb-8 z-30">
-                  
-                  {/* БЛОК "НОВЫЙ МОДУЛЬ" */}
                   <div className="bg-gray-900 rounded-[2rem] p-8 text-white shadow-2xl">
                     <h3 className="font-black text-2xl mb-6">Новый модуль</h3>
                     <form onSubmit={handleCreateTheme} className="space-y-4">
-                      <input 
-                        type="text" 
-                        value={newThemeTitle} 
-                        onChange={(e) => setNewThemeTitle(e.target.value)} 
-                        placeholder="Название модуля" 
-                        className="w-full p-4 bg-white/10 rounded-xl outline-none focus:bg-white/20 focus:ring-2 focus:ring-indigo-400/50 transition-all font-medium text-white placeholder:text-gray-400" 
-                        required 
-                      />
+                      <input type="text" value={newThemeTitle} onChange={(e) => setNewThemeTitle(e.target.value)} placeholder="Название модуля" className="w-full p-4 bg-white/10 rounded-xl outline-none focus:bg-white/20 focus:ring-2 focus:ring-indigo-400/50 transition-all font-medium text-white placeholder:text-gray-400" required />
                       <button type="submit" className="w-full py-4 bg-[#5A4BFF] hover:bg-[#4a3dec] rounded-xl font-black transition-colors">Добавить</button>
                     </form>
                   </div>
-
-                  {/* БОКОВЫЕ ПАНЕЛИ ДОБАВЛЕНИЯ БЛОКОВ */}
                   {selectedThemeForLesson && (
                     <>
                       {renderSidebarToolbar(false)}
                       {hasHomeworkSection && renderSidebarToolbar(true)}
                     </>
                   )}
-
                 </div>
               </div>
             </motion.div>
