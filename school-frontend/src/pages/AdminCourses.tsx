@@ -198,8 +198,10 @@ export default function AdminCourses() {
     if (type === 'video_file') { newBlock.url = ''; newBlock.title = 'Видео-файл'; }
     if (type === 'file') { newBlock.url = ''; newBlock.title = 'Файл для скачивания'; }
     if (type === 'link') { newBlock.url = ''; newBlock.buttonText = 'Перейти'; newBlock.title = 'Ссылка / Кнопка'; }
-    if (type === 'test') { newBlock.question = ''; newBlock.maxAttempts = 3; newBlock.options = [{ text: '', isCorrect: false }]; newBlock.explanation = ''; newBlock.source = ''; newBlock.title = 'Тест'; }
-    if (type === 'test_short') { newBlock.question = ''; newBlock.correctAnswers = []; newBlock.ignoreTypos = true; newBlock.maxAttempts = 3; newBlock.explanation = ''; newBlock.source = ''; newBlock.title = 'Тест с кратким ответом'; }
+    
+    // 🔥 ДОБАВЛЕН ДЕФОЛТНЫЙ БАЛЛ ДЛЯ ТЕСТОВ (3 балла)
+    if (type === 'test') { newBlock.question = ''; newBlock.maxAttempts = 3; newBlock.maxScore = 3; newBlock.options = [{ text: '', isCorrect: false }]; newBlock.explanation = ''; newBlock.source = ''; newBlock.title = 'Тест'; }
+    if (type === 'test_short') { newBlock.question = ''; newBlock.correctAnswers = []; newBlock.ignoreTypos = true; newBlock.maxAttempts = 3; newBlock.maxScore = 3; newBlock.explanation = ''; newBlock.source = ''; newBlock.title = 'Тест с кратким ответом'; }
     if (type === 'written') { newBlock.question = ''; newBlock.maxScore = 3; newBlock.explanation = ''; newBlock.source = ''; newBlock.title = 'Развернутый ответ'; }
     
     if (isHw) { setHwBlocks(prev => [...prev, newBlock]); setTimeout(() => document.getElementById('hw-section-end')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 100); } 
@@ -501,9 +503,19 @@ export default function AdminCourses() {
                       <ReactQuill theme="snow" modules={quillModules} value={block.question || ''} onChange={(val) => updateBlock(block.id, { question: val }, isHw)} placeholder="Введите вопрос или текст задания..." className="min-h-[120px] pb-12" />
                     </div>
                   </div>
-                  <div className="w-full sm:w-32 shrink-0">
-                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">{block.type === 'written' ? 'Макс. балл' : 'Попыток'}</label>
-                    <input type="number" min="1" max="100" value={block.type === 'written' ? (block.maxScore || 3) : (block.maxAttempts || 3)} onChange={(e) => updateBlock(block.id, block.type === 'written' ? { maxScore: parseInt(e.target.value) || '' } : { maxAttempts: parseInt(e.target.value) || '' }, isHw)} className={`w-full p-4 rounded-xl border border-gray-200 outline-none font-black text-center transition-all ${block.type === 'test' ? 'text-rose-600 focus:border-rose-400' : block.type === 'test_short' ? 'text-amber-600 focus:border-amber-400' : 'text-purple-600 focus:border-purple-400'}`} />
+                  
+                  {/* 🔥 БЛОК ОЦЕНОК И ПОПЫТОК */}
+                  <div className="flex flex-col gap-4 w-full sm:w-32 shrink-0">
+                    {['test', 'test_short'].includes(block.type) && (
+                      <div>
+                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">Попыток</label>
+                        <input type="number" min="1" max="100" value={block.maxAttempts !== undefined ? block.maxAttempts : 3} onChange={(e) => updateBlock(block.id, { maxAttempts: e.target.value === '' ? '' : parseInt(e.target.value) }, isHw)} className={`w-full p-4 rounded-xl border border-gray-200 outline-none font-black text-center transition-all ${block.type === 'test' ? 'text-rose-600 focus:border-rose-400' : 'text-amber-600 focus:border-amber-400'}`} />
+                      </div>
+                    )}
+                    <div>
+                      <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">Макс. балл</label>
+                      <input type="number" min="1" max="1000" value={block.maxScore !== undefined ? block.maxScore : 3} onChange={(e) => updateBlock(block.id, { maxScore: e.target.value === '' ? '' : parseInt(e.target.value) }, isHw)} className={`w-full p-4 rounded-xl border border-gray-200 outline-none font-black text-center transition-all text-purple-600 focus:border-purple-400`} />
+                    </div>
                   </div>
                 </div>
 
