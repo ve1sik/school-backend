@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { FileText, AlertCircle, Clock, CheckCircle2, Loader2, FolderOpen, ChevronRight, Search, Book } from 'lucide-react';
+import { FileText, AlertCircle, Clock, CheckCircle2, Loader2, FolderOpen, ChevronRight, Search, Book, ListTodo } from 'lucide-react';
 import { motion, AnimatePresence, type Variants } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
@@ -38,7 +38,9 @@ export default function Homework() {
                 try {
                   const parsed = JSON.parse(lesson.content.trim());
                   if (Array.isArray(parsed)) {
-                    const hwBlocks = parsed.filter(b => b.type === 'homework' || b.type === 'written');
+                    // 🔥 ФИКС: Теперь мы проверяем, есть ли В ПРИНЦИПЕ блоки с пометкой isHomework!
+                    const hwBlocks = parsed.filter(b => b.isHomework);
+                    
                     if (hwBlocks.length > 0) {
                       isHw = true;
                       hwMaxScore = hwBlocks.reduce((acc, b) => acc + (Number(b.maxScore) || 10), 0);
@@ -63,7 +65,6 @@ export default function Homework() {
                 extractedHomeworks.push({
                   id: lesson.id,
                   title: lesson.title,
-                  // 🔥 ТЕПЕРЬ СОХРАНЯЕМ КУРС И МОДУЛЬ ОТДЕЛЬНО ДЛЯ ГРУППИРОВКИ
                   courseName: course.title,
                   themeName: theme.title,
                   status, 

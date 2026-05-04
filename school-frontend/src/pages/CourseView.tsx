@@ -2,13 +2,13 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { 
-  ArrowLeft, PlayCircle, Loader2, BookOpen, CheckSquare, CheckCircle2, 
-  XCircle, Type, PenTool, Clock, FileDown, Link2, ExternalLink, 
-  Search, ChevronDown, ChevronRight, ListTodo, FileSignature, X
+  ArrowLeft, Loader2, CheckCircle2, Clock, PenTool, CheckSquare, 
+  XCircle, Type, PlayCircle, FileDown, Link2, ExternalLink, 
+  Search, ChevronDown, ChevronRight, ListTodo, FileSignature, X, BookOpen
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-// Стили ворд-редактора нужны для правильного отображения теории преподавателя
+import ReactQuill from 'react-quill-new';
 import 'react-quill-new/dist/quill.snow.css';
 
 const API_URL = 'https://prepodmgy.ru/api';
@@ -25,6 +25,36 @@ const getFullUrl = (url: string) => {
     return `https://prepodmgy.ru/${cleanPath}`;
   }
   return `${API_URL}/${cleanPath}`;
+};
+
+const getEmbedUrl = (url: string) => {
+  if (!url) return '';
+  if (url.includes('vk.com/video_ext.php')) return url;
+  if (url.includes('youtube.com/watch?v=')) return url.replace('watch?v=', 'embed/');
+  if (url.includes('youtu.be/')) return url.replace('youtu.be/', 'youtube.com/embed/');
+  return url;
+};
+
+const safeHtml = (text: any) => {
+  if (!text || typeof text !== 'string') return '';
+  return text.includes('<') ? text : text.replace(/\n/g, '<br/>');
+};
+
+const getSafeLocal = (key: string, fallback: any) => {
+  try {
+    const item = localStorage.getItem(key);
+    return item ? JSON.parse(item) || fallback : fallback;
+  } catch (e) {
+    return fallback;
+  }
+};
+
+const studentQuillModules = {
+  toolbar: [
+    ['bold', 'italic', 'underline', 'strike'],
+    [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+    ['clean']
+  ],
 };
 
 function ExpandableImage({ src, alt, className = '' }: { src: string, alt?: string, className?: string }) {
@@ -44,8 +74,7 @@ function ExpandableImage({ src, alt, className = '' }: { src: string, alt?: stri
   );
 }
 
-// 🔥 ГРУППА ИНТЕРАКТИВНЫХ ЗАДАНИЙ С ПАГИНАЦИЕЙ
-const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswerToggle, handleTextAnswerChange, handleSubmitTest }: any) => {
+const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswerToggle, handleTextAnswerChange, handleSubmitTest, submissions }: any) => {
   const [isOpen, setIsOpen] = useState(false);
   const [activeStep, setActiveStep] = useState(0);
 
@@ -60,7 +89,7 @@ const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswer
           </div>
           <div className="min-w-0 pr-4">
             <h4 className="font-black text-gray-900 text-lg leading-tight">{group.title}</h4>
-            <p className="text-sm font-medium text-gray-500 mt-1">{group.blocks.length} заданий внутри</p>
+            <p className="text-sm font-medium text-gray-500 mt-1">{group.blocks?.length || 0} заданий внутри</p>
           </div>
         </div>
         <button onClick={() => setIsOpen(true)} className="shrink-0 px-8 py-3.5 rounded-xl font-black text-sm transition-all active:scale-95 bg-gray-900 text-white hover:bg-black shadow-sm tracking-wide">
@@ -71,19 +100,42 @@ const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswer
   }
 
   const block = group.blocks[activeStep];
-  const selected = testAnswers[block.id] || [];
-  const result = testResults[block.id];
-  const currentAttempts = attemptsUsed[block.id] || 0;
+  if (!block) return null;
+
+  const selected = Array.isArray(testAnswers?.[block.id]) ? testAnswers[block.id] : [];
+  const serverSubmission = submissions?.find((s: any) => s.blockId === block.id || s.block_id === block.id);
+  
+  let result = testResults?.[block.id];
+  let currentAttempts = attemptsUsed?.[block.id] || 0;
   const maxAttempts = block.maxAttempts || 3;
+
+  // 🔥 ЛОГИКА ОПРЕДЕЛЕНИЯ ПРОВАЛА ИЗ СЕРВЕРА
+  if (serverSubmission) {
+    if (serverSubmission.status === 'GRADED') {
+      if (['test', 'test_short'].includes(block.type)) {
+        if (Number(serverSubmission.score) > 0) {
+          result = 'SUCCESS';
+        } else {
+          result = 'ERROR';
+          currentAttempts = maxAttempts; // Если 0 баллов - попытки сгорели
+        }
+      } else {
+        result = 'GRADED';
+      }
+    } else if (serverSubmission.status === 'REVIEW' || serverSubmission.status === 'PENDING') {
+      result = 'PENDING';
+    }
+  }
+
   const attemptsLeft = maxAttempts - currentAttempts;
   const isExhausted = attemptsLeft <= 0;
-  const isLocked = isExhausted || result === 'SUCCESS' || result === 'PENDING';
+  const isLocked = isExhausted || result === 'SUCCESS' || result === 'PENDING' || result === 'GRADED';
 
   return (
     <div className="bg-white border border-gray-100 rounded-[2rem] p-6 md:p-8 relative shadow-lg shadow-gray-200/50 mb-8">
       <div className="flex justify-between items-center mb-6">
         <h4 className="font-black text-xl text-gray-900 flex items-center gap-3">
-          <group.Icon className={`w-6 h-6 ${group.iconColor.split(' ')[1]}`} />
+          <group.Icon className={`w-6 h-6 ${group.iconColor?.split(' ')[1] || ''}`} />
           {group.title}
         </h4>
         <button onClick={() => setIsOpen(false)} className="p-2.5 text-gray-400 hover:text-gray-700 bg-gray-50 hover:bg-gray-100 rounded-xl transition-colors border border-gray-200/50 shadow-sm">
@@ -93,18 +145,36 @@ const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswer
 
       <div className="flex flex-wrap gap-2.5 mb-8">
         {group.blocks.map((b: any, i: number) => {
-          const bRes = testResults[b.id];
+          const sSub = submissions?.find((s: any) => s.blockId === b.id || s.block_id === b.id);
+          let bRes = testResults?.[b.id];
+          let bAttempts = attemptsUsed?.[b.id] || 0;
+          
+          if (sSub) {
+            if (sSub.status === 'GRADED') {
+              if (['test', 'test_short'].includes(b.type)) {
+                if (Number(sSub.score) > 0) bRes = 'SUCCESS';
+                else { bRes = 'ERROR'; bAttempts = b.maxAttempts || 3; }
+              } else {
+                bRes = 'GRADED';
+              }
+            } else if (sSub.status === 'REVIEW' || sSub.status === 'PENDING') {
+              bRes = 'PENDING';
+            }
+          }
+
           const isActive = i === activeStep;
           let circleClass = "w-11 h-11 rounded-full flex items-center justify-center font-black text-sm transition-all border-2 ";
           
           if (isActive) {
-            circleClass += "bg-[#5A4BFF] border-[#5A4BFF] text-white shadow-lg shadow-indigo-500/30 scale-110";
-          } else if (bRes === 'SUCCESS') {
+            circleClass += "bg-[#A855F7] border-[#A855F7] text-white shadow-lg shadow-purple-500/30 scale-110";
+          } else if (bRes === 'SUCCESS' || bRes === 'GRADED') {
             circleClass += "bg-emerald-50 border-emerald-200 text-emerald-600 hover:bg-emerald-100";
-          } else if (bRes === 'ERROR' && (attemptsUsed[b.id] || 0) >= (b.maxAttempts || 3)) {
+          } else if (bRes === 'ERROR' && bAttempts >= (b.maxAttempts || 3)) {
             circleClass += "bg-rose-50 border-rose-200 text-rose-600 hover:bg-rose-100";
+          } else if (bRes === 'PENDING') {
+            circleClass += "bg-purple-50 border-purple-200 text-purple-600 hover:bg-purple-100";
           } else {
-            circleClass += "bg-white border-gray-200 text-gray-500 hover:border-[#5A4BFF] hover:text-[#5A4BFF]";
+            circleClass += "bg-white border-gray-200 text-gray-500 hover:border-[#A855F7] hover:text-[#A855F7]";
           }
 
           return (
@@ -114,7 +184,7 @@ const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswer
       </div>
 
       <div className="flex flex-wrap items-center gap-2 mb-6">
-        <div className="px-3 py-1.5 rounded-md bg-indigo-50 text-indigo-600 text-[10px] font-black uppercase tracking-widest">
+        <div className="px-3 py-1.5 rounded-md bg-purple-50 text-purple-600 text-[10px] font-black uppercase tracking-widest">
           Вопрос {activeStep + 1}
         </div>
         {block.type !== 'written' ? (
@@ -158,22 +228,38 @@ const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswer
             <span className="text-sm bg-white px-3 py-1 rounded-lg shadow-sm border border-purple-50">Ожидает проверки ⏳</span>
           </motion.div>
         )}
+        {result === 'GRADED' && serverSubmission && (
+           <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="bg-emerald-50 border border-emerald-100 p-4 rounded-xl mb-6 shadow-sm">
+             <div className="flex flex-col sm:flex-row sm:items-center justify-between font-bold text-emerald-600 gap-2 mb-3">
+               <span className="flex items-center gap-2 text-lg"><CheckCircle2 className="w-6 h-6" /> Работа проверена куратором!</span>
+               <span className="text-sm bg-white px-3 py-1 rounded-lg shadow-sm border border-emerald-100">
+                 Балл: <span className="text-emerald-700 font-black">{serverSubmission.score}</span> / {serverSubmission.max_score || block.maxScore}
+               </span>
+             </div>
+             {serverSubmission.comment && (
+               <div className="p-4 bg-white rounded-xl text-sm text-gray-700 font-medium border border-emerald-100/50">
+                 <strong className="text-emerald-700 block mb-1 uppercase tracking-wider text-[10px]">Комментарий куратора:</strong>
+                 {serverSubmission.comment}
+               </div>
+             )}
+           </motion.div>
+        )}
       </AnimatePresence>
 
-      <div className="text-lg md:text-xl font-bold text-gray-900 mb-6 leading-relaxed break-words" dangerouslySetInnerHTML={{ __html: block.question?.includes('<') ? block.question : block.question?.replace(/\n/g, '<br/>') }} />
+      <div className="text-lg md:text-xl font-bold text-gray-900 mb-6 leading-relaxed break-words" dangerouslySetInnerHTML={{ __html: safeHtml(block.question) }} />
       
       {(block.questionImage || block.image) && (
         <ExpandableImage src={getFullUrl(block.questionImage || block.image)} alt="Схема" className="mb-8" />
       )}
 
       <div className="space-y-3 mb-8">
-        {block.type === 'test' && block.options?.map((opt: any, idx: number) => {
-          const isChecked = selected.includes(opt.text);
+        {block.type === 'test' && Array.isArray(block.options) && block.options.map((opt: any, idx: number) => {
+          const isChecked = selected.includes(opt.text) || (typeof serverSubmission?.answer === 'string' && serverSubmission.answer.includes(opt.text));
           let optClass = "flex items-center gap-4 p-4 md:p-5 rounded-2xl border-2 transition-all cursor-pointer ";
           
-          if (result === 'SUCCESS' && isChecked) optClass += "border-emerald-500 bg-emerald-50/30";
+          if ((result === 'SUCCESS' || result === 'GRADED') && isChecked) optClass += "border-emerald-500 bg-emerald-50/30";
           else if (result === 'ERROR' && isChecked) optClass += "border-[#FF4A6B] bg-[#FF4A6B]/5";
-          else if (isChecked) optClass += "border-[#5A4BFF] bg-indigo-50/20 shadow-sm";
+          else if (isChecked) optClass += "border-[#A855F7] bg-purple-50/20 shadow-sm";
           else optClass += "border-gray-100 hover:border-gray-200 bg-white";
 
           if (isLocked) optClass += " opacity-70 pointer-events-none";
@@ -181,7 +267,7 @@ const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswer
           return (
             <label key={idx} className={optClass}>
               <div className="relative flex items-center justify-center w-6 h-6 shrink-0">
-                <input type="checkbox" checked={isChecked} disabled={isLocked} onChange={() => handleAnswerToggle(block.id, opt.text)} className="peer w-6 h-6 rounded border-2 border-gray-300 appearance-none checked:bg-[#5A4BFF] checked:border-[#5A4BFF] transition-all cursor-pointer" />
+                <input type="checkbox" checked={isChecked} disabled={isLocked} onChange={() => { if (!isLocked) handleAnswerToggle(block.id, opt.text); }} className="peer w-6 h-6 rounded border-2 border-gray-300 appearance-none checked:bg-[#A855F7] checked:border-[#A855F7] transition-all cursor-pointer" />
                 <CheckSquare className="w-3.5 h-3.5 text-white absolute pointer-events-none opacity-0 peer-checked:opacity-100 transition-opacity" />
               </div>
               <span className={`font-bold text-base break-words ${isChecked ? 'text-gray-900' : 'text-gray-600'}`}>{opt.text}</span>
@@ -192,23 +278,31 @@ const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswer
         {block.type === 'test_short' && (
           <input 
             type="text" 
-            value={selected[0] || ''} 
-            onChange={(e) => handleTextAnswerChange(block.id, e.target.value)} 
+            value={serverSubmission?.answer || selected[0] || ''} 
+            onChange={(e) => { if (!isLocked) handleTextAnswerChange(block.id, e.target.value); }} 
             disabled={isLocked}
             placeholder="Введите ответ" 
-            className={`w-full p-5 text-lg font-bold rounded-2xl border-2 transition-all outline-none ${isLocked ? 'bg-gray-50 border-gray-100 text-gray-500' : 'bg-white border-gray-100 focus:border-[#5A4BFF] focus:shadow-sm text-gray-900'}`}
+            className={`w-full p-5 text-lg font-bold rounded-2xl border-2 transition-all outline-none ${isLocked ? 'bg-gray-50 border-gray-100 text-gray-500' : 'bg-white border-gray-100 focus:border-[#A855F7] focus:shadow-sm text-gray-900'}`}
           />
         )}
 
         {block.type === 'written' && (
-          <div className="flex flex-col gap-2">
-            <textarea 
-              value={selected[0] || ''} 
-              onChange={(e) => handleTextAnswerChange(block.id, e.target.value)} 
-              disabled={isLocked}
+          <div className="flex flex-col gap-2 relative">
+            {isLocked && serverSubmission && (
+               <div className="absolute inset-0 z-10 bg-transparent cursor-not-allowed"></div>
+            )}
+            <ReactQuill 
+              theme="snow"
+              modules={studentQuillModules}
+              value={serverSubmission?.answer || selected[0] || ''} 
+              onChange={(val) => { 
+                if (!isLocked && val !== selected[0]) {
+                  handleTextAnswerChange(block.id, val);
+                }
+              }}
+              readOnly={isLocked}
               placeholder="Введите развернутый ответ..." 
-              rows={5}
-              className={`w-full p-5 text-base font-medium rounded-2xl border-2 transition-all outline-none resize-y min-h-[140px] ${isLocked ? 'bg-gray-50 border-gray-100 text-gray-500' : 'bg-white border-gray-100 focus:border-[#5A4BFF] focus:shadow-sm text-gray-900'}`}
+              className={`bg-white rounded-2xl overflow-hidden border transition-all ${isLocked ? 'border-gray-100 opacity-80' : 'border-gray-200 focus-within:border-[#A855F7] focus-within:ring-2 focus-within:ring-[#A855F7]/20'}`}
             />
           </div>
         )}
@@ -218,10 +312,10 @@ const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswer
         <button 
           type="button"
           onClick={(e) => { e.preventDefault(); handleSubmitTest(block); }} 
-          disabled={selected.length === 0 || selected[0] === '' || isLocked} 
-          className={`w-full sm:w-auto px-10 py-4 rounded-xl font-black text-sm transition-all active:scale-95 disabled:opacity-50 tracking-wide uppercase ${isExhausted && block.type !== 'written' ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : result === 'ERROR' ? 'bg-[#FF4A6B] hover:bg-red-500 text-white shadow-lg shadow-red-500/30' : 'bg-[#5A4BFF] hover:bg-[#4a3dec] text-white shadow-lg shadow-indigo-500/30'}`}
+          disabled={selected.length === 0 || selected[0] === '' || selected[0] === '<p><br></p>' || isLocked} 
+          className={`w-full sm:w-auto px-10 py-4 rounded-xl font-black text-sm transition-all active:scale-95 disabled:opacity-50 tracking-wide uppercase ${isExhausted && block.type !== 'written' ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : result === 'ERROR' ? 'bg-[#FF4A6B] hover:bg-red-500 text-white shadow-lg shadow-red-500/30' : result === 'GRADED' ? 'bg-emerald-500 text-white cursor-not-allowed' : 'bg-[#A855F7] hover:bg-[#9333EA] text-white shadow-lg shadow-purple-500/30'}`}
         >
-          {result === 'PENDING' ? 'НА ПРОВЕРКЕ' : (isExhausted && block.type !== 'written' ? 'ЛИМИТ ИСЧЕРПАН' : result === 'ERROR' ? 'ЕЩЕ РАЗ' : 'ОТВЕТИТЬ')}
+          {result === 'PENDING' ? 'НА ПРОВЕРКЕ' : result === 'GRADED' ? 'ОЦЕНЕНО' : (isExhausted && block.type !== 'written' ? 'ЛИМИТ ИСЧЕРПАН' : result === 'ERROR' ? 'ЕЩЕ РАЗ' : 'ОТВЕТИТЬ')}
         </button>
         
         <div className="flex-1 w-full flex justify-end gap-3">
@@ -230,7 +324,7 @@ const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswer
           )}
           {activeStep < group.blocks.length - 1 && (
             <button onClick={() => setActiveStep(p => p + 1)} className="px-6 py-4 rounded-xl font-bold text-sm bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors">
-              {isLocked || result === 'SUCCESS' ? 'ДАЛЕЕ' : 'ПРОПУСТИТЬ'}
+              {isLocked || result === 'SUCCESS' || result === 'GRADED' ? 'ДАЛЕЕ' : 'ПРОПУСТИТЬ'}
             </button>
           )}
         </div>
@@ -238,11 +332,11 @@ const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswer
 
       <AnimatePresence>
         {(isLocked || isExhausted) && block.explanation && (
-          <motion.div initial={{ opacity: 0, height: 0, marginTop: 0 }} animate={{ opacity: 1, height: 'auto', marginTop: 24 }} exit={{ opacity: 0, height: 0, marginTop: 0 }} className="bg-indigo-50/50 border border-indigo-100 rounded-2xl p-6 overflow-hidden">
-            <h5 className="flex items-center gap-2 text-indigo-700 font-black text-sm uppercase tracking-widest mb-4">
+          <motion.div initial={{ opacity: 0, height: 0, marginTop: 0 }} animate={{ opacity: 1, height: 'auto', marginTop: 24 }} exit={{ opacity: 0, height: 0, marginTop: 0 }} className="bg-purple-50/50 border border-purple-100 rounded-2xl p-6 overflow-hidden">
+            <h5 className="flex items-center gap-2 text-purple-700 font-black text-sm uppercase tracking-widest mb-4">
               <BookOpen className="w-5 h-5" /> Разбор задания
             </h5>
-            <div className="prose prose-sm max-w-none text-gray-800 ql-editor px-0" dangerouslySetInnerHTML={{ __html: block.explanation.includes('<') ? block.explanation : block.explanation.replace(/\n/g, '<br/>') }} />
+            <div className="prose prose-sm max-w-none text-gray-800 ql-editor px-0" dangerouslySetInnerHTML={{ __html: safeHtml(block.explanation) }} />
           </motion.div>
         )}
       </AnimatePresence>
@@ -263,9 +357,11 @@ export default function CourseView() {
   const [areTestsRevealed, setAreTestsRevealed] = useState(false); 
   const [isHomeworkRevealed, setIsHomeworkRevealed] = useState(false); 
 
-  const [testAnswers, setTestAnswers] = useState<Record<string, string[]>>(() => JSON.parse(localStorage.getItem('demo_answers') || '{}'));
-  const [testResults, setTestResults] = useState<Record<string, 'SUCCESS' | 'ERROR' | 'PENDING'>>(() => JSON.parse(localStorage.getItem('demo_results') || '{}'));
-  const [attemptsUsed, setAttemptsUsed] = useState<Record<string, number>>(() => JSON.parse(localStorage.getItem('demo_attempts') || '{}'));
+  const [testAnswers, setTestAnswers] = useState<Record<string, string[]>>(() => getSafeLocal('demo_answers', {}));
+  const [testResults, setTestResults] = useState<Record<string, 'SUCCESS' | 'ERROR' | 'PENDING' | 'GRADED'>>(() => getSafeLocal('demo_results', {}));
+  const [attemptsUsed, setAttemptsUsed] = useState<Record<string, number>>(() => getSafeLocal('demo_attempts', {}));
+
+  const [submissions, setSubmissions] = useState<any[]>([]);
 
   useEffect(() => {
     const fetchCourseData = async () => {
@@ -273,8 +369,13 @@ export default function CourseView() {
         const token = localStorage.getItem('token');
         const headers = { Authorization: `Bearer ${token}` };
 
-        const res = await axios.get(`${API_URL}/courses/${courseId}`, { headers });
-        let courseData = res.data;
+        const [coursesRes, subsRes] = await Promise.all([
+          axios.get(`${API_URL}/courses/${courseId}`, { headers }),
+          axios.get(`${API_URL}/submissions/my`, { headers }).catch(() => ({ data: [] }))
+        ]);
+
+        setSubmissions(Array.isArray(subsRes.data) ? subsRes.data : []);
+        let courseData = coursesRes.data;
         
         if (courseData && (!courseData.themes || courseData.themes.length === 0)) {
           const allRes = await axios.get(`${API_URL}/courses`, { headers });
@@ -312,13 +413,13 @@ export default function CourseView() {
   };
 
   const handleAnswerToggle = (blockId: string, answerText: string) => {
-    const current = testAnswers[blockId] || [];
-    const updated = current.includes(answerText) ? current.filter(a => a !== answerText) : [...current, answerText];
+    const current = Array.isArray(testAnswers?.[blockId]) ? testAnswers[blockId] : [];
+    const updated = current.includes(answerText) ? current.filter((a: string) => a !== answerText) : [...current, answerText];
     const newAnswers = { ...testAnswers, [blockId]: updated };
     setTestAnswers(newAnswers);
     localStorage.setItem('demo_answers', JSON.stringify(newAnswers));
 
-    if (testResults[blockId] === 'ERROR') {
+    if (testResults?.[blockId] === 'ERROR') {
       const newResults = { ...testResults };
       delete newResults[blockId];
       setTestResults(newResults);
@@ -331,7 +432,7 @@ export default function CourseView() {
     setTestAnswers(newAnswers);
     localStorage.setItem('demo_answers', JSON.stringify(newAnswers));
 
-    if (testResults[blockId] === 'ERROR') {
+    if (testResults?.[blockId] === 'ERROR') {
       const newResults = { ...testResults };
       delete newResults[blockId];
       setTestResults(newResults);
@@ -339,12 +440,14 @@ export default function CourseView() {
     }
   };
 
+  // 🔥 ЛОГИКА ОТПРАВКИ 0 БАЛЛОВ ПРИ ПРОВАЛЕ
   const handleSubmitTest = async (block: any) => {
-    const currentAttempts = attemptsUsed[block.id] || 0;
+    let currentAttempts = attemptsUsed?.[block.id] || 0;
     const maxAttempts = block.maxAttempts || 3;
+    
     if (!['written', 'homework'].includes(block.type) && currentAttempts >= maxAttempts) return; 
 
-    const selected = testAnswers[block.id] || [];
+    const selected = Array.isArray(testAnswers?.[block.id]) ? testAnswers[block.id] : [];
     let isSuccess = false;
     let isPending = false;
 
@@ -352,21 +455,11 @@ export default function CourseView() {
     const questionWithImage = img ? `${block.question}|||IMG|||${img}` : block.question;
 
     if (['written', 'homework'].includes(block.type)) {
-      try {
-        await axios.post(`${API_URL}/submissions`, {
-          lessonId: activeLesson.id,
-          blockId: block.id,
-          question: questionWithImage,
-          answer: selected[0] || '',
-          maxScore: block.maxScore || 10
-        }, { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } });
-        isPending = true;
-      } catch (err) { return; }
+      isPending = true;
     } else if (block.type === 'test') {
-      const correctOptions = block.options.filter((opt: any) => opt.isCorrect).map((opt: any) => opt.text);
+      const correctOptions = Array.isArray(block.options) ? block.options.filter((opt: any) => opt.isCorrect).map((opt: any) => opt.text) : [];
       isSuccess = correctOptions.length === selected.length && correctOptions.every((val: string) => selected.includes(val));
     } else if (block.type === 'test_short') {
-      // 🔥 УМНАЯ ПРОВЕРКА КРАТКОГО ОТВЕТА
       const userAnswer = (selected[0] || '').trim();
       if (block.ignoreTypos !== false) {
         const cleanUser = userAnswer.toLowerCase().replace(/ё/g, 'е');
@@ -376,49 +469,70 @@ export default function CourseView() {
       }
     }
     
-    if (!['written', 'homework'].includes(block.type) && isSuccess) {
+    let newResultState = isPending ? 'PENDING' : (isSuccess ? 'SUCCESS' : 'ERROR');
+
+    // Отправка на бэкенд
+    if (!['written', 'homework'].includes(block.type)) {
+      currentAttempts += 1;
+      const newAttempts = { ...attemptsUsed, [block.id]: currentAttempts };
+      setAttemptsUsed(newAttempts);
+      localStorage.setItem('demo_attempts', JSON.stringify(newAttempts));
+
+      const isNowExhausted = currentAttempts >= maxAttempts;
+
+      // Отправляем если угадал ИЛИ если попытки закончились
+      if (isSuccess || isNowExhausted) {
+        try {
+          const token = localStorage.getItem('token');
+          const res = await axios.post(`${API_URL}/submissions`, {
+            lessonId: activeLesson.id,
+            blockId: block.id,
+            question: questionWithImage,
+            answer: selected.join(', '),
+            maxScore: block.maxScore || 100
+          }, { headers: { Authorization: `Bearer ${token}` } });
+
+          if (res.data && res.data.id) {
+            const finalScore = isSuccess ? (block.maxScore || 100) : 0;
+            const comment = isSuccess ? '🤖 Автоматическая проверка: Верно!' : '🤖 Автоматическая проверка: Неверно. Попытки исчерпаны.';
+            
+            await axios.patch(`${API_URL}/submissions/${res.data.id}/grade`, {
+              score: finalScore,
+              comment: comment
+            });
+
+            setSubmissions(prev => [
+              ...prev.filter(s => s.blockId !== block.id && s.block_id !== block.id),
+              { blockId: block.id, status: 'GRADED', score: finalScore, answer: selected.join(', '), comment }
+            ]);
+          }
+        } catch (error) {}
+      }
+    } else {
       try {
-        const token = localStorage.getItem('token');
-        const res = await axios.post(`${API_URL}/submissions`, {
+        await axios.post(`${API_URL}/submissions`, {
           lessonId: activeLesson.id,
           blockId: block.id,
           question: questionWithImage,
-          answer: selected.join(', '),
-          maxScore: block.maxScore || 100
-        }, { headers: { Authorization: `Bearer ${token}` } });
-
-        if (res.data && res.data.id) {
-          await axios.patch(`${API_URL}/submissions/${res.data.id}/grade`, {
-            score: block.maxScore || 100,
-            comment: '🤖 Автоматическая проверка: Верно!'
-          });
-        }
-      } catch (error) {}
+          answer: selected[0] || '',
+          maxScore: block.maxScore || 10
+        }, { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } });
+        
+        setSubmissions(prev => [
+          ...prev.filter(s => s.blockId !== block.id && s.block_id !== block.id),
+          { blockId: block.id, status: newResultState, answer: selected[0] || selected.join(', ') }
+        ]);
+      } catch (err) {}
     }
 
-    if (!['written', 'homework'].includes(block.type)) {
-      const newAttempts = { ...attemptsUsed, [block.id]: currentAttempts + 1 };
-      setAttemptsUsed(newAttempts);
-      localStorage.setItem('demo_attempts', JSON.stringify(newAttempts));
-    }
-
-    const newResultState = isPending ? 'PENDING' : (isSuccess ? 'SUCCESS' : 'ERROR');
     const newResults = { ...testResults, [block.id]: newResultState };
     setTestResults(newResults);
     localStorage.setItem('demo_results', JSON.stringify(newResults));
   };
 
-  const getEmbedUrl = (url: string) => {
-    if (!url) return '';
-    if (url.includes('vk.com/video_ext.php')) return url;
-    if (url.includes('youtube.com/watch?v=')) return url.replace('watch?v=', 'embed/');
-    if (url.includes('youtu.be/')) return url.replace('youtu.be/', 'youtube.com/embed/');
-    return url;
-  };
-
   const filteredThemes = course?.themes?.map((theme: any) => {
     const filteredLessons = theme.lessons?.filter((l: any) => 
-      l.title.toLowerCase().includes(searchQuery.toLowerCase())
+      l.title && l.title.toLowerCase().includes(searchQuery.toLowerCase())
     );
     return { ...theme, lessons: filteredLessons };
   }).filter((theme: any) => theme.lessons && theme.lessons.length > 0);
@@ -440,7 +554,6 @@ export default function CourseView() {
   const practiceBlocks = blocks.filter(b => ['test', 'test_short', 'written'].includes(b.type) && !b.isHomework);
   const homeworkBlocks = blocks.filter(b => b.isHomework);
 
-  // 🔥 ОБНОВЛЕННАЯ ФУНКЦИЯ: Склеиваем test и test_short в одну группу
   const groupInteractiveBlocks = (blocksToGroup: any[]) => {
     const groups = [
       { type: 'tests', title: 'Тесты', blocks: [] as any[], Icon: CheckSquare, iconColor: 'bg-indigo-50 text-indigo-600' },
@@ -520,7 +633,7 @@ export default function CourseView() {
         {block.title && <h3 className="text-xl font-black text-gray-900 break-words">{block.title}</h3>}
         {(block.image || block.url) && <ExpandableImage src={getFullUrl(block.image || block.url)} alt="Материал" className="my-4" />}
         <div className="prose prose-sm sm:prose-base max-w-none text-gray-700 leading-relaxed break-words ql-editor px-0">
-          <div dangerouslySetInnerHTML={{ __html: block.content ? (block.content.includes('<') ? block.content : block.content.replace(/\n/g, '<br/>')) : '' }} />
+          <div dangerouslySetInnerHTML={{ __html: safeHtml(block.content) }} />
         </div>
       </div>
     );
@@ -656,7 +769,7 @@ export default function CourseView() {
                   {/* РЕНДЕР ТЕОРИИ */}
                   {theoryBlocks.map(block => renderTheoryBlock(block))}
 
-                  {/* РЕНДЕР ПРАКТИКИ (ГРУППИРОВКА ПО ТИПАМ) */}
+                  {/* РЕНДЕР ПРАКТИКИ */}
                   {practiceGroups.length > 0 && (
                     <div className="mt-12 pt-10 border-t border-dashed border-gray-200">
                       {!areTestsRevealed ? (
@@ -684,7 +797,8 @@ export default function CourseView() {
                               key={`${activeLesson.id}-${group.type}`} 
                               group={group} 
                               testAnswers={testAnswers} testResults={testResults} attemptsUsed={attemptsUsed} 
-                              handleAnswerToggle={handleAnswerToggle} handleTextAnswerChange={handleTextAnswerChange} handleSubmitTest={handleSubmitTest} 
+                              handleAnswerToggle={handleAnswerToggle} handleTextAnswerChange={handleTextAnswerChange} handleSubmitTest={handleSubmitTest}
+                              submissions={submissions}
                             />
                           ))}
                         </div>
@@ -692,7 +806,7 @@ export default function CourseView() {
                     </div>
                   )}
 
-                  {/* РЕНДЕР ДОМАШНЕГО ЗАДАНИЯ (ГРУППИРОВКА ПО ТИПАМ) */}
+                  {/* РЕНДЕР ДОМАШНЕГО ЗАДАНИЯ */}
                   {homeworkBlocks.length > 0 && (
                     <div className="mt-12 pt-10 border-t-4 border-dashed border-purple-200">
                       <div className="bg-purple-600 p-6 md:p-8 rounded-[2rem] shadow-sm overflow-hidden flex flex-col md:flex-row md:items-center justify-between gap-6 relative mb-8">
@@ -738,7 +852,8 @@ export default function CourseView() {
                                 key={`hw-${activeLesson.id}-${group.type}`} 
                                 group={group} 
                                 testAnswers={testAnswers} testResults={testResults} attemptsUsed={attemptsUsed} 
-                                handleAnswerToggle={handleAnswerToggle} handleTextAnswerChange={handleTextAnswerChange} handleSubmitTest={handleSubmitTest} 
+                                handleAnswerToggle={handleAnswerToggle} handleTextAnswerChange={handleTextAnswerChange} handleSubmitTest={handleSubmitTest}
+                                submissions={submissions}
                               />
                             ))}
                           </motion.div>
