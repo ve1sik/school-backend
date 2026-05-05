@@ -7,6 +7,23 @@ import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 
 const API_URL = 'https://prepodmgy.ru/api';
 
+// Утилита для приведения любых баллов к 100-балльной шкале
+const safePercent = (earned: number, max: number) => max > 0 ? Math.min(100, Math.round((earned / max) * 100)) : 0;
+
+// 🔥 КАСТОМНАЯ ПОДСКАЗКА ДЛЯ ГРАФИКОВ (выводит полное название урока/модуля)
+const CustomTooltip = ({ active, payload, label }: any) => {
+  if (active && payload && payload.length) {
+    const data = payload[0].payload;
+    return (
+      <div className="bg-white p-4 rounded-2xl shadow-xl border border-gray-100">
+        <p className="text-sm font-bold text-gray-500 mb-1">{data.fullName || label}</p>
+        <p className="text-xl font-black text-[#5A4BFF]">{data.score} баллов</p>
+      </div>
+    );
+  }
+  return null;
+};
+
 export default function Dashboard() {
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(true);
@@ -39,15 +56,17 @@ export default function Dashboard() {
         let g_oral = { e: 0, m: 0, count: 0 }; 
 
         const modulesList: any[] = [];
+        const globalProgressData: any[] = []; // 🔥 ДАННЫЕ ДЛЯ ГЛОБАЛЬНОГО ГРАФИКА
 
         courses.forEach((course: any) => {
           course.themes?.forEach((theme: any) => {
-            // 🔥 ЛОГИКА НИКОЛАЯ ШАЛДИНА
+            // ЛОГИКА НИКОЛАЯ ШАЛДИНА
             let t_tests = { e: 0, m: 0 };
             let t_written = { e: 0, m: 0 };
             let t_oral = { e: 0, m: 10 }; // Устный опрос ВСЕГДА по 10-балльной шкале
 
             let hasSubmissionsInTheme = false;
+            const themeLessonsProgress: any[] = []; // 🔥 ДАННЫЕ ДЛЯ ГРАФИКА ВНУТРИ МОДУЛЯ
 
             theme.lessons?.forEach((lesson: any) => {
               let blocks = [];
@@ -56,12 +75,21 @@ export default function Dashboard() {
                 if (Array.isArray(parsed)) blocks = parsed;
               } catch(e) {}
 
+              let l_earned = 0;
+              let l_max = 0;
+              let hasSubmissionsInLesson = false;
+
               blocks.forEach((block: any) => {
                 const sub = mySubs.find((s: any) => s.blockId === block.id || s.block_id === block.id);
                 if (sub && sub.status === 'GRADED') {
                   hasSubmissionsInTheme = true;
+                  hasSubmissionsInLesson = true;
+                  
                   const maxScore = Number(block.maxScore) || Number(sub.max_score) || 10;
                   const earnedScore = Number(sub.score) || 0;
+
+                  l_earned += earnedScore;
+                  l_max += maxScore;
 
                   if (block.type === 'test' || block.type === 'test_short') {
                     t_tests.e += earnedScore; t_tests.m += maxScore; g_tests.count++;
@@ -72,6 +100,15 @@ export default function Dashboard() {
                   }
                 }
               });
+
+              // 🔥 ЗАПИСЫВАЕМ РЕАЛЬНЫЙ УРОК ДЛЯ ГРАФИКА МОДУЛЯ
+              if (hasSubmissionsInLesson) {
+                themeLessonsProgress.push({
+                  name: lesson.title.length > 15 ? lesson.title.substring(0, 15) + '...' : lesson.title, // Сокращаем для шкалы
+                  fullName: lesson.title, // Полное название для Tooltip
+                  score: safePercent(l_earned, l_max)
+                });
+              }
             });
 
             if (hasSubmissionsInTheme) {
@@ -88,8 +125,9 @@ export default function Dashboard() {
 
               g_tests.e += t_tests.e; g_tests.m += t_tests.m;
               g_written.e += t_written.e; g_written.m += t_written.m;
-              g_oral.e += t_oral.e; g_oral.m += t_oral.m; // m увеличивается на 10 каждую тему
+              g_oral.e += t_oral.e; g_oral.m += t_oral.m; 
 
+              // 🔥 ДОБАВЛЯЕМ ДАННЫЕ В СПИСОК МОДУЛЕЙ
               modulesList.push({
                 id: theme.id,
                 title: theme.title,
@@ -99,12 +137,14 @@ export default function Dashboard() {
                   written: Math.round(pWritten),
                   oral: Math.round(pOral)
                 },
-                progressData: [
-                  { name: 'Старт', score: Math.max(0, themeTotalScore - 20) }, 
-                  { name: 'Урок 1', score: Math.max(0, themeTotalScore - 10) }, 
-                  { name: 'Урок 2', score: themeTotalScore - 5 }, 
-                  { name: 'Финал', score: themeTotalScore }
-                ]
+                progressData: themeLessonsProgress // Передаем реальную динамику по урокам
+              });
+
+              // 🔥 ЗАПИСЫВАЕМ РЕАЛЬНЫЙ МОДУЛЬ ДЛЯ ГЛОБАЛЬНОГО ГРАФИКА
+              globalProgressData.push({
+                name: theme.title.length > 15 ? theme.title.substring(0, 15) + '...' : theme.title,
+                fullName: theme.title,
+                score: themeTotalScore
               });
             }
           });
@@ -126,12 +166,7 @@ export default function Dashboard() {
             oral: globalPOral
           },
           modules: modulesList,
-          progressData: [
-            { name: 'Модуль 1', score: Math.max(0, globalAvg - 30) }, 
-            { name: 'Модуль 2', score: Math.max(0, globalAvg - 15) }, 
-            { name: 'Модуль 3', score: Math.max(0, globalAvg - 5) }, 
-            { name: 'Текущий', score: globalAvg }
-          ],
+          progressData: globalProgressData, // Реальная динамика по модулям
           aiReport: `Твой текущий средний балл: ${globalAvg}/100.\n\nАналитика учитывает равнозначный вклад тестовой части, развернутых ответов и устных опросов куратора (по 33.3%).\n\nРекомендуется сфокусироваться на тех типах заданий, где полоска успеваемости не достигает 70%. Проработай ошибки с куратором для повышения итогового рейтинга.`
         };
 
@@ -233,11 +268,15 @@ export default function Dashboard() {
           <motion.div variants={itemVariants} initial="hidden" animate="show" className="bg-white p-8 md:p-10 rounded-[2.5rem] shadow-sm border border-gray-100 xl:col-span-2 flex flex-col">
             <div className="mb-6">
               <h3 className="text-2xl font-black text-gray-900 mb-2">Динамика обучения</h3>
-              <p className="text-sm font-medium text-gray-500">График показывает рост твоего балла по этапам курса.</p>
+              <p className="text-sm font-medium text-gray-500">
+                {activeTab === 'all' 
+                  ? 'График показывает рост твоего балла по пройденным модулям курса.' 
+                  : 'График показывает твою успеваемость по урокам внутри этого модуля.'}
+              </p>
             </div>
 
             <div className="flex-1 w-full min-h-[220px]">
-              {currentData?.progressData ? (
+              {currentData?.progressData && currentData.progressData.length > 0 ? (
                 <ResponsiveContainer width="100%" height="100%">
                   <AreaChart data={currentData.progressData} margin={{ top: 10, right: 10, left: -25, bottom: 0 }}>
                     <defs>
@@ -249,16 +288,15 @@ export default function Dashboard() {
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
                     <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fill: '#9ca3af', fontSize: 12, fontWeight: 'bold'}} dy={10} />
                     <YAxis domain={[0, 100]} axisLine={false} tickLine={false} tick={{fill: '#9ca3af', fontSize: 12, fontWeight: 'bold'}} />
-                    <Tooltip 
-                      formatter={(value) => [`${value} баллов`, 'Успеваемость']}
-                      labelStyle={{ color: '#6B7280', fontWeight: 'bold', marginBottom: '4px' }}
-                      itemStyle={{ color: '#111827', fontWeight: 'black' }}
-                      contentStyle={{ borderRadius: '16px', border: '1px solid #f3f4f6', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }} 
-                    />
+                    <Tooltip content={<CustomTooltip />} />
                     <Area type="monotone" dataKey="score" stroke="#5A4BFF" strokeWidth={4} fillOpacity={1} fill="url(#colorScore)" activeDot={{ r: 6, strokeWidth: 0, fill: '#5A4BFF' }} />
                   </AreaChart>
                 </ResponsiveContainer>
-              ) : null}
+              ) : (
+                <div className="w-full h-full flex items-center justify-center text-gray-400 font-bold text-sm bg-gray-50 rounded-2xl border border-dashed border-gray-200">
+                   Нет данных для построения графика
+                </div>
+              )}
             </div>
           </motion.div>
 
