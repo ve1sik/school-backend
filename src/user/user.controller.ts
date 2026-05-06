@@ -14,4 +14,11 @@ export class UserController {
   findAllStudents() {
     return this.userService.findAllStudents();
   }
+
+  // 🔥 НОВЫЙ МАРШРУТ
+  @Roles('ADMIN')
+  @Get('curators')
+  findAllCurators() {
+    return this.userService.findAllCurators();
+  }
 }

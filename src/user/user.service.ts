@@ -12,4 +12,13 @@ export class UserService {
       orderBy: { created_at: 'desc' }
     });
   }
+
+  // 🔥 НОВЫЙ МЕТОД: Достаем всех кураторов
+  async findAllCurators() {
+    return this.prisma.user.findMany({
+      where: { role: 'CURATOR' }, // Тянем только тех, у кого роль CURATOR
+      select: { id: true, name: true, surname: true, email: true, avatar: true },
+      orderBy: { created_at: 'desc' }
+    });
+  }
 }

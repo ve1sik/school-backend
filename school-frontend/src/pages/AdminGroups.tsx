@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Users, Plus, Trash2, BookOpen, Loader2, Save, X, Edit3, ShieldCheck, UserCircle } from 'lucide-react';
+import { Users, Plus, Trash2, BookOpen, Loader2, Save, X, Edit3, ShieldCheck, UserCircle, Search, UserCheck } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 
@@ -8,7 +8,8 @@ const API_URL = 'https://prepodmgy.ru/api';
 export default function AdminGroups() {
   const [groups, setGroups] = useState<any[]>([]);
   const [courses, setCourses] = useState<any[]>([]);
-  const [students, setStudents] = useState<any[]>([]); // 🔥 Добавили стейт для студентов
+  const [students, setStudents] = useState<any[]>([]);
+  const [curators, setCurators] = useState<any[]>([]); // 🔥 Стейт кураторов
   const [isLoading, setIsLoading] = useState(true);
   const [newGroupTitle, setNewGroupTitle] = useState('');
   
@@ -16,7 +17,12 @@ export default function AdminGroups() {
   const [selectedGroup, setSelectedGroup] = useState<any | null>(null);
   const [showModal, setShowModal] = useState(false);
   const [selectedCourseIds, setSelectedCourseIds] = useState<string[]>([]);
-  const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]); // 🔥 Стейт выбранных учеников
+  const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
+  const [selectedCuratorId, setSelectedCuratorId] = useState<string>(''); // 🔥 Выбранный куратор
+
+  // Стейты для поиска
+  const [courseSearch, setCourseSearch] = useState('');
+  const [studentSearch, setStudentSearch] = useState('');
 
   const getTokenConfig = () => ({ headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } });
 
@@ -27,14 +33,16 @@ export default function AdminGroups() {
   const fetchData = async () => {
     setIsLoading(true);
     try {
-      const [groupsRes, coursesRes, studentsRes] = await Promise.all([
+      const [groupsRes, coursesRes, studentsRes, curatorsRes] = await Promise.all([
         axios.get(`${API_URL}/groups`, getTokenConfig()),
         axios.get(`${API_URL}/courses`, getTokenConfig()),
-        axios.get(`${API_URL}/users/students`, getTokenConfig()) // 🔥 Тянем список учеников
+        axios.get(`${API_URL}/users/students`, getTokenConfig()),
+        axios.get(`${API_URL}/users/curators`, getTokenConfig()) // 🔥 Тянем кураторов
       ]);
       setGroups(groupsRes.data);
       setCourses(coursesRes.data);
       setStudents(studentsRes.data);
+      setCurators(curatorsRes.data);
     } catch (error) {
       console.error("Ошибка загрузки данных", error);
     } finally {
@@ -69,7 +77,11 @@ export default function AdminGroups() {
       const res = await axios.get(`${API_URL}/groups/${groupId}`, getTokenConfig());
       setSelectedGroup(res.data);
       setSelectedCourseIds(res.data.courses?.map((c: any) => c.id) || []);
-      setSelectedStudentIds(res.data.students?.map((s: any) => s.id) || []); // 🔥 Подгружаем учеников группы
+      setSelectedStudentIds(res.data.students?.map((s: any) => s.id) || []);
+      setSelectedCuratorId(res.data.curator?.id || ''); // 🔥 Подтягиваем текущего куратора
+      
+      setCourseSearch('');
+      setStudentSearch('');
       setShowModal(true);
     } catch (error) {
       console.error("Ошибка загрузки группы", error);
@@ -82,7 +94,7 @@ export default function AdminGroups() {
     );
   };
 
-  const handleToggleStudent = (studentId: string) => { // 🔥 Функция выбора ученика
+  const handleToggleStudent = (studentId: string) => {
     setSelectedStudentIds(prev => 
       prev.includes(studentId) ? prev.filter(id => id !== studentId) : [...prev, studentId]
     );
@@ -91,10 +103,10 @@ export default function AdminGroups() {
   const handleSaveGroupSettings = async () => {
     if (!selectedGroup) return;
     try {
-      // 🔥 Сохраняем и курсы, и студентов одновременно
       await Promise.all([
         axios.post(`${API_URL}/groups/${selectedGroup.id}/courses`, { courseIds: selectedCourseIds }, getTokenConfig()),
-        axios.post(`${API_URL}/groups/${selectedGroup.id}/students`, { studentIds: selectedStudentIds }, getTokenConfig())
+        axios.post(`${API_URL}/groups/${selectedGroup.id}/students`, { studentIds: selectedStudentIds }, getTokenConfig()),
+        axios.patch(`${API_URL}/groups/${selectedGroup.id}`, { curator_id: selectedCuratorId || null }, getTokenConfig()) // 🔥 Сохраняем куратора
       ]);
       setShowModal(false);
       fetchData(); 
@@ -102,6 +114,15 @@ export default function AdminGroups() {
       console.error("Ошибка сохранения настроек", error);
     }
   };
+
+  const filteredCourses = courses.filter(course => 
+    course.title.toLowerCase().includes(courseSearch.toLowerCase())
+  );
+
+  const filteredStudents = students.filter(student => {
+    const searchStr = `${student.name || ''} ${student.surname || ''} ${student.email || ''}`.toLowerCase();
+    return searchStr.includes(studentSearch.toLowerCase());
+  });
 
   if (isLoading) return <div className="h-full w-full flex items-center justify-center"><Loader2 className="w-12 h-12 animate-spin text-[#5A4BFF]" /></div>;
 
@@ -115,7 +136,6 @@ export default function AdminGroups() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        
         {/* ЛЕВАЯ КОЛОНКА */}
         <div className="lg:col-span-1">
           <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-gray-100 sticky top-8">
@@ -148,14 +168,20 @@ export default function AdminGroups() {
             groups.map(group => (
               <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} key={group.id} className="bg-white p-6 md:p-8 rounded-[2rem] shadow-sm border border-gray-100 hover:shadow-md transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-6 group/card">
                 <div>
-                  <h3 className="text-2xl font-black text-gray-900 mb-3">{group.title}</h3>
+                  <h3 className="text-2xl font-black text-gray-900 mb-2">{group.title}</h3>
                   <div className="flex flex-wrap items-center gap-3">
                     <span className="px-4 py-1.5 bg-indigo-50 text-indigo-700 rounded-lg text-sm font-bold flex items-center gap-2">
                       <Users className="w-4 h-4" /> Студентов: {group._count?.students || 0}
                     </span>
                     <span className="px-4 py-1.5 bg-emerald-50 text-emerald-700 rounded-lg text-sm font-bold flex items-center gap-2">
-                      <BookOpen className="w-4 h-4" /> Доступно курсов: {group._count?.courses || 0}
+                      <BookOpen className="w-4 h-4" /> Курсов: {group._count?.courses || 0}
                     </span>
+                    {/* 🔥 Вывод куратора на карточке группы */}
+                    {group.curator && (
+                      <span className="px-4 py-1.5 bg-purple-50 text-purple-700 rounded-lg text-sm font-bold flex items-center gap-2">
+                        <UserCheck className="w-4 h-4" /> Куратор: {group.curator.name || 'Без имени'} {group.curator.surname || ''}
+                      </span>
+                    )}
                   </div>
                 </div>
                 
@@ -183,16 +209,48 @@ export default function AdminGroups() {
               <button onClick={() => setShowModal(false)} className="absolute top-6 right-6 p-2 bg-gray-50 text-gray-400 hover:text-gray-900 rounded-full transition-colors"><X className="w-5 h-5" /></button>
               
               <h3 className="text-3xl font-black text-gray-900 mb-2">{selectedGroup.title}</h3>
-              <p className="text-gray-500 font-medium mb-8 flex items-center gap-2"><ShieldCheck className="w-4 h-4" /> Настройка доступов и состава</p>
+              <p className="text-gray-500 font-medium mb-6 flex items-center gap-2"><ShieldCheck className="w-4 h-4" /> Настройка доступов и состава</p>
+
+              {/* 🔥 БЛОК ВЫБОРА КУРАТОРА */}
+              <div className="mb-6 bg-purple-50/50 p-5 rounded-2xl border border-purple-100">
+                <h4 className="text-[11px] font-black text-purple-400 uppercase tracking-widest mb-3 flex items-center gap-2">
+                  <UserCheck className="w-4 h-4" /> Назначить куратора
+                </h4>
+                <select
+                  value={selectedCuratorId}
+                  onChange={(e) => setSelectedCuratorId(e.target.value)}
+                  className="w-full px-4 py-3 bg-white border border-purple-200 rounded-xl text-sm font-bold text-gray-700 focus:outline-none focus:ring-2 focus:ring-purple-400 transition-all cursor-pointer"
+                >
+                  <option value="">Без куратора (никто не назначен)</option>
+                  {curators.map(c => (
+                    <option key={c.id} value={c.id}>
+                      {c.name || 'Без имени'} {c.surname || ''} ({c.email})
+                    </option>
+                  ))}
+                </select>
+              </div>
               
               <div className="flex-1 overflow-y-auto custom-scrollbar pr-2 mb-8">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                   
                   {/* БЛОК КУРСОВ */}
-                  <div>
-                    <h4 className="text-[11px] font-black text-gray-400 uppercase tracking-widest mb-4">Доступные курсы</h4>
-                    <div className="space-y-3">
-                      {courses.map(course => {
+                  <div className="flex flex-col h-full">
+                    <div className="sticky top-0 bg-white pb-3 z-10">
+                      <h4 className="text-[11px] font-black text-gray-400 uppercase tracking-widest mb-3">Доступные курсы</h4>
+                      <div className="relative">
+                        <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                        <input 
+                          type="text" 
+                          placeholder="Поиск курса..." 
+                          value={courseSearch}
+                          onChange={(e) => setCourseSearch(e.target.value)}
+                          className="w-full pl-9 pr-4 py-2 bg-gray-50 border border-gray-100 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-indigo-400 transition-all"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-3 overflow-y-auto custom-scrollbar flex-1 pr-2 max-h-[30vh]">
+                      {filteredCourses.map(course => {
                         const isSelected = selectedCourseIds.includes(course.id);
                         return (
                           <div 
@@ -209,14 +267,28 @@ export default function AdminGroups() {
                           </div>
                         )
                       })}
+                      {filteredCourses.length === 0 && <p className="text-sm text-gray-400 font-medium text-center py-4">Курсы не найдены</p>}
                     </div>
                   </div>
 
-                  {/* 🔥 НОВЫЙ БЛОК СТУДЕНТОВ */}
-                  <div>
-                    <h4 className="text-[11px] font-black text-gray-400 uppercase tracking-widest mb-4">Состав группы ({selectedStudentIds.length})</h4>
-                    <div className="space-y-3">
-                      {students.map(student => {
+                  {/* БЛОК СТУДЕНТОВ */}
+                  <div className="flex flex-col h-full">
+                    <div className="sticky top-0 bg-white pb-3 z-10">
+                      <h4 className="text-[11px] font-black text-gray-400 uppercase tracking-widest mb-3">Состав группы ({selectedStudentIds.length})</h4>
+                      <div className="relative">
+                        <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                        <input 
+                          type="text" 
+                          placeholder="Поиск по имени или email..." 
+                          value={studentSearch}
+                          onChange={(e) => setStudentSearch(e.target.value)}
+                          className="w-full pl-9 pr-4 py-2 bg-gray-50 border border-gray-100 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-emerald-400 transition-all"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-3 overflow-y-auto custom-scrollbar flex-1 pr-2 max-h-[30vh]">
+                      {filteredStudents.map(student => {
                         const isSelected = selectedStudentIds.includes(student.id);
                         return (
                           <div 
@@ -236,26 +308,26 @@ export default function AdminGroups() {
                                     <UserCircle className="w-6 h-6 text-gray-400" />
                                   )}
                                 </div>
-                                <div>
-                                  <p className={`font-bold text-sm leading-tight ${isSelected ? 'text-emerald-700' : 'text-gray-900'}`}>
+                                <div className="overflow-hidden">
+                                  <p className={`font-bold text-sm leading-tight truncate ${isSelected ? 'text-emerald-700' : 'text-gray-900'}`}>
                                     {student.name || 'Без имени'} {student.surname || ''}
                                   </p>
-                                  <p className="text-xs text-gray-400 mt-0.5">{student.email}</p>
+                                  <p className="text-xs text-gray-400 mt-0.5 truncate">{student.email}</p>
                                 </div>
                               </div>
                             </div>
                           </div>
                         )
                       })}
-                      {students.length === 0 && <p className="text-sm text-gray-400 font-medium">Нет зарегистрированных учеников.</p>}
+                      {filteredStudents.length === 0 && <p className="text-sm text-gray-400 font-medium text-center py-4">Ученики не найдены</p>}
                     </div>
                   </div>
 
                 </div>
               </div>
 
-              <button onClick={handleSaveGroupSettings} className="w-full py-5 bg-gray-900 hover:bg-black text-white rounded-2xl font-black text-lg transition-all active:scale-95 shadow-xl flex items-center justify-center gap-3 shrink-0">
-                <Save className="w-5 h-5" /> Сохранить состав и доступы
+              <button onClick={handleSaveGroupSettings} className="w-full py-5 bg-gray-900 hover:bg-black text-white rounded-2xl font-black text-lg transition-all active:scale-95 shadow-xl flex items-center justify-center gap-3 shrink-0 mt-4">
+                <Save className="w-5 h-5" /> Сохранить настройки
               </button>
             </motion.div>
           </div>
