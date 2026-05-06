@@ -106,7 +106,8 @@ export default function Layout() {
   const getPageTitle = () => {
     const item = menuItems.find(i => i.path === location.pathname);
     if (item) return item.label;
-    if (location.pathname === '/admin') return 'Админ-панель';
+    if (location.pathname === '/admin') return 'Управление курсами';
+    if (location.pathname === '/admin/groups') return 'Управление потоками';
     if (location.pathname.includes('/mistakes')) return 'Разбор полетов';
     return 'Платформа';
   };
@@ -115,8 +116,8 @@ export default function Layout() {
     <div className="flex h-screen bg-[#F4F7FE] font-sans">
       
       {/* АВТОМАТИЧЕСКАЯ ВЫДВИЖНАЯ ПАНЕЛЬ */}
-      <aside className="group w-[92px] hover:w-64 bg-white border-r border-gray-100 flex flex-col shadow-sm shrink-0 transition-all duration-300 ease-in-out overflow-hidden z-20">
-        <div className="p-5 flex flex-col h-full w-64">
+      <aside className="group w-[92px] hover:w-72 bg-white border-r border-gray-100 flex flex-col shadow-sm shrink-0 transition-all duration-300 ease-in-out overflow-hidden z-20">
+        <div className="p-5 flex flex-col h-full w-72">
           
           {/* ЛОГОТИП */}
           <div className="flex items-center gap-4 mb-8 pl-1.5">
@@ -151,7 +152,7 @@ export default function Layout() {
             })}
 
             {isAdmin && (
-              <div className="pt-2 mt-2 border-t border-gray-50">
+              <div className="pt-2 mt-2 border-t border-gray-50 space-y-1.5">
                 <Link
                   to="/admin"
                   className={`flex items-center gap-4 p-3 rounded-xl transition-all ${
@@ -160,9 +161,22 @@ export default function Layout() {
                       : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'
                   }`}
                 >
-                  <ShieldCheck className={`w-6 h-6 shrink-0 ${location.pathname === '/admin' ? 'text-[#00FFCC]' : 'text-gray-400'}`} />
+                  <BookOpen className={`w-6 h-6 shrink-0 ${location.pathname === '/admin' ? 'text-[#00FFCC]' : 'text-gray-400'}`} />
                   <span className="text-sm font-bold whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                    Админ-панель
+                    Управление курсами
+                  </span>
+                </Link>
+                <Link
+                  to="/admin/groups"
+                  className={`flex items-center gap-4 p-3 rounded-xl transition-all ${
+                    location.pathname === '/admin/groups'
+                      ? 'bg-gray-900 text-[#00FFCC] shadow-lg shadow-emerald-500/20' 
+                      : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'
+                  }`}
+                >
+                  <ShieldCheck className={`w-6 h-6 shrink-0 ${location.pathname === '/admin/groups' ? 'text-[#00FFCC]' : 'text-gray-400'}`} />
+                  <span className="text-sm font-bold whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                    Управление потоками
                   </span>
                 </Link>
               </div>

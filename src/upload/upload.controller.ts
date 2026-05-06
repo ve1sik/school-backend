@@ -1,41 +1,50 @@
-import { Controller, Post, UseInterceptors, UploadedFile, Req } from '@nestjs/common';
+import { Controller, Post, Get, Param, Res, UseInterceptors, UploadedFile, HttpException, HttpStatus } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
-import { extname } from 'path';
+import { extname, join } from 'path';
 import * as fs from 'fs';
-import { Request } from 'express';
+import { Response } from 'express';
 
-// Умная защита: если папки uploads нет, сервер сам её создаст
-if (!fs.existsSync('./uploads')) {
-  fs.mkdirSync('./uploads');
+// Создаем папку, если её нет, чтобы не было ошибок
+const uploadDir = './uploads';
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir);
 }
 
 @Controller('upload')
 export class UploadController {
+
+  // 1. ЗАГРУЗКА (POST) - Сюда летит файл с компа
   @Post()
   @UseInterceptors(FileInterceptor('file', {
     storage: diskStorage({
-      destination: './uploads',
+      destination: uploadDir,
       filename: (req, file, cb) => {
-        // Генерируем уникальное имя
-        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
-        cb(null, `${uniqueSuffix}${extname(file.originalname)}`);
+        const name = Date.now() + extname(file.originalname);
+        cb(null, name);
       },
     }),
   }))
-  uploadFile(@UploadedFile() file: Express.Multer.File, @Req() req: Request) {
-    // 🔥 ГЕНИАЛЬНЫЙ МУВ: Автоматически берем домен (DevTunnels или localhost)
-    // Если запрос идет через туннель, читаем заголовки прокси, иначе берем обычный хост
-    const host = req.headers['x-forwarded-host'] || req.get('host');
-    const protocol = req.headers['x-forwarded-proto'] || req.protocol;
-    
-    const fullUrl = `${protocol}://${host}/uploads/${file.filename}`;
-    
-    console.log('Файл успешно загружен. Ссылка:', fullUrl);
+  uploadFile(@UploadedFile() file: Express.Multer.File) {
+    if (!file) throw new HttpException('Файл потерялся по дороге', HttpStatus.BAD_REQUEST);
 
+    // Возвращаем ссылку, которая СТОПУДОВО пролезет через Nginx
     return {
-      url: fullUrl, 
-      fileName: file.originalname
+      url: `https://prepodmgy.ru/api/upload/file/${file.filename}`,
+      originalName: file.originalname
     };
+  }
+
+  // 2. СКАЧИВАНИЕ (GET) - Этот метод сам отдаст файл браузеру
+  @Get('file/:filename')
+  async getFile(@Param('filename') filename: string, @Res() res: Response) {
+    const path = join(process.cwd(), 'uploads', filename);
+    
+    if (!fs.existsSync(path)) {
+      return res.status(404).send('Брат, файла нет на диске!');
+    }
+
+    // Эта команда заставляет браузер именно СКАЧИВАТЬ файл
+    return res.sendFile(path);
   }
 }

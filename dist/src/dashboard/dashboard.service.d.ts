@@ -21,22 +21,7 @@ export declare class DashboardService {
             name: string;
             count: number;
         }[];
-        modules: {
-            id: any;
-            title: any;
-            averageScore: number;
-            totalTests: any;
-            breakdown: {
-                tests: number;
-                written: number;
-                oral: number;
-            };
-            activityData: {
-                name: string;
-                count: any;
-            }[];
-            progressData: any[];
-        }[];
+        modules: any[];
         aiReport: string;
     }>;
     getMistakesWork(userId: string, themeId: string): Promise<{
@@ -55,9 +40,9 @@ export declare class DashboardService {
     saveTestResult(userId: string, testId: string, score: number, answers: any[]): Promise<{
         id: string;
         created_at: Date;
-        score: number;
-        attempt_number: number;
         test_id: string;
         user_id: string;
+        score: number;
+        attempt_number: number;
     }>;
 }

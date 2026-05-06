@@ -27,7 +27,7 @@ exports.AppModule = AppModule = __decorate([
         imports: [
             serve_static_1.ServeStaticModule.forRoot({
                 rootPath: (0, path_1.join)(process.cwd(), 'uploads'),
-                serveRoot: '/uploads',
+                serveRoot: '/api/uploads',
             }),
             prisma_module_1.PrismaModule,
             auth_module_1.AuthModule,

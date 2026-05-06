@@ -51,7 +51,7 @@ let DashboardService = class DashboardService {
                 breakdown: { tests: 0, written: 0, oral: 0 },
                 streakDays: 0, weakestTheme: null, progressData: [], activityData: [],
                 modules: [],
-                aiReport: 'Данные для анализа отсутствуют. Начните выполнение тестов или домашних заданий.',
+                aiReport: 'Данные для анализа отсутствуют. Начните выполнение заданий, чтобы система смогла сформировать отчет.',
             };
         }
         const latestAttemptsMap = new Map();
@@ -61,25 +61,58 @@ let DashboardService = class DashboardService {
             }
         });
         const latestAttempts = Array.from(latestAttemptsMap.values());
-        let totalScore = 0;
-        const themeStats = {};
-        latestAttempts.forEach((attempt) => {
-            totalScore += attempt.score;
-            const theme = attempt.test.theme;
-            if (!themeStats[theme.id]) {
-                themeStats[theme.id] = { title: theme.title, sum: 0, count: 0 };
+        const gradedItems = [];
+        latestAttempts.forEach((a) => {
+            if (a.test?.theme) {
+                gradedItems.push({
+                    percentage: Math.min(100, Math.max(0, a.score)),
+                    date: new Date(a.created_at),
+                    theme: a.test.theme,
+                    type: 'test'
+                });
             }
-            themeStats[theme.id].sum += attempt.score;
-            themeStats[theme.id].count += 1;
+        });
+        const gradedSubmissions = submissions.filter(s => s.status === 'GRADED' && s.score !== null && s.max_score > 0);
+        gradedSubmissions.forEach((s) => {
+            if (s.lesson?.theme) {
+                gradedItems.push({
+                    percentage: Math.min(100, Math.max(0, (s.score / s.max_score) * 100)),
+                    date: new Date(s.created_at),
+                    theme: s.lesson.theme,
+                    type: 'written'
+                });
+            }
+        });
+        const totalPercentage = gradedItems.reduce((sum, item) => sum + item.percentage, 0);
+        const finalAverageScore = gradedItems.length > 0 ? Math.round(totalPercentage / gradedItems.length) : 0;
+        const themeStats = {};
+        gradedItems.forEach(item => {
+            const tId = item.theme.id;
+            if (!themeStats[tId]) {
+                themeStats[tId] = { id: tId, title: item.theme.title, sum: 0, count: 0 };
+            }
+            themeStats[tId].sum += item.percentage;
+            themeStats[tId].count += 1;
         });
         let weakestTheme = null;
         let lowestAvg = 101;
+        const modules = [];
         for (const [id, data] of Object.entries(themeStats)) {
             const avg = Math.round(data.sum / data.count);
             if (avg < lowestAvg && avg <= 75) {
                 lowestAvg = avg;
                 weakestTheme = { id, title: data.title, score: avg };
             }
+            modules.push({
+                id: data.id,
+                title: data.title,
+                averageScore: avg,
+                totalTests: data.count,
+                breakdown: { tests: avg, written: avg, oral: 0 },
+                activityData: [
+                    { name: 'Выполнено', count: data.count }
+                ]
+            });
         }
         const dates = attempts.map((a) => new Date(a.created_at).setHours(0, 0, 0, 0));
         submissions.forEach(s => dates.push(new Date(s.created_at).setHours(0, 0, 0, 0)));
@@ -101,105 +134,40 @@ let DashboardService = class DashboardService {
         }
         const progressData = [];
         const daysOfWeek = ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'];
+        let cumulativeSum = 0;
+        let cumulativeCount = 0;
+        const sevenDaysAgo = new Date();
+        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
+        sevenDaysAgo.setHours(0, 0, 0, 0);
+        gradedItems.filter(i => i.date < sevenDaysAgo).forEach(i => {
+            cumulativeSum += i.percentage;
+            cumulativeCount++;
+        });
         for (let i = 6; i >= 0; i--) {
             const d = new Date();
             d.setDate(d.getDate() - i);
             const startOfDay = new Date(d.setHours(0, 0, 0, 0));
             const endOfDay = new Date(d.setHours(23, 59, 59, 999));
-            const dailyAttempts = attempts.filter(a => new Date(a.created_at) >= startOfDay && new Date(a.created_at) <= endOfDay);
-            let dailyScore = 0;
-            if (dailyAttempts.length > 0) {
-                dailyScore = Math.round(dailyAttempts.reduce((sum, a) => sum + a.score, 0) / dailyAttempts.length);
-            }
-            else if (progressData.length > 0) {
-                dailyScore = progressData[progressData.length - 1].score;
-            }
-            progressData.push({ name: daysOfWeek[d.getDay()], score: dailyScore });
-        }
-        let writtenScore = 0;
-        const gradedSubmissions = submissions.filter(s => s.status === 'GRADED' && s.score !== null);
-        if (gradedSubmissions.length > 0) {
-            let totalPercentage = 0;
-            gradedSubmissions.forEach(sub => {
-                const percentage = (sub.score / sub.max_score) * 100;
-                totalPercentage += percentage;
+            const dailyItems = gradedItems.filter(item => item.date >= startOfDay && item.date <= endOfDay);
+            dailyItems.forEach(i => {
+                cumulativeSum += i.percentage;
+                cumulativeCount++;
             });
-            writtenScore = Math.round(totalPercentage / gradedSubmissions.length);
+            const scoreOfDay = cumulativeCount > 0 ? Math.round(cumulativeSum / cumulativeCount) : 0;
+            progressData.push({ name: daysOfWeek[d.getDay()], score: scoreOfDay });
         }
-        const modulesObj = {};
-        latestAttempts.forEach((a) => {
-            const theme = a.test.theme;
-            if (!modulesObj[theme.id]) {
-                modulesObj[theme.id] = { id: theme.id, title: theme.title, tSum: 0, tCount: 0, wSum: 0, wCount: 0 };
-            }
-            modulesObj[theme.id].tSum += a.score;
-            modulesObj[theme.id].tCount += 1;
-        });
-        gradedSubmissions.forEach((s) => {
-            const theme = s.lesson?.theme;
-            if (theme) {
-                if (!modulesObj[theme.id]) {
-                    modulesObj[theme.id] = { id: theme.id, title: theme.title, tSum: 0, tCount: 0, wSum: 0, wCount: 0 };
-                }
-                modulesObj[theme.id].wSum += (s.score / s.max_score) * 100;
-                modulesObj[theme.id].wCount += 1;
-            }
-        });
-        const modules = Object.values(modulesObj).map((m) => {
-            const tScore = m.tCount > 0 ? Math.round(m.tSum / m.tCount) : 0;
-            const wScore = m.wCount > 0 ? Math.round(m.wSum / m.wCount) : 0;
-            let activeTypes = 0;
-            let totalModScore = 0;
-            if (m.tCount > 0) {
-                activeTypes++;
-                totalModScore += tScore;
-            }
-            if (m.wCount > 0) {
-                activeTypes++;
-                totalModScore += wScore;
-            }
-            return {
-                id: m.id,
-                title: m.title,
-                averageScore: activeTypes > 0 ? Math.round(totalModScore / activeTypes) : 0,
-                totalTests: m.tCount + m.wCount,
-                breakdown: { tests: tScore, written: wScore, oral: 0 },
-                activityData: [
-                    { name: 'Тесты', count: m.tCount },
-                    { name: 'Эссе', count: m.wCount },
-                    { name: 'Опросы', count: 0 }
-                ],
-                progressData
-            };
-        });
         const activityData = [
-            { name: 'Тесты', count: attempts.length },
-            { name: 'Эссе', count: submissions.length },
+            { name: 'Тесты', count: latestAttempts.length },
+            { name: 'Задания', count: submissions.length },
             { name: 'Опросы', count: 0 }
         ];
-        const testsScore = latestAttempts.length > 0 ? Math.round(totalScore / latestAttempts.length) : 0;
-        const oralScore = 0;
-        const safeTests = Math.min(100, Math.max(0, testsScore));
-        const safeWritten = Math.min(100, Math.max(0, writtenScore));
-        const safeOral = Math.min(100, Math.max(0, oralScore));
-        let activeSections = 0;
-        let totalActiveScore = 0;
-        if (latestAttempts.length > 0) {
-            activeSections++;
-            totalActiveScore += safeTests;
-        }
-        if (gradedSubmissions.length > 0) {
-            activeSections++;
-            totalActiveScore += safeWritten;
-        }
-        const finalAverageScore = activeSections > 0 ? Math.round(totalActiveScore / activeSections) : 0;
-        const aiReport = await this.aiService.generateStrictReport(studentName, safeTests, safeWritten, safeOral, weakestTheme?.title || null);
+        const aiReport = await this.aiService.generateStrictReport(studentName, finalAverageScore, finalAverageScore, 0, weakestTheme?.title || null);
         return {
             studentName,
             isLinked,
             totalTests: attempts.length + submissions.length,
             averageScore: finalAverageScore,
-            breakdown: { tests: safeTests, written: safeWritten, oral: safeOral },
+            breakdown: { tests: finalAverageScore, written: finalAverageScore, oral: 0 },
             streakDays,
             weakestTheme,
             progressData,

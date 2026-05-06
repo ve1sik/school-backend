@@ -66,7 +66,47 @@ model User {
   enrollments   Enrollment[]
   submissions   Submission[]
 
+  // 🔥 НОВОЕ: Связи с группами
+  groups         Group[] @relation("StudentGroups") // Группы, в которых учится студент
+  curated_groups Group[] @relation("CuratorGroups") // Группы, которые ведет куратор
+
   @@map("users")
+}
+
+// 🔥 НОВОЕ: Модель Группы (Потока)
+model Group {
+  id         String   @id @default(uuid())
+  title      String   // Название (например, "ОГЭ История - Сентябрь")
+  created_at DateTime @default(now())
+
+  // Связь с Куратором
+  curator_id String?
+  curator    User?    @relation("CuratorGroups", fields: [curator_id], references: [id])
+
+  // Связи со студентами, курсами и расписанием
+  students   User[]   @relation("StudentGroups")
+  courses    Course[] @relation("GroupCourses")
+  events     Event[]  // Изолированное расписание группы
+
+  // Настройки доступа к модулям (Drip Content)
+  theme_access GroupThemeAccess[]
+
+  @@map("groups")
+}
+
+// 🔥 НОВОЕ: Капельное открытие контента (Drip Content)
+model GroupThemeAccess {
+  id          String    @id @default(uuid())
+  group_id    String
+  theme_id    String
+  unlock_date DateTime? // Дата, когда модуль откроется (если null - открыт сразу)
+  is_visible  Boolean   @default(true) // Можно вообще скрыть модуль от группы
+
+  group Group @relation(fields: [group_id], references: [id], onDelete: Cascade)
+  theme Theme @relation(fields: [theme_id], references: [id], onDelete: Cascade)
+
+  @@unique([group_id, theme_id]) // В одной группе не может быть двух настроек для одного модуля
+  @@map("group_theme_access")
 }
 
 model Course {
@@ -77,6 +117,9 @@ model Course {
 
   themes      Theme[]
   enrollments Enrollment[]
+  
+  // 🔥 НОВОЕ: Курсы, доступные определенным группам
+  groups      Group[] @relation("GroupCourses")
 
   @@map("courses")
 }
@@ -88,9 +131,12 @@ model Theme {
   order_index Int
   is_visible  Boolean @default(true)
 
-  course  Course   @relation(fields: [course_id], references: [id], onDelete: Cascade)
+  course Course   @relation(fields: [course_id], references: [id], onDelete: Cascade)
   lessons Lesson[]
   tests   Test[]
+
+  // 🔥 НОВОЕ: Связь для настроек доступа по группам
+  group_access GroupThemeAccess[]
 
   @@map("themes")
 }
@@ -122,7 +168,7 @@ model Test {
   title        String
   max_attempts Int    @default(1)
 
-  theme    Theme         @relation(fields: [theme_id], references: [id], onDelete: Cascade)
+  theme     Theme         @relation(fields: [theme_id], references: [id], onDelete: Cascade)
   questions Question[]
   attempts  TestAttempt[]
 
@@ -204,7 +250,6 @@ model Submission {
   @@map("submissions")
 }
 
-// 🔥 НОВОЕ: ТАБЛИЦА РАСПИСАНИЯ
 model Event {
   id          String    @id @default(uuid())
   title       String
@@ -213,6 +258,10 @@ model Event {
   type        EventType @default(WEBINAR)
   link        String?
   created_at  DateTime  @default(now())
+
+  // 🔥 НОВОЕ: Привязка события к конкретной группе
+  group_id    String?
+  group       Group?    @relation(fields: [group_id], references: [id], onDelete: Cascade)
 
   @@map("events")
 }

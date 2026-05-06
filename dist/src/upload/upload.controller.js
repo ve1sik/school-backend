@@ -18,19 +18,25 @@ const platform_express_1 = require("@nestjs/platform-express");
 const multer_1 = require("multer");
 const path_1 = require("path");
 const fs = require("fs");
-if (!fs.existsSync('./uploads')) {
-    fs.mkdirSync('./uploads');
+const uploadDir = './uploads';
+if (!fs.existsSync(uploadDir)) {
+    fs.mkdirSync(uploadDir);
 }
 let UploadController = class UploadController {
-    uploadFile(file, req) {
-        const host = req.headers['x-forwarded-host'] || req.get('host');
-        const protocol = req.headers['x-forwarded-proto'] || req.protocol;
-        const fullUrl = `${protocol}://${host}/uploads/${file.filename}`;
-        console.log('Файл успешно загружен. Ссылка:', fullUrl);
+    uploadFile(file) {
+        if (!file)
+            throw new common_1.HttpException('Файл потерялся по дороге', common_1.HttpStatus.BAD_REQUEST);
         return {
-            url: fullUrl,
-            fileName: file.originalname
+            url: `https://prepodmgy.ru/api/upload/file/${file.filename}`,
+            originalName: file.originalname
         };
+    }
+    async getFile(filename, res) {
+        const path = (0, path_1.join)(process.cwd(), 'uploads', filename);
+        if (!fs.existsSync(path)) {
+            return res.status(404).send('Брат, файла нет на диске!');
+        }
+        return res.sendFile(path);
     }
 };
 exports.UploadController = UploadController;
@@ -38,19 +44,26 @@ __decorate([
     (0, common_1.Post)(),
     (0, common_1.UseInterceptors)((0, platform_express_1.FileInterceptor)('file', {
         storage: (0, multer_1.diskStorage)({
-            destination: './uploads',
+            destination: uploadDir,
             filename: (req, file, cb) => {
-                const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
-                cb(null, `${uniqueSuffix}${(0, path_1.extname)(file.originalname)}`);
+                const name = Date.now() + (0, path_1.extname)(file.originalname);
+                cb(null, name);
             },
         }),
     })),
     __param(0, (0, common_1.UploadedFile)()),
-    __param(1, (0, common_1.Req)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object, Object]),
+    __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", void 0)
 ], UploadController.prototype, "uploadFile", null);
+__decorate([
+    (0, common_1.Get)('file/:filename'),
+    __param(0, (0, common_1.Param)('filename')),
+    __param(1, (0, common_1.Res)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", Promise)
+], UploadController.prototype, "getFile", null);
 exports.UploadController = UploadController = __decorate([
     (0, common_1.Controller)('upload')
 ], UploadController);

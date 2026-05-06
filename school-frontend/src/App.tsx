@@ -10,7 +10,6 @@ import Profile from './pages/Profile';
 import Login from './pages/Login'; 
 import Schedule from './pages/Schedule';
 import Homework from './pages/Homework';
-// 🔥 Импортируем наш новый плеер домашек
 import HomeworkView from './pages/HomeworkView';
 import Cards from './pages/Cards';
 import Messages from './pages/Messages';
@@ -18,6 +17,9 @@ import Settings from './pages/Settings';
 import ParentDashboard from './pages/ParentDashboard';
 import CuratorDashboard from './pages/CuratorDashboard';
 import CuratorMessages from './pages/CuratorMessages';
+
+// 🔥 Импортируем нашу новую страницу Групп
+import AdminGroups from './pages/AdminGroups';
 
 export default function App() {
   return (
@@ -38,12 +40,16 @@ export default function App() {
         
         <Route path="mistakes/:themeId" element={<Mistakes />} />
         <Route path="profile" element={<Profile />} />
+        
+        {/* 🔥 АДМИНКА */}
         <Route path="admin" element={<AdminCourses />} />
+        <Route path="admin/groups" element={<AdminGroups />} /> 
+        
         <Route path="schedule" element={<Schedule />} />
         
-        {/* 🔥 Главная страница домашек (Карточки) */}
+        {/* Главная страница домашек (Карточки) */}
         <Route path="homework" element={<Homework />} />
-        {/* 🔥 Новый Плеер только для ДОМАШЕК */}
+        {/* Новый Плеер только для ДОМАШЕК */}
         <Route path="homework/:courseId/theme/:themeId/lesson/:lessonId" element={<HomeworkView />} />
         
         <Route path="cards" element={<Cards />} />

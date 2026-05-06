@@ -20,22 +20,7 @@ export declare class DashboardController {
             name: string;
             count: number;
         }[];
-        modules: {
-            id: any;
-            title: any;
-            averageScore: number;
-            totalTests: any;
-            breakdown: {
-                tests: number;
-                written: number;
-                oral: number;
-            };
-            activityData: {
-                name: string;
-                count: any;
-            }[];
-            progressData: any[];
-        }[];
+        modules: any[];
         aiReport: string;
     }>;
     getMistakes(req: any, themeId: string): Promise<{
@@ -54,9 +39,9 @@ export declare class DashboardController {
     saveResult(req: any, body: any): Promise<{
         id: string;
         created_at: Date;
-        score: number;
-        attempt_number: number;
         test_id: string;
         user_id: string;
+        score: number;
+        attempt_number: number;
     }>;
 }

@@ -1,7 +1,8 @@
-import { Request } from 'express';
+import { Response } from 'express';
 export declare class UploadController {
-    uploadFile(file: Express.Multer.File, req: Request): {
+    uploadFile(file: Express.Multer.File): {
         url: string;
-        fileName: string;
+        originalName: string;
     };
+    getFile(filename: string, res: Response): Promise<void | Response<any, Record<string, any>>>;
 }
