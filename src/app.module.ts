@@ -11,8 +11,9 @@ import { LessonModule } from './lesson/lesson.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { SubmissionsModule } from './submissions/submissions.module';
 import { ScheduleModule } from './schedule/schedule.module'; 
-// 🔥 ДОБАВИЛИ НАШ НОВЫЙ МОДУЛЬ ГРУПП
 import { GroupModule } from './group/group.module';
+// 🔥 ДОБАВИЛИ НАШ НОВЫЙ МОДУЛЬ ПОЛЬЗОВАТЕЛЕЙ (ДЛЯ СПИСКА СТУДЕНТОВ)
+import { UserModule } from './user/user.module';
 
 // Контроллер загрузки
 import { UploadController } from './upload/upload.controller';
@@ -33,7 +34,8 @@ import { UploadController } from './upload/upload.controller';
     DashboardModule,
     SubmissionsModule,
     ScheduleModule,
-    GroupModule, // 🔥 РЕГИСТРИРУЕМ МОДУЛЬ ЗДЕСЬ
+    GroupModule, 
+    UserModule, // 🔥 РЕГИСТРИРУЕМ МОДУЛЬ ЮЗЕРОВ ЗДЕСЬ
   ],
   controllers: [
     UploadController,

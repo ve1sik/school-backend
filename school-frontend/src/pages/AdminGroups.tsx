@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Users, Plus, Trash2, BookOpen, Loader2, Save, X, Edit3, ShieldCheck } from 'lucide-react';
+import { Users, Plus, Trash2, BookOpen, Loader2, Save, X, Edit3, ShieldCheck, UserCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 
@@ -8,6 +8,7 @@ const API_URL = 'https://prepodmgy.ru/api';
 export default function AdminGroups() {
   const [groups, setGroups] = useState<any[]>([]);
   const [courses, setCourses] = useState<any[]>([]);
+  const [students, setStudents] = useState<any[]>([]); // 🔥 Добавили стейт для студентов
   const [isLoading, setIsLoading] = useState(true);
   const [newGroupTitle, setNewGroupTitle] = useState('');
   
@@ -15,6 +16,7 @@ export default function AdminGroups() {
   const [selectedGroup, setSelectedGroup] = useState<any | null>(null);
   const [showModal, setShowModal] = useState(false);
   const [selectedCourseIds, setSelectedCourseIds] = useState<string[]>([]);
+  const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]); // 🔥 Стейт выбранных учеников
 
   const getTokenConfig = () => ({ headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } });
 
@@ -25,12 +27,14 @@ export default function AdminGroups() {
   const fetchData = async () => {
     setIsLoading(true);
     try {
-      const [groupsRes, coursesRes] = await Promise.all([
+      const [groupsRes, coursesRes, studentsRes] = await Promise.all([
         axios.get(`${API_URL}/groups`, getTokenConfig()),
-        axios.get(`${API_URL}/courses`, getTokenConfig())
+        axios.get(`${API_URL}/courses`, getTokenConfig()),
+        axios.get(`${API_URL}/users/students`, getTokenConfig()) // 🔥 Тянем список учеников
       ]);
       setGroups(groupsRes.data);
       setCourses(coursesRes.data);
+      setStudents(studentsRes.data);
     } catch (error) {
       console.error("Ошибка загрузки данных", error);
     } finally {
@@ -65,6 +69,7 @@ export default function AdminGroups() {
       const res = await axios.get(`${API_URL}/groups/${groupId}`, getTokenConfig());
       setSelectedGroup(res.data);
       setSelectedCourseIds(res.data.courses?.map((c: any) => c.id) || []);
+      setSelectedStudentIds(res.data.students?.map((s: any) => s.id) || []); // 🔥 Подгружаем учеников группы
       setShowModal(true);
     } catch (error) {
       console.error("Ошибка загрузки группы", error);
@@ -77,14 +82,24 @@ export default function AdminGroups() {
     );
   };
 
-  const handleSaveGroupCourses = async () => {
+  const handleToggleStudent = (studentId: string) => { // 🔥 Функция выбора ученика
+    setSelectedStudentIds(prev => 
+      prev.includes(studentId) ? prev.filter(id => id !== studentId) : [...prev, studentId]
+    );
+  };
+
+  const handleSaveGroupSettings = async () => {
     if (!selectedGroup) return;
     try {
-      await axios.post(`${API_URL}/groups/${selectedGroup.id}/courses`, { courseIds: selectedCourseIds }, getTokenConfig());
+      // 🔥 Сохраняем и курсы, и студентов одновременно
+      await Promise.all([
+        axios.post(`${API_URL}/groups/${selectedGroup.id}/courses`, { courseIds: selectedCourseIds }, getTokenConfig()),
+        axios.post(`${API_URL}/groups/${selectedGroup.id}/students`, { studentIds: selectedStudentIds }, getTokenConfig())
+      ]);
       setShowModal(false);
-      fetchData(); // Обновляем список, чтобы счетчики обновились
+      fetchData(); 
     } catch (error) {
-      console.error("Ошибка сохранения курсов", error);
+      console.error("Ошибка сохранения настроек", error);
     }
   };
 
@@ -95,13 +110,13 @@ export default function AdminGroups() {
       <div className="flex justify-between items-center mb-8">
         <div>
           <h1 className="text-4xl font-black text-gray-900 mb-2">Потоки и Группы</h1>
-          <p className="text-gray-500 font-medium">Управляй учебными потоками, привязывай курсы и назначай кураторов.</p>
+          <p className="text-gray-500 font-medium">Управляй учебными потоками, привязывай курсы и назначай учеников.</p>
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         
-        {/* ЛЕВАЯ КОЛОНКА: Создание группы */}
+        {/* ЛЕВАЯ КОЛОНКА */}
         <div className="lg:col-span-1">
           <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-gray-100 sticky top-8">
             <h2 className="text-xl font-black mb-6 flex items-center gap-2"><Users className="w-6 h-6 text-[#5A4BFF]" /> Новая группа</h2>
@@ -121,7 +136,7 @@ export default function AdminGroups() {
           </div>
         </div>
 
-        {/* ПРАВАЯ КОЛОНКА: Список групп */}
+        {/* ПРАВАЯ КОЛОНКА */}
         <div className="lg:col-span-2 space-y-4">
           {groups.length === 0 ? (
             <div className="bg-white p-10 rounded-[2rem] border border-dashed border-gray-300 flex flex-col items-center justify-center text-center">
@@ -164,51 +179,83 @@ export default function AdminGroups() {
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowModal(false)} className="absolute inset-0 bg-gray-900/60 backdrop-blur-sm cursor-pointer"></motion.div>
             
-            <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }} className="bg-white w-full max-w-2xl rounded-[2.5rem] p-8 shadow-2xl relative z-10 border border-gray-100 max-h-[90vh] flex flex-col">
+            <motion.div initial={{ opacity: 0, scale: 0.95, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 20 }} className="bg-white w-full max-w-4xl rounded-[2.5rem] p-8 shadow-2xl relative z-10 border border-gray-100 max-h-[90vh] flex flex-col">
               <button onClick={() => setShowModal(false)} className="absolute top-6 right-6 p-2 bg-gray-50 text-gray-400 hover:text-gray-900 rounded-full transition-colors"><X className="w-5 h-5" /></button>
               
               <h3 className="text-3xl font-black text-gray-900 mb-2">{selectedGroup.title}</h3>
-              <p className="text-gray-500 font-medium mb-8 flex items-center gap-2"><ShieldCheck className="w-4 h-4" /> Настройка доступов</p>
+              <p className="text-gray-500 font-medium mb-8 flex items-center gap-2"><ShieldCheck className="w-4 h-4" /> Настройка доступов и состава</p>
               
-              <div className="flex-1 overflow-y-auto custom-scrollbar pr-2 mb-8 space-y-6">
-                
-                {/* БЛОК КУРСОВ */}
-                <div>
-                  <h4 className="text-[11px] font-black text-gray-400 uppercase tracking-widest mb-4">Какие курсы видят ученики этой группы?</h4>
-                  <div className="space-y-3">
-                    {courses.map(course => {
-                      const isSelected = selectedCourseIds.includes(course.id);
-                      return (
-                        <div 
-                          key={course.id} 
-                          onClick={() => handleToggleCourse(course.id)}
-                          className={`p-4 rounded-2xl border-2 flex items-center justify-between cursor-pointer transition-all ${isSelected ? 'border-[#5A4BFF] bg-indigo-50/50' : 'border-gray-100 hover:border-gray-200 bg-white'}`}
-                        >
-                          <div className="flex items-center gap-4">
-                            <div className={`w-6 h-6 rounded-md border-2 flex items-center justify-center transition-colors ${isSelected ? 'bg-[#5A4BFF] border-[#5A4BFF]' : 'border-gray-300'}`}>
-                              {isSelected && <ShieldCheck className="w-4 h-4 text-white" />}
+              <div className="flex-1 overflow-y-auto custom-scrollbar pr-2 mb-8">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                  
+                  {/* БЛОК КУРСОВ */}
+                  <div>
+                    <h4 className="text-[11px] font-black text-gray-400 uppercase tracking-widest mb-4">Доступные курсы</h4>
+                    <div className="space-y-3">
+                      {courses.map(course => {
+                        const isSelected = selectedCourseIds.includes(course.id);
+                        return (
+                          <div 
+                            key={course.id} 
+                            onClick={() => handleToggleCourse(course.id)}
+                            className={`p-4 rounded-2xl border-2 flex items-center justify-between cursor-pointer transition-all ${isSelected ? 'border-[#5A4BFF] bg-indigo-50/50' : 'border-gray-100 hover:border-gray-200 bg-white'}`}
+                          >
+                            <div className="flex items-center gap-4">
+                              <div className={`w-6 h-6 rounded-md border-2 flex items-center justify-center transition-colors ${isSelected ? 'bg-[#5A4BFF] border-[#5A4BFF]' : 'border-gray-300'}`}>
+                                {isSelected && <ShieldCheck className="w-4 h-4 text-white" />}
+                              </div>
+                              <span className={`font-bold ${isSelected ? 'text-[#5A4BFF]' : 'text-gray-700'}`}>{course.title}</span>
                             </div>
-                            <span className={`font-bold ${isSelected ? 'text-[#5A4BFF]' : 'text-gray-700'}`}>{course.title}</span>
                           </div>
-                        </div>
-                      )
-                    })}
-                    {courses.length === 0 && <p className="text-sm text-gray-400 font-medium">Нет созданных курсов. Сначала создайте курс.</p>}
+                        )
+                      })}
+                    </div>
                   </div>
-                </div>
 
-                {/* БЛОК СТУДЕНТОВ (Пока просто заглушка-инфо) */}
-                <div>
-                  <h4 className="text-[11px] font-black text-gray-400 uppercase tracking-widest mb-4">Ученики в группе ({selectedGroup.students?.length || 0})</h4>
-                  <div className="bg-gray-50 p-6 rounded-2xl border border-gray-100 text-center">
-                    <p className="text-sm text-gray-500 font-medium">Модуль добавления учеников по спискам/Email будет добавлен на следующем этапе разработки.</p>
+                  {/* 🔥 НОВЫЙ БЛОК СТУДЕНТОВ */}
+                  <div>
+                    <h4 className="text-[11px] font-black text-gray-400 uppercase tracking-widest mb-4">Состав группы ({selectedStudentIds.length})</h4>
+                    <div className="space-y-3">
+                      {students.map(student => {
+                        const isSelected = selectedStudentIds.includes(student.id);
+                        return (
+                          <div 
+                            key={student.id} 
+                            onClick={() => handleToggleStudent(student.id)}
+                            className={`p-3 rounded-2xl border-2 flex items-center justify-between cursor-pointer transition-all ${isSelected ? 'border-emerald-500 bg-emerald-50/50' : 'border-gray-100 hover:border-gray-200 bg-white'}`}
+                          >
+                            <div className="flex items-center gap-4">
+                              <div className={`w-6 h-6 rounded-md border-2 flex items-center justify-center transition-colors ${isSelected ? 'bg-emerald-500 border-emerald-500' : 'border-gray-300'}`}>
+                                {isSelected && <ShieldCheck className="w-4 h-4 text-white" />}
+                              </div>
+                              <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center overflow-hidden shrink-0">
+                                  {student.avatar ? (
+                                    <img src={student.avatar} alt="" className="w-full h-full object-cover" />
+                                  ) : (
+                                    <UserCircle className="w-6 h-6 text-gray-400" />
+                                  )}
+                                </div>
+                                <div>
+                                  <p className={`font-bold text-sm leading-tight ${isSelected ? 'text-emerald-700' : 'text-gray-900'}`}>
+                                    {student.name || 'Без имени'} {student.surname || ''}
+                                  </p>
+                                  <p className="text-xs text-gray-400 mt-0.5">{student.email}</p>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        )
+                      })}
+                      {students.length === 0 && <p className="text-sm text-gray-400 font-medium">Нет зарегистрированных учеников.</p>}
+                    </div>
                   </div>
-                </div>
 
+                </div>
               </div>
 
-              <button onClick={handleSaveGroupCourses} className="w-full py-5 bg-gray-900 hover:bg-black text-white rounded-2xl font-black text-lg transition-all active:scale-95 shadow-xl flex items-center justify-center gap-3 shrink-0">
-                <Save className="w-5 h-5" /> Сохранить изменения
+              <button onClick={handleSaveGroupSettings} className="w-full py-5 bg-gray-900 hover:bg-black text-white rounded-2xl font-black text-lg transition-all active:scale-95 shadow-xl flex items-center justify-center gap-3 shrink-0">
+                <Save className="w-5 h-5" /> Сохранить состав и доступы
               </button>
             </motion.div>
           </div>
