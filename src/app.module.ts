@@ -11,13 +11,15 @@ import { LessonModule } from './lesson/lesson.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { SubmissionsModule } from './submissions/submissions.module';
 import { ScheduleModule } from './schedule/schedule.module'; 
+// 🔥 ДОБАВИЛИ НАШ НОВЫЙ МОДУЛЬ ГРУПП
+import { GroupModule } from './group/group.module';
 
 // Контроллер загрузки
 import { UploadController } from './upload/upload.controller';
 
 @Module({
   imports: [
-    // 🔥 РАЗДАЧА СТАТИКИ
+    // РАЗДАЧА СТАТИКИ
     ServeStaticModule.forRoot({
       rootPath: join(process.cwd(), 'uploads'),
       serveRoot: '/api/uploads', 
@@ -30,7 +32,8 @@ import { UploadController } from './upload/upload.controller';
     LessonModule,
     DashboardModule,
     SubmissionsModule,
-    ScheduleModule, 
+    ScheduleModule,
+    GroupModule, // 🔥 РЕГИСТРИРУЕМ МОДУЛЬ ЗДЕСЬ
   ],
   controllers: [
     UploadController,
