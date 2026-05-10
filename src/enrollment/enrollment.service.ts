@@ -41,4 +41,16 @@ export class EnrollmentService {
       },
     });
   }
+  // 🔥 НОВЫЙ МЕТОД ДЛЯ МАГАЗИНА
+  async findShopGroups() {
+    return this.prisma.group.findMany({
+      where: { 
+        is_public: true, // Только публичные
+        price: { gt: 0 } // Только те, у которых цена больше 0
+      },
+      include: {
+        curator: { select: { name: true, surname: true, avatar: true } }
+      }
+    });
+  }
 }

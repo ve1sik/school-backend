@@ -45,6 +45,17 @@ let EnrollmentService = class EnrollmentService {
             },
         });
     }
+    async findShopGroups() {
+        return this.prisma.group.findMany({
+            where: {
+                is_public: true,
+                price: { gt: 0 }
+            },
+            include: {
+                curator: { select: { name: true, surname: true, avatar: true } }
+            }
+        });
+    }
 };
 exports.EnrollmentService = EnrollmentService;
 exports.EnrollmentService = EnrollmentService = __decorate([

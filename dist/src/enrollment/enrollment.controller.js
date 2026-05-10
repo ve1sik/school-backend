@@ -29,6 +29,9 @@ let EnrollmentController = class EnrollmentController {
         const userId = req.user.userId || req.user.id || req.user.sub;
         return this.enrollmentService.getMyCourses(userId);
     }
+    findShopGroups() {
+        return this.groupService.findShopGroups();
+    }
 };
 exports.EnrollmentController = EnrollmentController;
 __decorate([
@@ -46,6 +49,13 @@ __decorate([
     __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", Promise)
 ], EnrollmentController.prototype, "getMyCourses", null);
+__decorate([
+    Roles('ADMIN', 'CURATOR', 'STUDENT'),
+    (0, common_1.Get)('shop'),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", void 0)
+], EnrollmentController.prototype, "findShopGroups", null);
 exports.EnrollmentController = EnrollmentController = __decorate([
     (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
     (0, common_1.Controller)('enrollments'),

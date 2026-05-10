@@ -29,4 +29,5 @@ export declare class EnrollmentController {
         course_id: string;
         user_id: string;
     })[]>;
+    findShopGroups(): any;
 }

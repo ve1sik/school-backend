@@ -28,4 +28,17 @@ export declare class EnrollmentService {
         course_id: string;
         user_id: string;
     })[]>;
+    findShopGroups(): Promise<({
+        curator: {
+            name: string;
+            surname: string;
+            avatar: string;
+        };
+    } & {
+        id: string;
+        title: string;
+        price: number;
+        is_public: boolean;
+        curator_id: string | null;
+    })[]>;
 }

@@ -75,9 +75,10 @@ model User {
 
 // 🔥 НОВОЕ: Модель Группы (Потока)
 model Group {
-  id         String   @id @default(uuid())
-  title      String   // Название (например, "ОГЭ История - Сентябрь")
-  created_at DateTime @default(now())
+  id          String   @id @default(uuid())
+  title       String
+  price       Int      @default(0) // 🔥 Добавили цену (в рублях)
+  is_public   Boolean  @default(true) // 🔥 Чтобы можно было скрыть старые потоки
 
   // Связь с Куратором
   curator_id String?
@@ -133,7 +134,7 @@ model Theme {
 
   course Course   @relation(fields: [course_id], references: [id], onDelete: Cascade)
   lessons Lesson[]
-  tests   Test[]
+  tests    Test[]
 
   // 🔥 НОВОЕ: Связь для настроек доступа по группам
   group_access GroupThemeAccess[]
@@ -168,7 +169,7 @@ model Test {
   title        String
   max_attempts Int    @default(1)
 
-  theme     Theme         @relation(fields: [theme_id], references: [id], onDelete: Cascade)
+  theme      Theme         @relation(fields: [theme_id], references: [id], onDelete: Cascade)
   questions Question[]
   attempts  TestAttempt[]
 

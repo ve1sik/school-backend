@@ -10,6 +10,7 @@ export declare class ScheduleController {
         type: import(".prisma/client").$Enums.EventType;
         link: string | null;
         date: Date;
+        group_id: string | null;
     }[]>;
     createEvent(body: any): Promise<{
         id: string;
@@ -19,6 +20,7 @@ export declare class ScheduleController {
         type: import(".prisma/client").$Enums.EventType;
         link: string | null;
         date: Date;
+        group_id: string | null;
     }>;
     deleteEvent(id: string): Promise<{
         id: string;
@@ -28,5 +30,6 @@ export declare class ScheduleController {
         type: import(".prisma/client").$Enums.EventType;
         link: string | null;
         date: Date;
+        group_id: string | null;
     }>;
 }

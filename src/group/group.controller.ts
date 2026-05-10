@@ -1,17 +1,17 @@
 import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards } from '@nestjs/common';
 import { GroupService } from './group.service';
-import { AuthGuard } from '@nestjs/passport'; // 🔥 Заменили импорт
+import { AuthGuard } from '@nestjs/passport';
 import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
 
-@UseGuards(AuthGuard('jwt'), RolesGuard) // 🔥 Поменяли гард
+@UseGuards(AuthGuard('jwt'), RolesGuard)
 @Controller('groups')
 export class GroupController {
   constructor(private readonly groupService: GroupService) {}
 
   @Roles('ADMIN')
   @Post()
-  create(@Body() createGroupDto: { title: string }) {
+  create(@Body() createGroupDto: any) {
     return this.groupService.create(createGroupDto);
   }
 
@@ -19,6 +19,13 @@ export class GroupController {
   @Get()
   findAll() {
     return this.groupService.findAll();
+  }
+
+  // 🔥 МАРШРУТ МАГАЗИНА ЗДЕСЬ
+  @Roles('ADMIN', 'CURATOR', 'STUDENT')
+  @Get('shop')
+  findShopGroups() {
+    return this.groupService.findShopGroups();
   }
 
   @Roles('ADMIN', 'CURATOR')
@@ -29,25 +36,25 @@ export class GroupController {
 
   @Roles('ADMIN')
   @Patch(':id')
-  update(@Param('id') id: string, @Body() updateGroupDto: { title?: string; curator_id?: string }) {
+  update(@Param('id') id: string, @Body() updateGroupDto: any) {
     return this.groupService.update(id, updateGroupDto);
-  }
-
-  @Roles('ADMIN')
-  @Post(':id/students')
-  setStudents(@Param('id') id: string, @Body('studentIds') studentIds: string[]) {
-    return this.groupService.setStudents(id, studentIds);
-  }
-
-  @Roles('ADMIN')
-  @Post(':id/courses')
-  setCourses(@Param('id') id: string, @Body('courseIds') courseIds: string[]) {
-    return this.groupService.setCourses(id, courseIds);
   }
 
   @Roles('ADMIN')
   @Delete(':id')
   remove(@Param('id') id: string) {
     return this.groupService.remove(id);
+  }
+
+  @Roles('ADMIN')
+  @Post(':id/courses')
+  updateCourses(@Param('id') id: string, @Body() body: { courseIds: string[] }) {
+    return this.groupService.updateCourses(id, body.courseIds);
+  }
+
+  @Roles('ADMIN')
+  @Post(':id/students')
+  updateStudents(@Param('id') id: string, @Body() body: { studentIds: string[] }) {
+    return this.groupService.updateStudents(id, body.studentIds);
   }
 }

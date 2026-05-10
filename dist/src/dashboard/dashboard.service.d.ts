@@ -40,9 +40,9 @@ export declare class DashboardService {
     saveTestResult(userId: string, testId: string, score: number, answers: any[]): Promise<{
         id: string;
         created_at: Date;
-        test_id: string;
-        user_id: string;
         score: number;
         attempt_number: number;
+        test_id: string;
+        user_id: string;
     }>;
 }

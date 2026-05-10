@@ -39,9 +39,9 @@ export declare class DashboardController {
     saveResult(req: any, body: any): Promise<{
         id: string;
         created_at: Date;
-        test_id: string;
-        user_id: string;
         score: number;
         attempt_number: number;
+        test_id: string;
+        user_id: string;
     }>;
 }
