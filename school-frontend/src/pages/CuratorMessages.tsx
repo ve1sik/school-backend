@@ -17,7 +17,7 @@ const MOCK_MESSAGES: Record<string, any[]> = {
     { id: 'm2', senderId: 'curator', text: 'Привет, Михаил! Проверю сегодня до вечера, ожидай уведомления.', time: '12:05' }
   ],
   's2': [
-    { id: 'm3', senderId: 'student', text: 'Брат, не могу понять 5-е задание в тесте, подскажи!', time: 'Вчера' }
+    { id: 'm3', senderId: 'student', text: 'не могу понять 5-е задание в тесте, подскажи!', time: 'Вчера' }
   ],
   's3': [],
   's4': []
