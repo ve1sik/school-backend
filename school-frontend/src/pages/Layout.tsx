@@ -12,7 +12,8 @@ import {
   ShieldCheck,
   Bell,
   GraduationCap,
-  User 
+  User,
+  ShoppingCart // 🔥 Добавили иконку для магазина
 } from 'lucide-react';
 
 const API_URL = 'https://prepodmgy.ru/api';
@@ -66,7 +67,7 @@ export default function Layout() {
     // Убиваем сессию
     localStorage.removeItem('token');
     
-    // 🔥 Очищаем память пройденных тестов, чтобы другие аккаунты начинали с нуля
+    // Очищаем память пройденных тестов, чтобы другие аккаунты начинали с нуля
     localStorage.removeItem('demo_answers');
     localStorage.removeItem('demo_results');
     localStorage.removeItem('demo_attempts');
@@ -93,12 +94,14 @@ export default function Layout() {
     return 'СТ';
   };
 
+  // 🔥 Добавили Магазин в список пунктов меню
   const menuItems = [
     { path: '/', icon: Home, label: 'Главная' },
     { path: '/courses', icon: BookOpen, label: 'Курсы' },
     { path: '/schedule', icon: Calendar, label: 'Расписание' },
     { path: '/homework', icon: FileText, label: 'Домашнее задание' },
     { path: '/messages', icon: MessageSquare, label: 'Сообщения' },
+    { path: '/shop', icon: ShoppingCart, label: 'Магазин курсов' }, // 🔥 Вот она, наша витрина
     { path: '/profile', icon: User, label: 'Мой профиль' },
     { path: '/settings', icon: Settings, label: 'Настройки' },
   ];
@@ -133,6 +136,9 @@ export default function Layout() {
           <nav className="space-y-1.5 w-full flex-1 pr-5">
             {menuItems.map((item) => {
               const isActive = location.pathname === item.path;
+              // 🔥 Делаем кнопку Магазина немного более акцентной
+              const isShop = item.path === '/shop';
+              
               return (
                 <Link
                   key={item.path}
@@ -140,10 +146,12 @@ export default function Layout() {
                   className={`flex items-center gap-4 p-3 rounded-xl transition-all ${
                     isActive 
                       ? 'bg-[#EEF2FF] text-[#5A4BFF] shadow-sm' 
-                      : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'
+                      : isShop 
+                        ? 'text-purple-500 hover:bg-purple-50' 
+                        : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'
                   }`}
                 >
-                  <item.icon className={`w-6 h-6 shrink-0 ${isActive ? 'text-[#5A4BFF]' : 'text-gray-400'}`} />
+                  <item.icon className={`w-6 h-6 shrink-0 ${isActive ? 'text-[#5A4BFF]' : isShop ? 'text-purple-400' : 'text-gray-400'}`} />
                   <span className="text-sm font-bold whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-300">
                     {item.label}
                   </span>

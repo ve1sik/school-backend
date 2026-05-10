@@ -1,10 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { 
   ArrowLeft, Loader2, CheckCircle2, Clock, PenTool, CheckSquare, 
   XCircle, Type, PlayCircle, FileDown, Link2, ExternalLink, 
-  Search, ChevronDown, ChevronRight, ListTodo, FileSignature, X, BookOpen
+  Search, ChevronDown, ChevronRight, ListTodo, FileSignature, X, BookOpen, List
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -57,6 +57,16 @@ const studentQuillModules = {
   ],
 };
 
+// Хелпер для перемешивания массива (для вариантов ответа в Matching)
+function shuffleArray(array: any[]) {
+  const newArr = [...array];
+  for (let i = newArr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [newArr[i], newArr[j]] = [newArr[j], newArr[i]];
+  }
+  return newArr;
+}
+
 function ExpandableImage({ src, alt, className = '' }: { src: string, alt?: string, className?: string }) {
   const [isExpanded, setIsExpanded] = useState(false);
   return (
@@ -74,9 +84,21 @@ function ExpandableImage({ src, alt, className = '' }: { src: string, alt?: stri
   );
 }
 
-const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswerToggle, handleTextAnswerChange, handleSubmitTest, submissions }: any) => {
+const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswerToggle, handleTextAnswerChange, handleMatchingChange, handleSubmitTest, submissions }: any) => {
   const [isOpen, setIsOpen] = useState(false);
   const [activeStep, setActiveStep] = useState(0);
+
+  // Мемоизируем перемешанные правые варианты для тестов на соответствие, 
+  // чтобы они не прыгали при каждом рендере.
+  const shuffledRightOptions = useMemo(() => {
+    const options: Record<string, string[]> = {};
+    group.blocks.forEach((b: any) => {
+      if (b.type === 'matching' && b.pairs) {
+        options[b.id] = shuffleArray(b.pairs.map((p: any) => p.right));
+      }
+    });
+    return options;
+  }, [group.blocks]);
 
   useEffect(() => { if (!isOpen) setActiveStep(0); }, [isOpen]);
 
@@ -109,15 +131,14 @@ const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswer
   let currentAttempts = attemptsUsed?.[block.id] || 0;
   const maxAttempts = block.maxAttempts || 3;
 
-  // 🔥 ЛОГИКА ОПРЕДЕЛЕНИЯ ПРОВАЛА ИЗ СЕРВЕРА
   if (serverSubmission) {
     if (serverSubmission.status === 'GRADED') {
-      if (['test', 'test_short'].includes(block.type)) {
+      if (['test', 'test_short', 'matching'].includes(block.type)) {
         if (Number(serverSubmission.score) > 0) {
           result = 'SUCCESS';
         } else {
           result = 'ERROR';
-          currentAttempts = maxAttempts; // Если 0 баллов - попытки сгорели
+          currentAttempts = maxAttempts; 
         }
       } else {
         result = 'GRADED';
@@ -130,6 +151,16 @@ const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswer
   const attemptsLeft = maxAttempts - currentAttempts;
   const isExhausted = attemptsLeft <= 0;
   const isLocked = isExhausted || result === 'SUCCESS' || result === 'PENDING' || result === 'GRADED';
+
+  // Для проверки, можно ли нажать кнопку Ответить в Matching
+  let isMatchingReady = false;
+  if (block.type === 'matching' && block.pairs) {
+    // В testAnswers для matching мы храним массив строк вида "Лево|||Право"
+    isMatchingReady = selected.length === block.pairs.length && selected.every((s: string) => {
+      const parts = s.split('|||');
+      return parts.length === 2 && parts[1] && parts[1].trim() !== '';
+    });
+  }
 
   return (
     <div className="bg-white border border-gray-100 rounded-[2rem] p-6 md:p-8 relative shadow-lg shadow-gray-200/50 mb-8">
@@ -151,7 +182,7 @@ const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswer
           
           if (sSub) {
             if (sSub.status === 'GRADED') {
-              if (['test', 'test_short'].includes(b.type)) {
+              if (['test', 'test_short', 'matching'].includes(b.type)) {
                 if (Number(sSub.score) > 0) bRes = 'SUCCESS';
                 else { bRes = 'ERROR'; bAttempts = b.maxAttempts || 3; }
               } else {
@@ -286,6 +317,68 @@ const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswer
           />
         )}
 
+        {/* 🔥 НОВЫЙ БЛОК: ОТОБРАЖЕНИЕ ТЕСТА НА СООТВЕТСТВИЕ */}
+        {block.type === 'matching' && block.pairs && (
+          <div className="space-y-4">
+            <div className="hidden sm:flex px-4 py-2 bg-indigo-50 rounded-xl text-[10px] font-black text-indigo-400 uppercase tracking-widest">
+              <div className="flex-1">Элемент</div>
+              <div className="w-8"></div>
+              <div className="flex-1">Установите соответствие</div>
+            </div>
+            {block.pairs.map((pair: any, idx: number) => {
+              // Ищем текущий выбранный ответ для левой части
+              const currentSelectedPair = selected.find((s: string) => s.startsWith(`${pair.left}|||`));
+              const currentRightValue = currentSelectedPair ? currentSelectedPair.split('|||')[1] : '';
+
+              // Если тест уже отправлен (сохранен на сервере), парсим ответ с сервера
+              let displayRightValue = currentRightValue;
+              if (serverSubmission && serverSubmission.answer) {
+                 const serverPairs = serverSubmission.answer.split(', ');
+                 const serverMatch = serverPairs.find((s: string) => s.startsWith(`${pair.left} - `));
+                 if (serverMatch) {
+                    displayRightValue = serverMatch.split(' - ')[1];
+                 }
+              }
+
+              // Вычисляем стили для проверки (если тест проверен)
+              let borderClass = 'border-gray-200';
+              if (result === 'SUCCESS') borderClass = 'border-emerald-400 bg-emerald-50';
+              else if (result === 'ERROR') borderClass = 'border-red-400 bg-red-50';
+              else if (displayRightValue) borderClass = 'border-indigo-400 bg-indigo-50/30';
+
+              return (
+                <div key={idx} className={`flex flex-col sm:flex-row sm:items-center gap-3 p-4 rounded-2xl border-2 transition-all ${borderClass}`}>
+                  <div className="flex-1 font-bold text-gray-800 bg-white p-3 rounded-xl border border-gray-100 shadow-sm">
+                    {pair.left}
+                  </div>
+                  
+                  <div className="hidden sm:flex text-gray-300">
+                    <ChevronRight className="w-5 h-5" />
+                  </div>
+                  
+                  <div className="flex-1">
+                    <select
+                      disabled={isLocked}
+                      value={displayRightValue}
+                      onChange={(e) => {
+                        if (!isLocked) handleMatchingChange(block.id, pair.left, e.target.value);
+                      }}
+                      className={`w-full p-3 rounded-xl font-bold outline-none cursor-pointer border shadow-sm transition-all appearance-none
+                        ${isLocked ? 'bg-gray-50 border-gray-200 text-gray-500' : 'bg-white border-gray-200 hover:border-indigo-400 focus:border-indigo-600 text-indigo-700'}`
+                      }
+                    >
+                      <option value="" disabled>-- Выберите вариант --</option>
+                      {shuffledRightOptions[block.id]?.map((opt: string, oIdx: number) => (
+                        <option key={oIdx} value={opt}>{opt}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
         {block.type === 'written' && (
           <div className="flex flex-col gap-2 relative">
             {isLocked && serverSubmission && (
@@ -312,7 +405,7 @@ const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswer
         <button 
           type="button"
           onClick={(e) => { e.preventDefault(); handleSubmitTest(block); }} 
-          disabled={selected.length === 0 || selected[0] === '' || selected[0] === '<p><br></p>' || isLocked} 
+          disabled={block.type === 'matching' ? (!isMatchingReady || isLocked) : (selected.length === 0 || selected[0] === '' || selected[0] === '<p><br></p>' || isLocked)} 
           className={`w-full sm:w-auto px-10 py-4 rounded-xl font-black text-sm transition-all active:scale-95 disabled:opacity-50 tracking-wide uppercase ${isExhausted && block.type !== 'written' ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : result === 'ERROR' ? 'bg-[#FF4A6B] hover:bg-red-500 text-white shadow-lg shadow-red-500/30' : result === 'GRADED' ? 'bg-emerald-500 text-white cursor-not-allowed' : 'bg-[#A855F7] hover:bg-[#9333EA] text-white shadow-lg shadow-purple-500/30'}`}
         >
           {result === 'PENDING' ? 'НА ПРОВЕРКЕ' : result === 'GRADED' ? 'ОЦЕНЕНО' : (isExhausted && block.type !== 'written' ? 'ЛИМИТ ИСЧЕРПАН' : result === 'ERROR' ? 'ЕЩЕ РАЗ' : 'ОТВЕТИТЬ')}
@@ -440,7 +533,26 @@ export default function CourseView() {
     }
   };
 
-  // 🔥 ЛОГИКА ОТПРАВКИ 0 БАЛЛОВ ПРИ ПРОВАЛЕ
+  // 🔥 ОБРАБОТЧИК ДЛЯ MATCHING (На соответствие)
+  const handleMatchingChange = (blockId: string, leftText: string, rightText: string) => {
+    const current = Array.isArray(testAnswers?.[blockId]) ? [...testAnswers[blockId]] : [];
+    // Удаляем старый ответ для этого левого элемента (если был)
+    const filtered = current.filter((ans: string) => !ans.startsWith(`${leftText}|||`));
+    // Добавляем новый ответ
+    filtered.push(`${leftText}|||${rightText}`);
+    
+    const newAnswers = { ...testAnswers, [blockId]: filtered };
+    setTestAnswers(newAnswers);
+    localStorage.setItem('demo_answers', JSON.stringify(newAnswers));
+
+    if (testResults?.[blockId] === 'ERROR') {
+      const newResults = { ...testResults };
+      delete newResults[blockId];
+      setTestResults(newResults);
+      localStorage.setItem('demo_results', JSON.stringify(newResults));
+    }
+  };
+
   const handleSubmitTest = async (block: any) => {
     let currentAttempts = attemptsUsed?.[block.id] || 0;
     const maxAttempts = block.maxAttempts || 3;
@@ -450,28 +562,41 @@ export default function CourseView() {
     const selected = Array.isArray(testAnswers?.[block.id]) ? testAnswers[block.id] : [];
     let isSuccess = false;
     let isPending = false;
+    let finalAnswerString = selected.join(', ');
 
     const img = block.questionImage || block.image;
     const questionWithImage = img ? `${block.question}|||IMG|||${img}` : block.question;
 
     if (['written', 'homework'].includes(block.type)) {
       isPending = true;
+      finalAnswerString = selected[0] || '';
     } else if (block.type === 'test') {
       const correctOptions = Array.isArray(block.options) ? block.options.filter((opt: any) => opt.isCorrect).map((opt: any) => opt.text) : [];
       isSuccess = correctOptions.length === selected.length && correctOptions.every((val: string) => selected.includes(val));
     } else if (block.type === 'test_short') {
       const userAnswer = (selected[0] || '').trim();
+      finalAnswerString = userAnswer;
       if (block.ignoreTypos !== false) {
         const cleanUser = userAnswer.toLowerCase().replace(/ё/g, 'е');
         isSuccess = (block.correctAnswers || []).some((ans: string) => ans.trim().toLowerCase().replace(/ё/g, 'е') === cleanUser);
       } else {
         isSuccess = (block.correctAnswers || []).some((ans: string) => ans.trim() === userAnswer);
       }
+    } else if (block.type === 'matching') {
+      // Логика проверки на соответствие
+      const userAnswersMap: Record<string, string> = {};
+      selected.forEach((s: string) => {
+        const parts = s.split('|||');
+        if (parts.length === 2) userAnswersMap[parts[0]] = parts[1];
+      });
+
+      isSuccess = block.pairs.every((pair: any) => userAnswersMap[pair.left] === pair.right);
+      // Для БД форматируем красиво: "А - 1, Б - 2"
+      finalAnswerString = Object.entries(userAnswersMap).map(([k, v]) => `${k} - ${v}`).join(', ');
     }
     
     let newResultState = isPending ? 'PENDING' : (isSuccess ? 'SUCCESS' : 'ERROR');
 
-    // Отправка на бэкенд
     if (!['written', 'homework'].includes(block.type)) {
       currentAttempts += 1;
       const newAttempts = { ...attemptsUsed, [block.id]: currentAttempts };
@@ -480,7 +605,6 @@ export default function CourseView() {
 
       const isNowExhausted = currentAttempts >= maxAttempts;
 
-      // Отправляем если угадал ИЛИ если попытки закончились
       if (isSuccess || isNowExhausted) {
         try {
           const token = localStorage.getItem('token');
@@ -488,7 +612,7 @@ export default function CourseView() {
             lessonId: activeLesson.id,
             blockId: block.id,
             question: questionWithImage,
-            answer: selected.join(', '),
+            answer: finalAnswerString,
             maxScore: block.maxScore || 100
           }, { headers: { Authorization: `Bearer ${token}` } });
 
@@ -503,7 +627,7 @@ export default function CourseView() {
 
             setSubmissions(prev => [
               ...prev.filter(s => s.blockId !== block.id && s.block_id !== block.id),
-              { blockId: block.id, status: 'GRADED', score: finalScore, answer: selected.join(', '), comment }
+              { blockId: block.id, status: 'GRADED', score: finalScore, answer: finalAnswerString, comment }
             ]);
           }
         } catch (error) {}
@@ -514,13 +638,13 @@ export default function CourseView() {
           lessonId: activeLesson.id,
           blockId: block.id,
           question: questionWithImage,
-          answer: selected[0] || '',
+          answer: finalAnswerString,
           maxScore: block.maxScore || 10
         }, { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } });
         
         setSubmissions(prev => [
           ...prev.filter(s => s.blockId !== block.id && s.block_id !== block.id),
-          { blockId: block.id, status: newResultState, answer: selected[0] || selected.join(', ') }
+          { blockId: block.id, status: newResultState, answer: finalAnswerString }
         ]);
       } catch (err) {}
     }
@@ -550,8 +674,8 @@ export default function CourseView() {
     }
   }
 
-  const theoryBlocks = blocks.filter(b => !['test', 'test_short', 'written'].includes(b.type) && !b.isHomework);
-  const practiceBlocks = blocks.filter(b => ['test', 'test_short', 'written'].includes(b.type) && !b.isHomework);
+  const theoryBlocks = blocks.filter(b => !['test', 'test_short', 'written', 'matching'].includes(b.type) && !b.isHomework);
+  const practiceBlocks = blocks.filter(b => ['test', 'test_short', 'written', 'matching'].includes(b.type) && !b.isHomework);
   const homeworkBlocks = blocks.filter(b => b.isHomework);
 
   const groupInteractiveBlocks = (blocksToGroup: any[]) => {
@@ -561,7 +685,8 @@ export default function CourseView() {
     ];
 
     blocksToGroup.forEach(b => {
-      if (b.type === 'test' || b.type === 'test_short') {
+      // Добавляем matching в группу тестов
+      if (['test', 'test_short', 'matching'].includes(b.type)) {
         groups.find(g => g.type === 'tests')?.blocks.push(b);
       } else if (b.type === 'written') {
         groups.find(g => g.type === 'written')?.blocks.push(b);
@@ -573,7 +698,7 @@ export default function CourseView() {
 
   const practiceGroups = groupInteractiveBlocks(practiceBlocks);
   const hwGroups = groupInteractiveBlocks(homeworkBlocks);
-  const hwTheoryBlocks = homeworkBlocks.filter(b => !['test', 'test_short', 'written'].includes(b.type));
+  const hwTheoryBlocks = homeworkBlocks.filter(b => !['test', 'test_short', 'written', 'matching'].includes(b.type));
 
   const renderTheoryBlock = (block: any) => {
     if (block.type === 'video_file' && block.url) {
@@ -650,7 +775,10 @@ export default function CourseView() {
           <div className="w-12 h-12 bg-cyan-100 rounded-xl flex items-center justify-center shrink-0"><FileDown className="w-6 h-6 text-cyan-600" /></div>
           <div className="min-w-0">
             <h3 className="text-lg font-black text-gray-900 leading-tight break-words">{block.title || 'Файл для скачивания'}</h3>
-            {block.content && <p className="text-xs font-medium text-gray-600 mt-1 break-words">{block.content}</p>}
+            {/* Рендерим Ворд-описание файла если есть */}
+            {block.content && (
+               <div className="text-xs font-medium text-gray-600 mt-1 break-words prose prose-sm max-w-none ql-editor px-0" dangerouslySetInnerHTML={{ __html: safeHtml(block.content) }} />
+            )}
           </div>
         </div>
         <a href={getFullUrl(block.url)} target="_blank" rel="noopener noreferrer" download className="shrink-0 w-full sm:w-auto px-6 py-3 bg-cyan-600 hover:bg-cyan-500 text-white rounded-xl font-bold text-sm transition-all shadow-md active:scale-95 flex items-center justify-center gap-2">
@@ -797,7 +925,8 @@ export default function CourseView() {
                               key={`${activeLesson.id}-${group.type}`} 
                               group={group} 
                               testAnswers={testAnswers} testResults={testResults} attemptsUsed={attemptsUsed} 
-                              handleAnswerToggle={handleAnswerToggle} handleTextAnswerChange={handleTextAnswerChange} handleSubmitTest={handleSubmitTest}
+                              handleAnswerToggle={handleAnswerToggle} handleTextAnswerChange={handleTextAnswerChange} 
+                              handleMatchingChange={handleMatchingChange} handleSubmitTest={handleSubmitTest}
                               submissions={submissions}
                             />
                           ))}
@@ -852,7 +981,8 @@ export default function CourseView() {
                                 key={`hw-${activeLesson.id}-${group.type}`} 
                                 group={group} 
                                 testAnswers={testAnswers} testResults={testResults} attemptsUsed={attemptsUsed} 
-                                handleAnswerToggle={handleAnswerToggle} handleTextAnswerChange={handleTextAnswerChange} handleSubmitTest={handleSubmitTest}
+                                handleAnswerToggle={handleAnswerToggle} handleTextAnswerChange={handleTextAnswerChange} 
+                                handleMatchingChange={handleMatchingChange} handleSubmitTest={handleSubmitTest}
                                 submissions={submissions}
                               />
                             ))}

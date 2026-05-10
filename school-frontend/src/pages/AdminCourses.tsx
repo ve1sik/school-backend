@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { GraduationCap, X, PlayCircle, Trash2, ArrowLeft, FileText, CheckSquare, Eye, EyeOff, Pencil, Type, PenTool, CheckCircle2, ArrowUp, ArrowDown, Image as ImageIcon, UploadCloud, Plus, FileDown, Link2, BookOpen, Loader2, FileSignature, SaveAll } from 'lucide-react';
+import { GraduationCap, X, PlayCircle, Trash2, ArrowLeft, FileText, CheckSquare, Eye, EyeOff, Pencil, Type, PenTool, CheckCircle2, ArrowUp, ArrowDown, Image as ImageIcon, UploadCloud, Plus, FileDown, Link2, BookOpen, Loader2, FileSignature, SaveAll, List, ArrowRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
@@ -86,7 +86,6 @@ export default function AdminCourses() {
   const [hwBlocks, setHwBlocks] = useState<any[]>([]);
   const [hasHomeworkSection, setHasHomeworkSection] = useState(false);
 
-  // 🔥 Стейты для новых фич
   const [shortAnswerInputs, setShortAnswerInputs] = useState<Record<string, string>>({});
   const [errors, setErrors] = useState<Record<string, boolean>>({});
   const [hasDraft, setHasDraft] = useState(false);
@@ -105,13 +104,11 @@ export default function AdminCourses() {
     fetchItems();
     setShowThemeModal(false);
     setSelectedCourseForThemes(null);
-    // Проверяем, есть ли сохраненный черновик
     if (localStorage.getItem('lesson_draft')) {
       setHasDraft(true);
     }
   }, []);
 
-  // 🔥 АВТОСОХРАНЕНИЕ ЧЕРНОВИКА
   useEffect(() => {
     if (selectedThemeForLesson && (newLessonTitle || blocks.length > 0 || hwBlocks.length > 0)) {
       const draft = { newLessonTitle, blocks, hwBlocks, hasHomeworkSection, editingLessonId };
@@ -199,10 +196,13 @@ export default function AdminCourses() {
     if (type === 'file') { newBlock.url = ''; newBlock.title = 'Файл для скачивания'; }
     if (type === 'link') { newBlock.url = ''; newBlock.buttonText = 'Перейти'; newBlock.title = 'Ссылка / Кнопка'; }
     
-    // 🔥 ДОБАВЛЕН ДЕФОЛТНЫЙ БАЛЛ ДЛЯ ТЕСТОВ (3 балла)
+    // Интерактивные блоки
     if (type === 'test') { newBlock.question = ''; newBlock.maxAttempts = 3; newBlock.maxScore = 3; newBlock.options = [{ text: '', isCorrect: false }]; newBlock.explanation = ''; newBlock.source = ''; newBlock.title = 'Тест'; }
     if (type === 'test_short') { newBlock.question = ''; newBlock.correctAnswers = []; newBlock.ignoreTypos = true; newBlock.maxAttempts = 3; newBlock.maxScore = 3; newBlock.explanation = ''; newBlock.source = ''; newBlock.title = 'Тест с кратким ответом'; }
     if (type === 'written') { newBlock.question = ''; newBlock.maxScore = 3; newBlock.explanation = ''; newBlock.source = ''; newBlock.title = 'Развернутый ответ'; }
+    
+    // 🔥 БЛОК: На соответствие
+    if (type === 'matching') { newBlock.question = ''; newBlock.maxAttempts = 3; newBlock.maxScore = 3; newBlock.pairs = [{ left: '', right: '' }]; newBlock.explanation = ''; newBlock.source = ''; newBlock.title = 'Тест на соответствие'; }
     
     if (isHw) { setHwBlocks(prev => [...prev, newBlock]); setTimeout(() => document.getElementById('hw-section-end')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 100); } 
     else { setBlocks(prev => [...prev, newBlock]); setTimeout(() => document.getElementById('theory-section-end')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 100); }
@@ -212,7 +212,6 @@ export default function AdminCourses() {
     if (isHw) setHwBlocks(hwBlocks.map(b => b.id === id ? { ...b, ...data } : b));
     else setBlocks(blocks.map(b => b.id === id ? { ...b, ...data } : b));
     
-    // Снимаем ошибку при изменении
     if (errors[id]) {
       const newErr = {...errors};
       delete newErr[id];
@@ -274,7 +273,6 @@ export default function AdminCourses() {
     setTimeout(() => document.getElementById('lesson-form')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
   };
 
-  // 🔥 ПРОВЕРКА ПУСТЫХ ПОЛЕЙ (ВАЛИДАЦИЯ)
   const isQuillEmpty = (html: string) => !html || html.replace(/<[^>]*>?/gm, '').trim().length === 0;
 
   const handleSaveLesson = async (theme: any) => {
@@ -284,7 +282,7 @@ export default function AdminCourses() {
 
     const validateArr = (arr: any[]) => {
       arr.forEach(b => {
-        if (['test', 'test_short', 'written'].includes(b.type)) {
+        if (['test', 'test_short', 'written', 'matching'].includes(b.type)) {
           if (isQuillEmpty(b.question)) newErrors[b.id] = true;
           
           if (b.type === 'test') {
@@ -294,6 +292,11 @@ export default function AdminCourses() {
           }
           if (b.type === 'test_short') {
             if (!b.correctAnswers || b.correctAnswers.length === 0) newErrors[b.id] = true;
+          }
+          // Валидация теста на соответствие
+          if (b.type === 'matching') {
+            if (!b.pairs || b.pairs.length === 0) newErrors[b.id] = true;
+            b.pairs?.forEach((p: any) => { if (!p.left.trim() || !p.right.trim()) newErrors[b.id] = true; });
           }
         }
       });
@@ -333,7 +336,7 @@ export default function AdminCourses() {
         await axios.post(`${API_URL}/lessons`, { ...payload, order_index: ((theme.lessons || []).length) + 1 }, getTokenConfig());
         showToast('Успешно создано!');
       }
-      localStorage.removeItem('lesson_draft'); // Успешно сохранили - удаляем черновик
+      localStorage.removeItem('lesson_draft');
       setHasDraft(false);
       resetLessonForm(); fetchItems();
     } catch (err) { showToast('Ошибка сохранения', 'error'); }
@@ -450,6 +453,7 @@ export default function AdminCourses() {
               </div>
             )}
 
+            {/* 🔥 ОБНОВЛЕННЫЙ БЛОК: Файл для скачивания с Ворд-редактором */}
             {block.type === 'file' && (
               <div>
                 <div className="flex items-center gap-3 mb-6 group/header bg-cyan-50 p-4 rounded-xl">
@@ -463,7 +467,9 @@ export default function AdminCourses() {
                   </label>
                   {block.fileName && <span className="text-sm font-bold text-emerald-600 flex items-center gap-2 bg-emerald-50 px-4 py-2 rounded-lg"><CheckCircle2 className="w-4 h-4" /> {block.fileName}</span>}
                 </div>
-                <textarea value={block.content || ''} onChange={(e) => updateBlock(block.id, { content: e.target.value }, isHw)} placeholder="Краткое описание файла (необязательно)..." rows={2} className="w-full p-4 rounded-xl border border-gray-200 outline-none focus:border-cyan-400 transition-all" />
+                <div className="bg-white rounded-2xl overflow-visible border border-gray-200 focus-within:border-cyan-400 focus-within:ring-2 focus-within:ring-cyan-100 transition-all z-10 relative">
+                  <ReactQuill theme="snow" modules={quillModules} value={block.content || ''} onChange={(val) => updateBlock(block.id, { content: val }, isHw)} placeholder="Краткое описание файла или инструкция (необязательно)..." className="min-h-[100px] pb-12" />
+                </div>
               </div>
             )}
 
@@ -486,12 +492,12 @@ export default function AdminCourses() {
               </div>
             )}
 
-            {/* 🔥 ОБЩАЯ ВЕРХУШКА ДЛЯ ИНТЕРАКТИВНЫХ БЛОКОВ (Тест, Краткий ответ, Развернутый ответ) */}
-            {['test', 'test_short', 'written'].includes(block.type) && (
+            {/* 🔥 ОБЩАЯ ВЕРХУШКА ДЛЯ ИНТЕРАКТИВНЫХ БЛОКОВ */}
+            {['test', 'test_short', 'written', 'matching'].includes(block.type) && (
               <>
-                <div className={`flex items-center gap-3 mb-6 group/header p-4 rounded-xl ${block.type === 'test' ? 'bg-rose-50' : block.type === 'test_short' ? 'bg-amber-50' : 'bg-purple-50'}`}>
-                  {block.type === 'test' ? <CheckSquare className="w-6 h-6 text-rose-600 shrink-0" /> : block.type === 'test_short' ? <Type className="w-6 h-6 text-amber-600 shrink-0" /> : <PenTool className="w-6 h-6 text-purple-600 shrink-0" />}
-                  <input value={block.title !== undefined ? block.title : (block.type === 'test' ? 'Тест' : block.type === 'test_short' ? 'Краткий ответ' : 'Развернутый ответ')} onChange={(e) => updateBlock(block.id, { title: e.target.value }, isHw)} className={`flex-1 bg-transparent border-b-2 border-dashed border-transparent outline-none font-black text-xl transition-all ${block.type === 'test' ? 'hover:border-rose-300 focus:border-rose-600 text-rose-900 placeholder:text-rose-300' : block.type === 'test_short' ? 'hover:border-amber-300 focus:border-amber-600 text-amber-900 placeholder:text-amber-300' : 'hover:border-purple-300 focus:border-purple-600 text-purple-900 placeholder:text-purple-300'}`} placeholder="Заголовок блока..." />
+                <div className={`flex items-center gap-3 mb-6 group/header p-4 rounded-xl ${block.type === 'test' ? 'bg-rose-50' : block.type === 'test_short' ? 'bg-amber-50' : block.type === 'matching' ? 'bg-indigo-50' : 'bg-purple-50'}`}>
+                  {block.type === 'test' ? <CheckSquare className="w-6 h-6 text-rose-600 shrink-0" /> : block.type === 'test_short' ? <Type className="w-6 h-6 text-amber-600 shrink-0" /> : block.type === 'matching' ? <List className="w-6 h-6 text-indigo-600 shrink-0" /> : <PenTool className="w-6 h-6 text-purple-600 shrink-0" />}
+                  <input value={block.title !== undefined ? block.title : (block.type === 'test' ? 'Тест' : block.type === 'test_short' ? 'Краткий ответ' : block.type === 'matching' ? 'На соответствие' : 'Развернутый ответ')} onChange={(e) => updateBlock(block.id, { title: e.target.value }, isHw)} className={`flex-1 bg-transparent border-b-2 border-dashed border-transparent outline-none font-black text-xl transition-all ${block.type === 'test' ? 'hover:border-rose-300 focus:border-rose-600 text-rose-900 placeholder:text-rose-300' : block.type === 'test_short' ? 'hover:border-amber-300 focus:border-amber-600 text-amber-900 placeholder:text-amber-300' : block.type === 'matching' ? 'hover:border-indigo-300 focus:border-indigo-600 text-indigo-900 placeholder:text-indigo-300' : 'hover:border-purple-300 focus:border-purple-600 text-purple-900 placeholder:text-purple-300'}`} placeholder="Заголовок блока..." />
                 </div>
                 
                 <div className="flex flex-col sm:flex-row gap-4 mb-6">
@@ -506,10 +512,10 @@ export default function AdminCourses() {
                   
                   {/* 🔥 БЛОК ОЦЕНОК И ПОПЫТОК */}
                   <div className="flex flex-col gap-4 w-full sm:w-32 shrink-0">
-                    {['test', 'test_short'].includes(block.type) && (
+                    {['test', 'test_short', 'matching'].includes(block.type) && (
                       <div>
                         <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">Попыток</label>
-                        <input type="number" min="1" max="100" value={block.maxAttempts !== undefined ? block.maxAttempts : 3} onChange={(e) => updateBlock(block.id, { maxAttempts: e.target.value === '' ? '' : parseInt(e.target.value) }, isHw)} className={`w-full p-4 rounded-xl border border-gray-200 outline-none font-black text-center transition-all ${block.type === 'test' ? 'text-rose-600 focus:border-rose-400' : 'text-amber-600 focus:border-amber-400'}`} />
+                        <input type="number" min="1" max="100" value={block.maxAttempts !== undefined ? block.maxAttempts : 3} onChange={(e) => updateBlock(block.id, { maxAttempts: e.target.value === '' ? '' : parseInt(e.target.value) }, isHw)} className={`w-full p-4 rounded-xl border border-gray-200 outline-none font-black text-center transition-all ${block.type === 'test' ? 'text-rose-600 focus:border-rose-400' : block.type === 'matching' ? 'text-indigo-600 focus:border-indigo-400' : 'text-amber-600 focus:border-amber-400'}`} />
                       </div>
                     )}
                     <div>
@@ -556,7 +562,7 @@ export default function AdminCourses() {
               </div>
             )}
 
-            {/* 🔥 СПЕЦИФИКА ТЕСТА С КРАТКИМ ОТВЕТОМ (С тегами) */}
+            {/* СПЕЦИФИКА ТЕСТА С КРАТКИМ ОТВЕТОМ */}
             {block.type === 'test_short' && (
               <div>
                 <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3 block">
@@ -606,8 +612,44 @@ export default function AdminCourses() {
               </div>
             )}
 
-            {/* 🔥 ОБЩИЙ ПОДВАЛ (ИСТОЧНИК И РАЗБОР) ДЛЯ ИНТЕРАКТИВНЫХ БЛОКОВ */}
-            {['test', 'test_short', 'written'].includes(block.type) && (
+            {/* СПЕЦИФИКА ТЕСТА НА СООТВЕТСТВИЕ */}
+            {block.type === 'matching' && (
+              <div className="space-y-3">
+                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block">
+                  Пары соответствия (Столбец 1 ➔ Столбец 2) {isError && (!block.pairs || block.pairs.length === 0 || block.pairs.some((p:any) => !p.left.trim() || !p.right.trim())) && <span className="text-red-500">* Заполните все поля</span>}
+                </label>
+                {block.pairs?.map((pair: any, idx: number) => (
+                  <div key={idx} className={`flex items-center gap-3 p-3 rounded-2xl border-2 transition-all ${isError && (!pair.left.trim() || !pair.right.trim()) ? 'border-red-400 bg-red-50' : 'border-gray-200 bg-white'}`}>
+                    <div className="flex-1 flex flex-col sm:flex-row gap-3">
+                      <input 
+                        value={pair.left} 
+                        onChange={(e) => { const newPairs = [...block.pairs]; newPairs[idx].left = e.target.value; updateBlock(block.id, { pairs: newPairs }, isHw); }} 
+                        placeholder="Элемент 1 (напр: А или Азот)" 
+                        className="flex-1 p-3 bg-gray-50 rounded-xl outline-none font-bold text-gray-800 focus:bg-white focus:ring-2 focus:ring-indigo-400 transition-all border border-transparent focus:border-indigo-200" 
+                      />
+                      <div className="hidden sm:flex items-center justify-center text-gray-300">
+                        <ArrowRight className="w-5 h-5" />
+                      </div>
+                      <input 
+                        value={pair.right} 
+                        onChange={(e) => { const newPairs = [...block.pairs]; newPairs[idx].right = e.target.value; updateBlock(block.id, { pairs: newPairs }, isHw); }} 
+                        placeholder="Элемент 2 (напр: 1 или Газ)" 
+                        className="flex-1 p-3 bg-gray-50 rounded-xl outline-none font-bold text-gray-800 focus:bg-white focus:ring-2 focus:ring-emerald-400 transition-all border border-transparent focus:border-emerald-200" 
+                      />
+                    </div>
+                    <button type="button" onClick={() => { const newPairs = block.pairs.filter((_:any, i:number) => i !== idx); updateBlock(block.id, { pairs: newPairs }, isHw); }} className="p-2 text-gray-400 hover:text-red-500 shrink-0">
+                      <Trash2 className="w-5 h-5" />
+                    </button>
+                  </div>
+                ))}
+                <button type="button" onClick={() => { updateBlock(block.id, { pairs: [...(block.pairs || []), { left: '', right: '' }] }, isHw); }} className="mt-4 px-5 py-4 w-full border-2 border-dashed border-indigo-300 text-indigo-600 hover:bg-indigo-50 rounded-2xl font-black transition-all flex items-center justify-center gap-2">
+                  <Plus className="w-5 h-5" /> ДОБАВИТЬ ПАРУ
+                </button>
+              </div>
+            )}
+
+            {/* ОБЩИЙ ПОДВАЛ (ИСТОЧНИК И РАЗБОР) ДЛЯ ИНТЕРАКТИВНЫХ БЛОКОВ */}
+            {['test', 'test_short', 'written', 'matching'].includes(block.type) && (
               <div className="mt-8 pt-8 border-t-2 border-dashed border-gray-200 space-y-6">
                 <div>
                   <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-2">Источник / Тип задания (необязательно)</label>
@@ -650,6 +692,7 @@ export default function AdminCourses() {
         <div className="grid grid-cols-1 gap-2">
           <button type="button" onClick={() => addBlock('test', isHw)} className={`${btnClass} !flex-row !justify-start px-4`}><CheckSquare className="w-5 h-5 text-rose-500" /> Тест (Варианты)</button>
           <button type="button" onClick={() => addBlock('test_short', isHw)} className={`${btnClass} !flex-row !justify-start px-4`}><Type className="w-5 h-5 text-amber-500" /> Краткий ответ</button>
+          <button type="button" onClick={() => addBlock('matching', isHw)} className={`${btnClass} !flex-row !justify-start px-4`}><List className="w-5 h-5 text-indigo-500" /> На соответствие</button>
           <button type="button" onClick={() => addBlock('written', isHw)} className={`${btnClass} !flex-row !justify-start px-4`}><PenTool className="w-5 h-5 text-purple-500" /> Развернутый ответ</button>
         </div>
       </div>
@@ -764,7 +807,7 @@ export default function AdminCourses() {
                         <div className="space-y-3">
                           {visibleLessons.map((lesson: any) => {
                             let hasVideo = false; let hasText = false; let hasTest = false; let hasShort = false; let hasHomework = false; let hasWritten = false;
-                            let hasImage = false; let hasVideoFile = false; let hasFile = false; let hasLink = false;
+                            let hasImage = false; let hasVideoFile = false; let hasFile = false; let hasLink = false; let hasMatching = false;
                             
                             if (lesson.content) {
                               try {
@@ -774,6 +817,7 @@ export default function AdminCourses() {
                                 hasWritten = parsed.some((b:any) => b.type === 'written'); hasHomework = parsed.some((b:any) => b.isHomework); 
                                 hasImage = parsed.some((b:any) => b.type === 'image'); hasVideoFile = parsed.some((b:any) => b.type === 'video_file');
                                 hasFile = parsed.some((b:any) => b.type === 'file'); hasLink = parsed.some((b:any) => b.type === 'link');
+                                hasMatching = parsed.some((b:any) => b.type === 'matching');
                               } catch(e) { hasText = true; }
                             }
                             
@@ -788,6 +832,7 @@ export default function AdminCourses() {
                                     {hasLink && <Link2 className="w-4 h-4 text-pink-500" />}
                                     {hasTest && <CheckSquare className="w-4 h-4 text-rose-500" />}
                                     {hasShort && <Type className="w-4 h-4 text-amber-500" />}
+                                    {hasMatching && <List className="w-4 h-4 text-indigo-500" />}
                                     {hasWritten && <PenTool className="w-4 h-4 text-purple-500" />}
                                     {hasHomework && <FileSignature className="w-4 h-4 text-purple-500" />}
                                   </div>

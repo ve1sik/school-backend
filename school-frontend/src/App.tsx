@@ -17,6 +17,7 @@ import Settings from './pages/Settings';
 import ParentDashboard from './pages/ParentDashboard';
 import CuratorDashboard from './pages/CuratorDashboard';
 import CuratorMessages from './pages/CuratorMessages';
+import Shop from './pages/Shop';
 
 // 🔥 Импортируем нашу новую страницу Групп
 import AdminGroups from './pages/AdminGroups';
@@ -60,6 +61,8 @@ export default function App() {
       <Route path="homework/:id" element={<HomeworkView />} />
 
       <Route path="*" element={<Navigate to="/" replace />} />
+
+      <Route path="/shop" element={<Shop />} />
     </Routes>
   );
 }
