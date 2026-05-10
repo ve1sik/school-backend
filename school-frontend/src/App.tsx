@@ -31,6 +31,8 @@ export default function App() {
       <Route path="/curator" element={<CuratorDashboard />} />
       <Route path="/curator/messages" element={<CuratorMessages />} />
 
+      {/* ВСЁ, ЧТО ВНУТРИ ЭТОГО БЛОКА, БУДЕТ С ПАНЕЛЬЮ (LAYOUT) 
+      */}
       <Route path="/" element={<Layout />}>
         <Route index element={<Dashboard />} />
         <Route path="courses" element={<StudentCourses />} />
@@ -56,13 +58,14 @@ export default function App() {
         <Route path="cards" element={<Cards />} />
         <Route path="messages" element={<Messages />} />
         <Route path="settings" element={<Settings />} />
+
+        {/* 🔥 ПЕРЕНЕСЛИ ШОП СЮДА — ТЕПЕРЬ ТУТ БУДЕТ САЙДБАР */}
+        <Route path="shop" element={<Shop />} />
       </Route>
 
       <Route path="homework/:id" element={<HomeworkView />} />
 
       <Route path="*" element={<Navigate to="/" replace />} />
-
-      <Route path="/shop" element={<Shop />} />
     </Routes>
   );
 }

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Users, Plus, Trash2, BookOpen, Loader2, Save, X, Edit3, ShieldCheck, UserCircle, Search, UserCheck } from 'lucide-react';
+import { Users, Plus, Trash2, BookOpen, Loader2, Save, X, Edit3, ShieldCheck, UserCircle, Search, UserCheck, CreditCard, Image as ImageIcon, UploadCloud } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 
@@ -9,18 +9,21 @@ export default function AdminGroups() {
   const [groups, setGroups] = useState<any[]>([]);
   const [courses, setCourses] = useState<any[]>([]);
   const [students, setStudents] = useState<any[]>([]);
-  const [curators, setCurators] = useState<any[]>([]); // 🔥 Стейт кураторов
+  const [curators, setCurators] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [newGroupTitle, setNewGroupTitle] = useState('');
   
-  // Для модалки редактирования
   const [selectedGroup, setSelectedGroup] = useState<any | null>(null);
   const [showModal, setShowModal] = useState(false);
   const [selectedCourseIds, setSelectedCourseIds] = useState<string[]>([]);
   const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
-  const [selectedCuratorId, setSelectedCuratorId] = useState<string>(''); // 🔥 Выбранный куратор
+  const [selectedCuratorId, setSelectedCuratorId] = useState<string>('');
+  
+  // 🔥 СТЕЙТЫ ДЛЯ ЦЕНЫ И ОБЛОЖКИ
+  const [selectedPrice, setSelectedPrice] = useState<number | string>(0);
+  const [selectedCoverUrl, setSelectedCoverUrl] = useState<string>(''); 
+  const [isUploading, setIsUploading] = useState(false);
 
-  // Стейты для поиска
   const [courseSearch, setCourseSearch] = useState('');
   const [studentSearch, setStudentSearch] = useState('');
 
@@ -37,7 +40,7 @@ export default function AdminGroups() {
         axios.get(`${API_URL}/groups`, getTokenConfig()),
         axios.get(`${API_URL}/courses`, getTokenConfig()),
         axios.get(`${API_URL}/users/students`, getTokenConfig()),
-        axios.get(`${API_URL}/users/curators`, getTokenConfig()) // 🔥 Тянем кураторов
+        axios.get(`${API_URL}/users/curators`, getTokenConfig())
       ]);
       setGroups(groupsRes.data);
       setCourses(coursesRes.data);
@@ -78,7 +81,11 @@ export default function AdminGroups() {
       setSelectedGroup(res.data);
       setSelectedCourseIds(res.data.courses?.map((c: any) => c.id) || []);
       setSelectedStudentIds(res.data.students?.map((s: any) => s.id) || []);
-      setSelectedCuratorId(res.data.curator?.id || ''); // 🔥 Подтягиваем текущего куратора
+      setSelectedCuratorId(res.data.curator?.id || '');
+      
+      // Подтягиваем данные из базы
+      setSelectedPrice(res.data.price || 0);
+      setSelectedCoverUrl(res.data.cover_url || ''); 
       
       setCourseSearch('');
       setStudentSearch('');
@@ -88,16 +95,32 @@ export default function AdminGroups() {
     }
   };
 
+  // 🔥 Функция загрузки картинки на сервер
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsUploading(true);
+    const formData = new FormData();
+    formData.append('file', file);
+    try {
+      const res = await axios.post(`${API_URL}/upload`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data', Authorization: `Bearer ${localStorage.getItem('token')}` }
+      });
+      setSelectedCoverUrl(res.data.url);
+    } catch (error) {
+      console.error("Ошибка загрузки картинки", error);
+      alert("Ошибка при загрузке картинки");
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
   const handleToggleCourse = (courseId: string) => {
-    setSelectedCourseIds(prev => 
-      prev.includes(courseId) ? prev.filter(id => id !== courseId) : [...prev, courseId]
-    );
+    setSelectedCourseIds(prev => prev.includes(courseId) ? prev.filter(id => id !== courseId) : [...prev, courseId]);
   };
 
   const handleToggleStudent = (studentId: string) => {
-    setSelectedStudentIds(prev => 
-      prev.includes(studentId) ? prev.filter(id => id !== studentId) : [...prev, studentId]
-    );
+    setSelectedStudentIds(prev => prev.includes(studentId) ? prev.filter(id => id !== studentId) : [...prev, studentId]);
   };
 
   const handleSaveGroupSettings = async () => {
@@ -106,7 +129,12 @@ export default function AdminGroups() {
       await Promise.all([
         axios.post(`${API_URL}/groups/${selectedGroup.id}/courses`, { courseIds: selectedCourseIds }, getTokenConfig()),
         axios.post(`${API_URL}/groups/${selectedGroup.id}/students`, { studentIds: selectedStudentIds }, getTokenConfig()),
-        axios.patch(`${API_URL}/groups/${selectedGroup.id}`, { curator_id: selectedCuratorId || null }, getTokenConfig()) // 🔥 Сохраняем куратора
+        // 🔥 Сохраняем цену и обложку
+        axios.patch(`${API_URL}/groups/${selectedGroup.id}`, { 
+          curator_id: selectedCuratorId || null,
+          price: Number(selectedPrice),
+          cover_url: selectedCoverUrl
+        }, getTokenConfig())
       ]);
       setShowModal(false);
       fetchData(); 
@@ -115,10 +143,7 @@ export default function AdminGroups() {
     }
   };
 
-  const filteredCourses = courses.filter(course => 
-    course.title.toLowerCase().includes(courseSearch.toLowerCase())
-  );
-
+  const filteredCourses = courses.filter(course => course.title.toLowerCase().includes(courseSearch.toLowerCase()));
   const filteredStudents = students.filter(student => {
     const searchStr = `${student.name || ''} ${student.surname || ''} ${student.email || ''}`.toLowerCase();
     return searchStr.includes(studentSearch.toLowerCase());
@@ -136,19 +161,11 @@ export default function AdminGroups() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* ЛЕВАЯ КОЛОНКА */}
         <div className="lg:col-span-1">
           <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-gray-100 sticky top-8">
             <h2 className="text-xl font-black mb-6 flex items-center gap-2"><Users className="w-6 h-6 text-[#5A4BFF]" /> Новая группа</h2>
             <form onSubmit={handleCreateGroup} className="space-y-4">
-              <input 
-                type="text" 
-                value={newGroupTitle} 
-                onChange={(e) => setNewGroupTitle(e.target.value)} 
-                placeholder="Напр: ОГЭ История - Сентябрь" 
-                className="w-full px-5 py-4 bg-gray-50 rounded-xl outline-none focus:bg-white focus:ring-2 focus:ring-indigo-400 transition-all font-bold text-gray-700" 
-                required 
-              />
+              <input type="text" value={newGroupTitle} onChange={(e) => setNewGroupTitle(e.target.value)} placeholder="Напр: ОГЭ История - Сентябрь" className="w-full px-5 py-4 bg-gray-50 rounded-xl outline-none focus:bg-white focus:ring-2 focus:ring-indigo-400 transition-all font-bold text-gray-700" required />
               <button type="submit" className="w-full py-4 bg-[#5A4BFF] hover:bg-[#4a3dec] text-white rounded-xl font-black transition-all flex items-center justify-center gap-2 active:scale-95 shadow-lg shadow-indigo-500/20">
                 <Plus className="w-5 h-5" /> Создать поток
               </button>
@@ -156,32 +173,37 @@ export default function AdminGroups() {
           </div>
         </div>
 
-        {/* ПРАВАЯ КОЛОНКА */}
         <div className="lg:col-span-2 space-y-4">
           {groups.length === 0 ? (
             <div className="bg-white p-10 rounded-[2rem] border border-dashed border-gray-300 flex flex-col items-center justify-center text-center">
               <Users className="w-16 h-16 text-gray-200 mb-4" />
               <h3 className="text-xl font-black text-gray-400">Групп пока нет</h3>
-              <p className="text-gray-400 font-medium mt-2">Создай первую группу, чтобы распределять учеников.</p>
             </div>
           ) : (
             groups.map(group => (
               <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} key={group.id} className="bg-white p-6 md:p-8 rounded-[2rem] shadow-sm border border-gray-100 hover:shadow-md transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-6 group/card">
-                <div>
-                  <h3 className="text-2xl font-black text-gray-900 mb-2">{group.title}</h3>
-                  <div className="flex flex-wrap items-center gap-3">
-                    <span className="px-4 py-1.5 bg-indigo-50 text-indigo-700 rounded-lg text-sm font-bold flex items-center gap-2">
-                      <Users className="w-4 h-4" /> Студентов: {group._count?.students || 0}
-                    </span>
-                    <span className="px-4 py-1.5 bg-emerald-50 text-emerald-700 rounded-lg text-sm font-bold flex items-center gap-2">
-                      <BookOpen className="w-4 h-4" /> Курсов: {group._count?.courses || 0}
-                    </span>
-                    {/* 🔥 Вывод куратора на карточке группы */}
-                    {group.curator && (
-                      <span className="px-4 py-1.5 bg-purple-50 text-purple-700 rounded-lg text-sm font-bold flex items-center gap-2">
-                        <UserCheck className="w-4 h-4" /> Куратор: {group.curator.name || 'Без имени'} {group.curator.surname || ''}
+                <div className="flex items-center gap-6">
+                  {/* 🔥 ПРЕВЬЮ ОБЛОЖКИ */}
+                  {group.cover_url ? (
+                    <div className="w-16 h-16 rounded-xl bg-gray-100 overflow-hidden shrink-0 border border-gray-200">
+                      <img src={group.cover_url.startsWith('http') ? group.cover_url : `${API_URL.replace('/api', '')}/${group.cover_url}`} alt="Обложка" className="w-full h-full object-cover" />
+                    </div>
+                  ) : (
+                    <div className="w-16 h-16 rounded-xl bg-indigo-50 flex items-center justify-center shrink-0 border border-indigo-100">
+                      <ImageIcon className="w-6 h-6 text-indigo-300" />
+                    </div>
+                  )}
+                  <div>
+                    <h3 className="text-2xl font-black text-gray-900 mb-2">{group.title}</h3>
+                    <div className="flex flex-wrap items-center gap-3">
+                      <span className="px-4 py-1.5 bg-indigo-50 text-indigo-700 rounded-lg text-sm font-bold flex items-center gap-2">
+                        <Users className="w-4 h-4" /> Учеников: {group._count?.students || 0}
                       </span>
-                    )}
+                      {/* 🔥 ЦЕНА */}
+                      <span className="px-4 py-1.5 bg-emerald-50 text-emerald-700 rounded-lg text-sm font-bold flex items-center gap-2">
+                        <CreditCard className="w-4 h-4" /> {group.price > 0 ? `${group.price} ₽` : 'Бесплатно'}
+                      </span>
+                    </div>
                   </div>
                 </div>
                 
@@ -199,7 +221,6 @@ export default function AdminGroups() {
         </div>
       </div>
 
-      {/* МОДАЛКА НАСТРОЙКИ ГРУППЫ */}
       <AnimatePresence>
         {showModal && selectedGroup && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -211,53 +232,66 @@ export default function AdminGroups() {
               <h3 className="text-3xl font-black text-gray-900 mb-2">{selectedGroup.title}</h3>
               <p className="text-gray-500 font-medium mb-6 flex items-center gap-2"><ShieldCheck className="w-4 h-4" /> Настройка доступов и состава</p>
 
-              {/* 🔥 БЛОК ВЫБОРА КУРАТОРА */}
-              <div className="mb-6 bg-purple-50/50 p-5 rounded-2xl border border-purple-100">
-                <h4 className="text-[11px] font-black text-purple-400 uppercase tracking-widest mb-3 flex items-center gap-2">
-                  <UserCheck className="w-4 h-4" /> Назначить куратора
-                </h4>
-                <select
-                  value={selectedCuratorId}
-                  onChange={(e) => setSelectedCuratorId(e.target.value)}
-                  className="w-full px-4 py-3 bg-white border border-purple-200 rounded-xl text-sm font-bold text-gray-700 focus:outline-none focus:ring-2 focus:ring-purple-400 transition-all cursor-pointer"
-                >
-                  <option value="">Без куратора (никто не назначен)</option>
-                  {curators.map(c => (
-                    <option key={c.id} value={c.id}>
-                      {c.name || 'Без имени'} {c.surname || ''} ({c.email})
-                    </option>
-                  ))}
-                </select>
+              {/* 🔥 ТРИ КОЛОНКИ: Куратор, Цена, Обложка */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                <div className="bg-purple-50/50 p-5 rounded-2xl border border-purple-100">
+                  <h4 className="text-[11px] font-black text-purple-400 uppercase tracking-widest mb-3 flex items-center gap-2">
+                    <UserCheck className="w-4 h-4" /> Куратор
+                  </h4>
+                  <select value={selectedCuratorId} onChange={(e) => setSelectedCuratorId(e.target.value)} className="w-full px-4 py-3 bg-white border border-purple-200 rounded-xl text-sm font-bold text-gray-700 focus:outline-none focus:ring-2 focus:ring-purple-400 transition-all cursor-pointer">
+                    <option value="">Без куратора</option>
+                    {curators.map(c => <option key={c.id} value={c.id}>{c.name || 'Без имени'} {c.surname || ''}</option>)}
+                  </select>
+                </div>
+
+                <div className="bg-emerald-50/50 p-5 rounded-2xl border border-emerald-100">
+                  <h4 className="text-[11px] font-black text-emerald-500 uppercase tracking-widest mb-3 flex items-center gap-2">
+                    <CreditCard className="w-4 h-4" /> Цена курса (₽)
+                  </h4>
+                  <input 
+                    type="number" 
+                    value={selectedPrice} 
+                    onChange={(e) => setSelectedPrice(e.target.value)} 
+                    placeholder="Например: 3500"
+                    className="w-full px-4 py-3 bg-white border border-emerald-200 rounded-xl text-sm font-bold text-gray-700 focus:outline-none focus:ring-2 focus:ring-emerald-400 transition-all"
+                  />
+                </div>
+
+                <div className="bg-blue-50/50 p-5 rounded-2xl border border-blue-100 flex flex-col justify-center">
+                  <h4 className="text-[11px] font-black text-blue-500 uppercase tracking-widest mb-3 flex items-center gap-2">
+                    <ImageIcon className="w-4 h-4" /> Обложка для магазина
+                  </h4>
+                  <div className="flex items-center gap-3">
+                    {selectedCoverUrl && (
+                      <div className="w-12 h-12 rounded-lg bg-gray-100 overflow-hidden shrink-0 border border-gray-200">
+                        <img src={selectedCoverUrl.startsWith('http') ? selectedCoverUrl : `${API_URL.replace('/api', '')}/${selectedCoverUrl}`} alt="Обложка" className="w-full h-full object-cover" />
+                      </div>
+                    )}
+                    <label className="flex-1 cursor-pointer px-4 py-3 bg-white border border-blue-200 rounded-xl hover:border-blue-400 transition-all flex items-center justify-center gap-2 font-bold text-blue-600 text-sm">
+                      {isUploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <UploadCloud className="w-4 h-4" />}
+                      {selectedCoverUrl ? 'Изменить' : 'Загрузить'}
+                      <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} disabled={isUploading} />
+                    </label>
+                  </div>
+                </div>
               </div>
               
               <div className="flex-1 overflow-y-auto custom-scrollbar pr-2 mb-8">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                   
-                  {/* БЛОК КУРСОВ */}
                   <div className="flex flex-col h-full">
                     <div className="sticky top-0 bg-white pb-3 z-10">
                       <h4 className="text-[11px] font-black text-gray-400 uppercase tracking-widest mb-3">Доступные курсы</h4>
                       <div className="relative">
                         <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                        <input 
-                          type="text" 
-                          placeholder="Поиск курса..." 
-                          value={courseSearch}
-                          onChange={(e) => setCourseSearch(e.target.value)}
-                          className="w-full pl-9 pr-4 py-2 bg-gray-50 border border-gray-100 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-indigo-400 transition-all"
-                        />
+                        <input type="text" placeholder="Поиск курса..." value={courseSearch} onChange={(e) => setCourseSearch(e.target.value)} className="w-full pl-9 pr-4 py-2 bg-gray-50 border border-gray-100 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-indigo-400 transition-all" />
                       </div>
                     </div>
-
                     <div className="space-y-3 overflow-y-auto custom-scrollbar flex-1 pr-2 max-h-[30vh]">
                       {filteredCourses.map(course => {
                         const isSelected = selectedCourseIds.includes(course.id);
                         return (
-                          <div 
-                            key={course.id} 
-                            onClick={() => handleToggleCourse(course.id)}
-                            className={`p-4 rounded-2xl border-2 flex items-center justify-between cursor-pointer transition-all ${isSelected ? 'border-[#5A4BFF] bg-indigo-50/50' : 'border-gray-100 hover:border-gray-200 bg-white'}`}
-                          >
+                          <div key={course.id} onClick={() => handleToggleCourse(course.id)} className={`p-4 rounded-2xl border-2 flex items-center justify-between cursor-pointer transition-all ${isSelected ? 'border-[#5A4BFF] bg-indigo-50/50' : 'border-gray-100 hover:border-gray-200 bg-white'}`}>
                             <div className="flex items-center gap-4">
                               <div className={`w-6 h-6 rounded-md border-2 flex items-center justify-center transition-colors ${isSelected ? 'bg-[#5A4BFF] border-[#5A4BFF]' : 'border-gray-300'}`}>
                                 {isSelected && <ShieldCheck className="w-4 h-4 text-white" />}
@@ -267,51 +301,32 @@ export default function AdminGroups() {
                           </div>
                         )
                       })}
-                      {filteredCourses.length === 0 && <p className="text-sm text-gray-400 font-medium text-center py-4">Курсы не найдены</p>}
                     </div>
                   </div>
 
-                  {/* БЛОК СТУДЕНТОВ */}
                   <div className="flex flex-col h-full">
                     <div className="sticky top-0 bg-white pb-3 z-10">
                       <h4 className="text-[11px] font-black text-gray-400 uppercase tracking-widest mb-3">Состав группы ({selectedStudentIds.length})</h4>
                       <div className="relative">
                         <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                        <input 
-                          type="text" 
-                          placeholder="Поиск по имени или email..." 
-                          value={studentSearch}
-                          onChange={(e) => setStudentSearch(e.target.value)}
-                          className="w-full pl-9 pr-4 py-2 bg-gray-50 border border-gray-100 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-emerald-400 transition-all"
-                        />
+                        <input type="text" placeholder="Поиск по имени или email..." value={studentSearch} onChange={(e) => setStudentSearch(e.target.value)} className="w-full pl-9 pr-4 py-2 bg-gray-50 border border-gray-100 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-emerald-400 transition-all" />
                       </div>
                     </div>
-
                     <div className="space-y-3 overflow-y-auto custom-scrollbar flex-1 pr-2 max-h-[30vh]">
                       {filteredStudents.map(student => {
                         const isSelected = selectedStudentIds.includes(student.id);
                         return (
-                          <div 
-                            key={student.id} 
-                            onClick={() => handleToggleStudent(student.id)}
-                            className={`p-3 rounded-2xl border-2 flex items-center justify-between cursor-pointer transition-all ${isSelected ? 'border-emerald-500 bg-emerald-50/50' : 'border-gray-100 hover:border-gray-200 bg-white'}`}
-                          >
+                          <div key={student.id} onClick={() => handleToggleStudent(student.id)} className={`p-3 rounded-2xl border-2 flex items-center justify-between cursor-pointer transition-all ${isSelected ? 'border-emerald-500 bg-emerald-50/50' : 'border-gray-100 hover:border-gray-200 bg-white'}`}>
                             <div className="flex items-center gap-4">
                               <div className={`w-6 h-6 rounded-md border-2 flex items-center justify-center transition-colors ${isSelected ? 'bg-emerald-500 border-emerald-500' : 'border-gray-300'}`}>
                                 {isSelected && <ShieldCheck className="w-4 h-4 text-white" />}
                               </div>
                               <div className="flex items-center gap-3">
                                 <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center overflow-hidden shrink-0">
-                                  {student.avatar ? (
-                                    <img src={student.avatar} alt="" className="w-full h-full object-cover" />
-                                  ) : (
-                                    <UserCircle className="w-6 h-6 text-gray-400" />
-                                  )}
+                                  {student.avatar ? <img src={student.avatar} alt="" className="w-full h-full object-cover" /> : <UserCircle className="w-6 h-6 text-gray-400" />}
                                 </div>
                                 <div className="overflow-hidden">
-                                  <p className={`font-bold text-sm leading-tight truncate ${isSelected ? 'text-emerald-700' : 'text-gray-900'}`}>
-                                    {student.name || 'Без имени'} {student.surname || ''}
-                                  </p>
+                                  <p className={`font-bold text-sm leading-tight truncate ${isSelected ? 'text-emerald-700' : 'text-gray-900'}`}>{student.name || 'Без имени'} {student.surname || ''}</p>
                                   <p className="text-xs text-gray-400 mt-0.5 truncate">{student.email}</p>
                                 </div>
                               </div>
@@ -319,7 +334,6 @@ export default function AdminGroups() {
                           </div>
                         )
                       })}
-                      {filteredStudents.length === 0 && <p className="text-sm text-gray-400 font-medium text-center py-4">Ученики не найдены</p>}
                     </div>
                   </div>
 

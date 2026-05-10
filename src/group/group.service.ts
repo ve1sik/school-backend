@@ -27,8 +27,24 @@ export class GroupService {
     });
   }
 
+  // 🔥 ИСПРАВЛЕННЫЙ МЕТОД СОХРАНЕНИЯ (ПЕРЕВОДЧИК ДЛЯ PRISMA)
   async update(id: string, data: any) {
-    return this.prisma.group.update({ where: { id }, data });
+    const { curator_id, ...rest } = data;
+    const updateData: any = { ...rest };
+
+    // Если фронтенд прислал нам куратора, правильно связываем его
+    if (curator_id !== undefined) {
+      if (curator_id === null || curator_id === '') {
+        updateData.curator = { disconnect: true }; // Убираем куратора
+      } else {
+        updateData.curator = { connect: { id: curator_id } }; // Назначаем нового
+      }
+    }
+
+    return this.prisma.group.update({ 
+      where: { id }, 
+      data: updateData 
+    });
   }
 
   async remove(id: string) {
@@ -53,7 +69,6 @@ export class GroupService {
     });
   }
 
-  // 🔥 НОВЫЙ МЕТОД ДЛЯ МАГАЗИНА
   async findShopGroups() {
     return this.prisma.group.findMany({
       where: { 
