@@ -5,7 +5,7 @@ generator client {
 datasource db {
   provider  = "postgresql"
   url       = env("DATABASE_URL")
-  directUrl = env("DIRECT_URL") // 🔥 Вот она, спасительная строчка для Supabase!
+  directUrl = env("DIRECT_URL")
 }
 
 // --- РОЛИ И ТИПЫ ---
@@ -33,7 +33,6 @@ enum SubmissionStatus {
   GRADED
 }
 
-// 🔥 НОВОЕ: Типы событий для расписания
 enum EventType {
   WEBINAR
   DEADLINE
@@ -66,47 +65,42 @@ model User {
   enrollments   Enrollment[]
   submissions   Submission[]
 
-  // 🔥 НОВОЕ: Связи с группами
-  groups         Group[] @relation("StudentGroups") // Группы, в которых учится студент
-  curated_groups Group[] @relation("CuratorGroups") // Группы, которые ведет куратор
+  groups         Group[] @relation("StudentGroups")
+  curated_groups Group[] @relation("CuratorGroups")
 
   @@map("users")
 }
 
-// 🔥 НОВОЕ: Модель Группы (Потока)
 model Group {
   id          String   @id @default(uuid())
   title       String
-  price       Int      @default(0) // 🔥 Добавили цену (в рублях)
-  is_public   Boolean  @default(true) // 🔥 Чтобы можно было скрыть старые потоки
+  price       Int      @default(0) 
+  is_public   Boolean  @default(true) 
+  cover_url   String?  // 🔥 ВОТ ОНО! ОБЛОЖКА ДЛЯ МАГАЗИНА!
 
-  // Связь с Куратором
   curator_id String?
   curator    User?    @relation("CuratorGroups", fields: [curator_id], references: [id])
 
-  // Связи со студентами, курсами и расписанием
   students   User[]   @relation("StudentGroups")
   courses    Course[] @relation("GroupCourses")
-  events     Event[]  // Изолированное расписание группы
+  events     Event[]  
 
-  // Настройки доступа к модулям (Drip Content)
   theme_access GroupThemeAccess[]
 
   @@map("groups")
 }
 
-// 🔥 НОВОЕ: Капельное открытие контента (Drip Content)
 model GroupThemeAccess {
   id          String    @id @default(uuid())
   group_id    String
   theme_id    String
-  unlock_date DateTime? // Дата, когда модуль откроется (если null - открыт сразу)
-  is_visible  Boolean   @default(true) // Можно вообще скрыть модуль от группы
+  unlock_date DateTime? 
+  is_visible  Boolean   @default(true) 
 
   group Group @relation(fields: [group_id], references: [id], onDelete: Cascade)
   theme Theme @relation(fields: [theme_id], references: [id], onDelete: Cascade)
 
-  @@unique([group_id, theme_id]) // В одной группе не может быть двух настроек для одного модуля
+  @@unique([group_id, theme_id]) 
   @@map("group_theme_access")
 }
 
@@ -119,7 +113,6 @@ model Course {
   themes      Theme[]
   enrollments Enrollment[]
   
-  // 🔥 НОВОЕ: Курсы, доступные определенным группам
   groups      Group[] @relation("GroupCourses")
 
   @@map("courses")
@@ -136,7 +129,6 @@ model Theme {
   lessons Lesson[]
   tests    Test[]
 
-  // 🔥 НОВОЕ: Связь для настроек доступа по группам
   group_access GroupThemeAccess[]
 
   @@map("themes")
@@ -260,7 +252,6 @@ model Event {
   link        String?
   created_at  DateTime  @default(now())
 
-  // 🔥 НОВОЕ: Привязка события к конкретной группе
   group_id    String?
   group       Group?    @relation(fields: [group_id], references: [id], onDelete: Cascade)
 
