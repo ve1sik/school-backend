@@ -37,7 +37,7 @@ const getEmbedUrl = (url: string) => {
 
 const safeHtml = (text: any) => {
   if (!text || typeof text !== 'string') return '';
-  return text.includes('<') ? text : text.replace(/\n/g, '<br/>');
+  return text; 
 };
 
 const getSafeLocal = (key: string, fallback: any) => {
@@ -56,16 +56,6 @@ const studentQuillModules = {
     ['clean']
   ],
 };
-
-// Хелпер для перемешивания массива (для вариантов ответа в Matching)
-function shuffleArray(array: any[]) {
-  const newArr = [...array];
-  for (let i = newArr.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [newArr[i], newArr[j]] = [newArr[j], newArr[i]];
-  }
-  return newArr;
-}
 
 function ExpandableImage({ src, alt, className = '' }: { src: string, alt?: string, className?: string }) {
   const [isExpanded, setIsExpanded] = useState(false);
@@ -87,18 +77,6 @@ function ExpandableImage({ src, alt, className = '' }: { src: string, alt?: stri
 const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswerToggle, handleTextAnswerChange, handleMatchingChange, handleSubmitTest, submissions }: any) => {
   const [isOpen, setIsOpen] = useState(false);
   const [activeStep, setActiveStep] = useState(0);
-
-  // Мемоизируем перемешанные правые варианты для тестов на соответствие, 
-  // чтобы они не прыгали при каждом рендере.
-  const shuffledRightOptions = useMemo(() => {
-    const options: Record<string, string[]> = {};
-    group.blocks.forEach((b: any) => {
-      if (b.type === 'matching' && b.pairs) {
-        options[b.id] = shuffleArray(b.pairs.map((p: any) => p.right));
-      }
-    });
-    return options;
-  }, [group.blocks]);
 
   useEffect(() => { if (!isOpen) setActiveStep(0); }, [isOpen]);
 
@@ -130,6 +108,7 @@ const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswer
   let result = testResults?.[block.id];
   let currentAttempts = attemptsUsed?.[block.id] || 0;
   const maxAttempts = block.maxAttempts || 3;
+  const maxScore = block.maxScore || 3;
 
   if (serverSubmission) {
     if (serverSubmission.status === 'GRADED') {
@@ -152,14 +131,26 @@ const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswer
   const isExhausted = attemptsLeft <= 0;
   const isLocked = isExhausted || result === 'SUCCESS' || result === 'PENDING' || result === 'GRADED';
 
-  // Для проверки, можно ли нажать кнопку Ответить в Matching
+  // Готовность таблицы на соответствие
   let isMatchingReady = false;
   if (block.type === 'matching' && block.pairs) {
-    // В testAnswers для matching мы храним массив строк вида "Лево|||Право"
     isMatchingReady = selected.length === block.pairs.length && selected.every((s: string) => {
       const parts = s.split('|||');
       return parts.length === 2 && parts[1] && parts[1].trim() !== '';
     });
+  }
+
+  // 🔥 ЦВЕТА ИНПУТА ДЛЯ КРАТКИХ ОТВЕТОВ
+  let inputStateClass = 'bg-white border-gray-100 focus:border-[#A855F7] focus:shadow-sm text-gray-900';
+  if (isLocked) {
+     if (result === 'SUCCESS' || (result === 'GRADED' && Number(serverSubmission?.score) > 0)) {
+         inputStateClass = 'bg-emerald-50 border-emerald-400 text-emerald-700';
+     } else if (result === 'ERROR' || (result === 'GRADED' && Number(serverSubmission?.score) === 0)) {
+         // Убрали зачеркивание у самого инпута, чтобы было красиво
+         inputStateClass = 'bg-red-50 border-red-400 text-red-700';
+     } else {
+         inputStateClass = 'bg-gray-50 border-gray-200 text-gray-500';
+     }
   }
 
   return (
@@ -218,15 +209,15 @@ const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswer
         <div className="px-3 py-1.5 rounded-md bg-purple-50 text-purple-600 text-[10px] font-black uppercase tracking-widest">
           Вопрос {activeStep + 1}
         </div>
-        {block.type !== 'written' ? (
+        {block.type !== 'written' && (
           <div className={`px-3 py-1.5 rounded-md text-[10px] font-black uppercase tracking-widest ${isExhausted && result !== 'SUCCESS' ? 'bg-rose-100 text-rose-600' : 'bg-gray-100 text-gray-500'}`}>
             Попыток: {attemptsLeft} из {maxAttempts}
           </div>
-        ) : (
-          <div className="px-3 py-1.5 rounded-md bg-gray-100 text-gray-500 text-[10px] font-black uppercase tracking-widest">
-            Макс. балл: {block.maxScore || 10}
-          </div>
         )}
+        {/* 🔥 ВЫВОДИМ БАЛЛ ДЛЯ ВСЕХ ЗАДАНИЙ */}
+        <div className="px-3 py-1.5 rounded-md bg-gray-100 text-gray-500 text-[10px] font-black uppercase tracking-widest">
+          Макс. балл: {maxScore}
+        </div>
         {block.source && (
           <div className="px-3 py-1.5 rounded-md bg-amber-50 text-amber-600 text-[10px] font-black uppercase tracking-widest border border-amber-100">
             Источник: {block.source}
@@ -242,15 +233,15 @@ const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswer
           </motion.div>
         )}
         {result === 'ERROR' && isExhausted && (
-          <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="bg-gray-50 border border-gray-200 p-4 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between font-bold mb-6 gap-2 text-gray-500">
+          <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="bg-rose-50 border border-rose-200 p-4 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between font-bold mb-6 gap-2 text-rose-600">
             <span className="flex items-center gap-2 text-lg"><XCircle className="w-6 h-6" /> Попытки закончились</span>
-            <span className="text-sm bg-white px-3 py-1 rounded-lg shadow-sm border border-gray-100">0 из {maxAttempts} 💔</span>
+            <span className="text-sm bg-white px-3 py-1 rounded-lg shadow-sm border border-rose-100 text-rose-700">Балл: 0 / {maxScore} 💔</span>
           </motion.div>
         )}
         {result === 'SUCCESS' && (
           <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="bg-emerald-50 border border-emerald-100 p-4 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between font-bold mb-6 text-emerald-600 gap-2">
             <span className="flex items-center gap-2 text-lg"><CheckCircle2 className="w-6 h-6" /> Верно!</span>
-            <span className="text-sm bg-white px-3 py-1 rounded-lg shadow-sm border border-emerald-50">Отличная работа 🌟</span>
+            <span className="text-sm bg-white px-3 py-1 rounded-lg shadow-sm border border-emerald-50 text-emerald-700">Балл: {maxScore} / {maxScore} 🌟</span>
           </motion.div>
         )}
         {result === 'PENDING' && (
@@ -259,17 +250,18 @@ const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswer
             <span className="text-sm bg-white px-3 py-1 rounded-lg shadow-sm border border-purple-50">Ожидает проверки ⏳</span>
           </motion.div>
         )}
+        {/* 🔥 ЗАМЕТНАЯ ПЛАШКА С БАЛЛОМ КУРАТОРА */}
         {result === 'GRADED' && serverSubmission && (
-           <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="bg-emerald-50 border border-emerald-100 p-4 rounded-xl mb-6 shadow-sm">
-             <div className="flex flex-col sm:flex-row sm:items-center justify-between font-bold text-emerald-600 gap-2 mb-3">
-               <span className="flex items-center gap-2 text-lg"><CheckCircle2 className="w-6 h-6" /> Работа проверена куратором!</span>
-               <span className="text-sm bg-white px-3 py-1 rounded-lg shadow-sm border border-emerald-100">
-                 Балл: <span className="text-emerald-700 font-black">{serverSubmission.score}</span> / {serverSubmission.max_score || block.maxScore}
+           <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="bg-emerald-50 border-2 border-emerald-200 p-5 rounded-xl mb-6 shadow-sm">
+             <div className="flex flex-col sm:flex-row sm:items-center justify-between font-black text-emerald-600 gap-3 mb-4">
+               <span className="flex items-center gap-2 text-xl"><CheckCircle2 className="w-7 h-7" /> Работа проверена!</span>
+               <span className="text-lg bg-white px-4 py-2 rounded-xl shadow-sm border border-emerald-100 flex items-center gap-2">
+                 Оценка: <span className="text-emerald-700 text-2xl font-black">{serverSubmission.score}</span> / <span className="text-emerald-500 text-lg">{serverSubmission.max_score || maxScore}</span>
                </span>
              </div>
              {serverSubmission.comment && (
-               <div className="p-4 bg-white rounded-xl text-sm text-gray-700 font-medium border border-emerald-100/50">
-                 <strong className="text-emerald-700 block mb-1 uppercase tracking-wider text-[10px]">Комментарий куратора:</strong>
+               <div className="p-4 bg-white rounded-xl text-sm text-gray-800 font-medium border border-emerald-100/50 shadow-inner">
+                 <strong className="text-emerald-700 block mb-1 uppercase tracking-wider text-[11px]">Комментарий куратора:</strong>
                  {serverSubmission.comment}
                </div>
              )}
@@ -277,7 +269,13 @@ const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswer
         )}
       </AnimatePresence>
 
-      <div className="text-lg md:text-xl font-bold text-gray-900 mb-6 leading-relaxed break-words" dangerouslySetInnerHTML={{ __html: safeHtml(block.question) }} />
+      {/* 🔥 WYSIWYG СТИЛИ ДЛЯ ВОПРОСА */}
+      <div className="ql-snow w-full">
+        <div 
+          className="ql-editor !p-0 text-lg md:text-xl font-bold text-gray-900 mb-6 leading-relaxed break-words" 
+          dangerouslySetInnerHTML={{ __html: safeHtml(block.question) }} 
+        />
+      </div>
       
       {(block.questionImage || block.image) && (
         <ExpandableImage src={getFullUrl(block.questionImage || block.image)} alt="Схема" className="mb-8" />
@@ -286,14 +284,47 @@ const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswer
       <div className="space-y-3 mb-8">
         {block.type === 'test' && Array.isArray(block.options) && block.options.map((opt: any, idx: number) => {
           const isChecked = selected.includes(opt.text) || (typeof serverSubmission?.answer === 'string' && serverSubmission.answer.includes(opt.text));
-          let optClass = "flex items-center gap-4 p-4 md:p-5 rounded-2xl border-2 transition-all cursor-pointer ";
+          let optClass = "flex items-center gap-4 p-4 md:p-5 rounded-2xl border-2 transition-all cursor-pointer relative ";
+          let textClass = "font-bold text-base break-words ";
           
-          if ((result === 'SUCCESS' || result === 'GRADED') && isChecked) optClass += "border-emerald-500 bg-emerald-50/30";
-          else if (result === 'ERROR' && isChecked) optClass += "border-[#FF4A6B] bg-[#FF4A6B]/5";
-          else if (isChecked) optClass += "border-[#A855F7] bg-purple-50/20 shadow-sm";
-          else optClass += "border-gray-100 hover:border-gray-200 bg-white";
+          let showGreenCheck = false;
+          let showRedCross = false;
 
-          if (isLocked) optClass += " opacity-70 pointer-events-none";
+          // 🔥 ИДЕАЛЬНАЯ ПОДСВЕТКА ВАРИАНТОВ (Красный крест/Зеленая галочка)
+          if (result === 'SUCCESS' || (result === 'GRADED' && Number(serverSubmission?.score) > 0)) {
+            if (isChecked) {
+              optClass += "border-emerald-500 bg-emerald-50/30 text-emerald-900";
+              showGreenCheck = true;
+            } else {
+              optClass += "border-gray-100 bg-white opacity-60 text-gray-400";
+            }
+          } else if (isExhausted) {
+             // Лимит исчерпан - показываем правильные и зачеркиваем неправильные
+             if (opt.isCorrect) {
+               optClass += "border-emerald-500 bg-emerald-50/30 text-emerald-900"; 
+               showGreenCheck = true;
+             } else if (isChecked && !opt.isCorrect) {
+               optClass += "border-[#FF4A6B] bg-[#FF4A6B]/5"; 
+               textClass += "text-[#FF4A6B] line-through opacity-70"; // Зачеркиваем неверный выбор
+               showRedCross = true;
+             } else {
+               optClass += "border-gray-100 bg-white opacity-60 text-gray-400";
+             }
+          } else if (result === 'ERROR') {
+             if (isChecked) {
+               optClass += "border-[#FF4A6B] bg-[#FF4A6B]/5 text-[#FF4A6B]";
+             } else {
+               optClass += "border-gray-100 bg-white hover:border-gray-200 text-gray-600";
+             }
+          } else {
+             if (isChecked) {
+               optClass += "border-[#A855F7] bg-purple-50/20 shadow-sm text-gray-900";
+             } else {
+               optClass += "border-gray-100 hover:border-gray-200 bg-white text-gray-600";
+             }
+          }
+
+          if (isLocked) optClass += " opacity-90 pointer-events-none";
 
           return (
             <label key={idx} className={optClass}>
@@ -301,81 +332,129 @@ const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswer
                 <input type="checkbox" checked={isChecked} disabled={isLocked} onChange={() => { if (!isLocked) handleAnswerToggle(block.id, opt.text); }} className="peer w-6 h-6 rounded border-2 border-gray-300 appearance-none checked:bg-[#A855F7] checked:border-[#A855F7] transition-all cursor-pointer" />
                 <CheckSquare className="w-3.5 h-3.5 text-white absolute pointer-events-none opacity-0 peer-checked:opacity-100 transition-opacity" />
               </div>
-              <span className={`font-bold text-base break-words ${isChecked ? 'text-gray-900' : 'text-gray-600'}`}>{opt.text}</span>
+              <span className={textClass}>{opt.text}</span>
+              
+              {/* Иконки для наглядности (галочка / крестик) */}
+              {showGreenCheck && (
+                <div className="ml-auto bg-emerald-500 text-white rounded-full p-1 shadow-md shrink-0">
+                  <CheckCircle2 className="w-4 h-4" />
+                </div>
+              )}
+              {showRedCross && (
+                <div className="ml-auto bg-[#FF4A6B] text-white rounded-full p-1 shadow-md shrink-0">
+                  <X className="w-4 h-4" />
+                </div>
+              )}
             </label>
           );
         })}
 
+        {/* 🔥 КРАТКИЙ ОТВЕТ: ПОДСВЕТКА И ВЫВОД ПРАВИЛЬНОГО ЕСЛИ ОШИБКА */}
         {block.type === 'test_short' && (
-          <input 
-            type="text" 
-            value={serverSubmission?.answer || selected[0] || ''} 
-            onChange={(e) => { if (!isLocked) handleTextAnswerChange(block.id, e.target.value); }} 
-            disabled={isLocked}
-            placeholder="Введите ответ" 
-            className={`w-full p-5 text-lg font-bold rounded-2xl border-2 transition-all outline-none ${isLocked ? 'bg-gray-50 border-gray-100 text-gray-500' : 'bg-white border-gray-100 focus:border-[#A855F7] focus:shadow-sm text-gray-900'}`}
-          />
+          <div className="space-y-3">
+            <input 
+              type="text" 
+              value={serverSubmission?.answer || selected[0] || ''} 
+              onChange={(e) => { if (!isLocked) handleTextAnswerChange(block.id, e.target.value); }} 
+              disabled={isLocked}
+              placeholder="Введите ответ" 
+              className={`w-full p-5 text-lg font-bold rounded-2xl border-2 transition-all outline-none ${inputStateClass}`}
+            />
+            {/* Показываем правильный ответ, если попытки кончились */}
+            {isExhausted && result !== 'SUCCESS' && (
+               <motion.div initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }} className="text-sm font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 p-4 rounded-xl flex items-center gap-2">
+                 <CheckCircle2 className="w-5 h-5" /> Правильный ответ: {block.correctAnswers?.join(' / ')}
+               </motion.div>
+            )}
+          </div>
         )}
 
-        {/* 🔥 НОВЫЙ БЛОК: ОТОБРАЖЕНИЕ ТЕСТА НА СООТВЕТСТВИЕ */}
+        {/* 🔥 ТАБЛИЦА В ЛИНЕЙКУ (Горизонтальная + Стрелочки + Зачеркивание) */}
         {block.type === 'matching' && block.pairs && (
-          <div className="space-y-4">
-            <div className="hidden sm:flex px-4 py-2 bg-indigo-50 rounded-xl text-[10px] font-black text-indigo-400 uppercase tracking-widest">
-              <div className="flex-1">Элемент</div>
-              <div className="w-8"></div>
-              <div className="flex-1">Установите соответствие</div>
+          <div className="space-y-4 w-full overflow-x-auto custom-scrollbar pb-4 pt-2">
+            <div className="flex gap-3 min-w-max">
+              {block.pairs.map((pair: any, idx: number) => {
+                const currentSelectedPair = selected.find((s: string) => s.startsWith(`${pair.left}|||`));
+                const currentRightValue = currentSelectedPair ? currentSelectedPair.split('|||')[1] : '';
+
+                let displayRightValue = currentRightValue;
+                if (serverSubmission && serverSubmission.answer) {
+                   const serverPairs = serverSubmission.answer.split(', ');
+                   const serverMatch = serverPairs.find((s: string) => s.startsWith(`${pair.left} - `));
+                   if (serverMatch) displayRightValue = serverMatch.split(' - ')[1];
+                }
+
+                const isCorrectPair = displayRightValue.toLowerCase().trim() === pair.right.toLowerCase().trim();
+
+                let tBorderClass = 'border-gray-200';
+                let tInputClass = 'bg-white focus:border-purple-400 text-purple-700';
+                
+                if (isLocked) {
+                   if (result === 'SUCCESS' || (result === 'GRADED' && Number(serverSubmission?.score) > 0)) {
+                       tBorderClass = 'border-emerald-400';
+                       tInputClass = 'bg-emerald-50 text-emerald-700 font-bold';
+                   } else if (isExhausted) {
+                       // 🔥 Если лимит исчерпан
+                       if (isCorrectPair) {
+                         tBorderClass = 'border-emerald-400';
+                         tInputClass = 'bg-emerald-50 text-emerald-700 font-bold';
+                       } else {
+                         tBorderClass = 'border-red-400';
+                         tInputClass = 'bg-red-50 text-red-700 font-bold'; // Убрали зачеркивание отсюда
+                       }
+                   } else if (result === 'ERROR' || (result === 'GRADED' && Number(serverSubmission?.score) === 0)) {
+                       tBorderClass = 'border-red-400';
+                       tInputClass = 'bg-red-50 text-red-700 font-bold';
+                   } else {
+                       tBorderClass = 'border-gray-200';
+                       tInputClass = 'bg-gray-50 text-gray-500';
+                   }
+                }
+
+                return (
+                  <div key={idx} className="flex flex-col gap-2">
+                    <div className={`flex flex-col w-32 shrink-0 border-2 rounded-xl overflow-hidden transition-all shadow-sm ${tBorderClass}`}>
+                      {/* Заголовок таблицы (препод) */}
+                      <div className="bg-gray-100 p-2 text-center font-black text-gray-800 border-b-2 border-inherit flex items-center justify-center min-h-[3rem] break-words px-4">
+                        {pair.left}
+                      </div>
+                      
+                      {/* 🔥 Если попытки кончились и ответ неверный — рисуем зачеркнутый текст и верный */}
+                      {isExhausted && !isCorrectPair ? (
+                        <div className={`w-full p-2 flex flex-col items-center justify-center min-h-[3.5rem] ${tInputClass}`}>
+                          <span className="line-through opacity-60 text-sm leading-none mb-1">{displayRightValue || '—'}</span>
+                          <span className="text-emerald-600 font-black text-base leading-none">{pair.right}</span>
+                        </div>
+                      ) : (
+                        <input
+                          id={`matching-${block.id}-${idx}`}
+                          type="text"
+                          disabled={isLocked}
+                          value={displayRightValue}
+                          onChange={(e) => {
+                            if (!isLocked) handleMatchingChange(block.id, pair.left, e.target.value);
+                          }}
+                          onKeyDown={(e) => {
+                            // 🔥 Навигация стрелочками
+                            if (e.key === 'ArrowRight' && (e.currentTarget.selectionStart === e.currentTarget.value.length || e.currentTarget.value === '')) {
+                              e.preventDefault();
+                              const nextInput = document.getElementById(`matching-${block.id}-${idx + 1}`);
+                              if (nextInput) nextInput.focus();
+                            } else if (e.key === 'ArrowLeft' && (e.currentTarget.selectionStart === 0 || e.currentTarget.value === '')) {
+                              e.preventDefault();
+                              const prevInput = document.getElementById(`matching-${block.id}-${idx - 1}`);
+                              if (prevInput) prevInput.focus();
+                            }
+                          }}
+                          placeholder=""
+                          className={`w-full p-4 text-center font-bold text-lg outline-none transition-all ${tInputClass}`}
+                        />
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
-            {block.pairs.map((pair: any, idx: number) => {
-              // Ищем текущий выбранный ответ для левой части
-              const currentSelectedPair = selected.find((s: string) => s.startsWith(`${pair.left}|||`));
-              const currentRightValue = currentSelectedPair ? currentSelectedPair.split('|||')[1] : '';
-
-              // Если тест уже отправлен (сохранен на сервере), парсим ответ с сервера
-              let displayRightValue = currentRightValue;
-              if (serverSubmission && serverSubmission.answer) {
-                 const serverPairs = serverSubmission.answer.split(', ');
-                 const serverMatch = serverPairs.find((s: string) => s.startsWith(`${pair.left} - `));
-                 if (serverMatch) {
-                    displayRightValue = serverMatch.split(' - ')[1];
-                 }
-              }
-
-              // Вычисляем стили для проверки (если тест проверен)
-              let borderClass = 'border-gray-200';
-              if (result === 'SUCCESS') borderClass = 'border-emerald-400 bg-emerald-50';
-              else if (result === 'ERROR') borderClass = 'border-red-400 bg-red-50';
-              else if (displayRightValue) borderClass = 'border-indigo-400 bg-indigo-50/30';
-
-              return (
-                <div key={idx} className={`flex flex-col sm:flex-row sm:items-center gap-3 p-4 rounded-2xl border-2 transition-all ${borderClass}`}>
-                  <div className="flex-1 font-bold text-gray-800 bg-white p-3 rounded-xl border border-gray-100 shadow-sm">
-                    {pair.left}
-                  </div>
-                  
-                  <div className="hidden sm:flex text-gray-300">
-                    <ChevronRight className="w-5 h-5" />
-                  </div>
-                  
-                  <div className="flex-1">
-                    <select
-                      disabled={isLocked}
-                      value={displayRightValue}
-                      onChange={(e) => {
-                        if (!isLocked) handleMatchingChange(block.id, pair.left, e.target.value);
-                      }}
-                      className={`w-full p-3 rounded-xl font-bold outline-none cursor-pointer border shadow-sm transition-all appearance-none
-                        ${isLocked ? 'bg-gray-50 border-gray-200 text-gray-500' : 'bg-white border-gray-200 hover:border-indigo-400 focus:border-indigo-600 text-indigo-700'}`
-                      }
-                    >
-                      <option value="" disabled>-- Выберите вариант --</option>
-                      {shuffledRightOptions[block.id]?.map((opt: string, oIdx: number) => (
-                        <option key={oIdx} value={opt}>{opt}</option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-              );
-            })}
           </div>
         )}
 
@@ -429,7 +508,10 @@ const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswer
             <h5 className="flex items-center gap-2 text-purple-700 font-black text-sm uppercase tracking-widest mb-4">
               <BookOpen className="w-5 h-5" /> Разбор задания
             </h5>
-            <div className="prose prose-sm max-w-none text-gray-800 ql-editor px-0" dangerouslySetInnerHTML={{ __html: safeHtml(block.explanation) }} />
+            {/* 🔥 WYSIWYG СТИЛИ ДЛЯ РАЗБОРА ЗАДАНИЯ */}
+            <div className="ql-snow w-full">
+              <div className="ql-editor !p-0 text-sm text-gray-800" dangerouslySetInnerHTML={{ __html: safeHtml(block.explanation) }} />
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
@@ -448,7 +530,6 @@ export default function CourseView() {
   const [expandedThemes, setExpandedThemes] = useState<Record<string, boolean>>({});
   
   const [areTestsRevealed, setAreTestsRevealed] = useState(false); 
-  const [isHomeworkRevealed, setIsHomeworkRevealed] = useState(false); 
 
   const [testAnswers, setTestAnswers] = useState<Record<string, string[]>>(() => getSafeLocal('demo_answers', {}));
   const [testResults, setTestResults] = useState<Record<string, 'SUCCESS' | 'ERROR' | 'PENDING' | 'GRADED'>>(() => getSafeLocal('demo_results', {}));
@@ -498,7 +579,6 @@ export default function CourseView() {
 
   useEffect(() => {
     setAreTestsRevealed(false);
-    setIsHomeworkRevealed(false);
   }, [activeLesson?.id]);
 
   const toggleTheme = (tId: string) => {
@@ -533,12 +613,9 @@ export default function CourseView() {
     }
   };
 
-  // 🔥 ОБРАБОТЧИК ДЛЯ MATCHING (На соответствие)
   const handleMatchingChange = (blockId: string, leftText: string, rightText: string) => {
     const current = Array.isArray(testAnswers?.[blockId]) ? [...testAnswers[blockId]] : [];
-    // Удаляем старый ответ для этого левого элемента (если был)
     const filtered = current.filter((ans: string) => !ans.startsWith(`${leftText}|||`));
-    // Добавляем новый ответ
     filtered.push(`${leftText}|||${rightText}`);
     
     const newAnswers = { ...testAnswers, [blockId]: filtered };
@@ -572,7 +649,10 @@ export default function CourseView() {
       finalAnswerString = selected[0] || '';
     } else if (block.type === 'test') {
       const correctOptions = Array.isArray(block.options) ? block.options.filter((opt: any) => opt.isCorrect).map((opt: any) => opt.text) : [];
-      isSuccess = correctOptions.length === selected.length && correctOptions.every((val: string) => selected.includes(val));
+      // 🔥 ЖЕСТКАЯ ПРОВЕРКА (Должны быть выбраны ВСЕ правильные и ни одного лишнего)
+      isSuccess = correctOptions.length > 0 && 
+                  selected.length === correctOptions.length && 
+                  selected.every((val: string) => correctOptions.includes(val));
     } else if (block.type === 'test_short') {
       const userAnswer = (selected[0] || '').trim();
       finalAnswerString = userAnswer;
@@ -583,15 +663,17 @@ export default function CourseView() {
         isSuccess = (block.correctAnswers || []).some((ans: string) => ans.trim() === userAnswer);
       }
     } else if (block.type === 'matching') {
-      // Логика проверки на соответствие
       const userAnswersMap: Record<string, string> = {};
       selected.forEach((s: string) => {
         const parts = s.split('|||');
-        if (parts.length === 2) userAnswersMap[parts[0]] = parts[1];
+        if (parts.length === 2) userAnswersMap[parts[0]] = parts[1].trim();
       });
 
-      isSuccess = block.pairs.every((pair: any) => userAnswersMap[pair.left] === pair.right);
-      // Для БД форматируем красиво: "А - 1, Б - 2"
+      isSuccess = block.pairs.every((pair: any) => {
+        const studentAns = (userAnswersMap[pair.left] || '').toLowerCase().trim();
+        const correctAns = (pair.right || '').toLowerCase().trim();
+        return studentAns === correctAns;
+      });
       finalAnswerString = Object.entries(userAnswersMap).map(([k, v]) => `${k} - ${v}`).join(', ');
     }
     
@@ -685,7 +767,6 @@ export default function CourseView() {
     ];
 
     blocksToGroup.forEach(b => {
-      // Добавляем matching в группу тестов
       if (['test', 'test_short', 'matching'].includes(b.type)) {
         groups.find(g => g.type === 'tests')?.blocks.push(b);
       } else if (b.type === 'written') {
@@ -697,8 +778,6 @@ export default function CourseView() {
   };
 
   const practiceGroups = groupInteractiveBlocks(practiceBlocks);
-  const hwGroups = groupInteractiveBlocks(homeworkBlocks);
-  const hwTheoryBlocks = homeworkBlocks.filter(b => !['test', 'test_short', 'written', 'matching'].includes(b.type));
 
   const renderTheoryBlock = (block: any) => {
     if (block.type === 'video_file' && block.url) {
@@ -724,30 +803,12 @@ export default function CourseView() {
           </div>
         );
       }
-      if (block.url.includes('disk.yandex.ru/')) {
-        return (
-          <div key={block.id} className="space-y-3">
-            {block.title && <h3 className="text-xl font-black text-gray-900 break-words">{block.title}</h3>}
-            <div className="bg-orange-50 border border-orange-200 rounded-[1.5rem] p-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
-              <div className="flex items-center gap-4 min-w-0">
-                <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center shrink-0 border border-orange-100 shadow-sm"><PlayCircle className="w-6 h-6 text-orange-500" /></div>
-                <div className="min-w-0">
-                  <h3 className="text-lg font-bold text-gray-900 truncate">Видео на Яндекс.Диске</h3>
-                  <p className="text-sm text-gray-600 truncate">Видео откроется в новой вкладке.</p>
-                </div>
-              </div>
-              <a href={block.url} target="_blank" rel="noopener noreferrer" className="shrink-0 px-6 py-3 bg-white border-2 border-orange-200 text-orange-600 hover:bg-orange-500 hover:border-orange-500 hover:text-white rounded-xl font-bold text-sm transition-all shadow-sm flex items-center justify-center gap-2">
-                Смотреть <ExternalLink className="w-4 h-4" />
-              </a>
-            </div>
-          </div>
-        );
-      }
+      
       return (
         <div key={block.id} className="space-y-3">
           {block.title && <h3 className="text-xl font-black text-gray-900 break-words">{block.title}</h3>}
           <div className="aspect-video bg-gray-900 rounded-[1.5rem] overflow-hidden shadow-lg relative border border-gray-100">
-            <iframe src={getEmbedUrl(block.url)} className="w-full h-full absolute inset-0" allowFullScreen></iframe>
+            <iframe src={getEmbedUrl(block.url)} className="w-full h-full absolute inset-0" allowFullScreen allow="autoplay; fullscreen; picture-in-picture; encrypted-media"></iframe>
           </div>
         </div>
       );
@@ -757,8 +818,12 @@ export default function CourseView() {
       <div key={block.id} className="space-y-3 w-full overflow-hidden">
         {block.title && <h3 className="text-xl font-black text-gray-900 break-words">{block.title}</h3>}
         {(block.image || block.url) && <ExpandableImage src={getFullUrl(block.image || block.url)} alt="Материал" className="my-4" />}
-        <div className="prose prose-sm sm:prose-base max-w-none text-gray-700 leading-relaxed break-words ql-editor px-0">
-          <div dangerouslySetInnerHTML={{ __html: safeHtml(block.content) }} />
+        {/* 🔥 WYSIWYG СТИЛИ ДЛЯ ТЕОРИИ */}
+        <div className="ql-snow w-full">
+          <div 
+            className="ql-editor !p-0 text-gray-800 leading-relaxed break-words" 
+            dangerouslySetInnerHTML={{ __html: safeHtml(block.content) }} 
+          />
         </div>
       </div>
     );
@@ -775,9 +840,10 @@ export default function CourseView() {
           <div className="w-12 h-12 bg-cyan-100 rounded-xl flex items-center justify-center shrink-0"><FileDown className="w-6 h-6 text-cyan-600" /></div>
           <div className="min-w-0">
             <h3 className="text-lg font-black text-gray-900 leading-tight break-words">{block.title || 'Файл для скачивания'}</h3>
-            {/* Рендерим Ворд-описание файла если есть */}
             {block.content && (
-               <div className="text-xs font-medium text-gray-600 mt-1 break-words prose prose-sm max-w-none ql-editor px-0" dangerouslySetInnerHTML={{ __html: safeHtml(block.content) }} />
+               <div className="ql-snow w-full mt-1">
+                 <div className="ql-editor !p-0 text-sm font-medium text-gray-600 break-words" dangerouslySetInnerHTML={{ __html: safeHtml(block.content) }} />
+               </div>
             )}
           </div>
         </div>
@@ -804,12 +870,33 @@ export default function CourseView() {
     return null;
   };
 
+  // 🔥 ИДЕАЛЬНОЕ ВЫРАВНИВАНИЕ СЕТКИ
   return (
-    <div className="flex h-screen bg-[#F4F7FE] font-sans text-gray-900">
-      <style>{`.ql-editor { min-height: 120px; font-family: inherit; font-size: 16px; }`}</style>
+    <div className="flex h-screen bg-[#F4F7FE] font-sans text-gray-900 p-4 md:p-6 lg:p-8 gap-4 lg:gap-8 overflow-hidden">
+      
+      {/* 🔥 ГЛОБАЛЬНЫЕ СТИЛИ ДЛЯ РЕДАКТОРА */}
+      <style>{`
+        .ql-editor { 
+          min-height: auto !important; 
+          font-family: inherit !important; 
+          font-size: 16px !important; 
+          word-break: normal !important; 
+          overflow-wrap: break-word !important; 
+          white-space: normal !important;
+          padding: 0 !important;
+        }
+        .ql-editor p { margin-bottom: 0.75em !important; line-height: 1.6 !important; }
+        .ql-editor img { max-width: 100% !important; border-radius: 1rem !important; margin: 1rem 0 !important; }
+        .ql-align-center { text-align: center !important; }
+        .ql-align-right { text-align: right !important; }
+        .ql-align-justify { text-align: justify !important; }
+        .ql-editor ol, .ql-editor ul { padding-left: 1.5em !important; margin-bottom: 1em !important; }
+        .ql-editor li { margin-bottom: 0.5em !important; }
+      `}</style>
 
-      <aside className="w-[340px] bg-white border-r border-gray-100 flex flex-col h-full shrink-0 z-20 shadow-lg">
-        <div className="p-5 border-b border-gray-100 bg-white">
+      {/* 🔥 БОКОВАЯ ПАНЕЛЬ: Одинаковая высота и стиль с главным блоком */}
+      <aside className="w-[300px] lg:w-[340px] bg-white rounded-[2rem] border border-gray-100 flex flex-col h-full shrink-0 z-20 shadow-sm overflow-hidden">
+        <div className="p-6 md:p-8 pb-5 border-b border-gray-100 bg-white">
           <button type="button" onClick={() => navigate(`/course/${courseId}`)} className="text-[11px] font-black tracking-wider text-gray-400 hover:text-[#5A4BFF] flex items-center gap-2 mb-4 transition-colors uppercase">
             <ArrowLeft className="w-4 h-4" /> Назад к модулям
           </button>
@@ -827,7 +914,7 @@ export default function CourseView() {
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-3 space-y-2 custom-scrollbar">
+        <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-2 custom-scrollbar">
           {filteredThemes?.map((theme: any, tIdx: number) => {
             const isExpanded = expandedThemes[theme.id];
             
@@ -880,119 +967,90 @@ export default function CourseView() {
         </div>
       </aside>
 
-      <main className="flex-1 overflow-y-auto relative bg-[#F4F7FE] scroll-smooth">
+      {/* 🔥 MAIN БЛОК: Выровнен с боковой панелью */}
+      <main className="flex-1 bg-white rounded-[2rem] border border-gray-100 shadow-sm overflow-y-auto relative scroll-smooth h-full custom-scrollbar">
         <AnimatePresence mode="wait">
           {activeLesson ? (
-            <motion.div key={activeLesson.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="max-w-[1100px] mx-auto p-4 md:p-8 pb-32">
-              <div className="bg-white rounded-[2rem] shadow-sm border border-gray-100 overflow-hidden">
-                
-                <div className="p-6 md:p-10 pb-6 border-b border-gray-50">
-                  <div className="inline-flex items-center gap-2 px-3 py-1 mb-4 rounded-full bg-indigo-50 text-indigo-600 text-[10px] font-black uppercase tracking-widest">
-                    <span className="w-1.5 h-1.5 rounded-full bg-indigo-600 animate-pulse"></span> Урок и Теория
-                  </div>
-                  <h1 className="text-3xl md:text-4xl lg:text-5xl font-black text-gray-900 leading-tight break-words w-full overflow-hidden">{activeLesson.title}</h1>
+            <motion.div key={activeLesson.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="max-w-[1100px] mx-auto pb-20">
+              <div className="p-6 md:p-8 lg:p-10 pb-6 border-b border-gray-50">
+                <div className="inline-flex items-center gap-2 px-3 py-1 mb-4 rounded-full bg-indigo-50 text-indigo-600 text-[10px] font-black uppercase tracking-widest">
+                  <span className="w-1.5 h-1.5 rounded-full bg-indigo-600 animate-pulse"></span> Урок и Теория
                 </div>
+                <h1 className="text-3xl md:text-4xl lg:text-5xl font-black text-gray-900 leading-tight break-words w-full overflow-hidden">{activeLesson.title}</h1>
+              </div>
 
-                <div className="p-6 md:p-10 space-y-8">
-                  {/* РЕНДЕР ТЕОРИИ */}
-                  {theoryBlocks.map(block => renderTheoryBlock(block))}
+              <div className="p-6 md:p-8 lg:p-10 space-y-8">
+                {/* РЕНДЕР ТЕОРИИ */}
+                {theoryBlocks.map(block => renderTheoryBlock(block))}
 
-                  {/* РЕНДЕР ПРАКТИКИ */}
-                  {practiceGroups.length > 0 && (
-                    <div className="mt-12 pt-10 border-t border-dashed border-gray-200">
-                      {!areTestsRevealed ? (
-                        <div className="bg-indigo-50 border border-indigo-100 rounded-[2rem] p-8 text-center flex flex-col items-center">
-                          <div className="w-16 h-16 bg-white rounded-2xl flex items-center justify-center shadow-sm mb-4">
-                            <ListTodo className="w-8 h-8 text-indigo-600" />
-                          </div>
-                          <h3 className="text-2xl font-black text-gray-900 mb-2">Практика к уроку</h3>
-                          <p className="text-gray-600 mb-6">Доступно {practiceBlocks.length} заданий для закрепления материала.</p>
-                          <button 
-                            type="button"
-                            onClick={(e) => { e.preventDefault(); setAreTestsRevealed(true); }}
-                            className="px-8 py-4 bg-[#5A4BFF] hover:bg-indigo-600 text-white rounded-xl font-bold transition-all shadow-lg active:scale-95"
-                          >
-                            Показать задания
-                          </button>
+                {/* РЕНДЕР ПРАКТИКИ */}
+                {practiceGroups.length > 0 && (
+                  <div className="mt-12 pt-10 border-t border-dashed border-gray-200">
+                    {!areTestsRevealed ? (
+                      <div className="bg-indigo-50 border border-indigo-100 rounded-[2rem] p-8 text-center flex flex-col items-center">
+                        <div className="w-16 h-16 bg-white rounded-2xl flex items-center justify-center shadow-sm mb-4">
+                          <ListTodo className="w-8 h-8 text-indigo-600" />
                         </div>
-                      ) : (
-                        <div className="space-y-4">
-                          <h3 className="text-2xl font-black text-gray-900 flex items-center gap-3 mb-6">
-                            <ListTodo className="w-6 h-6 text-[#5A4BFF]" /> Практическая часть
-                          </h3>
-                          {practiceGroups.map(group => (
-                            <TaskGroup 
-                              key={`${activeLesson.id}-${group.type}`} 
-                              group={group} 
-                              testAnswers={testAnswers} testResults={testResults} attemptsUsed={attemptsUsed} 
-                              handleAnswerToggle={handleAnswerToggle} handleTextAnswerChange={handleTextAnswerChange} 
-                              handleMatchingChange={handleMatchingChange} handleSubmitTest={handleSubmitTest}
-                              submissions={submissions}
-                            />
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {/* РЕНДЕР ДОМАШНЕГО ЗАДАНИЯ */}
-                  {homeworkBlocks.length > 0 && (
-                    <div className="mt-12 pt-10 border-t-4 border-dashed border-purple-200">
-                      <div className="bg-purple-600 p-6 md:p-8 rounded-[2rem] shadow-sm overflow-hidden flex flex-col md:flex-row md:items-center justify-between gap-6 relative mb-8">
-                        <div className="absolute -right-10 -top-10 w-32 h-32 bg-purple-400 rounded-full opacity-30 blur-2xl pointer-events-none"></div>
-                        <div className="flex items-center gap-5 relative z-10 w-full md:w-auto">
-                          <div className="hidden md:flex w-16 h-16 bg-white/10 rounded-2xl items-center justify-center border border-white/20 shrink-0">
-                            <FileSignature className="w-8 h-8 text-white" />
-                          </div>
-                          <div>
-                            <h3 className="text-xl md:text-2xl font-black text-white leading-tight break-words">Домашнее задание</h3>
-                            <p className="text-purple-200 font-medium text-sm mt-1">Ожидает вашего выполнения</p>
-                          </div>
-                        </div>
-                        
+                        <h3 className="text-2xl font-black text-gray-900 mb-2">Практика к уроку</h3>
+                        <p className="text-gray-600 mb-6">Доступно {practiceBlocks.length} заданий для закрепления материала.</p>
                         <button 
                           type="button"
-                          onClick={(e) => { e.preventDefault(); setIsHomeworkRevealed(prev => !prev); }}
-                          className="w-full md:w-auto shrink-0 px-8 py-4 bg-white text-purple-700 hover:bg-purple-50 rounded-xl font-black text-sm transition-all shadow-lg active:scale-95 flex items-center justify-center gap-2 relative z-10"
+                          onClick={(e) => { e.preventDefault(); setAreTestsRevealed(true); }}
+                          className="px-8 py-4 bg-[#5A4BFF] hover:bg-indigo-600 text-white rounded-xl font-bold transition-all shadow-lg active:scale-95"
                         >
-                          {isHomeworkRevealed ? 'Скрыть задание' : 'Показать задание'}
-                          <motion.span animate={{ rotate: isHomeworkRevealed ? 180 : 0 }} className="flex items-center justify-center">
-                            <ChevronDownIcon className="w-4 h-4" />
-                          </motion.span>
+                          Показать задания
                         </button>
                       </div>
+                    ) : (
+                      <div className="space-y-4">
+                        <h3 className="text-2xl font-black text-gray-900 flex items-center gap-3 mb-6">
+                          <ListTodo className="w-6 h-6 text-[#5A4BFF]" /> Практическая часть
+                        </h3>
+                        {practiceGroups.map(group => (
+                          <TaskGroup 
+                            key={`${activeLesson.id}-${group.type}`} 
+                            group={group} 
+                            testAnswers={testAnswers} testResults={testResults} attemptsUsed={attemptsUsed} 
+                            handleAnswerToggle={handleAnswerToggle} handleTextAnswerChange={handleTextAnswerChange} 
+                            handleMatchingChange={handleMatchingChange} handleSubmitTest={handleSubmitTest}
+                            submissions={submissions}
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
 
-                      <AnimatePresence>
-                        {isHomeworkRevealed && (
-                          <motion.div
-                            key="hw-content"
-                            initial={{ height: 0, opacity: 0, marginTop: 0 }} animate={{ height: 'auto', opacity: 1, marginTop: 32 }} exit={{ height: 0, opacity: 0, marginTop: 0 }} transition={{ duration: 0.3, ease: 'easeInOut' }}
-                            className="overflow-hidden space-y-8"
-                          >
-                            {hwTheoryBlocks.map(block => (
-                              <div key={block.id} className="bg-white rounded-[2rem] border border-gray-200 p-6 md:p-8 relative">
-                                <div className="inline-flex items-center gap-1.5 px-3 py-1 mb-6 rounded-md text-[10px] font-black uppercase tracking-widest bg-purple-100 text-purple-700">Материал к ДЗ</div>
-                                {renderTheoryBlock(block)}
-                              </div>
-                            ))}
-
-                            {hwGroups.map(group => (
-                              <TaskGroup 
-                                key={`hw-${activeLesson.id}-${group.type}`} 
-                                group={group} 
-                                testAnswers={testAnswers} testResults={testResults} attemptsUsed={attemptsUsed} 
-                                handleAnswerToggle={handleAnswerToggle} handleTextAnswerChange={handleTextAnswerChange} 
-                                handleMatchingChange={handleMatchingChange} handleSubmitTest={handleSubmitTest}
-                                submissions={submissions}
-                              />
-                            ))}
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
+                {/* 🔥 РЕНДЕР ДОМАШНЕГО ЗАДАНИЯ - ОТКРЫТИЕ В ОТДЕЛЬНОМ ОКНЕ */}
+                {homeworkBlocks.length > 0 && (
+                  <div className="mt-12 pt-10 border-t-4 border-dashed border-purple-200">
+                    <div className="bg-purple-600 p-6 md:p-8 rounded-[2rem] shadow-sm overflow-hidden flex flex-col md:flex-row md:items-center justify-between gap-6 relative">
+                      <div className="absolute -right-10 -top-10 w-32 h-32 bg-purple-400 rounded-full opacity-30 blur-2xl pointer-events-none"></div>
+                      <div className="flex items-center gap-5 relative z-10 w-full md:w-auto">
+                        <div className="hidden md:flex w-16 h-16 bg-white/10 rounded-2xl items-center justify-center border border-white/20 shrink-0">
+                          <FileSignature className="w-8 h-8 text-white" />
+                        </div>
+                        <div>
+                          <h3 className="text-xl md:text-2xl font-black text-white leading-tight break-words">Домашнее задание</h3>
+                          <p className="text-purple-200 font-medium text-sm mt-1">Ожидает вашего выполнения</p>
+                        </div>
+                      </div>
+                      
+                      <button 
+                        type="button"
+                        onClick={(e) => { 
+                          e.preventDefault(); 
+                          window.open(`/homework/${activeLesson.id}`, '_blank');
+                        }}
+                        className="w-full md:w-auto shrink-0 px-8 py-4 bg-white text-purple-700 hover:bg-purple-50 rounded-xl font-black text-sm transition-all shadow-lg active:scale-95 flex items-center justify-center gap-2 relative z-10"
+                      >
+                        Приступить к выполнению ДЗ
+                        <ExternalLink className="w-4 h-4 ml-1" />
+                      </button>
                     </div>
-                  )}
+                  </div>
+                )}
 
-                </div>
               </div>
             </motion.div>
           ) : (

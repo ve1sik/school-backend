@@ -21,10 +21,10 @@ export class ThemeService {
     });
   }
 
-  async updateVisibility(id: string, is_visible: boolean) {
+
+  async update(id: string, data: any) {
     return this.prisma.theme.update({
       where: { id },
-      data: { is_visible },
+      data,
     });
   }
-}

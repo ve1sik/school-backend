@@ -4,7 +4,7 @@ import axios from 'axios';
 import { 
   ArrowLeft, Loader2, CheckCircle2, Clock, PenTool, CheckSquare, 
   XCircle, Type, PlayCircle, FileDown, Link2, ExternalLink, 
-  Image as ImageIcon, BookOpen, X, FileSignature, ListTodo, List, ChevronRight
+  Image as ImageIcon, BookOpen, X, FileSignature, ListTodo, ChevronRight
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ReactQuill from 'react-quill-new';
@@ -36,7 +36,7 @@ const getEmbedUrl = (url: string) => {
 
 const safeHtml = (text: any) => {
   if (!text || typeof text !== 'string') return '';
-  return text.includes('<') ? text : text.replace(/\n/g, '<br/>');
+  return text;
 };
 
 const getSafeLocal = (key: string, fallback: any) => {
@@ -86,16 +86,6 @@ const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswer
   const [isOpen, setIsOpen] = useState(false);
   const [activeStep, setActiveStep] = useState(0);
 
-  const shuffledRightOptions = useMemo(() => {
-    const options: Record<string, string[]> = {};
-    group.blocks.forEach((b: any) => {
-      if (b.type === 'matching' && b.pairs) {
-        options[b.id] = shuffleArray(b.pairs.map((p: any) => p.right));
-      }
-    });
-    return options;
-  }, [group.blocks]);
-
   useEffect(() => { if (!isOpen) setActiveStep(0); }, [isOpen]);
 
   if (!isOpen) {
@@ -126,6 +116,7 @@ const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswer
   let result = testResults?.[block.id];
   let currentAttempts = attemptsUsed?.[block.id] || 0;
   const maxAttempts = block.maxAttempts || 3;
+  const maxScore = block.maxScore || 3;
 
   if (serverSubmission) {
     if (serverSubmission.status === 'GRADED') {
@@ -154,6 +145,17 @@ const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswer
       const parts = s.split('|||');
       return parts.length === 2 && parts[1] && parts[1].trim() !== '';
     });
+  }
+
+  let inputStateClass = 'bg-white border-gray-100 focus:border-[#A855F7] focus:shadow-sm text-gray-900';
+  if (isLocked) {
+     if (result === 'SUCCESS' || (result === 'GRADED' && Number(serverSubmission?.score) > 0)) {
+         inputStateClass = 'bg-emerald-50 border-emerald-400 text-emerald-700';
+     } else if (result === 'ERROR' || (result === 'GRADED' && Number(serverSubmission?.score) === 0)) {
+         inputStateClass = 'bg-red-50 border-red-400 text-red-700';
+     } else {
+         inputStateClass = 'bg-gray-50 border-gray-200 text-gray-500';
+     }
   }
 
   return (
@@ -212,15 +214,14 @@ const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswer
         <div className="px-3 py-1.5 rounded-md bg-purple-50 text-purple-600 text-[10px] font-black uppercase tracking-widest">
           Вопрос {activeStep + 1}
         </div>
-        {block.type !== 'written' ? (
+        {block.type !== 'written' && (
           <div className={`px-3 py-1.5 rounded-md text-[10px] font-black uppercase tracking-widest ${isExhausted && result !== 'SUCCESS' ? 'bg-rose-100 text-rose-600' : 'bg-gray-100 text-gray-500'}`}>
             Попыток: {attemptsLeft} из {maxAttempts}
           </div>
-        ) : (
-          <div className="px-3 py-1.5 rounded-md bg-gray-100 text-gray-500 text-[10px] font-black uppercase tracking-widest">
-            Макс. балл: {block.maxScore || 10}
-          </div>
         )}
+        <div className="px-3 py-1.5 rounded-md bg-gray-100 text-gray-500 text-[10px] font-black uppercase tracking-widest">
+          Макс. балл: {maxScore}
+        </div>
         {block.source && (
           <div className="px-3 py-1.5 rounded-md bg-amber-50 text-amber-600 text-[10px] font-black uppercase tracking-widest border border-amber-100">
             Источник: {block.source}
@@ -236,15 +237,15 @@ const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswer
           </motion.div>
         )}
         {result === 'ERROR' && isExhausted && (
-          <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="bg-gray-50 border border-gray-200 p-4 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between font-bold mb-6 gap-2 text-gray-500">
+          <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="bg-rose-50 border border-rose-200 p-4 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between font-bold mb-6 gap-2 text-rose-600">
             <span className="flex items-center gap-2 text-lg"><XCircle className="w-6 h-6" /> Попытки закончились</span>
-            <span className="text-sm bg-white px-3 py-1 rounded-lg shadow-sm border border-gray-100">0 из {maxAttempts} 💔</span>
+            <span className="text-sm bg-white px-3 py-1 rounded-lg shadow-sm border border-rose-100 text-rose-700">Балл: 0 / {maxScore} 💔</span>
           </motion.div>
         )}
         {result === 'SUCCESS' && (
           <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="bg-emerald-50 border border-emerald-100 p-4 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between font-bold mb-6 text-emerald-600 gap-2">
             <span className="flex items-center gap-2 text-lg"><CheckCircle2 className="w-6 h-6" /> Верно!</span>
-            <span className="text-sm bg-white px-3 py-1 rounded-lg shadow-sm border border-emerald-50">Отличная работа 🌟</span>
+            <span className="text-sm bg-white px-3 py-1 rounded-lg shadow-sm border border-emerald-50 text-emerald-700">Балл: {maxScore} / {maxScore} 🌟</span>
           </motion.div>
         )}
         {result === 'PENDING' && (
@@ -254,16 +255,16 @@ const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswer
           </motion.div>
         )}
         {result === 'GRADED' && serverSubmission && (
-           <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="bg-emerald-50 border border-emerald-100 p-4 rounded-xl mb-6 shadow-sm">
-             <div className="flex flex-col sm:flex-row sm:items-center justify-between font-bold text-emerald-600 gap-2 mb-3">
-               <span className="flex items-center gap-2 text-lg"><CheckCircle2 className="w-6 h-6" /> Работа проверена куратором!</span>
-               <span className="text-sm bg-white px-3 py-1 rounded-lg shadow-sm border border-emerald-100">
-                 Балл: <span className="text-emerald-700 font-black">{serverSubmission.score}</span> / {serverSubmission.max_score || block.maxScore}
+           <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="bg-emerald-50 border-2 border-emerald-200 p-5 rounded-xl mb-6 shadow-sm">
+             <div className="flex flex-col sm:flex-row sm:items-center justify-between font-black text-emerald-600 gap-3 mb-4">
+               <span className="flex items-center gap-2 text-xl"><CheckCircle2 className="w-7 h-7" /> Работа проверена!</span>
+               <span className="text-lg bg-white px-4 py-2 rounded-xl shadow-sm border border-emerald-100 flex items-center gap-2">
+                 Оценка: <span className="text-emerald-700 text-2xl font-black">{serverSubmission.score}</span> / <span className="text-emerald-500 text-lg">{serverSubmission.max_score || maxScore}</span>
                </span>
              </div>
              {serverSubmission.comment && (
-               <div className="p-4 bg-white rounded-xl text-sm text-gray-700 font-medium border border-emerald-100/50">
-                 <strong className="text-emerald-700 block mb-1 uppercase tracking-wider text-[10px]">Комментарий куратора:</strong>
+               <div className="p-4 bg-white rounded-xl text-sm text-gray-800 font-medium border border-emerald-100/50 shadow-inner">
+                 <strong className="text-emerald-700 block mb-1 uppercase tracking-wider text-[11px]">Комментарий куратора:</strong>
                  {serverSubmission.comment}
                </div>
              )}
@@ -271,7 +272,12 @@ const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswer
         )}
       </AnimatePresence>
 
-      <div className="text-lg md:text-xl font-bold text-gray-900 mb-6 leading-relaxed break-words" dangerouslySetInnerHTML={{ __html: safeHtml(block.question) }} />
+      <div className="ql-snow w-full">
+        <div 
+          className="ql-editor !p-0 text-lg md:text-xl font-bold text-gray-900 mb-6 leading-relaxed break-words" 
+          dangerouslySetInnerHTML={{ __html: safeHtml(block.question) }} 
+        />
+      </div>
       
       {(block.questionImage || block.image) && (
         <ExpandableImage src={getFullUrl(block.questionImage || block.image)} alt="Схема" className="mb-8" />
@@ -280,14 +286,47 @@ const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswer
       <div className="space-y-3 mb-8">
         {block.type === 'test' && Array.isArray(block.options) && block.options.map((opt: any, idx: number) => {
           const isChecked = selected.includes(opt.text) || (typeof serverSubmission?.answer === 'string' && serverSubmission.answer.includes(opt.text));
-          let optClass = "flex items-center gap-4 p-4 md:p-5 rounded-2xl border-2 transition-all cursor-pointer ";
+          let optClass = "flex items-center gap-4 p-4 md:p-5 rounded-2xl border-2 transition-all cursor-pointer relative ";
+          let textClass = "font-bold text-base break-words ";
           
-          if ((result === 'SUCCESS' || result === 'GRADED') && isChecked) optClass += "border-emerald-500 bg-emerald-50/30";
-          else if (result === 'ERROR' && isChecked) optClass += "border-[#FF4A6B] bg-[#FF4A6B]/5";
-          else if (isChecked) optClass += "border-[#A855F7] bg-purple-50/20 shadow-sm";
-          else optClass += "border-gray-100 hover:border-gray-200 bg-white";
+          let showGreenCheck = false;
+          let showRedCross = false;
 
-          if (isLocked) optClass += " opacity-70 pointer-events-none";
+          // 🔥 ИДЕАЛЬНАЯ ПОДСВЕТКА ВАРИАНТОВ (Красный крест/Зеленая галочка)
+          if (result === 'SUCCESS' || (result === 'GRADED' && Number(serverSubmission?.score) > 0)) {
+            if (isChecked) {
+              optClass += "border-emerald-500 bg-emerald-50/30 text-emerald-900";
+              showGreenCheck = true;
+            } else {
+              optClass += "border-gray-100 bg-white opacity-60 text-gray-400";
+            }
+          } else if (isExhausted) {
+             // Лимит исчерпан - показываем правильные и зачеркиваем неправильные
+             if (opt.isCorrect) {
+               optClass += "border-emerald-500 bg-emerald-50/30 text-emerald-900"; 
+               showGreenCheck = true;
+             } else if (isChecked && !opt.isCorrect) {
+               optClass += "border-[#FF4A6B] bg-[#FF4A6B]/5"; 
+               textClass += "text-[#FF4A6B] line-through opacity-70"; 
+               showRedCross = true;
+             } else {
+               optClass += "border-gray-100 bg-white opacity-60 text-gray-400";
+             }
+          } else if (result === 'ERROR') {
+             if (isChecked) {
+               optClass += "border-red-400 bg-red-50 text-red-700";
+             } else {
+               optClass += "border-gray-100 bg-white hover:border-gray-200 text-gray-600";
+             }
+          } else {
+             if (isChecked) {
+               optClass += "border-[#A855F7] bg-purple-50/20 shadow-sm text-gray-900";
+             } else {
+               optClass += "border-gray-100 hover:border-gray-200 bg-white text-gray-600";
+             }
+          }
+
+          if (isLocked) optClass += " opacity-90 pointer-events-none";
 
           return (
             <label key={idx} className={optClass}>
@@ -295,77 +334,119 @@ const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswer
                 <input type="checkbox" checked={isChecked} disabled={isLocked} onChange={() => { if (!isLocked) handleAnswerToggle(block.id, opt.text); }} className="peer w-6 h-6 rounded border-2 border-gray-300 appearance-none checked:bg-[#A855F7] checked:border-[#A855F7] transition-all cursor-pointer" />
                 <CheckSquare className="w-3.5 h-3.5 text-white absolute pointer-events-none opacity-0 peer-checked:opacity-100 transition-opacity" />
               </div>
-              <span className={`font-bold text-base break-words ${isChecked ? 'text-gray-900' : 'text-gray-600'}`}>{opt.text}</span>
+              <span className={textClass}>{opt.text}</span>
+              
+              {showGreenCheck && (
+                <div className="ml-auto bg-emerald-500 text-white rounded-full p-1 shadow-md shrink-0">
+                  <CheckCircle2 className="w-4 h-4" />
+                </div>
+              )}
+              {showRedCross && (
+                <div className="ml-auto bg-[#FF4A6B] text-white rounded-full p-1 shadow-md shrink-0">
+                  <X className="w-4 h-4" />
+                </div>
+              )}
             </label>
           );
         })}
 
         {block.type === 'test_short' && (
-          <input 
-            type="text" 
-            value={serverSubmission?.answer || selected[0] || ''} 
-            onChange={(e) => { if (!isLocked) handleTextAnswerChange(block.id, e.target.value); }} 
-            disabled={isLocked}
-            placeholder="Введите ответ" 
-            className={`w-full p-5 text-lg font-bold rounded-2xl border-2 transition-all outline-none ${isLocked ? 'bg-gray-50 border-gray-100 text-gray-500' : 'bg-white border-gray-100 focus:border-[#A855F7] focus:shadow-sm text-gray-900'}`}
-          />
+          <div className="space-y-3">
+            <input 
+              type="text" 
+              value={serverSubmission?.answer || selected[0] || ''} 
+              onChange={(e) => { if (!isLocked) handleTextAnswerChange(block.id, e.target.value); }} 
+              disabled={isLocked}
+              placeholder="Введите ответ" 
+              className={`w-full p-5 text-lg font-bold rounded-2xl border-2 transition-all outline-none ${inputStateClass}`}
+            />
+            {isExhausted && result !== 'SUCCESS' && (
+               <motion.div initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }} className="text-sm font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 p-4 rounded-xl flex items-center gap-2">
+                 <CheckCircle2 className="w-5 h-5" /> Правильный ответ: {block.correctAnswers?.join(' / ')}
+               </motion.div>
+            )}
+          </div>
         )}
 
+        {/* 🔥 ИДЕАЛЬНАЯ ТАБЛИЦА В ЛИНЕЙКУ (Стрелочки + Зачеркивание) */}
         {block.type === 'matching' && block.pairs && (
-          <div className="space-y-4">
-            <div className="hidden sm:flex px-4 py-2 bg-indigo-50 rounded-xl text-[10px] font-black text-indigo-400 uppercase tracking-widest">
-              <div className="flex-1">Элемент</div>
-              <div className="w-8"></div>
-              <div className="flex-1">Установите соответствие</div>
+          <div className="space-y-4 w-full overflow-x-auto custom-scrollbar pb-4 pt-2">
+            <div className="flex gap-3 min-w-max">
+              {block.pairs.map((pair: any, idx: number) => {
+                const currentSelectedPair = selected.find((s: string) => s.startsWith(`${pair.left}|||`));
+                const currentRightValue = currentSelectedPair ? currentSelectedPair.split('|||')[1] : '';
+
+                let displayRightValue = currentRightValue;
+                if (serverSubmission && serverSubmission.answer) {
+                   const serverPairs = serverSubmission.answer.split(', ');
+                   const serverMatch = serverPairs.find((s: string) => s.startsWith(`${pair.left} - `));
+                   if (serverMatch) displayRightValue = serverMatch.split(' - ')[1];
+                }
+
+                const isCorrectPair = displayRightValue.toLowerCase().trim() === pair.right.toLowerCase().trim();
+
+                let tBorderClass = 'border-gray-200';
+                let tInputClass = 'bg-white focus:border-purple-400 text-purple-700';
+                
+                if (isLocked) {
+                   if (result === 'SUCCESS' || (result === 'GRADED' && Number(serverSubmission?.score) > 0)) {
+                       tBorderClass = 'border-emerald-400';
+                       tInputClass = 'bg-emerald-50 text-emerald-700 font-bold';
+                   } else if (isExhausted) {
+                       if (isCorrectPair) {
+                         tBorderClass = 'border-emerald-400';
+                         tInputClass = 'bg-emerald-50 text-emerald-700 font-bold';
+                       } else {
+                         tBorderClass = 'border-red-400';
+                         tInputClass = 'bg-red-50 text-red-700 font-bold';
+                       }
+                   } else if (result === 'ERROR' || (result === 'GRADED' && Number(serverSubmission?.score) === 0)) {
+                       tBorderClass = 'border-red-400';
+                       tInputClass = 'bg-red-50 text-red-700 font-bold';
+                   } else {
+                       tBorderClass = 'border-gray-200';
+                       tInputClass = 'bg-gray-50 text-gray-500';
+                   }
+                }
+
+                return (
+                  <div key={idx} className="flex flex-col gap-2 w-32 shrink-0">
+                    <div className={`flex flex-col border-2 rounded-xl overflow-hidden transition-all shadow-sm ${tBorderClass}`}>
+                      <div className="bg-gray-100 p-2 text-center font-black text-gray-800 border-b-2 border-inherit flex items-center justify-center min-h-[3rem] break-words px-2">
+                        {pair.left}
+                      </div>
+                      <input
+                        id={`matching-${block.id}-${idx}`}
+                        type="text"
+                        disabled={isLocked}
+                        value={displayRightValue}
+                        onChange={(e) => {
+                          if (!isLocked) handleMatchingChange(block.id, pair.left, e.target.value);
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'ArrowRight' && (e.currentTarget.selectionStart === e.currentTarget.value.length || e.currentTarget.value === '')) {
+                            e.preventDefault();
+                            const nextInput = document.getElementById(`matching-${block.id}-${idx + 1}`);
+                            if (nextInput) nextInput.focus();
+                          } else if (e.key === 'ArrowLeft' && (e.currentTarget.selectionStart === 0 || e.currentTarget.value === '')) {
+                            e.preventDefault();
+                            const prevInput = document.getElementById(`matching-${block.id}-${idx - 1}`);
+                            if (prevInput) prevInput.focus();
+                          }
+                        }}
+                        placeholder=""
+                        className={`w-full p-4 text-center font-bold text-lg outline-none transition-all ${tInputClass} ${isExhausted && !isCorrectPair ? 'line-through opacity-70' : ''}`}
+                      />
+                    </div>
+                    {isExhausted && !isCorrectPair && (
+                      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center bg-emerald-50 text-emerald-700 font-bold text-[11px] uppercase tracking-wider py-1.5 px-2 rounded-lg border border-emerald-200">
+                        Ответ: <span className="text-sm ml-1 text-emerald-900">{pair.right}</span>
+                      </motion.div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
-            {block.pairs.map((pair: any, idx: number) => {
-              const currentSelectedPair = selected.find((s: string) => s.startsWith(`${pair.left}|||`));
-              const currentRightValue = currentSelectedPair ? currentSelectedPair.split('|||')[1] : '';
-
-              let displayRightValue = currentRightValue;
-              if (serverSubmission && serverSubmission.answer) {
-                 const serverPairs = serverSubmission.answer.split(', ');
-                 const serverMatch = serverPairs.find((s: string) => s.startsWith(`${pair.left} - `));
-                 if (serverMatch) {
-                    displayRightValue = serverMatch.split(' - ')[1];
-                 }
-              }
-
-              let borderClass = 'border-gray-200';
-              if (result === 'SUCCESS') borderClass = 'border-emerald-400 bg-emerald-50';
-              else if (result === 'ERROR') borderClass = 'border-red-400 bg-red-50';
-              else if (displayRightValue) borderClass = 'border-indigo-400 bg-indigo-50/30';
-
-              return (
-                <div key={idx} className={`flex flex-col sm:flex-row sm:items-center gap-3 p-4 rounded-2xl border-2 transition-all ${borderClass}`}>
-                  <div className="flex-1 font-bold text-gray-800 bg-white p-3 rounded-xl border border-gray-100 shadow-sm">
-                    {pair.left}
-                  </div>
-                  
-                  <div className="hidden sm:flex text-gray-300">
-                    <ChevronRight className="w-5 h-5" />
-                  </div>
-                  
-                  <div className="flex-1">
-                    <select
-                      disabled={isLocked}
-                      value={displayRightValue}
-                      onChange={(e) => {
-                        if (!isLocked) handleMatchingChange(block.id, pair.left, e.target.value);
-                      }}
-                      className={`w-full p-3 rounded-xl font-bold outline-none cursor-pointer border shadow-sm transition-all appearance-none
-                        ${isLocked ? 'bg-gray-50 border-gray-200 text-gray-500' : 'bg-white border-gray-200 hover:border-indigo-400 focus:border-indigo-600 text-indigo-700'}`
-                      }
-                    >
-                      <option value="" disabled>-- Выберите вариант --</option>
-                      {shuffledRightOptions[block.id]?.map((opt: string, oIdx: number) => (
-                        <option key={oIdx} value={opt}>{opt}</option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-              );
-            })}
           </div>
         )}
 
@@ -419,7 +500,9 @@ const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswer
             <h5 className="flex items-center gap-2 text-purple-700 font-black text-sm uppercase tracking-widest mb-4">
               <BookOpen className="w-5 h-5" /> Разбор задания
             </h5>
-            <div className="prose prose-sm max-w-none text-gray-800 ql-editor px-0" dangerouslySetInnerHTML={{ __html: safeHtml(block.explanation) }} />
+            <div className="ql-snow w-full">
+              <div className="ql-editor !p-0 text-sm text-gray-800" dangerouslySetInnerHTML={{ __html: safeHtml(block.explanation) }} />
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
@@ -576,7 +659,10 @@ export default function HomeworkView() {
       finalAnswerString = selected[0] || '';
     } else if (block.type === 'test') {
       const correctOptions = Array.isArray(block.options) ? block.options.filter((opt: any) => opt.isCorrect).map((opt: any) => opt.text) : [];
-      isSuccess = correctOptions.length === selected.length && correctOptions.every((val: string) => selected.includes(val));
+      // 🔥 ЖЕСТКАЯ ПРОВЕРКА ДЛЯ ТЕСТОВ (Все правильные и ни одного лишнего)
+      isSuccess = correctOptions.length > 0 && 
+                  selected.length === correctOptions.length && 
+                  selected.every((val: string) => correctOptions.includes(val));
     } else if (block.type === 'test_short') {
       const userAnswer = (selected[0] || '').trim();
       finalAnswerString = userAnswer;
@@ -590,10 +676,14 @@ export default function HomeworkView() {
       const userAnswersMap: Record<string, string> = {};
       selected.forEach((s: string) => {
         const parts = s.split('|||');
-        if (parts.length === 2) userAnswersMap[parts[0]] = parts[1];
+        if (parts.length === 2) userAnswersMap[parts[0]] = parts[1].trim();
       });
 
-      isSuccess = block.pairs.every((pair: any) => userAnswersMap[pair.left] === pair.right);
+      isSuccess = block.pairs.every((pair: any) => {
+        const studentAns = (userAnswersMap[pair.left] || '').toLowerCase().trim();
+        const correctAns = (pair.right || '').toLowerCase().trim();
+        return studentAns === correctAns;
+      });
       finalAnswerString = Object.entries(userAnswersMap).map(([k, v]) => `${k} - ${v}`).join(', ');
     }
     
@@ -667,6 +757,7 @@ export default function HomeworkView() {
         </div>
       );
     }
+
     if (block.type === 'video' && block.url) {
       const isDirect = block.url.toLowerCase().match(/\.(mp4|mov|webm)$/) || block.url.includes('uploads/');
       if (isDirect) {
@@ -679,48 +770,36 @@ export default function HomeworkView() {
           </div>
         );
       }
-      if (block.url.includes('disk.yandex.ru/')) {
-        return (
-          <div key={block.id} className="space-y-3">
-            {block.title && <h3 className="text-xl font-black text-gray-900 break-words">{block.title}</h3>}
-            <div className="bg-orange-50 border border-orange-200 rounded-[1.5rem] p-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
-              <div className="flex items-center gap-4 min-w-0">
-                <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center shrink-0 border border-orange-100 shadow-sm"><PlayCircle className="w-6 h-6 text-orange-500" /></div>
-                <div className="min-w-0">
-                  <h3 className="text-lg font-bold text-gray-900 truncate">Видео на Яндекс.Диске</h3>
-                  <p className="text-sm text-gray-600 truncate">Видео откроется в новой вкладке.</p>
-                </div>
-              </div>
-              <a href={block.url} target="_blank" rel="noopener noreferrer" className="shrink-0 px-6 py-3 bg-white border-2 border-orange-200 text-orange-600 hover:bg-orange-500 hover:border-orange-500 hover:text-white rounded-xl font-bold text-sm transition-all shadow-sm flex items-center justify-center gap-2">
-                Смотреть <ExternalLink className="w-4 h-4" />
-              </a>
-            </div>
-          </div>
-        );
-      }
+      
       return (
         <div key={block.id} className="space-y-3">
           {block.title && <h3 className="text-xl font-black text-gray-900 break-words">{block.title}</h3>}
           <div className="aspect-video bg-gray-900 rounded-[1.5rem] overflow-hidden shadow-lg relative border border-gray-100">
-            <iframe src={getEmbedUrl(block.url)} className="w-full h-full absolute inset-0" allowFullScreen></iframe>
+            <iframe src={getEmbedUrl(block.url)} className="w-full h-full absolute inset-0" allowFullScreen allow="autoplay; fullscreen; picture-in-picture; encrypted-media"></iframe>
           </div>
         </div>
       );
     }
+
     if (block.type === 'text' || block.type === 'paragraph') return (
       <div key={block.id} className="space-y-3 w-full overflow-hidden">
         {block.title && <h3 className="text-xl font-black text-gray-900 break-words">{block.title}</h3>}
         {(block.image || block.url) && <ExpandableImage src={getFullUrl(block.image || block.url)} alt="Материал" className="my-4" />}
-        <div className="prose prose-sm sm:prose-base max-w-none text-gray-700 leading-relaxed break-words ql-editor px-0">
-          <div dangerouslySetInnerHTML={{ __html: safeHtml(block.content) }} />
+        <div className="ql-snow w-full">
+          <div 
+            className="ql-editor !p-0 text-gray-800 leading-relaxed break-words" 
+            dangerouslySetInnerHTML={{ __html: safeHtml(block.content) }} 
+          />
         </div>
       </div>
     );
+
     if (block.type === 'image' || block.type === 'img') return (
       <div key={block.id}>
         {(block.url || block.image) && <ExpandableImage src={getFullUrl(block.url || block.image)} alt="Изображение" className="my-4" />}
       </div>
     );
+
     if (block.type === 'file' && block.url) return (
       <div key={block.id} className="bg-cyan-50/50 border border-cyan-100 rounded-[1.5rem] p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-all hover:bg-cyan-50">
         <div className="flex items-center gap-4 min-w-0">
@@ -728,7 +807,9 @@ export default function HomeworkView() {
           <div className="min-w-0">
             <h3 className="text-lg font-black text-gray-900 leading-tight break-words">{block.title || 'Файл для скачивания'}</h3>
             {block.content && (
-               <div className="text-xs font-medium text-gray-600 mt-1 break-words prose prose-sm max-w-none ql-editor px-0" dangerouslySetInnerHTML={{ __html: safeHtml(block.content) }} />
+               <div className="ql-snow w-full mt-1">
+                 <div className="ql-editor !p-0 text-sm font-medium text-gray-600 break-words" dangerouslySetInnerHTML={{ __html: safeHtml(block.content) }} />
+               </div>
             )}
           </div>
         </div>
@@ -737,6 +818,7 @@ export default function HomeworkView() {
         </a>
       </div>
     );
+
     if ((block.type === 'link' || block.type === 'button') && block.url) return (
       <div key={block.id} className="bg-pink-50/50 border border-pink-100 rounded-[1.5rem] p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-all hover:bg-pink-50">
         <div className="flex items-center gap-4 min-w-0">
@@ -756,7 +838,7 @@ export default function HomeworkView() {
 
   if (isLoading) {
     return (
-      <div className="h-screen w-full flex items-center justify-center bg-[#F8FAFC]">
+      <div className="h-screen w-full flex items-center justify-center bg-[#F4F7FE]">
         <Loader2 className="w-12 h-12 animate-spin text-[#A855F7]" />
       </div>
     );
@@ -764,82 +846,101 @@ export default function HomeworkView() {
 
   if (!homework || hwBlocks.length === 0) {
     return (
-      <div className="h-screen flex flex-col items-center justify-center bg-[#F8FAFC]">
+      <div className="h-screen flex flex-col items-center justify-center bg-[#F4F7FE]">
         <h2 className="text-2xl font-bold text-gray-800 mb-4">В этом уроке нет домашнего задания</h2>
         <button onClick={() => navigate(-1)} className="text-[#A855F7] font-bold hover:underline">Вернуться назад</button>
       </div>
     );
   }
 
+  // 🔥 ИДЕАЛЬНАЯ СЕТКА: Выровнено с боковой панелью
   return (
-    <div className="min-h-screen bg-[#F8FAFC] flex flex-col md:flex-row">
-      <style>{`.ql-editor { min-height: 120px; font-family: inherit; font-size: 16px; }`}</style>
+    <div className="flex h-screen bg-[#F4F7FE] font-sans text-gray-900 p-4 md:p-6 lg:p-8 gap-4 lg:gap-8 overflow-hidden">
+      <style>{`
+        .ql-editor { 
+          min-height: auto !important; 
+          font-family: inherit !important; 
+          font-size: 16px !important; 
+          word-break: normal !important; 
+          overflow-wrap: break-word !important; 
+          white-space: normal !important;
+          padding: 0 !important;
+        }
+        .ql-editor p { margin-bottom: 0.75em !important; line-height: 1.6 !important; }
+        .ql-editor img { max-width: 100% !important; border-radius: 1rem !important; margin: 1rem 0 !important; }
+        .ql-align-center { text-align: center !important; }
+        .ql-align-right { text-align: right !important; }
+        .ql-align-justify { text-align: justify !important; }
+        .ql-editor ol, .ql-editor ul { padding-left: 1.5em !important; margin-bottom: 1em !important; }
+        .ql-editor li { margin-bottom: 0.5em !important; }
+      `}</style>
 
-      {/* ЛЕВЫЙ САЙДБАР */}
-      <div className="w-full md:w-80 bg-white border-r border-gray-100 p-6 flex flex-col shrink-0 z-10 shadow-lg relative">
-        <button 
-          onClick={() => navigate(-1)}
-          className="flex items-center gap-2 text-gray-400 hover:text-[#A855F7] font-bold text-sm tracking-wide transition-colors mb-8 uppercase"
-        >
-          <ArrowLeft className="w-4 h-4" /> К списку заданий
-        </button>
-
-        <h2 className="text-2xl font-black text-gray-900 mb-6">{homework.themeTitle || 'Тема'}</h2>
+      {/* ЛЕВЫЙ САЙДБАР: Формат плашки, как в CourseView */}
+      <aside className="w-[300px] lg:w-[340px] bg-white rounded-[2rem] border border-gray-100 flex flex-col h-full shrink-0 z-20 shadow-sm overflow-hidden">
+        <div className="p-6 md:p-8 border-b border-gray-100 bg-white shrink-0">
+          <button 
+            onClick={() => navigate(-1)}
+            className="flex items-center gap-2 text-gray-400 hover:text-[#A855F7] font-black text-[11px] uppercase tracking-wider transition-colors mb-6"
+          >
+            <ArrowLeft className="w-4 h-4" /> К списку заданий
+          </button>
+          <h2 className="text-xl font-black text-gray-900 leading-tight line-clamp-3">{homework.themeTitle || 'Тема'}</h2>
+        </div>
         
-        <div className="space-y-2">
-          <div className="text-[10px] font-black text-gray-400 uppercase tracking-widest pl-2 mb-3">Текущее задание</div>
-          <div className="bg-[#A855F7] text-white p-4 rounded-2xl flex items-center gap-3 shadow-lg shadow-purple-500/20">
-            <FileSignature className="w-5 h-5 shrink-0" />
-            <span className="font-bold text-sm line-clamp-2">{homework.title}</span>
+        <div className="flex-1 overflow-y-auto p-4 md:p-6 bg-gray-50/30 custom-scrollbar">
+          <div className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3 pl-1">Текущее задание</div>
+          <div className="bg-[#A855F7] text-white p-4 md:p-5 rounded-2xl flex items-center gap-3 shadow-lg shadow-purple-500/20">
+            <FileSignature className="w-6 h-6 shrink-0 text-purple-200" />
+            <span className="font-bold text-sm leading-snug">{homework.title}</span>
           </div>
         </div>
-      </div>
+      </aside>
 
-      {/* ПРАВАЯ ЧАСТЬ (КОНТЕНТ) */}
-      <div className="flex-1 p-4 md:p-8 lg:p-12 overflow-y-auto scroll-smooth">
-        <div className="max-w-4xl mx-auto">
-          <div className="bg-white rounded-[2.5rem] p-6 md:p-10 shadow-sm border border-gray-100">
-            
-            <div className="inline-flex items-center gap-2 bg-[#F3E8FF] px-4 py-2 rounded-xl mb-6">
+      {/* ПРАВАЯ ЧАСТЬ (КОНТЕНТ): Выровнено с боковой панелью */}
+      <main className="flex-1 bg-white rounded-[2rem] border border-gray-100 shadow-sm overflow-y-auto relative scroll-smooth h-full custom-scrollbar p-6 md:p-8 lg:p-10">
+        <div className="max-w-[1100px] mx-auto pb-32">
+          
+          <div className="pb-6 border-b border-gray-50 mb-8 lg:mb-10">
+            <div className="inline-flex items-center gap-2 bg-[#F3E8FF] px-3 py-1.5 rounded-xl mb-6">
               <div className="w-2 h-2 rounded-full bg-[#A855F7] animate-pulse"></div>
-              <span className="text-xs font-black text-[#A855F7] uppercase tracking-widest">Домашнее задание</span>
+              <span className="text-[10px] font-black text-[#A855F7] uppercase tracking-widest">Домашнее задание</span>
             </div>
-
-            <h1 className="text-3xl md:text-5xl font-black text-gray-900 mb-10 tracking-tight break-words">
+            <h1 className="text-3xl md:text-4xl lg:text-5xl font-black text-gray-900 leading-tight break-words">
               {homework.title}
             </h1>
-
-            {/* 🔥 ТЕОРИЯ ДЗ */}
-            {hwTheoryBlocks.map(block => (
-              <div key={block.id} className="mb-10 bg-[#F8FAFC] rounded-[2rem] p-6 md:p-8 border border-gray-100">
-                {renderTheoryBlock(block)}
-              </div>
-            ))}
-
-            {/* 🔥 ПРАКТИКА ДЗ */}
-            {hwGroups.length > 0 && (
-              <div className="space-y-6">
-                <h3 className="text-2xl font-black text-gray-900 flex items-center gap-3 mb-6">
-                  <ListTodo className="w-6 h-6 text-[#A855F7]" /> Практическая часть ДЗ
-                </h3>
-                {hwGroups.map(group => (
-                  <TaskGroup 
-                    key={`hw-${homework.id}-${group.type}`} 
-                    group={group} 
-                    testAnswers={testAnswers} testResults={testResults} attemptsUsed={attemptsUsed} 
-                    handleAnswerToggle={handleAnswerToggle} handleTextAnswerChange={handleTextAnswerChange}
-                    handleMatchingChange={handleMatchingChange} handleSubmitTest={handleSubmitTest} 
-                    submissions={submissions}
-                  />
-                ))}
-              </div>
-            )}
-
           </div>
+
+          {/* 🔥 ТЕОРИЯ ДЗ */}
+          {hwTheoryBlocks.map(block => (
+            <div key={block.id} className="mb-10">
+              {renderTheoryBlock(block)}
+            </div>
+          ))}
+
+          {/* 🔥 ПРАКТИКА ДЗ */}
+          {hwGroups.length > 0 && (
+            <div className="space-y-6 mt-12 pt-10 border-t border-dashed border-gray-200">
+              <h3 className="text-2xl font-black text-gray-900 flex items-center gap-3 mb-8">
+                <ListTodo className="w-7 h-7 text-[#A855F7]" /> Практическая часть ДЗ
+              </h3>
+              {hwGroups.map(group => (
+                <TaskGroup 
+                  key={`hw-${homework.id}-${group.type}`} 
+                  group={group} 
+                  testAnswers={testAnswers} testResults={testResults} attemptsUsed={attemptsUsed} 
+                  handleAnswerToggle={handleAnswerToggle} handleTextAnswerChange={handleTextAnswerChange}
+                  handleMatchingChange={handleMatchingChange} handleSubmitTest={handleSubmitTest} 
+                  submissions={submissions}
+                />
+              ))}
+            </div>
+          )}
+
         </div>
-      </div>
+      </main>
     </div>
   );
 }
 
 function ChevronDownIcon(props: any) { return <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>; }
+function ChevronRightIcon(props: any) { return <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6"/></svg>; }

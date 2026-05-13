@@ -16,9 +16,9 @@ export class ThemeController {
     return this.themeService.delete(id);
   }
 
-  // Скрытие/Показ темы (глазик)
+  // 🔥 ИЗМЕНЕНО: Универсальное обновление (меняет и title, и is_visible)
   @Patch(':id')
-  updateVisibility(@Param('id') id: string, @Body('is_visible') is_visible: boolean) {
-    return this.themeService.updateVisibility(id, is_visible);
+  update(@Param('id') id: string, @Body() data: any) {
+    return this.themeService.update(id, data);
   }
 }

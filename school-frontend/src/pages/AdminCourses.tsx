@@ -55,7 +55,9 @@ const quillModules = {
   toolbar: [
     [{ 'header': [1, 2, 3, false] }],
     ['bold', 'italic', 'underline', 'strike'],
+    [{ 'align': [] }], 
     [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+    [{ 'color': [] }, { 'background': [] }],
     ['clean']
   ],
 };
@@ -70,14 +72,13 @@ export default function AdminCourses() {
   const [newThemeTitle, setNewThemeTitle] = useState('');
   const [selectedThemeForLesson, setSelectedThemeForLesson] = useState<any | null>(null);
   
+  // Храним ID редактируемого элемента
   const [editingCourseId, setEditingCourseId] = useState<string | null>(null);
-  const [editCourseTitle, setEditCourseTitle] = useState('');
-  
   const [editingThemeId, setEditingThemeId] = useState<string | null>(null);
-  const [editThemeTitle, setEditThemeTitle] = useState('');
-
   const [editingLessonTitleId, setEditingLessonTitleId] = useState<string | null>(null);
-  const [editLessonInlineTitle, setEditLessonInlineTitle] = useState('');
+
+  // Единый стейт для надежного сохранения текста
+  const [editTitleValue, setEditTitleValue] = useState("");
 
   const [editingLessonId, setEditingLessonId] = useState<string | null>(null);
   const [newLessonTitle, setNewLessonTitle] = useState('');
@@ -138,7 +139,9 @@ export default function AdminCourses() {
     try {
       const res = await axios.get(`${API_URL}/courses`, getTokenConfig());
       setItems(res.data);
-      setSelectedCourseForThemes((prev: any) => prev ? (res.data.find((c: any) => c.id === prev.id) || null) : null);
+      if (selectedCourseForThemes) {
+        setSelectedCourseForThemes(res.data.find((c: any) => c.id === selectedCourseForThemes.id) || null);
+      }
     } catch (err) { 
       setItems([]); 
     } finally {
@@ -164,27 +167,112 @@ export default function AdminCourses() {
     } catch (err) { showToast('Ошибка при добавлении', 'error'); }
   };
 
-  const saveItemTitle = async (id: string) => {
-    if (!editCourseTitle.trim()) { setEditingCourseId(null); return; }
-    setItems(prev => prev.map(c => c.id === id ? { ...c, title: editCourseTitle } : c));
+  // 🔥 ЖЕЛЕЗОБЕТОННОЕ СОХРАНЕНИЕ КУРСА
+  const handleSaveCourseTitle = async (id: string, newTitle: string) => {
+    const finalTitle = newTitle.trim();
+    if (!finalTitle || editingCourseId !== id) {
+      setEditingCourseId(null);
+      return;
+    }
+    
     setEditingCourseId(null);
-    try { await axios.patch(`${API_URL}/courses/${id}`, { title: editCourseTitle }, getTokenConfig()); fetchItems(); } catch (err) { fetchItems(); }
+    
+    setItems(prev => prev.map(c => c.id === id ? { ...c, title: finalTitle } : c));
+    if (selectedCourseForThemes && selectedCourseForThemes.id === id) {
+      setSelectedCourseForThemes((prev: any) => ({ ...prev, title: finalTitle }));
+    }
+    
+    try { 
+      await axios.patch(`${API_URL}/courses/${id}`, { title: finalTitle }, getTokenConfig()); 
+      showToast('Название сохранено!', 'success');
+    } catch (err: any) { 
+      console.error("❌ ОШИБКА PATCH COURSE:", err.response?.data || err.message);
+      try {
+        await axios.put(`${API_URL}/courses/${id}`, { title: finalTitle }, getTokenConfig());
+        showToast('Название сохранено!', 'success');
+      } catch (putErr: any) {
+        console.error("❌ ОШИБКА PUT COURSE:", putErr.response?.data || putErr.message);
+        showToast('Ошибка сохранения. Открой консоль (F12)', 'error'); 
+        fetchItems();
+      }
+    }
   };
 
-  const saveThemeTitle = async (id: string) => {
-    if (!editThemeTitle.trim()) { setEditingThemeId(null); return; }
-    setSelectedCourseForThemes((prev: any) => prev ? { ...prev, themes: (prev.themes || []).map((t: any) => t.id === id ? { ...t, title: editThemeTitle } : t) } : null);
+  // 🔥 ЖЕЛЕЗОБЕТОННОЕ СОХРАНЕНИЕ МОДУЛЯ
+  const handleSaveThemeTitle = async (id: string, newTitle: string) => {
+    const finalTitle = newTitle.trim();
+    if (!finalTitle || editingThemeId !== id) {
+      setEditingThemeId(null);
+      return;
+    }
+
     setEditingThemeId(null);
-    try { await axios.patch(`${API_URL}/themes/${id}`, { title: editThemeTitle }, getTokenConfig()); fetchItems(); } catch (err) { fetchItems(); }
+    
+    setSelectedCourseForThemes((prev: any) => prev ? { 
+      ...prev, 
+      themes: (prev.themes || []).map((t: any) => t.id === id ? { ...t, title: finalTitle } : t) 
+    } : null);
+    setItems(prev => prev.map(course => {
+      if (course.id === selectedCourseForThemes?.id) {
+        return { ...course, themes: (course.themes || []).map((t:any) => t.id === id ? { ...t, title: finalTitle } : t) };
+      }
+      return course;
+    }));
+    
+    try { 
+      await axios.patch(`${API_URL}/themes/${id}`, { title: finalTitle }, getTokenConfig()); 
+      showToast('Название модуля сохранено!', 'success');
+    } catch (err: any) { 
+      console.error("❌ ОШИБКА PATCH THEME:", err.response?.data || err.message);
+      try {
+        await axios.put(`${API_URL}/themes/${id}`, { title: finalTitle }, getTokenConfig());
+        showToast('Название модуля сохранено!', 'success');
+      } catch (putErr: any) {
+        console.error("❌ ОШИБКА PUT THEME:", putErr.response?.data || putErr.message);
+        showToast('Ошибка сохранения. Открой консоль (F12)', 'error'); 
+        fetchItems(); 
+      }
+    }
   };
 
-  const saveLessonTitle = async (id: string) => {
-    if (!editLessonInlineTitle.trim()) { setEditingLessonTitleId(null); return; }
-    setSelectedCourseForThemes((prev: any) => prev ? {
-      ...prev, themes: (prev.themes || []).map((t: any) => ({ ...t, lessons: (t.lessons || []).map((l: any) => l.id === id ? { ...l, title: editLessonInlineTitle } : l) }))
-    } : null);
+  // 🔥 ЖЕЛЕЗОБЕТОННОЕ СОХРАНЕНИЕ УРОКА
+  const handleSaveLessonTitle = async (id: string, newTitle: string) => {
+    const finalTitle = newTitle.trim();
+    if (!finalTitle || editingLessonTitleId !== id) {
+      setEditingLessonTitleId(null);
+      return;
+    }
+
     setEditingLessonTitleId(null);
-    try { await axios.patch(`${API_URL}/lessons/${id}`, { title: editLessonInlineTitle }, getTokenConfig()); fetchItems(); } catch (err) { fetchItems(); }
+    
+    setSelectedCourseForThemes((prev: any) => prev ? {
+      ...prev, themes: (prev.themes || []).map((t: any) => ({
+        ...t, lessons: (t.lessons || []).map((l: any) => l.id === id ? { ...l, title: finalTitle } : l)
+      }))
+    } : null);
+    setItems(prev => prev.map(course => {
+      if (course.id === selectedCourseForThemes?.id) {
+        return { ...course, themes: (course.themes || []).map((t:any) => ({
+          ...t, lessons: (t.lessons || []).map((l:any) => l.id === id ? { ...l, title: finalTitle } : l)
+        }))};
+      }
+      return course;
+    }));
+    
+    try { 
+      await axios.patch(`${API_URL}/lessons/${id}`, { title: finalTitle }, getTokenConfig()); 
+      showToast('Название урока сохранено!', 'success');
+    } catch (err: any) { 
+      console.error("❌ ОШИБКА PATCH LESSON:", err.response?.data || err.message);
+      try {
+        await axios.put(`${API_URL}/lessons/${id}`, { title: finalTitle }, getTokenConfig());
+        showToast('Название урока сохранено!', 'success');
+      } catch (putErr: any) {
+        console.error("❌ ОШИБКА PUT LESSON:", putErr.response?.data || putErr.message);
+        showToast('Ошибка сохранения. Открой консоль (F12)', 'error'); 
+        fetchItems(); 
+      }
+    }
   };
 
   const addBlock = (type: string, isHw: boolean) => {
@@ -196,13 +284,10 @@ export default function AdminCourses() {
     if (type === 'file') { newBlock.url = ''; newBlock.title = 'Файл для скачивания'; }
     if (type === 'link') { newBlock.url = ''; newBlock.buttonText = 'Перейти'; newBlock.title = 'Ссылка / Кнопка'; }
     
-    // Интерактивные блоки
     if (type === 'test') { newBlock.question = ''; newBlock.maxAttempts = 3; newBlock.maxScore = 3; newBlock.options = [{ text: '', isCorrect: false }]; newBlock.explanation = ''; newBlock.source = ''; newBlock.title = 'Тест'; }
     if (type === 'test_short') { newBlock.question = ''; newBlock.correctAnswers = []; newBlock.ignoreTypos = true; newBlock.maxAttempts = 3; newBlock.maxScore = 3; newBlock.explanation = ''; newBlock.source = ''; newBlock.title = 'Тест с кратким ответом'; }
     if (type === 'written') { newBlock.question = ''; newBlock.maxScore = 3; newBlock.explanation = ''; newBlock.source = ''; newBlock.title = 'Развернутый ответ'; }
-    
-    // 🔥 БЛОК: На соответствие
-    if (type === 'matching') { newBlock.question = ''; newBlock.maxAttempts = 3; newBlock.maxScore = 3; newBlock.pairs = [{ left: '', right: '' }]; newBlock.explanation = ''; newBlock.source = ''; newBlock.title = 'Тест на соответствие'; }
+    if (type === 'matching') { newBlock.question = ''; newBlock.maxAttempts = 3; newBlock.maxScore = 3; newBlock.pairs = [{ left: '', right: '' }]; newBlock.explanation = ''; newBlock.source = ''; newBlock.title = 'Таблица (Впиши ответ)'; }
     
     if (isHw) { setHwBlocks(prev => [...prev, newBlock]); setTimeout(() => document.getElementById('hw-section-end')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 100); } 
     else { setBlocks(prev => [...prev, newBlock]); setTimeout(() => document.getElementById('theory-section-end')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 100); }
@@ -232,9 +317,13 @@ export default function AdminCourses() {
     if (isHw) setHwBlocks(arr); else setBlocks(arr); 
   };
 
-  const handleFileUpload = async (blockId: string, event: React.ChangeEvent<HTMLInputElement>, isHw: boolean, targetUrlField = 'url', targetNameField = 'fileName') => {
-    const file = event.target.files?.[0];
+  const handleFileUpload = async (blockId: string, event: any, isHw: boolean, targetUrlField = 'url', targetNameField = 'fileName') => {
+    let file = null;
+    if (event.target && event.target.files) file = event.target.files[0];
+    else if (event.dataTransfer && event.dataTransfer.files) file = event.dataTransfer.files[0];
+    
     if (!file) return;
+
     const formData = new FormData();
     formData.append('file', file);
     try {
@@ -243,6 +332,17 @@ export default function AdminCourses() {
       updateBlock(blockId, { [targetUrlField]: res.data.url, [targetNameField]: res.data.fileName || file.name }, isHw);
       showToast(`Файл успешно загружен!`);
     } catch (err) { showToast('Ошибка при загрузке файла', 'error'); }
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const handleDrop = (blockId: string, e: React.DragEvent, isHw: boolean, targetUrlField = 'url', targetNameField = 'fileName') => {
+    e.preventDefault();
+    e.stopPropagation();
+    handleFileUpload(blockId, e, isHw, targetUrlField, targetNameField);
   };
 
   const startEditingLesson = (theme: any, lesson: any) => {
@@ -293,7 +393,6 @@ export default function AdminCourses() {
           if (b.type === 'test_short') {
             if (!b.correctAnswers || b.correctAnswers.length === 0) newErrors[b.id] = true;
           }
-          // Валидация теста на соответствие
           if (b.type === 'matching') {
             if (!b.pairs || b.pairs.length === 0) newErrors[b.id] = true;
             b.pairs?.forEach((p: any) => { if (!p.left.trim() || !p.right.trim()) newErrors[b.id] = true; });
@@ -347,8 +446,7 @@ export default function AdminCourses() {
   const handleDeleteItem = async (id: string) => {
     setItems(prev => prev.filter(c => c.id !== id));
     if (selectedCourseForThemes?.id === id) { setShowThemeModal(false); setSelectedCourseForThemes(null); }
-    showToast('Удалено');
-    try { await axios.delete(`${API_URL}/courses/${id}`, getTokenConfig()); } catch (err) { fetchItems(); showToast('Ошибка удаления', 'error'); }
+    try { await axios.delete(`${API_URL}/courses/${id}`, getTokenConfig()); showToast('Удалено'); fetchItems(); } catch (err) { fetchItems(); showToast('Ошибка удаления', 'error'); }
   };
 
   const handleDeleteTheme = async (id: string) => {
@@ -394,6 +492,7 @@ export default function AdminCourses() {
                   <input value={block.title !== undefined ? block.title : 'Видео'} onChange={(e) => updateBlock(block.id, { title: e.target.value }, isHw)} className="flex-1 bg-transparent border-b-2 border-dashed border-transparent hover:border-indigo-300 focus:border-indigo-600 outline-none font-black text-xl transition-all text-indigo-900 placeholder:text-indigo-300" placeholder="Заголовок блока..." />
                 </div>
                 <input value={block.url} onChange={(e) => updateBlock(block.id, { url: e.target.value }, isHw)} placeholder="Вставьте ссылку на YouTube/VK/Яндекс.Диск..." className="w-full p-4 rounded-xl border border-gray-200 outline-none mb-4 font-medium focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition-all" />
+                <p className="text-xs text-gray-400 font-bold ml-2 -mt-2 mb-4">* Для Яндекс.Диска вставляйте содержимое атрибута src="..." из кнопки "Поделиться - Код для вставки"</p>
               </div>
             )}
 
@@ -405,18 +504,22 @@ export default function AdminCourses() {
                 </div>
                 
                 <div className="bg-white rounded-2xl overflow-visible border border-gray-200 focus-within:border-emerald-400 focus-within:ring-2 focus-within:ring-emerald-100 transition-all z-10 relative">
-                  <ReactQuill theme="snow" modules={quillModules} value={block.content || ''} onChange={(val) => updateBlock(block.id, { content: val }, isHw)} placeholder="Введите текст лекции..." className="min-h-[200px] pb-12" />
+                  <ReactQuill theme="snow" modules={quillModules} value={block.content || ''} onChange={(val) => updateBlock(block.id, { content: val }, isHw)} placeholder="Введите текст лекции..." className="min-h-[200px] pb-12 text-content" />
                 </div>
                 
-                <div className="p-5 bg-gray-50 rounded-2xl border border-gray-100 flex items-center gap-4 mt-2">
-                  <label className="cursor-pointer px-5 py-3 bg-white border-2 border-dashed border-gray-300 rounded-xl hover:border-emerald-400 transition-all flex items-center gap-2 font-bold text-gray-500 text-sm">
-                    <UploadCloud className="w-4 h-4" /> Прикрепить картинку
+                <div 
+                  onDragOver={handleDragOver}
+                  onDrop={(e) => handleDrop(block.id, e, isHw, 'image', 'imageName')}
+                  className="p-5 bg-gray-50 rounded-2xl border border-dashed border-gray-300 flex items-center gap-4 mt-2 hover:bg-emerald-50/50 transition-colors"
+                >
+                  <label className="cursor-pointer px-5 py-3 bg-white border border-gray-300 rounded-xl hover:border-emerald-400 transition-all flex items-center gap-2 font-bold text-gray-500 text-sm shadow-sm">
+                    <UploadCloud className="w-4 h-4" /> Выбрать или перетащить файл
                     <input type="file" accept="image/*" className="hidden" onChange={(e) => handleFileUpload(block.id, e, isHw, 'image', 'imageName')} />
                   </label>
                   {block.imageName && <span className="text-xs font-bold text-emerald-600 flex items-center gap-1 bg-emerald-50 px-3 py-1.5 rounded-lg"><CheckCircle2 className="w-4 h-4" /> {block.imageName}</span>}
                   {block.image && <button type="button" onClick={() => updateBlock(block.id, { image: '', imageName: '' }, isHw)} className="p-2 bg-white rounded-lg shadow-sm text-gray-400 hover:text-red-500 transition-colors"><Trash2 className="w-4 h-4" /></button>}
                 </div>
-                {block.image && <ExpandableImage src={getFullUrl(block.image)} className="mt-4" />}
+                {block.image && <ExpandableImage src={getFullUrl(block.image)} className="mt-4" /> }
               </div>
             )}
 
@@ -426,9 +529,14 @@ export default function AdminCourses() {
                   <ImageIcon className="w-6 h-6 text-blue-600 shrink-0" />
                   <input value={block.title !== undefined ? block.title : 'Изображение'} onChange={(e) => updateBlock(block.id, { title: e.target.value }, isHw)} className="flex-1 bg-transparent border-b-2 border-dashed border-transparent hover:border-blue-300 focus:border-blue-600 outline-none font-black text-xl transition-all text-blue-900 placeholder:text-blue-300" placeholder="Заголовок блока..." />
                 </div>
-                <div className="flex items-center gap-4">
-                  <label className="cursor-pointer px-6 py-4 bg-white border-2 border-dashed border-blue-200 rounded-xl hover:border-blue-500 transition-all flex items-center gap-3 font-bold text-blue-600">
-                    <UploadCloud className="w-5 h-5" /> Выбрать картинку
+                
+                <div 
+                  onDragOver={handleDragOver}
+                  onDrop={(e) => handleDrop(block.id, e, isHw)}
+                  className="flex items-center gap-4 p-8 bg-gray-50 border-2 border-dashed border-gray-300 rounded-2xl hover:bg-blue-50/50 transition-colors"
+                >
+                  <label className="cursor-pointer px-6 py-4 bg-white border border-gray-200 rounded-xl hover:border-blue-500 transition-all flex items-center gap-3 font-bold text-blue-600 shadow-sm">
+                    <UploadCloud className="w-5 h-5" /> Выбрать или перетащить
                     <input type="file" accept="image/*" className="hidden" onChange={(e) => handleFileUpload(block.id, e, isHw)} />
                   </label>
                   {block.fileName && <span className="text-sm font-bold text-emerald-600 flex items-center gap-2 bg-emerald-50 px-4 py-2 rounded-lg"><CheckCircle2 className="w-4 h-4" /> {block.fileName}</span>}
@@ -443,9 +551,14 @@ export default function AdminCourses() {
                   <PlayCircle className="w-6 h-6 text-indigo-600 shrink-0" />
                   <input value={block.title !== undefined ? block.title : 'Видео-файл'} onChange={(e) => updateBlock(block.id, { title: e.target.value }, isHw)} className="flex-1 bg-transparent border-b-2 border-dashed border-transparent hover:border-indigo-300 focus:border-indigo-600 outline-none font-black text-xl transition-all text-indigo-900 placeholder:text-indigo-300" placeholder="Заголовок блока..." />
                 </div>
-                <div className="flex items-center gap-4 mb-4">
-                  <label className="cursor-pointer px-6 py-4 bg-white border-2 border-dashed border-indigo-200 rounded-xl hover:border-indigo-500 transition-all flex items-center gap-3 font-bold text-indigo-600">
-                    <UploadCloud className="w-5 h-5" /> Загрузить видео (MP4)
+                
+                <div 
+                  onDragOver={handleDragOver}
+                  onDrop={(e) => handleDrop(block.id, e, isHw)}
+                  className="flex items-center gap-4 mb-4 p-8 bg-gray-50 border-2 border-dashed border-gray-300 rounded-2xl hover:bg-indigo-50/50 transition-colors"
+                >
+                  <label className="cursor-pointer px-6 py-4 bg-white border border-gray-200 rounded-xl hover:border-indigo-500 transition-all flex items-center gap-3 font-bold text-indigo-600 shadow-sm">
+                    <UploadCloud className="w-5 h-5" /> Загрузить или перетащить (MP4)
                     <input type="file" accept="video/*" className="hidden" onChange={(e) => handleFileUpload(block.id, e, isHw)} />
                   </label>
                   {block.fileName && <span className="text-sm font-bold text-emerald-600 flex items-center gap-2 bg-emerald-50 px-4 py-2 rounded-lg"><CheckCircle2 className="w-4 h-4" /> {block.fileName}</span>}
@@ -453,16 +566,20 @@ export default function AdminCourses() {
               </div>
             )}
 
-            {/* 🔥 ОБНОВЛЕННЫЙ БЛОК: Файл для скачивания с Ворд-редактором */}
             {block.type === 'file' && (
               <div>
                 <div className="flex items-center gap-3 mb-6 group/header bg-cyan-50 p-4 rounded-xl">
                   <FileDown className="w-6 h-6 text-cyan-600 shrink-0" />
                   <input value={block.title !== undefined ? block.title : 'Файл для скачивания'} onChange={(e) => updateBlock(block.id, { title: e.target.value }, isHw)} className="flex-1 bg-transparent border-b-2 border-dashed border-transparent hover:border-cyan-300 focus:border-cyan-600 outline-none font-black text-xl transition-all text-cyan-900 placeholder:text-cyan-300" placeholder="Заголовок блока..." />
                 </div>
-                <div className="flex items-center gap-4 mb-4">
-                  <label className="cursor-pointer px-6 py-4 bg-white border-2 border-dashed border-gray-300 rounded-xl hover:border-cyan-500 transition-colors flex items-center gap-2 font-bold text-gray-600">
-                    <UploadCloud className="w-5 h-5" /> Загрузить файл (PDF/Word)
+                
+                <div 
+                  onDragOver={handleDragOver}
+                  onDrop={(e) => handleDrop(block.id, e, isHw)}
+                  className="flex items-center gap-4 mb-4 p-8 bg-gray-50 border-2 border-dashed border-gray-300 rounded-2xl hover:bg-cyan-50/50 transition-colors"
+                >
+                  <label className="cursor-pointer px-6 py-4 bg-white border border-gray-200 rounded-xl hover:border-cyan-500 transition-colors flex items-center gap-2 font-bold text-gray-600 shadow-sm">
+                    <UploadCloud className="w-5 h-5" /> Выбрать или перетащить файл (PDF/Word)
                     <input type="file" className="hidden" onChange={(e) => handleFileUpload(block.id, e, isHw)} />
                   </label>
                   {block.fileName && <span className="text-sm font-bold text-emerald-600 flex items-center gap-2 bg-emerald-50 px-4 py-2 rounded-lg"><CheckCircle2 className="w-4 h-4" /> {block.fileName}</span>}
@@ -492,12 +609,11 @@ export default function AdminCourses() {
               </div>
             )}
 
-            {/* 🔥 ОБЩАЯ ВЕРХУШКА ДЛЯ ИНТЕРАКТИВНЫХ БЛОКОВ */}
             {['test', 'test_short', 'written', 'matching'].includes(block.type) && (
               <>
                 <div className={`flex items-center gap-3 mb-6 group/header p-4 rounded-xl ${block.type === 'test' ? 'bg-rose-50' : block.type === 'test_short' ? 'bg-amber-50' : block.type === 'matching' ? 'bg-indigo-50' : 'bg-purple-50'}`}>
                   {block.type === 'test' ? <CheckSquare className="w-6 h-6 text-rose-600 shrink-0" /> : block.type === 'test_short' ? <Type className="w-6 h-6 text-amber-600 shrink-0" /> : block.type === 'matching' ? <List className="w-6 h-6 text-indigo-600 shrink-0" /> : <PenTool className="w-6 h-6 text-purple-600 shrink-0" />}
-                  <input value={block.title !== undefined ? block.title : (block.type === 'test' ? 'Тест' : block.type === 'test_short' ? 'Краткий ответ' : block.type === 'matching' ? 'На соответствие' : 'Развернутый ответ')} onChange={(e) => updateBlock(block.id, { title: e.target.value }, isHw)} className={`flex-1 bg-transparent border-b-2 border-dashed border-transparent outline-none font-black text-xl transition-all ${block.type === 'test' ? 'hover:border-rose-300 focus:border-rose-600 text-rose-900 placeholder:text-rose-300' : block.type === 'test_short' ? 'hover:border-amber-300 focus:border-amber-600 text-amber-900 placeholder:text-amber-300' : block.type === 'matching' ? 'hover:border-indigo-300 focus:border-indigo-600 text-indigo-900 placeholder:text-indigo-300' : 'hover:border-purple-300 focus:border-purple-600 text-purple-900 placeholder:text-purple-300'}`} placeholder="Заголовок блока..." />
+                  <input value={block.title !== undefined ? block.title : (block.type === 'test' ? 'Тест' : block.type === 'test_short' ? 'Краткий ответ' : block.type === 'matching' ? 'Таблица (Впиши ответ)' : 'Развернутый ответ')} onChange={(e) => updateBlock(block.id, { title: e.target.value }, isHw)} className={`flex-1 bg-transparent border-b-2 border-dashed border-transparent outline-none font-black text-xl transition-all ${block.type === 'test' ? 'hover:border-rose-300 focus:border-rose-600 text-rose-900 placeholder:text-rose-300' : block.type === 'test_short' ? 'hover:border-amber-300 focus:border-amber-600 text-amber-900 placeholder:text-amber-300' : block.type === 'matching' ? 'hover:border-indigo-300 focus:border-indigo-600 text-indigo-900 placeholder:text-indigo-300' : 'hover:border-purple-300 focus:border-purple-600 text-purple-900 placeholder:text-purple-300'}`} placeholder="Заголовок блока..." />
                 </div>
                 
                 <div className="flex flex-col sm:flex-row gap-4 mb-6">
@@ -510,7 +626,6 @@ export default function AdminCourses() {
                     </div>
                   </div>
                   
-                  {/* 🔥 БЛОК ОЦЕНОК И ПОПЫТОК */}
                   <div className="flex flex-col gap-4 w-full sm:w-32 shrink-0">
                     {['test', 'test_short', 'matching'].includes(block.type) && (
                       <div>
@@ -525,11 +640,15 @@ export default function AdminCourses() {
                   </div>
                 </div>
 
-                <div className="mb-8 p-5 bg-gray-50 rounded-2xl border border-gray-100 flex flex-col sm:flex-row sm:items-center gap-4">
+                <div 
+                  onDragOver={handleDragOver}
+                  onDrop={(e) => handleDrop(block.id, e, isHw, 'questionImage', 'questionImageName')}
+                  className="mb-8 p-5 bg-gray-50 rounded-2xl border border-dashed border-gray-300 hover:bg-gray-100/50 flex flex-col sm:flex-row sm:items-center gap-4 transition-colors"
+                >
                   <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest sm:mb-0 block shrink-0">Картинка к вопросу:</label>
                   <div className="flex items-center gap-4 flex-1">
-                    <label className="cursor-pointer px-5 py-3 bg-white border-2 border-dashed border-gray-300 rounded-xl hover:border-indigo-400 transition-all flex items-center gap-2 font-bold text-gray-500 text-sm">
-                      <UploadCloud className="w-4 h-4" /> Прикрепить
+                    <label className="cursor-pointer px-5 py-3 bg-white border border-gray-200 rounded-xl hover:border-indigo-400 transition-all flex items-center gap-2 font-bold text-gray-500 text-sm shadow-sm">
+                      <UploadCloud className="w-4 h-4" /> Прикрепить или перетащить
                       <input type="file" accept="image/*" className="hidden" onChange={(e) => handleFileUpload(block.id, e, isHw, 'questionImage', 'questionImageName')} />
                     </label>
                     {block.questionImageName && <span className="text-xs font-bold text-emerald-600 flex items-center gap-1 bg-emerald-50 px-3 py-1.5 rounded-lg"><CheckCircle2 className="w-4 h-4" /> {block.questionImageName}</span>}
@@ -540,7 +659,6 @@ export default function AdminCourses() {
               </>
             )}
 
-            {/* СПЕЦИФИКА ТЕСТА С ВАРИАНТАМИ */}
             {block.type === 'test' && (
               <div className="space-y-3">
                 <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block">Варианты ответов {isError && (!block.options || block.options.length === 0 || !block.options.some((o:any)=>o.isCorrect)) && <span className="text-red-500">* Добавьте хотя бы один правильный</span>}</label>
@@ -562,7 +680,6 @@ export default function AdminCourses() {
               </div>
             )}
 
-            {/* СПЕЦИФИКА ТЕСТА С КРАТКИМ ОТВЕТОМ */}
             {block.type === 'test_short' && (
               <div>
                 <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3 block">
@@ -612,43 +729,42 @@ export default function AdminCourses() {
               </div>
             )}
 
-            {/* СПЕЦИФИКА ТЕСТА НА СООТВЕТСТВИЕ */}
             {block.type === 'matching' && (
-              <div className="space-y-3">
+              <div className="space-y-4">
                 <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block">
-                  Пары соответствия (Столбец 1 ➔ Столбец 2) {isError && (!block.pairs || block.pairs.length === 0 || block.pairs.some((p:any) => !p.left.trim() || !p.right.trim())) && <span className="text-red-500">* Заполните все поля</span>}
+                  Таблица ответов (Сверху - заголовок, Снизу - правильный ответ) {isError && (!block.pairs || block.pairs.length === 0 || block.pairs.some((p:any) => !p.left.trim() || !p.right.trim())) && <span className="text-red-500">* Заполните все поля</span>}
                 </label>
-                {block.pairs?.map((pair: any, idx: number) => (
-                  <div key={idx} className={`flex items-center gap-3 p-3 rounded-2xl border-2 transition-all ${isError && (!pair.left.trim() || !pair.right.trim()) ? 'border-red-400 bg-red-50' : 'border-gray-200 bg-white'}`}>
-                    <div className="flex-1 flex flex-col sm:flex-row gap-3">
+                
+                <div className="flex overflow-x-auto gap-3 pb-4 custom-scrollbar">
+                  {block.pairs?.map((pair: any, idx: number) => (
+                    <div key={idx} className={`flex flex-col gap-2 p-3 rounded-2xl border-2 shrink-0 w-32 transition-all ${isError && (!pair.left.trim() || !pair.right.trim()) ? 'border-red-400 bg-red-50' : 'border-gray-200 bg-white'}`}>
+                      <div className="flex justify-between items-center mb-1">
+                        <span className="text-[10px] font-bold text-gray-400 uppercase">Ячейка {idx + 1}</span>
+                        <button type="button" onClick={() => { const newPairs = block.pairs.filter((_:any, i:number) => i !== idx); updateBlock(block.id, { pairs: newPairs }, isHw); }} className="text-gray-400 hover:text-red-500"><X className="w-4 h-4" /></button>
+                      </div>
                       <input 
                         value={pair.left} 
                         onChange={(e) => { const newPairs = [...block.pairs]; newPairs[idx].left = e.target.value; updateBlock(block.id, { pairs: newPairs }, isHw); }} 
-                        placeholder="Элемент 1 (напр: А или Азот)" 
-                        className="flex-1 p-3 bg-gray-50 rounded-xl outline-none font-bold text-gray-800 focus:bg-white focus:ring-2 focus:ring-indigo-400 transition-all border border-transparent focus:border-indigo-200" 
+                        placeholder="Буква" 
+                        className="w-full p-3 bg-gray-50 rounded-xl outline-none font-black text-center text-indigo-700 focus:bg-white focus:ring-2 focus:ring-indigo-400 transition-all border border-transparent focus:border-indigo-200" 
                       />
-                      <div className="hidden sm:flex items-center justify-center text-gray-300">
-                        <ArrowRight className="w-5 h-5" />
-                      </div>
                       <input 
                         value={pair.right} 
                         onChange={(e) => { const newPairs = [...block.pairs]; newPairs[idx].right = e.target.value; updateBlock(block.id, { pairs: newPairs }, isHw); }} 
-                        placeholder="Элемент 2 (напр: 1 или Газ)" 
-                        className="flex-1 p-3 bg-gray-50 rounded-xl outline-none font-bold text-gray-800 focus:bg-white focus:ring-2 focus:ring-emerald-400 transition-all border border-transparent focus:border-emerald-200" 
+                        placeholder="Ответ" 
+                        className="w-full p-3 bg-gray-50 rounded-xl outline-none font-black text-center text-emerald-700 focus:bg-white focus:ring-2 focus:ring-emerald-400 transition-all border border-transparent focus:border-emerald-200" 
                       />
                     </div>
-                    <button type="button" onClick={() => { const newPairs = block.pairs.filter((_:any, i:number) => i !== idx); updateBlock(block.id, { pairs: newPairs }, isHw); }} className="p-2 text-gray-400 hover:text-red-500 shrink-0">
-                      <Trash2 className="w-5 h-5" />
-                    </button>
-                  </div>
-                ))}
-                <button type="button" onClick={() => { updateBlock(block.id, { pairs: [...(block.pairs || []), { left: '', right: '' }] }, isHw); }} className="mt-4 px-5 py-4 w-full border-2 border-dashed border-indigo-300 text-indigo-600 hover:bg-indigo-50 rounded-2xl font-black transition-all flex items-center justify-center gap-2">
-                  <Plus className="w-5 h-5" /> ДОБАВИТЬ ПАРУ
-                </button>
+                  ))}
+                  
+                  <button type="button" onClick={() => { updateBlock(block.id, { pairs: [...(block.pairs || []), { left: '', right: '' }] }, isHw); }} className="w-32 shrink-0 flex flex-col items-center justify-center border-2 border-dashed border-indigo-300 text-indigo-500 hover:bg-indigo-50 hover:border-indigo-400 rounded-2xl font-black transition-all">
+                    <Plus className="w-6 h-6 mb-1" />
+                    Добавить
+                  </button>
+                </div>
               </div>
             )}
 
-            {/* ОБЩИЙ ПОДВАЛ (ИСТОЧНИК И РАЗБОР) ДЛЯ ИНТЕРАКТИВНЫХ БЛОКОВ */}
             {['test', 'test_short', 'written', 'matching'].includes(block.type) && (
               <div className="mt-8 pt-8 border-t-2 border-dashed border-gray-200 space-y-6">
                 <div>
@@ -692,7 +808,7 @@ export default function AdminCourses() {
         <div className="grid grid-cols-1 gap-2">
           <button type="button" onClick={() => addBlock('test', isHw)} className={`${btnClass} !flex-row !justify-start px-4`}><CheckSquare className="w-5 h-5 text-rose-500" /> Тест (Варианты)</button>
           <button type="button" onClick={() => addBlock('test_short', isHw)} className={`${btnClass} !flex-row !justify-start px-4`}><Type className="w-5 h-5 text-amber-500" /> Краткий ответ</button>
-          <button type="button" onClick={() => addBlock('matching', isHw)} className={`${btnClass} !flex-row !justify-start px-4`}><List className="w-5 h-5 text-indigo-500" /> На соответствие</button>
+          <button type="button" onClick={() => addBlock('matching', isHw)} className={`${btnClass} !flex-row !justify-start px-4`}><List className="w-5 h-5 text-indigo-500" /> Таблица (впиши ответ)</button>
           <button type="button" onClick={() => addBlock('written', isHw)} className={`${btnClass} !flex-row !justify-start px-4`}><PenTool className="w-5 h-5 text-purple-500" /> Развернутый ответ</button>
         </div>
       </div>
@@ -700,22 +816,44 @@ export default function AdminCourses() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 font-sans flex text-gray-900">
-      <aside className="w-72 bg-white border-r border-gray-100 flex flex-col h-screen sticky top-0 z-10 shadow-xl shrink-0">
-        <div className="p-6 flex items-center gap-3 border-b border-gray-50">
+    <div className="flex h-screen bg-[#F4F7FE] font-sans text-gray-900">
+      
+      {/* 🔥 ГЛОБАЛЬНЫЕ СТИЛИ ДЛЯ РЕДАКТОРА (чтобы текст не съезжал, центрировался и т.д.) */}
+      <style>{`
+        .ql-editor { 
+          min-height: auto !important; 
+          font-family: inherit !important; 
+          font-size: 16px !important; 
+          word-break: normal !important; 
+          overflow-wrap: break-word !important; 
+          white-space: pre-wrap !important;
+          padding: 0 !important;
+        }
+        .ql-editor p { margin-bottom: 0.75em !important; line-height: 1.6 !important; }
+        .ql-editor img { max-width: 100% !important; border-radius: 1rem !important; margin: 1rem 0 !important; }
+        .ql-align-center { text-align: center !important; }
+        .ql-align-right { text-align: right !important; }
+        .ql-align-justify { text-align: justify !important; }
+        .ql-editor ol, .ql-editor ul { padding-left: 1.5em !important; margin-bottom: 1em !important; }
+        .ql-editor li { margin-bottom: 0.5em !important; }
+      `}</style>
+
+      {/* БОКОВАЯ ПАНЕЛЬ С ОГРАНИЧЕНИЕМ ПО ВЫСОТЕ И СВОИМ СКРОЛЛОМ */}
+      <aside className="w-72 bg-white border border-gray-100 flex flex-col sticky top-4 z-10 shadow-xl shrink-0 self-start max-h-[calc(100vh-2rem)] overflow-hidden rounded-[2rem] ml-4">
+        <div className="p-6 flex items-center gap-3 border-b border-gray-50 shrink-0">
           <div className="w-12 h-12 bg-gray-900 rounded-2xl flex items-center justify-center"><GraduationCap className="w-6 h-6 text-white" /></div>
           <span className="text-2xl font-black tracking-tight">Admin<span className="text-indigo-600">Pro</span></span>
         </div>
-        <div className="flex-1 px-4 py-8 space-y-3">
+        <div className="flex-1 px-4 py-8 space-y-3 overflow-y-auto custom-scrollbar">
           <h3 className="px-4 text-[10px] font-black text-gray-400 uppercase tracking-widest mb-4">Разделы управления</h3>
           <button type="button" className="w-full flex items-center gap-4 px-5 py-4 rounded-2xl font-bold transition-all bg-[#5A4BFF] text-white shadow-lg shadow-indigo-500/20"><BookOpen className="w-5 h-5" /> Курсы и Уроки</button>
         </div>
-        <div className="p-4 border-t border-gray-100">
+        <div className="p-4 border-t border-gray-100 shrink-0">
           <button type="button" onClick={() => navigate('/')} className="flex items-center gap-3 px-5 py-4 w-full text-gray-500 hover:bg-gray-100 rounded-2xl font-bold transition-colors"><ArrowLeft className="w-5 h-5" /> На портал</button>
         </div>
       </aside>
 
-      <main className="flex-1 p-8 overflow-y-auto relative scroll-smooth min-w-0">
+      <main className="flex-1 p-4 md:p-8 overflow-y-auto relative scroll-smooth min-w-0">
         <div className="max-w-7xl mx-auto">
           <div className="flex justify-between items-center mb-8">
             <h1 className="text-4xl font-black">Создание контента</h1>
@@ -744,9 +882,23 @@ export default function AdminCourses() {
                 <div key={item.id} onClick={() => { setSelectedCourseForThemes(item); setShowThemeModal(true); }} className="bg-white p-6 rounded-[2rem] shadow-sm flex items-center justify-between cursor-pointer hover:shadow-md hover:border-gray-200 border border-transparent transition-all group">
                   <div className="flex-1 mr-4 min-w-0">
                     {editingCourseId === item.id ? (
-                      <input autoFocus value={editCourseTitle} onChange={(e) => setEditCourseTitle(e.target.value)} onBlur={() => saveItemTitle(item.id)} onKeyDown={(e) => e.key === 'Enter' && saveItemTitle(item.id)} onClick={(e) => e.stopPropagation()} className="text-xl font-black px-4 py-2 border-2 rounded-xl outline-none w-full bg-indigo-50 border-[#5A4BFF]" />
+                      <div className="flex items-center gap-2 w-full">
+                        <input 
+                          autoFocus 
+                          value={editTitleValue} 
+                          onChange={(e) => setEditTitleValue(e.target.value)} 
+                          onKeyDown={(e) => { 
+                            if(e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); handleSaveCourseTitle(item.id, editTitleValue); } 
+                            if(e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); setEditingCourseId(null); } 
+                          }} 
+                          onClick={(e) => e.stopPropagation()} 
+                          className="text-xl font-black px-4 py-2 border-2 rounded-xl outline-none w-full bg-indigo-50 border-[#5A4BFF]" 
+                        />
+                        <button onClick={(e) => { e.stopPropagation(); handleSaveCourseTitle(item.id, editTitleValue); }} className="p-2 bg-emerald-500 text-white rounded-xl hover:bg-emerald-600 transition-colors shrink-0"><CheckCircle2 className="w-6 h-6" /></button>
+                        <button onClick={(e) => { e.stopPropagation(); setEditingCourseId(null); }} className="p-2 bg-rose-500 text-white rounded-xl hover:bg-rose-600 transition-colors shrink-0"><X className="w-6 h-6" /></button>
+                      </div>
                     ) : (
-                      <h3 className="text-xl font-black cursor-pointer hover:text-indigo-600 transition-colors flex items-center gap-3 min-w-0" onClick={(e) => { e.stopPropagation(); setEditingCourseId(item.id); setEditCourseTitle(item.title); }}>
+                      <h3 className="text-xl font-black cursor-pointer hover:text-indigo-600 transition-colors flex items-center gap-3 min-w-0" onClick={(e) => { e.stopPropagation(); setEditingCourseId(item.id); setEditTitleValue(item.title); }}>
                         <span className="truncate">{item.title}</span> <Pencil className="w-4 h-4 text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
                       </h3>
                     )}
@@ -771,16 +923,31 @@ export default function AdminCourses() {
               <div className="p-8 pb-6 bg-white border-b border-gray-100 flex items-center shrink-0">
                 <div className="flex-1 mr-12 min-w-0">
                   {editingCourseId === selectedCourseForThemes.id ? (
-                    <input autoFocus value={editCourseTitle} onChange={(e) => setEditCourseTitle(e.target.value)} onBlur={() => saveItemTitle(selectedCourseForThemes.id)} onKeyDown={(e) => e.key === 'Enter' && saveItemTitle(selectedCourseForThemes.id)} className="text-3xl font-black px-4 py-2 border-2 rounded-xl outline-none w-full max-w-2xl bg-indigo-50 border-[#5A4BFF]" />
+                    <div className="flex items-center gap-2 w-full max-w-2xl">
+                      <input 
+                        autoFocus 
+                        value={editTitleValue} 
+                        onChange={(e) => setEditTitleValue(e.target.value)} 
+                        onKeyDown={(e) => { 
+                          if(e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); handleSaveCourseTitle(selectedCourseForThemes.id, editTitleValue); } 
+                          if(e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); setEditingCourseId(null); } 
+                        }} 
+                        onClick={(e) => e.stopPropagation()}
+                        className="text-3xl font-black px-4 py-2 border-2 rounded-xl outline-none w-full bg-indigo-50 border-[#5A4BFF]" 
+                      />
+                      <button onClick={(e) => { e.stopPropagation(); handleSaveCourseTitle(selectedCourseForThemes.id, editTitleValue); }} className="p-2 bg-emerald-500 text-white rounded-xl hover:bg-emerald-600 transition-colors shrink-0"><CheckCircle2 className="w-6 h-6" /></button>
+                      <button onClick={(e) => { e.stopPropagation(); setEditingCourseId(null); }} className="p-2 bg-rose-500 text-white rounded-xl hover:bg-rose-600 transition-colors shrink-0"><X className="w-6 h-6" /></button>
+                    </div>
                   ) : (
-                    <h2 className="text-3xl font-black cursor-pointer hover:text-indigo-600 transition-colors flex items-center gap-3 group min-w-0" onClick={() => { setEditingCourseId(selectedCourseForThemes.id); setEditCourseTitle(selectedCourseForThemes.title); }}>
+                    <h2 className="text-3xl font-black cursor-pointer hover:text-indigo-600 transition-colors flex items-center gap-3 group min-w-0" onClick={(e) => { e.stopPropagation(); setEditingCourseId(selectedCourseForThemes.id); setEditTitleValue(selectedCourseForThemes.title); }}>
                       <span className="truncate">{selectedCourseForThemes.title}</span> <Pencil className="w-6 h-6 text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
                     </h2>
                   )}
                 </div>
               </div>
 
-              <div className="flex-1 overflow-y-auto overflow-x-hidden p-6 lg:p-8 flex flex-col lg:flex-row gap-8 scroll-smooth relative items-start">
+              <div className="flex-1 overflow-y-auto overflow-x-hidden p-6 lg:p-8 flex flex-col lg:flex-row gap-8 scroll-smooth relative items-start custom-scrollbar">
+                
                 <div className="flex-1 space-y-6 min-w-0 pb-20">
                   {(selectedCourseForThemes.themes || []).map((theme: any) => {
                     const visibleLessons = theme.lessons || [];
@@ -790,9 +957,23 @@ export default function AdminCourses() {
                         <div className="flex flex-col lg:flex-row lg:justify-between lg:items-center gap-4 mb-8">
                           <div className="flex-1 min-w-0">
                             {editingThemeId === theme.id ? (
-                              <input autoFocus value={editThemeTitle} onChange={(e) => setEditThemeTitle(e.target.value)} onBlur={() => saveThemeTitle(theme.id)} onKeyDown={(e) => e.key === 'Enter' && saveThemeTitle(theme.id)} className="font-black text-2xl px-3 py-1.5 bg-indigo-50 border-2 border-[#5A4BFF] rounded-xl outline-none w-full" />
+                              <div className="flex items-center gap-2 w-full">
+                                <input 
+                                  autoFocus 
+                                  value={editTitleValue} 
+                                  onChange={(e) => setEditTitleValue(e.target.value)} 
+                                  onKeyDown={(e) => { 
+                                    if(e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); handleSaveThemeTitle(theme.id, editTitleValue); } 
+                                    if(e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); setEditingThemeId(null); } 
+                                  }} 
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="font-black text-2xl px-3 py-1.5 bg-indigo-50 border-2 border-[#5A4BFF] rounded-xl outline-none w-full" 
+                                />
+                                <button onClick={(e) => { e.stopPropagation(); handleSaveThemeTitle(theme.id, editTitleValue); }} className="p-2 bg-emerald-500 text-white rounded-xl hover:bg-emerald-600 transition-colors shrink-0"><CheckCircle2 className="w-6 h-6" /></button>
+                                <button onClick={(e) => { e.stopPropagation(); setEditingThemeId(null); }} className="p-2 bg-rose-500 text-white rounded-xl hover:bg-rose-600 transition-colors shrink-0"><X className="w-6 h-6" /></button>
+                              </div>
                             ) : (
-                              <h4 className="font-black text-xl lg:text-2xl cursor-pointer hover:text-indigo-600 transition-colors flex items-center gap-2 group min-w-0" onClick={() => { setEditingThemeId(theme.id); setEditThemeTitle(theme.title); }}>
+                              <h4 className="font-black text-xl lg:text-2xl cursor-pointer hover:text-indigo-600 transition-colors flex items-center gap-2 group min-w-0" onClick={(e) => { e.stopPropagation(); setEditingThemeId(theme.id); setEditTitleValue(theme.title); }}>
                                 <span className="truncate">Модуль {theme.order_index}. {theme.title}</span> <Pencil className="w-5 h-5 text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
                               </h4>
                             )}
@@ -838,9 +1019,23 @@ export default function AdminCourses() {
                                   </div>
                                   
                                   {editingLessonTitleId === lesson.id ? (
-                                    <input autoFocus value={editLessonInlineTitle} onChange={(e) => setEditLessonInlineTitle(e.target.value)} onBlur={() => saveLessonTitle(lesson.id)} onKeyDown={(e) => e.key === 'Enter' && saveLessonTitle(lesson.id)} className="flex-1 px-3 py-1.5 border-2 rounded-lg outline-none font-bold bg-indigo-50 border-[#5A4BFF] min-w-0" />
+                                    <div className="flex items-center gap-2 flex-1 min-w-0">
+                                      <input 
+                                        autoFocus 
+                                        value={editTitleValue} 
+                                        onChange={(e) => setEditTitleValue(e.target.value)} 
+                                        onKeyDown={(e) => { 
+                                          if(e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); handleSaveLessonTitle(lesson.id, editTitleValue); } 
+                                          if(e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); setEditingLessonTitleId(null); } 
+                                        }} 
+                                        onClick={(e) => e.stopPropagation()}
+                                        className="flex-1 px-3 py-1.5 border-2 rounded-lg outline-none font-bold bg-indigo-50 border-[#5A4BFF] min-w-0 transition-all" 
+                                      />
+                                      <button onClick={(e) => { e.stopPropagation(); handleSaveLessonTitle(lesson.id, editTitleValue); }} className="p-1.5 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 transition-colors shrink-0"><CheckCircle2 className="w-5 h-5" /></button>
+                                      <button onClick={(e) => { e.stopPropagation(); setEditingLessonTitleId(null); }} className="p-1.5 bg-rose-500 text-white rounded-lg hover:bg-rose-600 transition-colors shrink-0"><X className="w-5 h-5" /></button>
+                                    </div>
                                   ) : (
-                                    <span className="cursor-pointer hover:text-indigo-600 transition-colors flex items-center gap-2 group/title min-w-0" onClick={() => { setEditingLessonTitleId(lesson.id); setEditLessonInlineTitle(lesson.title); }}>
+                                    <span className="cursor-pointer hover:text-indigo-600 transition-colors flex items-center gap-2 group/title min-w-0" onClick={(e) => { e.stopPropagation(); setEditingLessonTitleId(lesson.id); setEditTitleValue(lesson.title); }}>
                                       <span className="truncate">{lesson.title}</span> <Pencil className="w-3 h-3 text-gray-300 opacity-0 group-hover/title:opacity-100 transition-opacity shrink-0" />
                                     </span>
                                   )}
@@ -900,7 +1095,8 @@ export default function AdminCourses() {
                               </div>
                             )}
 
-                            <div className="flex flex-col sm:flex-row gap-4 border-t border-gray-100 pt-8 mt-8">
+                            {/* Для мобилок оставляем кнопку внизу */}
+                            <div className="flex flex-col sm:flex-row gap-4 border-t border-gray-100 pt-8 mt-8 lg:hidden">
                                 <button type="button" onClick={() => handleSaveLesson(theme)} className="flex-1 py-5 bg-[#5A4BFF] hover:bg-[#4a3dec] text-white rounded-2xl font-black text-xl transition-all shadow-xl active:scale-95 flex justify-center items-center gap-2">
                                   {editingLessonId ? 'Сохранить изменения' : 'Создать урок'}
                                 </button>
@@ -915,21 +1111,34 @@ export default function AdminCourses() {
                   })}
                 </div>
 
-                <div className="w-full lg:w-[320px] shrink-0 sticky top-0 flex flex-col gap-6 pb-8 z-30">
-                  <div className="bg-gray-900 rounded-[2rem] p-8 text-white shadow-2xl">
-                    <h3 className="font-black text-2xl mb-6">Новый модуль</h3>
+                {/* 🔥 ПРАВАЯ ПАНЕЛЬ С УПРАВЛЕНИЕМ УРОКОМ */}
+                <div className="w-full lg:w-[320px] shrink-0 sticky top-4 flex flex-col gap-6 self-start max-h-[calc(100vh-4rem)] overflow-y-auto custom-scrollbar pr-2 pb-8 z-30 pt-2">
+                  {selectedThemeForLesson && (
+                    <div className="bg-[#5A4BFF] p-6 rounded-[2rem] shadow-xl text-white">
+                      <h4 className="font-black text-sm text-center mb-4 uppercase tracking-widest text-indigo-100">Управление уроком</h4>
+                      <button type="button" onClick={() => handleSaveLesson(selectedThemeForLesson)} className="w-full py-4 bg-white text-[#5A4BFF] hover:bg-gray-100 rounded-xl font-black transition-all shadow-lg active:scale-95 flex items-center justify-center gap-2">
+                        <SaveAll className="w-5 h-5" /> {editingLessonId ? 'Сохранить изменения' : 'Создать урок'}
+                      </button>
+                      {editingLessonId && (
+                         <button type="button" onClick={resetLessonForm} className="w-full mt-3 py-3 border-2 border-indigo-400 text-indigo-100 hover:bg-indigo-600 rounded-xl font-bold transition-colors">
+                            Отменить редактирование
+                         </button>
+                      )}
+                    </div>
+                  )}
+
+                  {selectedThemeForLesson && renderSidebarToolbar(false)}
+                  {selectedThemeForLesson && hasHomeworkSection && renderSidebarToolbar(true)}
+                  
+                  <div className="bg-gray-900 rounded-[2rem] p-6 text-white shadow-2xl">
+                    <h3 className="font-black text-xl mb-4">Новый модуль</h3>
                     <form onSubmit={handleCreateTheme} className="space-y-4">
                       <input type="text" value={newThemeTitle} onChange={(e) => setNewThemeTitle(e.target.value)} placeholder="Название модуля" className="w-full p-4 bg-white/10 rounded-xl outline-none focus:bg-white/20 focus:ring-2 focus:ring-indigo-400/50 transition-all font-medium text-white placeholder:text-gray-400" required />
-                      <button type="submit" className="w-full py-4 bg-[#5A4BFF] hover:bg-[#4a3dec] rounded-xl font-black transition-colors">Добавить</button>
+                      <button type="submit" className="w-full py-4 bg-indigo-500 hover:bg-indigo-400 rounded-xl font-black transition-colors">Добавить</button>
                     </form>
                   </div>
-                  {selectedThemeForLesson && (
-                    <>
-                      {renderSidebarToolbar(false)}
-                      {hasHomeworkSection && renderSidebarToolbar(true)}
-                    </>
-                  )}
                 </div>
+
               </div>
             </motion.div>
           </motion.div>

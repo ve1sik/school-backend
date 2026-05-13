@@ -41,7 +41,7 @@ export class UploadController {
     const path = join(process.cwd(), 'uploads', filename);
     
     if (!fs.existsSync(path)) {
-      return res.status(404).send('Брат, файла нет на диске!');
+      return res.status(404).send('файла нет на диске!');
     }
 
     // Эта команда заставляет браузер именно СКАЧИВАТЬ файл

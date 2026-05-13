@@ -71,16 +71,20 @@ model User {
   @@map("users")
 }
 
+
 model Group {
   id          String   @id @default(uuid())
   title       String
   price       Int      @default(0) 
+  old_price   Int?     @default(0)    // 🔥 Новое: Старая цена для скидок
+  start_date  String?                 // 🔥 Новое: Дата старта (напр: "15 сентября")
+  badge       String?                 // 🔥 Новое: Бейдж (напр: "🔥 ХИТ")
+  features    String[] @default(["Доступ ко всем урокам", "Проверка ДЗ", "Авторские конспекты"]) // 🔥 Новое: Кастомные буллиты
   is_public   Boolean  @default(true) 
-  cover_url   String?  // 🔥 ВОТ ОНО! ОБЛОЖКА ДЛЯ МАГАЗИНА!
+  cover_url   String?  
 
   curator_id String?
   curator    User?    @relation("CuratorGroups", fields: [curator_id], references: [id])
-
   students   User[]   @relation("StudentGroups")
   courses    Course[] @relation("GroupCourses")
   events     Event[]  
@@ -89,6 +93,7 @@ model Group {
 
   @@map("groups")
 }
+
 
 model GroupThemeAccess {
   id          String    @id @default(uuid())
