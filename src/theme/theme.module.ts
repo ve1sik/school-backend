@@ -6,7 +6,7 @@ import { PrismaModule } from '../prisma/prisma.module'; // Проверь пра
 
 @Module({
   imports: [
-    PrismaModule // <--- ВОТ ЭТА СТРОЧКА РЕШИТ ПРОБЛЕМУ
+    PrismaModule // <--- ВОТ ЭТА СТРОЧКА РЕШАЕТ ПРОБЛЕМУ с this.prisma
   ],
   controllers: [ThemeController],
   providers: [ThemeService],

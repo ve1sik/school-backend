@@ -21,10 +21,27 @@ export class ThemeService {
     });
   }
 
+  // 🔥 ИЗМЕНЕНО: Строго формируем объект обновления, чтобы Prisma всё поняла
+  async update(id: string, data: { title?: string; is_visible?: boolean }) {
+    const updateData: any = {};
+    
+    // Добавляем только те поля, которые реально пришли
+    if (data.title !== undefined) {
+      updateData.title = data.title;
+    }
+    
+    if (data.is_visible !== undefined) {
+      updateData.is_visible = data.is_visible;
+    }
 
-  async update(id: string, data: any) {
+    // Если пришел пустой запрос, просто возвращаем текущую тему
+    if (Object.keys(updateData).length === 0) {
+      return this.prisma.theme.findUnique({ where: { id } });
+    }
+
     return this.prisma.theme.update({
       where: { id },
-      data,
+      data: updateData,
     });
   }
+}

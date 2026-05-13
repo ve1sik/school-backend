@@ -198,7 +198,7 @@ export default function AdminCourses() {
     }
   };
 
-  // 🔥 ЖЕЛЕЗОБЕТОННОЕ СОХРАНЕНИЕ МОДУЛЯ
+ // 🔥 ЖЕЛЕЗОБЕТОННОЕ СОХРАНЕНИЕ МОДУЛЯ С ОТЛОВКОЙ ОШИБОК
   const handleSaveThemeTitle = async (id: string, newTitle: string) => {
     const finalTitle = newTitle.trim();
     if (!finalTitle || editingThemeId !== id) {
@@ -206,35 +206,40 @@ export default function AdminCourses() {
       return;
     }
 
-    setEditingThemeId(null);
+    setEditingThemeId(null); // Прячем инпут
     
+    // Оптимистично меняем UI
     setSelectedCourseForThemes((prev: any) => prev ? { 
       ...prev, 
       themes: (prev.themes || []).map((t: any) => t.id === id ? { ...t, title: finalTitle } : t) 
     } : null);
-    setItems(prev => prev.map(course => {
-      if (course.id === selectedCourseForThemes?.id) {
-        return { ...course, themes: (course.themes || []).map((t:any) => t.id === id ? { ...t, title: finalTitle } : t) };
-      }
-      return course;
-    }));
+
+    setItems(prev => prev.map(course => ({
+      ...course,
+      themes: (course.themes || []).map((t:any) => t.id === id ? { ...t, title: finalTitle } : t)
+    })));
+
+    console.log(`[ОТЛАДКА ФРОНТ] Пытаюсь отправить PATCH модуля ${id}. Новое название: "${finalTitle}"`);
     
     try { 
-      await axios.patch(`${API_URL}/themes/${id}`, { title: finalTitle }, getTokenConfig()); 
+      const res = await axios.patch(`${API_URL}/themes/${id}`, { title: finalTitle }, getTokenConfig()); 
+      console.log(`[ОТЛАДКА ФРОНТ] Успех PATCH:`, res.data);
       showToast('Название модуля сохранено!', 'success');
     } catch (err: any) { 
-      console.error("❌ ОШИБКА PATCH THEME:", err.response?.data || err.message);
+      console.error("❌ [ОТЛАДКА ФРОНТ] ОШИБКА PATCH THEME:", err.response?.data || err.message || err);
+      
+      console.log(`[ОТЛАДКА ФРОНТ] Пробую запасной вариант через PUT...`);
       try {
-        await axios.put(`${API_URL}/themes/${id}`, { title: finalTitle }, getTokenConfig());
+        const putRes = await axios.put(`${API_URL}/themes/${id}`, { title: finalTitle }, getTokenConfig());
+        console.log(`[ОТЛАДКА ФРОНТ] Успех PUT:`, putRes.data);
         showToast('Название модуля сохранено!', 'success');
       } catch (putErr: any) {
-        console.error("❌ ОШИБКА PUT THEME:", putErr.response?.data || putErr.message);
-        showToast('Ошибка сохранения. Открой консоль (F12)', 'error'); 
-        fetchItems(); 
+        console.error("❌ [ОТЛАДКА ФРОНТ] ОШИБКА PUT THEME:", putErr.response?.data || putErr.message || putErr);
+        showToast('Ошибка сохранения! Открой консоль (F12)', 'error'); 
+        fetchItems(); // Откатываем интерфейс к старым данным, раз бэк нас послал
       }
     }
   };
-
   // 🔥 ЖЕЛЕЗОБЕТОННОЕ СОХРАНЕНИЕ УРОКА
   const handleSaveLessonTitle = async (id: string, newTitle: string) => {
     const finalTitle = newTitle.trim();
@@ -933,10 +938,22 @@ export default function AdminCourses() {
                           if(e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); setEditingCourseId(null); } 
                         }} 
                         onClick={(e) => e.stopPropagation()}
-                        className="text-3xl font-black px-4 py-2 border-2 rounded-xl outline-none w-full bg-indigo-50 border-[#5A4BFF]" 
+                        className="flex-1 text-3xl font-black px-4 py-2 border-2 rounded-xl outline-none min-w-0 bg-indigo-50 border-[#5A4BFF]" 
                       />
-                      <button onClick={(e) => { e.stopPropagation(); handleSaveCourseTitle(selectedCourseForThemes.id, editTitleValue); }} className="p-2 bg-emerald-500 text-white rounded-xl hover:bg-emerald-600 transition-colors shrink-0"><CheckCircle2 className="w-6 h-6" /></button>
-                      <button onClick={(e) => { e.stopPropagation(); setEditingCourseId(null); }} className="p-2 bg-rose-500 text-white rounded-xl hover:bg-rose-600 transition-colors shrink-0"><X className="w-6 h-6" /></button>
+                      <button 
+                        type="button" 
+                        onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); handleSaveCourseTitle(selectedCourseForThemes.id, editTitleValue); }} 
+                        className="p-2 bg-emerald-500 text-white rounded-xl hover:bg-emerald-600 transition-colors shrink-0"
+                      >
+                        <CheckCircle2 className="w-6 h-6" />
+                      </button>
+                      <button 
+                        type="button" 
+                        onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); setEditingCourseId(null); }} 
+                        className="p-2 bg-rose-500 text-white rounded-xl hover:bg-rose-600 transition-colors shrink-0"
+                      >
+                        <X className="w-6 h-6" />
+                      </button>
                     </div>
                   ) : (
                     <h2 className="text-3xl font-black cursor-pointer hover:text-indigo-600 transition-colors flex items-center gap-3 group min-w-0" onClick={(e) => { e.stopPropagation(); setEditingCourseId(selectedCourseForThemes.id); setEditTitleValue(selectedCourseForThemes.title); }}>
@@ -967,10 +984,22 @@ export default function AdminCourses() {
                                     if(e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); setEditingThemeId(null); } 
                                   }} 
                                   onClick={(e) => e.stopPropagation()}
-                                  className="font-black text-2xl px-3 py-1.5 bg-indigo-50 border-2 border-[#5A4BFF] rounded-xl outline-none w-full" 
+                                  className="flex-1 font-black text-2xl px-3 py-1.5 bg-indigo-50 border-2 border-[#5A4BFF] rounded-xl outline-none min-w-0" 
                                 />
-                                <button onClick={(e) => { e.stopPropagation(); handleSaveThemeTitle(theme.id, editTitleValue); }} className="p-2 bg-emerald-500 text-white rounded-xl hover:bg-emerald-600 transition-colors shrink-0"><CheckCircle2 className="w-6 h-6" /></button>
-                                <button onClick={(e) => { e.stopPropagation(); setEditingThemeId(null); }} className="p-2 bg-rose-500 text-white rounded-xl hover:bg-rose-600 transition-colors shrink-0"><X className="w-6 h-6" /></button>
+                                <button 
+                                  type="button" 
+                                  onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); handleSaveThemeTitle(theme.id, editTitleValue); }} 
+                                  className="p-2 bg-emerald-500 text-white rounded-xl hover:bg-emerald-600 transition-colors shrink-0"
+                                >
+                                  <CheckCircle2 className="w-6 h-6" />
+                                </button>
+                                <button 
+                                  type="button" 
+                                  onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); setEditingThemeId(null); }} 
+                                  className="p-2 bg-rose-500 text-white rounded-xl hover:bg-rose-600 transition-colors shrink-0"
+                                >
+                                  <X className="w-6 h-6" />
+                                </button>
                               </div>
                             ) : (
                               <h4 className="font-black text-xl lg:text-2xl cursor-pointer hover:text-indigo-600 transition-colors flex items-center gap-2 group min-w-0" onClick={(e) => { e.stopPropagation(); setEditingThemeId(theme.id); setEditTitleValue(theme.title); }}>

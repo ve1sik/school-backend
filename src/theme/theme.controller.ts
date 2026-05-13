@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Delete, Param, Patch } from '@nestjs/common';
+import { Controller, Post, Body, Delete, Param, Patch, Put } from '@nestjs/common';
 import { ThemeService } from './theme.service';
 
 @Controller('themes')
@@ -16,9 +16,23 @@ export class ThemeController {
     return this.themeService.delete(id);
   }
 
-  // 🔥 ИЗМЕНЕНО: Универсальное обновление (меняет и title, и is_visible)
+  // 🔥 ИЗМЕНЕНО: Явно достаем title и is_visible, чтобы NestJS их не обрезал!
   @Patch(':id')
-  update(@Param('id') id: string, @Body() data: any) {
-    return this.themeService.update(id, data);
+  updatePatch(
+    @Param('id') id: string, 
+    @Body('title') title?: string,
+    @Body('is_visible') is_visible?: boolean
+  ) {
+    return this.themeService.update(id, { title, is_visible });
+  }
+
+  // 🔥 Добавлен PUT (резервный вариант для фронта)
+  @Put(':id')
+  updatePut(
+    @Param('id') id: string, 
+    @Body('title') title?: string,
+    @Body('is_visible') is_visible?: boolean
+  ) {
+    return this.themeService.update(id, { title, is_visible });
   }
 }
