@@ -10,28 +10,26 @@ export class ThemeController {
     return this.themeService.create(dto);
   }
 
-  // Удаление темы
   @Delete(':id')
   delete(@Param('id') id: string) {
     return this.themeService.delete(id);
   }
 
-  // 🔥 ИЗМЕНЕНО: Явно достаем title и is_visible, чтобы NestJS их не обрезал!
+  // 🔥 Вытаскиваем title напрямую, чтобы NestJS его не игнорировал
   @Patch(':id')
   updatePatch(
     @Param('id') id: string, 
-    @Body('title') title?: string,
-    @Body('is_visible') is_visible?: boolean
+    @Body('title') title: string,
+    @Body('is_visible') is_visible: boolean
   ) {
     return this.themeService.update(id, { title, is_visible });
   }
 
-  // 🔥 Добавлен PUT (резервный вариант для фронта)
   @Put(':id')
   updatePut(
     @Param('id') id: string, 
-    @Body('title') title?: string,
-    @Body('is_visible') is_visible?: boolean
+    @Body('title') title: string,
+    @Body('is_visible') is_visible: boolean
   ) {
     return this.themeService.update(id, { title, is_visible });
   }

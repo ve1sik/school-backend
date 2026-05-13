@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
+import { PrismaService } from '../prisma/prisma.service'; // Путь к Prisma проверь у себя!
 
 @Injectable()
 export class ThemeService {
@@ -21,20 +21,17 @@ export class ThemeService {
     });
   }
 
-  // 🔥 ИЗМЕНЕНО: Строго формируем объект обновления, чтобы Prisma всё поняла
+  // 🔥 Четко говорим Присме, что именно сохранять
   async update(id: string, data: { title?: string; is_visible?: boolean }) {
     const updateData: any = {};
     
-    // Добавляем только те поля, которые реально пришли
-    if (data.title !== undefined) {
+    if (data.title !== undefined && data.title !== null) {
       updateData.title = data.title;
     }
-    
-    if (data.is_visible !== undefined) {
+    if (data.is_visible !== undefined && data.is_visible !== null) {
       updateData.is_visible = data.is_visible;
     }
 
-    // Если пришел пустой запрос, просто возвращаем текущую тему
     if (Object.keys(updateData).length === 0) {
       return this.prisma.theme.findUnique({ where: { id } });
     }
