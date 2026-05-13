@@ -1,36 +1,33 @@
-import { Controller, Post, Body, Delete, Param, Patch, Put } from '@nestjs/common';
+import { Controller, Post, Body, Delete, Param, Patch, UseGuards } from '@nestjs/common';
 import { ThemeService } from './theme.service';
+import { AuthGuard } from '@nestjs/passport'; 
+import { RolesGuard } from '../auth/roles.guard'; 
+import { Roles } from '../auth/roles.decorator';
+import { Role } from '@prisma/client';
 
 @Controller('themes')
 export class ThemeController {
   constructor(private readonly themeService: ThemeService) {}
 
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles(Role.ADMIN, Role.CURATOR)
   @Post()
-  create(@Body() dto: any) {
+  async createTheme(@Body() dto: any) {
     return this.themeService.create(dto);
   }
 
-  @Delete(':id')
-  delete(@Param('id') id: string) {
-    return this.themeService.delete(id);
-  }
-
-  // 🔥 Вытаскиваем title напрямую, чтобы NestJS его не игнорировал
+  // 🔥 Точная копия логики из курсов! Принимаем любой dto и отдаем в сервис
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles(Role.ADMIN, Role.CURATOR)
   @Patch(':id')
-  updatePatch(
-    @Param('id') id: string, 
-    @Body('title') title: string,
-    @Body('is_visible') is_visible: boolean
-  ) {
-    return this.themeService.update(id, { title, is_visible });
+  async update(@Param('id') id: string, @Body() dto: any) {
+    return this.themeService.update(id, dto);
   }
 
-  @Put(':id')
-  updatePut(
-    @Param('id') id: string, 
-    @Body('title') title: string,
-    @Body('is_visible') is_visible: boolean
-  ) {
-    return this.themeService.update(id, { title, is_visible });
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles(Role.ADMIN, Role.CURATOR)
+  @Delete(':id')
+  async deleteTheme(@Param('id') id: string) {
+    return this.themeService.delete(id);
   }
 }

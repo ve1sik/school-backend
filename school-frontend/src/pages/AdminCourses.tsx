@@ -186,19 +186,17 @@ export default function AdminCourses() {
       await axios.patch(`${API_URL}/courses/${id}`, { title: finalTitle }, getTokenConfig()); 
       showToast('Название сохранено!', 'success');
     } catch (err: any) { 
-      console.error("❌ ОШИБКА PATCH COURSE:", err.response?.data || err.message);
       try {
         await axios.put(`${API_URL}/courses/${id}`, { title: finalTitle }, getTokenConfig());
         showToast('Название сохранено!', 'success');
       } catch (putErr: any) {
-        console.error("❌ ОШИБКА PUT COURSE:", putErr.response?.data || putErr.message);
         showToast('Ошибка сохранения. Открой консоль (F12)', 'error'); 
         fetchItems();
       }
     }
   };
 
- // 🔥 ЖЕЛЕЗОБЕТОННОЕ СОХРАНЕНИЕ МОДУЛЯ С ОТЛОВКОЙ ОШИБОК
+  // 🔥 ЖЕЛЕЗОБЕТОННОЕ СОХРАНЕНИЕ МОДУЛЯ
   const handleSaveThemeTitle = async (id: string, newTitle: string) => {
     const finalTitle = newTitle.trim();
     if (!finalTitle || editingThemeId !== id) {
@@ -206,40 +204,34 @@ export default function AdminCourses() {
       return;
     }
 
-    setEditingThemeId(null); // Прячем инпут
+    setEditingThemeId(null);
     
-    // Оптимистично меняем UI
     setSelectedCourseForThemes((prev: any) => prev ? { 
       ...prev, 
       themes: (prev.themes || []).map((t: any) => t.id === id ? { ...t, title: finalTitle } : t) 
     } : null);
-
-    setItems(prev => prev.map(course => ({
-      ...course,
-      themes: (course.themes || []).map((t:any) => t.id === id ? { ...t, title: finalTitle } : t)
-    })));
-
-    console.log(`[ОТЛАДКА ФРОНТ] Пытаюсь отправить PATCH модуля ${id}. Новое название: "${finalTitle}"`);
+    
+    setItems(prev => prev.map(course => {
+      if (course.id === selectedCourseForThemes?.id) {
+        return { ...course, themes: (course.themes || []).map((t:any) => t.id === id ? { ...t, title: finalTitle } : t) };
+      }
+      return course;
+    }));
     
     try { 
-      const res = await axios.patch(`${API_URL}/themes/${id}`, { title: finalTitle }, getTokenConfig()); 
-      console.log(`[ОТЛАДКА ФРОНТ] Успех PATCH:`, res.data);
+      await axios.patch(`${API_URL}/themes/${id}`, { title: finalTitle }, getTokenConfig()); 
       showToast('Название модуля сохранено!', 'success');
     } catch (err: any) { 
-      console.error("❌ [ОТЛАДКА ФРОНТ] ОШИБКА PATCH THEME:", err.response?.data || err.message || err);
-      
-      console.log(`[ОТЛАДКА ФРОНТ] Пробую запасной вариант через PUT...`);
       try {
-        const putRes = await axios.put(`${API_URL}/themes/${id}`, { title: finalTitle }, getTokenConfig());
-        console.log(`[ОТЛАДКА ФРОНТ] Успех PUT:`, putRes.data);
+        await axios.put(`${API_URL}/themes/${id}`, { title: finalTitle }, getTokenConfig());
         showToast('Название модуля сохранено!', 'success');
       } catch (putErr: any) {
-        console.error("❌ [ОТЛАДКА ФРОНТ] ОШИБКА PUT THEME:", putErr.response?.data || putErr.message || putErr);
-        showToast('Ошибка сохранения! Открой консоль (F12)', 'error'); 
-        fetchItems(); // Откатываем интерфейс к старым данным, раз бэк нас послал
+        showToast('Ошибка сохранения. Открой консоль (F12)', 'error'); 
+        fetchItems(); 
       }
     }
   };
+
   // 🔥 ЖЕЛЕЗОБЕТОННОЕ СОХРАНЕНИЕ УРОКА
   const handleSaveLessonTitle = async (id: string, newTitle: string) => {
     const finalTitle = newTitle.trim();
@@ -255,6 +247,7 @@ export default function AdminCourses() {
         ...t, lessons: (t.lessons || []).map((l: any) => l.id === id ? { ...l, title: finalTitle } : l)
       }))
     } : null);
+    
     setItems(prev => prev.map(course => {
       if (course.id === selectedCourseForThemes?.id) {
         return { ...course, themes: (course.themes || []).map((t:any) => ({
@@ -268,12 +261,10 @@ export default function AdminCourses() {
       await axios.patch(`${API_URL}/lessons/${id}`, { title: finalTitle }, getTokenConfig()); 
       showToast('Название урока сохранено!', 'success');
     } catch (err: any) { 
-      console.error("❌ ОШИБКА PATCH LESSON:", err.response?.data || err.message);
       try {
         await axios.put(`${API_URL}/lessons/${id}`, { title: finalTitle }, getTokenConfig());
         showToast('Название урока сохранено!', 'success');
       } catch (putErr: any) {
-        console.error("❌ ОШИБКА PUT LESSON:", putErr.response?.data || putErr.message);
         showToast('Ошибка сохранения. Открой консоль (F12)', 'error'); 
         fetchItems(); 
       }
@@ -831,7 +822,7 @@ export default function AdminCourses() {
           font-size: 16px !important; 
           word-break: normal !important; 
           overflow-wrap: break-word !important; 
-          white-space: pre-wrap !important;
+          white-space: normal !important;
           padding: 0 !important;
         }
         .ql-editor p { margin-bottom: 0.75em !important; line-height: 1.6 !important; }
@@ -938,22 +929,10 @@ export default function AdminCourses() {
                           if(e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); setEditingCourseId(null); } 
                         }} 
                         onClick={(e) => e.stopPropagation()}
-                        className="flex-1 text-3xl font-black px-4 py-2 border-2 rounded-xl outline-none min-w-0 bg-indigo-50 border-[#5A4BFF]" 
+                        className="text-3xl font-black px-4 py-2 border-2 rounded-xl outline-none w-full max-w-2xl bg-indigo-50 border-[#5A4BFF]" 
                       />
-                      <button 
-                        type="button" 
-                        onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); handleSaveCourseTitle(selectedCourseForThemes.id, editTitleValue); }} 
-                        className="p-2 bg-emerald-500 text-white rounded-xl hover:bg-emerald-600 transition-colors shrink-0"
-                      >
-                        <CheckCircle2 className="w-6 h-6" />
-                      </button>
-                      <button 
-                        type="button" 
-                        onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); setEditingCourseId(null); }} 
-                        className="p-2 bg-rose-500 text-white rounded-xl hover:bg-rose-600 transition-colors shrink-0"
-                      >
-                        <X className="w-6 h-6" />
-                      </button>
+                      <button onClick={(e) => { e.stopPropagation(); handleSaveCourseTitle(selectedCourseForThemes.id, editTitleValue); }} className="p-2 bg-emerald-500 text-white rounded-xl hover:bg-emerald-600 transition-colors shrink-0"><CheckCircle2 className="w-6 h-6" /></button>
+                      <button onClick={(e) => { e.stopPropagation(); setEditingCourseId(null); }} className="p-2 bg-rose-500 text-white rounded-xl hover:bg-rose-600 transition-colors shrink-0"><X className="w-6 h-6" /></button>
                     </div>
                   ) : (
                     <h2 className="text-3xl font-black cursor-pointer hover:text-indigo-600 transition-colors flex items-center gap-3 group min-w-0" onClick={(e) => { e.stopPropagation(); setEditingCourseId(selectedCourseForThemes.id); setEditTitleValue(selectedCourseForThemes.title); }}>
@@ -984,22 +963,10 @@ export default function AdminCourses() {
                                     if(e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); setEditingThemeId(null); } 
                                   }} 
                                   onClick={(e) => e.stopPropagation()}
-                                  className="flex-1 font-black text-2xl px-3 py-1.5 bg-indigo-50 border-2 border-[#5A4BFF] rounded-xl outline-none min-w-0" 
+                                  className="font-black text-2xl px-3 py-1.5 bg-indigo-50 border-2 border-[#5A4BFF] rounded-xl outline-none w-full" 
                                 />
-                                <button 
-                                  type="button" 
-                                  onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); handleSaveThemeTitle(theme.id, editTitleValue); }} 
-                                  className="p-2 bg-emerald-500 text-white rounded-xl hover:bg-emerald-600 transition-colors shrink-0"
-                                >
-                                  <CheckCircle2 className="w-6 h-6" />
-                                </button>
-                                <button 
-                                  type="button" 
-                                  onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); setEditingThemeId(null); }} 
-                                  className="p-2 bg-rose-500 text-white rounded-xl hover:bg-rose-600 transition-colors shrink-0"
-                                >
-                                  <X className="w-6 h-6" />
-                                </button>
+                                <button onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); handleSaveThemeTitle(theme.id, editTitleValue); }} className="p-2 bg-emerald-500 text-white rounded-xl hover:bg-emerald-600 transition-colors shrink-0"><CheckCircle2 className="w-6 h-6" /></button>
+                                <button onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); setEditingThemeId(null); }} className="p-2 bg-rose-500 text-white rounded-xl hover:bg-rose-600 transition-colors shrink-0"><X className="w-6 h-6" /></button>
                               </div>
                             ) : (
                               <h4 className="font-black text-xl lg:text-2xl cursor-pointer hover:text-indigo-600 transition-colors flex items-center gap-2 group min-w-0" onClick={(e) => { e.stopPropagation(); setEditingThemeId(theme.id); setEditTitleValue(theme.title); }}>
@@ -1060,8 +1027,8 @@ export default function AdminCourses() {
                                         onClick={(e) => e.stopPropagation()}
                                         className="flex-1 px-3 py-1.5 border-2 rounded-lg outline-none font-bold bg-indigo-50 border-[#5A4BFF] min-w-0 transition-all" 
                                       />
-                                      <button onClick={(e) => { e.stopPropagation(); handleSaveLessonTitle(lesson.id, editTitleValue); }} className="p-1.5 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 transition-colors shrink-0"><CheckCircle2 className="w-5 h-5" /></button>
-                                      <button onClick={(e) => { e.stopPropagation(); setEditingLessonTitleId(null); }} className="p-1.5 bg-rose-500 text-white rounded-lg hover:bg-rose-600 transition-colors shrink-0"><X className="w-5 h-5" /></button>
+                                      <button onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); handleSaveLessonTitle(lesson.id, editTitleValue); }} className="p-1.5 bg-emerald-500 text-white rounded-lg hover:bg-emerald-600 transition-colors shrink-0"><CheckCircle2 className="w-5 h-5" /></button>
+                                      <button onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); setEditingLessonTitleId(null); }} className="p-1.5 bg-rose-500 text-white rounded-lg hover:bg-rose-600 transition-colors shrink-0"><X className="w-5 h-5" /></button>
                                     </div>
                                   ) : (
                                     <span className="cursor-pointer hover:text-indigo-600 transition-colors flex items-center gap-2 group/title min-w-0" onClick={(e) => { e.stopPropagation(); setEditingLessonTitleId(lesson.id); setEditTitleValue(lesson.title); }}>

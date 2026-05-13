@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service'; // Путь к Prisma проверь у себя!
+import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
 export class ThemeService {
@@ -15,30 +15,22 @@ export class ThemeService {
     });
   }
 
-  async delete(id: string) {
-    return this.prisma.theme.delete({
+  // 🔥 Точная копия из курсов: берем весь dto и шьем прямо в базу!
+  async update(id: string, dto: any) {
+    return this.prisma.theme.update({
       where: { id },
+      data: dto,
     });
   }
 
-  // 🔥 Четко говорим Присме, что именно сохранять
-  async update(id: string, data: { title?: string; is_visible?: boolean }) {
-    const updateData: any = {};
-    
-    if (data.title !== undefined && data.title !== null) {
-      updateData.title = data.title;
-    }
-    if (data.is_visible !== undefined && data.is_visible !== null) {
-      updateData.is_visible = data.is_visible;
-    }
+  async delete(id: string) {
+    // Удаляем связанные уроки, чтобы не было мусора в базе
+    await this.prisma.lesson.deleteMany({
+      where: { theme_id: id }
+    });
 
-    if (Object.keys(updateData).length === 0) {
-      return this.prisma.theme.findUnique({ where: { id } });
-    }
-
-    return this.prisma.theme.update({
+    return this.prisma.theme.delete({
       where: { id },
-      data: updateData,
     });
   }
 }
