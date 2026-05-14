@@ -51,13 +51,20 @@ function ExpandableImage({ src, alt, className = '' }: { src: string, alt?: stri
   );
 }
 
+// 🔥 ПРОКАЧАННЫЙ РЕДАКТОР ("Ебанутая машина" для препода)
 const quillModules = {
   toolbar: [
-    [{ 'header': [1, 2, 3, false] }],
+    [{ 'header': [1, 2, 3, 4, 5, 6, false] }],
+    [{ 'font': [] }],
+    [{ 'size': ['small', false, 'large', 'huge'] }],
     ['bold', 'italic', 'underline', 'strike'],
-    [{ 'align': [] }], 
-    [{ 'list': 'ordered'}, { 'list': 'bullet' }],
     [{ 'color': [] }, { 'background': [] }],
+    [{ 'script': 'sub'}, { 'script': 'super' }],
+    [{ 'list': 'ordered'}, { 'list': 'bullet' }, { 'indent': '-1'}, { 'indent': '+1' }],
+    [{ 'direction': 'rtl' }],
+    [{ 'align': [] }], 
+    ['blockquote', 'code-block'],
+    ['link', 'image', 'video'],
     ['clean']
   ],
 };
@@ -196,7 +203,7 @@ export default function AdminCourses() {
     }
   };
 
-  // 🔥 ЖЕЛЕЗОБЕТОННОЕ СОХРАНЕНИЕ МОДУЛЯ
+  // 🔥 ЖЕЛЕЗОБЕТОННОЕ СОХРАНЕНИЕ МОДУЛЯ (ПО ЛОГИКЕ УРОКОВ)
   const handleSaveThemeTitle = async (id: string, newTitle: string) => {
     const finalTitle = newTitle.trim();
     if (!finalTitle || editingThemeId !== id) {
@@ -206,17 +213,19 @@ export default function AdminCourses() {
 
     setEditingThemeId(null);
     
-    setSelectedCourseForThemes((prev: any) => prev ? { 
-      ...prev, 
-      themes: (prev.themes || []).map((t: any) => t.id === id ? { ...t, title: finalTitle } : t) 
-    } : null);
-    
-    setItems(prev => prev.map(course => {
-      if (course.id === selectedCourseForThemes?.id) {
-        return { ...course, themes: (course.themes || []).map((t:any) => t.id === id ? { ...t, title: finalTitle } : t) };
-      }
-      return course;
-    }));
+    // 1. Сначала обновляем глобальный список (без багованного if, ровно как в курсе)
+    setItems(prev => prev.map(course => ({
+      ...course,
+      themes: (course.themes || []).map((t: any) => t.id === id ? { ...t, title: finalTitle } : t)
+    })));
+
+    // 2. Затем обновляем открытую модалку (ровно как в курсе)
+    if (selectedCourseForThemes) {
+      setSelectedCourseForThemes((prev: any) => ({ 
+        ...prev, 
+        themes: (prev.themes || []).map((t: any) => t.id === id ? { ...t, title: finalTitle } : t) 
+      }));
+    }
     
     try { 
       await axios.patch(`${API_URL}/themes/${id}`, { title: finalTitle }, getTokenConfig()); 
@@ -820,9 +829,9 @@ export default function AdminCourses() {
           min-height: auto !important; 
           font-family: inherit !important; 
           font-size: 16px !important; 
-          word-break: normal !important; 
+          word-break: break-word !important; 
           overflow-wrap: break-word !important; 
-          white-space: normal !important;
+          white-space: pre-wrap !important;
           padding: 0 !important;
         }
         .ql-editor p { margin-bottom: 0.75em !important; line-height: 1.6 !important; }
