@@ -24,11 +24,6 @@ export class ThemeService {
   }
 
   async delete(id: string) {
-    // Удаляем связанные уроки, чтобы не было мусора в базе
-    await this.prisma.lesson.deleteMany({
-      where: { theme_id: id }
-    });
-
     return this.prisma.theme.delete({
       where: { id },
     });

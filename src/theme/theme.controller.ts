@@ -16,7 +16,7 @@ export class ThemeController {
     return this.themeService.create(dto);
   }
 
-  // 🔥 Точная копия логики из курсов! Принимаем любой dto и отдаем в сервис
+  // 🔥 Точная копия логики из курсов! Принимаем любой dto (включая title)
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   @Roles(Role.ADMIN, Role.CURATOR)
   @Patch(':id')

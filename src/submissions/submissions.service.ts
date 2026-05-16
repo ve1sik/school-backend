@@ -20,28 +20,31 @@ export class SubmissionsService {
     });
   }
 
-  // Куратор получает список всех непроверенных работ
-  async getPendingSubmissions() {
+  // 🔥 ОБНОВЛЕННЫЙ МЕТОД ДЛЯ КУРАТОРА: Выдает работы с нужным статусом и сразу склеивает названия
+  async getSubmissionsByStatus(status: 'PENDING' | 'GRADED') {
     const subs = await this.prisma.submission.findMany({
-      where: { status: 'PENDING' },
+      where: { status },
       include: {
         user: true,
         lesson: {
           include: { theme: { include: { course: true } } }
         }
       },
-      orderBy: { created_at: 'asc' }
+      orderBy: { created_at: 'desc' }
     });
 
-    // Форматируем красиво для фронтенда
+    // Форматируем красиво для фронтенда куратора
     return subs.map(sub => ({
       id: sub.id,
-      studentName: sub.user.name ? `${sub.user.name} ${sub.user.surname || ''}`.trim() : 'Ученик',
-      courseName: sub.lesson.theme.course.title,
-      lessonTitle: sub.lesson.title,
+      studentId: sub.user_id,
+      studentName: sub.user.name ? `${sub.user.name} ${sub.user.surname || ''}`.trim() : sub.user.email || 'Ученик',
+      courseName: sub.lesson?.theme?.course?.title || 'Неизвестный курс',
+      lessonTitle: sub.lesson?.title || 'Неизвестный урок',
       question: sub.question,
       answer: sub.answer,
       maxScore: sub.max_score,
+      score: sub.score,
+      comment: sub.comment,
       status: sub.status,
       date: new Date(sub.created_at).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
     }));
@@ -59,7 +62,7 @@ export class SubmissionsService {
     });
   }
 
-  // 🔥 НОВЫЙ МЕТОД: Поиск работы конкретного ученика (используем lesson_id и user_id)
+  // Поиск работы конкретного ученика
   async getSubmissionForStudent(lessonId: string, userId: string) {
     return this.prisma.submission.findFirst({
       where: {
@@ -67,10 +70,11 @@ export class SubmissionsService {
         user_id: userId,
       },
       orderBy: {
-        created_at: 'desc' // Берем самую свежую, если он отправлял ДЗ несколько раз
+        created_at: 'desc' 
       }
     });
   }
+
   // Получить ВСЕ работы конкретного студента
   async getMySubmissions(userId: string) {
     return this.prisma.submission.findMany({

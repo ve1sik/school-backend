@@ -13,7 +13,8 @@ import {
   Bell,
   GraduationCap,
   User,
-  ShoppingCart // 🔥 Добавили иконку для магазина
+  ShoppingCart, // 🔥 Добавили иконку для магазина
+  Users // 🔥 Иконка для кабинета куратора
 } from 'lucide-react';
 
 const API_URL = 'https://prepodmgy.ru/api';
@@ -36,6 +37,7 @@ export default function Layout() {
     // 1. Быстрая проверка роли из токена для админки
     try {
       const payload = JSON.parse(window.atob(token.split('.')[1]));
+      // 🔥 Тут мы даем доступ к защищенному блоку и Админу, и Куратору
       if (payload.role === 'ADMIN' || payload.role === 'CURATOR') {
         setIsAdmin(true);
       }
@@ -94,14 +96,13 @@ export default function Layout() {
     return 'СТ';
   };
 
-  // 🔥 Добавили Магазин в список пунктов меню
   const menuItems = [
     { path: '/', icon: Home, label: 'Главная' },
     { path: '/courses', icon: BookOpen, label: 'Курсы' },
     { path: '/schedule', icon: Calendar, label: 'Расписание' },
     { path: '/homework', icon: FileText, label: 'Домашнее задание' },
     { path: '/messages', icon: MessageSquare, label: 'Сообщения' },
-    { path: '/shop', icon: ShoppingCart, label: 'Магазин курсов' }, // 🔥 Вот она, наша витрина
+    { path: '/shop', icon: ShoppingCart, label: 'Магазин курсов' },
     { path: '/profile', icon: User, label: 'Мой профиль' },
     { path: '/settings', icon: Settings, label: 'Настройки' },
   ];
@@ -111,6 +112,7 @@ export default function Layout() {
     if (item) return item.label;
     if (location.pathname === '/admin') return 'Управление курсами';
     if (location.pathname === '/admin/groups') return 'Управление потоками';
+    if (location.pathname.startsWith('/curator')) return 'Кабинет куратора'; // 🔥 Название для шапки
     if (location.pathname.includes('/mistakes')) return 'Разбор полетов';
     return 'Платформа';
   };
@@ -133,10 +135,10 @@ export default function Layout() {
           </div>
 
           {/* МЕНЮ */}
-          <nav className="space-y-1.5 w-full flex-1 pr-5">
+          <nav className="space-y-1.5 w-full flex-1 pr-5 overflow-y-auto custom-scrollbar">
             {menuItems.map((item) => {
               const isActive = location.pathname === item.path;
-              // 🔥 Делаем кнопку Магазина немного более акцентной
+              // Делаем кнопку Магазина немного более акцентной
               const isShop = item.path === '/shop';
               
               return (
@@ -159,6 +161,7 @@ export default function Layout() {
               );
             })}
 
+            {/* 🔥 ЗАЩИЩЕННЫЙ БЛОК (ТОЛЬКО АДМИН И КУРАТОР) */}
             {isAdmin && (
               <div className="pt-2 mt-2 border-t border-gray-50 space-y-1.5">
                 <Link
@@ -187,12 +190,27 @@ export default function Layout() {
                     Управление потоками
                   </span>
                 </Link>
+
+                {/* 🔥 НОВАЯ КНОПКА: КАБИНЕТ КУРАТОРА */}
+                <Link
+                  to="/curator"
+                  className={`flex items-center gap-4 p-3 rounded-xl transition-all ${
+                    location.pathname.startsWith('/curator')
+                      ? 'bg-gray-900 text-[#00FFCC] shadow-lg shadow-emerald-500/20' 
+                      : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'
+                  }`}
+                >
+                  <Users className={`w-6 h-6 shrink-0 ${location.pathname.startsWith('/curator') ? 'text-[#00FFCC]' : 'text-gray-400'}`} />
+                  <span className="text-sm font-bold whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                    Кабинет куратора
+                  </span>
+                </Link>
               </div>
             )}
           </nav>
 
           {/* КНОПКА ВЫХОДА */}
-          <div className="mt-auto pr-5">
+          <div className="mt-auto pr-5 pt-4">
             <button 
               onClick={handleLogout}
               className="flex items-center gap-4 p-3 w-full rounded-xl text-red-500 hover:bg-red-50 transition-all group/logout"
