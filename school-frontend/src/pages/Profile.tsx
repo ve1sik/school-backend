@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { User, MapPin, Calendar, ShieldCheck, Copy, CheckCircle2, Loader2, Mail } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { User, MapPin, Calendar, ShieldCheck, Copy, CheckCircle2, Loader2, Mail, Save, X } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 
 const API_URL = 'https://prepodmgy.ru/api';
@@ -9,6 +9,18 @@ export default function Profile() {
   const [user, setUser] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [copied, setCopied] = useState(false);
+
+  // Стейты для редактирования
+  const [isEditing, setIsEditing] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [editData, setEditData] = useState({ name: '', surname: '', city: '', birthday: '' });
+
+  // Тосты (уведомления)
+  const [toast, setToast] = useState<{ text: string, type: 'success' | 'error' } | null>(null);
+  const showToast = (text: string, type: 'success' | 'error' = 'success') => {
+    setToast({ text, type });
+    setTimeout(() => setToast(null), 3000);
+  };
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -20,7 +32,7 @@ export default function Profile() {
         
         let userData = res.data;
 
-        // 🔥 ГЕНИАЛЬНО: Если кода нет, тихо генерируем его сами без лишних кнопок!
+        // Если кода нет, генерируем тихо
         if (!userData.invite_code) {
           try {
             const codeRes = await axios.post(`${API_URL}/auth/invite-code`, {}, {
@@ -33,6 +45,13 @@ export default function Profile() {
         }
 
         setUser(userData);
+        // Заполняем форму текущими данными
+        setEditData({
+          name: userData.name || '',
+          surname: userData.surname || '',
+          city: userData.city || '',
+          birthday: userData.birthday || ''
+        });
       } catch (err) {
         console.error('Ошибка загрузки профиля', err);
       } finally {
@@ -47,7 +66,28 @@ export default function Profile() {
     if (!user?.invite_code) return;
     navigator.clipboard.writeText(user.invite_code);
     setCopied(true);
-    setTimeout(() => setCopied(false), 2000); // Гасим галочку через 2 секунды
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  // 🔥 СОХРАНЕНИЕ ПРОФИЛЯ
+  const handleSave = async () => {
+    setIsSaving(true);
+    try {
+      const token = localStorage.getItem('token');
+      // Отправляем PATCH запрос на бэкенд для обновления профиля
+      const res = await axios.patch(`${API_URL}/auth/profile`, editData, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      setUser(res.data); // Обновляем данные на экране
+      setIsEditing(false); // Закрываем режим редактирования
+      showToast('Профиль успешно обновлен!', 'success');
+    } catch (err) {
+      console.error('Ошибка при сохранении профиля:', err);
+      showToast('Ошибка при сохранении. Проверь консоль.', 'error');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   if (isLoading) {
@@ -59,23 +99,66 @@ export default function Profile() {
   }
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6 py-6">
+    <div className="max-w-5xl mx-auto space-y-6 py-6 pb-20 relative">
       
       {/* ВЕРХНЯЯ КАРТОЧКА: Основная инфа */}
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="bg-white rounded-[2.5rem] p-8 md:p-10 shadow-sm border border-gray-100 flex flex-col md:flex-row items-center md:items-start gap-8">
-        <div className="w-32 h-32 bg-indigo-50 rounded-[2rem] flex items-center justify-center shrink-0 border-2 border-indigo-100">
+        <div className="w-32 h-32 bg-indigo-50 rounded-[2rem] flex items-center justify-center shrink-0 border-2 border-indigo-100 relative overflow-hidden">
           <User className="w-12 h-12 text-[#5A4BFF]" />
         </div>
-        <div className="flex-1 text-center md:text-left">
-          <h1 className="text-3xl md:text-4xl font-black text-gray-900 leading-tight mb-2">
-            {user?.name || 'Имя'} {user?.surname || 'Фамилия'}
-          </h1>
+        <div className="flex-1 text-center md:text-left w-full">
+          {isEditing ? (
+            <div className="flex flex-col sm:flex-row gap-4 mb-4">
+              <input 
+                type="text" 
+                placeholder="Имя"
+                value={editData.name} 
+                onChange={(e) => setEditData({...editData, name: e.target.value})}
+                className="w-full bg-gray-50 border-2 border-gray-100 rounded-2xl px-5 py-3 font-black text-xl outline-none focus:border-indigo-400 transition-all text-gray-900"
+              />
+              <input 
+                type="text" 
+                placeholder="Фамилия"
+                value={editData.surname} 
+                onChange={(e) => setEditData({...editData, surname: e.target.value})}
+                className="w-full bg-gray-50 border-2 border-gray-100 rounded-2xl px-5 py-3 font-black text-xl outline-none focus:border-indigo-400 transition-all text-gray-900"
+              />
+            </div>
+          ) : (
+            <h1 className="text-3xl md:text-4xl font-black text-gray-900 leading-tight mb-2">
+              {user?.name || 'Имя'} {user?.surname || 'Фамилия'}
+            </h1>
+          )}
+          
           <p className="text-gray-500 font-medium flex items-center justify-center md:justify-start gap-2 mb-6">
             <Mail className="w-4 h-4" /> {user?.email || 'email@example.com'}
           </p>
-          <button className="px-6 py-3 bg-gray-900 hover:bg-black text-white rounded-xl font-bold transition-all active:scale-95 shadow-md">
-            Редактировать
-          </button>
+
+          {isEditing ? (
+            <div className="flex items-center justify-center md:justify-start gap-3">
+              <button 
+                onClick={handleSave} 
+                disabled={isSaving}
+                className="px-6 py-3 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl font-black transition-all active:scale-95 shadow-md flex items-center gap-2 disabled:opacity-50"
+              >
+                {isSaving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />} Сохранить
+              </button>
+              <button 
+                onClick={() => {
+                  setIsEditing(false);
+                  setEditData({ name: user.name || '', surname: user.surname || '', city: user.city || '', birthday: user.birthday || '' });
+                }} 
+                disabled={isSaving}
+                className="p-3 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-xl font-bold transition-all active:scale-95 disabled:opacity-50"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+          ) : (
+            <button onClick={() => setIsEditing(true)} className="px-6 py-3 bg-gray-900 hover:bg-black text-white rounded-xl font-bold transition-all active:scale-95 shadow-md">
+              Редактировать
+            </button>
+          )}
         </div>
       </motion.div>
 
@@ -91,16 +174,36 @@ export default function Profile() {
 
           <div className="space-y-4">
             <div className="flex items-center gap-4 p-4 bg-gray-50 rounded-2xl border border-gray-100">
-              <MapPin className="w-5 h-5 text-gray-400" />
-              <span className="font-bold text-gray-700">{user?.city || 'Город не указан'}</span>
+              <MapPin className="w-5 h-5 text-gray-400 shrink-0" />
+              {isEditing ? (
+                <input 
+                  type="text" 
+                  placeholder="Ваш город"
+                  value={editData.city} 
+                  onChange={(e) => setEditData({...editData, city: e.target.value})}
+                  className="flex-1 bg-white border border-gray-200 rounded-xl px-4 py-2 font-bold outline-none focus:border-indigo-400 transition-all w-full"
+                />
+              ) : (
+                <span className="font-bold text-gray-700">{user?.city || 'Город не указан'}</span>
+              )}
             </div>
             <div className="flex items-center gap-4 p-4 bg-gray-50 rounded-2xl border border-gray-100">
-              <Calendar className="w-5 h-5 text-gray-400" />
-              <span className="font-bold text-gray-700">{user?.birthday || 'Дата рождения не указана'}</span>
+              <Calendar className="w-5 h-5 text-gray-400 shrink-0" />
+              {isEditing ? (
+                <input 
+                  type="text" 
+                  placeholder="ДД.ММ.ГГГГ"
+                  value={editData.birthday} 
+                  onChange={(e) => setEditData({...editData, birthday: e.target.value})}
+                  className="flex-1 bg-white border border-gray-200 rounded-xl px-4 py-2 font-bold outline-none focus:border-indigo-400 transition-all w-full"
+                />
+              ) : (
+                <span className="font-bold text-gray-700">{user?.birthday || 'Дата рождения не указана'}</span>
+              )}
             </div>
           </div>
 
-          {/* 🔥 БЛОК ДЛЯ РОДИТЕЛЕЙ (Без кнопок генерации) */}
+          {/* БЛОК ДЛЯ РОДИТЕЛЕЙ */}
           <div className="mt-auto pt-8">
             <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-4">Для родителей</p>
             <div className="bg-gray-900 rounded-2xl p-5 flex items-center justify-between shadow-lg">
@@ -146,6 +249,18 @@ export default function Profile() {
         </motion.div>
 
       </div>
+
+      <AnimatePresence>
+        {toast && (
+          <motion.div
+            initial={{ opacity: 0, y: 50, scale: 0.3 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 20, scale: 0.8 }}
+            className={`fixed bottom-10 right-10 z-[9999] px-8 py-5 rounded-[2rem] shadow-2xl font-black text-white text-lg flex items-center gap-4 ${toast.type === 'success' ? 'bg-emerald-500' : 'bg-rose-500'}`}
+          >
+            {toast.type === 'success' ? <CheckCircle2 className="w-7 h-7" /> : <X className="w-7 h-7" />}
+            {toast.text}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

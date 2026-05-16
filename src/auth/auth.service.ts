@@ -73,23 +73,18 @@ export class AuthService {
   }
 
   // 4. ОБНОВЛЕНИЕ ПРОФИЛЯ
+  // 4. ОБНОВЛЕНИЕ ПРОФИЛЯ
   async updateProfile(userId: string, dto: any) {
-    const dataToUpdate: any = {};
-    if (dto.email) dataToUpdate.email = dto.email;
-    if (dto.name) dataToUpdate.name = dto.name;
-    if (dto.surname) dataToUpdate.surname = dto.surname;
-    if (dto.patronymic) dataToUpdate.patronymic = dto.patronymic;
-    if (dto.birthday) dataToUpdate.birthday = dto.birthday;
-    if (dto.city) dataToUpdate.city = dto.city;
-    if (dto.avatar) dataToUpdate.avatar = dto.avatar;
-
+    // ... твой код ...
     const updatedUser = await this.prisma.user.update({
       where: { id: userId },
       data: dataToUpdate,
     });
 
     const { password_hash, refresh_token, ...result } = updatedUser;
-    return { message: 'Профиль обновлен', user: result };
+    
+    // 🔥 ФИКС: Просто возвращаем result, как в getMe
+    return result; 
   }
 
   // --- РОДИТЕЛЬСКИЙ КОНТРОЛЬ ---

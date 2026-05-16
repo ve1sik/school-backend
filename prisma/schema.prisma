@@ -68,6 +68,9 @@ model User {
   groups         Group[] @relation("StudentGroups")
   curated_groups Group[] @relation("CuratorGroups")
 
+  sent_messages     Message[] @relation("SentMessages")
+  received_messages Message[] @relation("ReceivedMessages")
+
   @@map("users")
 }
 
@@ -261,4 +264,18 @@ model Event {
   group       Group?    @relation(fields: [group_id], references: [id], onDelete: Cascade)
 
   @@map("events")
+}
+
+model Message {
+  id          String   @id @default(uuid())
+  sender_id   String
+  receiver_id String
+  text        String   @db.Text
+  is_read     Boolean  @default(false)
+  created_at  DateTime @default(now())
+
+  sender      User     @relation("SentMessages", fields: [sender_id], references: [id], onDelete: Cascade)
+  receiver    User     @relation("ReceivedMessages", fields: [receiver_id], references: [id], onDelete: Cascade)
+
+  @@map("messages")
 }
