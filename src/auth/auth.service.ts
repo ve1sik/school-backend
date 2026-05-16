@@ -73,9 +73,16 @@ export class AuthService {
   }
 
   // 4. ОБНОВЛЕНИЕ ПРОФИЛЯ
-  // 4. ОБНОВЛЕНИЕ ПРОФИЛЯ
   async updateProfile(userId: string, dto: any) {
-    // ... твой код ...
+    const dataToUpdate: any = {};
+    if (dto.email) dataToUpdate.email = dto.email;
+    if (dto.name !== undefined) dataToUpdate.name = dto.name;
+    if (dto.surname !== undefined) dataToUpdate.surname = dto.surname;
+    if (dto.patronymic !== undefined) dataToUpdate.patronymic = dto.patronymic;
+    if (dto.birthday !== undefined) dataToUpdate.birthday = dto.birthday;
+    if (dto.city !== undefined) dataToUpdate.city = dto.city;
+    if (dto.avatar !== undefined) dataToUpdate.avatar = dto.avatar;
+
     const updatedUser = await this.prisma.user.update({
       where: { id: userId },
       data: dataToUpdate,
@@ -83,7 +90,7 @@ export class AuthService {
 
     const { password_hash, refresh_token, ...result } = updatedUser;
     
-    // 🔥 ФИКС: Просто возвращаем result, как в getMe
+    // 🔥 ФИКС: Просто возвращаем result
     return result; 
   }
 
