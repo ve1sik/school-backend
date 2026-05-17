@@ -14,6 +14,7 @@ import { ScheduleModule } from './schedule/schedule.module';
 import { GroupModule } from './group/group.module';
 // 🔥 ДОБАВИЛИ НАШ НОВЫЙ МОДУЛЬ ПОЛЬЗОВАТЕЛЕЙ (ДЛЯ СПИСКА СТУДЕНТОВ)
 import { UserModule } from './user/user.module';
+import { MessagesModule } from './messages/messages.module';
 
 // Контроллер загрузки
 import { UploadController } from './upload/upload.controller';
@@ -36,6 +37,7 @@ import { UploadController } from './upload/upload.controller';
     ScheduleModule,
     GroupModule, 
     UserModule, // 🔥 РЕГИСТРИРУЕМ МОДУЛЬ ЮЗЕРОВ ЗДЕСЬ
+    MessagesModule,
   ],
   controllers: [
     UploadController,

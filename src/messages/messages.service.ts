@@ -5,22 +5,22 @@ import { PrismaService } from '../prisma/prisma.service';
 export class MessagesService {
   constructor(private prisma: PrismaService) {}
 
-  // Получаем список контактов (Ученики видят кураторов, Кураторы видят учеников)
   async getContacts(userId: string, role: string) {
     if (role === 'STUDENT') {
       return this.prisma.user.findMany({
         where: { role: { in: ['CURATOR', 'ADMIN'] } },
-        select: { id: true, name: true, surname: true, role: true, avatar: true }
+        // 🔥 Добавили email: true
+        select: { id: true, name: true, surname: true, email: true, role: true, avatar: true } 
       });
     } else {
       return this.prisma.user.findMany({
         where: { role: 'STUDENT' },
-        select: { id: true, name: true, surname: true, role: true, avatar: true }
+        // 🔥 Добавили email: true
+        select: { id: true, name: true, surname: true, email: true, role: true, avatar: true }
       });
     }
   }
 
-  // Получаем историю переписки между двумя людьми
   async getHistory(userId1: string, userId2: string) {
     return this.prisma.message.findMany({
       where: {
@@ -33,7 +33,6 @@ export class MessagesService {
     });
   }
 
-  // Отправляем сообщение
   async sendMessage(senderId: string, receiverId: string, text: string) {
     return this.prisma.message.create({
       data: {
