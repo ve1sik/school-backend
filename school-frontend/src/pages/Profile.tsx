@@ -1,9 +1,19 @@
-import { useState, useEffect } from 'react';
-import { User, MapPin, Calendar, ShieldCheck, Copy, CheckCircle2, Loader2, Mail, Save, X } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { User, MapPin, Calendar, ShieldCheck, Copy, CheckCircle2, Loader2, Mail, Save, X, Camera } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 
 const API_URL = 'https://prepodmgy.ru/api';
+
+const getFullUrl = (url: string) => {
+  if (!url) return '';
+  let finalUrl = url;
+  if (finalUrl.startsWith('http://prepodmgy.ru')) finalUrl = finalUrl.replace('http://', 'https://');
+  if (finalUrl.startsWith('http')) return finalUrl;
+  const cleanPath = finalUrl.startsWith('/') ? finalUrl.slice(1) : finalUrl;
+  if (cleanPath.startsWith('uploads/')) return `https://prepodmgy.ru/${cleanPath}`;
+  return `${API_URL}/${cleanPath}`;
+};
 
 export default function Profile() {
   const [user, setUser] = useState<any>(null);
@@ -13,7 +23,10 @@ export default function Profile() {
   // Стейты для редактирования
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const [editData, setEditData] = useState({ name: '', surname: '', city: '', birthday: '' });
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Тосты (уведомления)
   const [toast, setToast] = useState<{ text: string, type: 'success' | 'error' } | null>(null);
@@ -45,7 +58,6 @@ export default function Profile() {
         }
 
         setUser(userData);
-        // Заполняем форму текущими данными
         setEditData({
           name: userData.name || '',
           surname: userData.surname || '',
@@ -74,13 +86,12 @@ export default function Profile() {
     setIsSaving(true);
     try {
       const token = localStorage.getItem('token');
-      // Отправляем PATCH запрос на бэкенд для обновления профиля
       const res = await axios.patch(`${API_URL}/auth/profile`, editData, {
         headers: { Authorization: `Bearer ${token}` }
       });
       
-      setUser(res.data); // Обновляем данные на экране
-      setIsEditing(false); // Закрываем режим редактирования
+      setUser(res.data);
+      setIsEditing(false);
       showToast('Профиль успешно обновлен!', 'success');
     } catch (err) {
       console.error('Ошибка при сохранении профиля:', err);
@@ -88,6 +99,52 @@ export default function Profile() {
     } finally {
       setIsSaving(false);
     }
+  };
+
+  // 🔥 ЗАГРУЗКА АВАТАРКИ
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsUploadingAvatar(true);
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const token = localStorage.getItem('token');
+      
+      // 1. Загружаем файл на сервер
+      const uploadRes = await axios.post(`${API_URL}/upload`, formData, {
+        headers: { 
+          'Content-Type': 'multipart/form-data',
+          Authorization: `Bearer ${token}` 
+        }
+      });
+
+      const newAvatarUrl = uploadRes.data.url;
+
+      // 2. Обновляем профиль с новой ссылкой на аватарку
+      const profileRes = await axios.patch(`${API_URL}/auth/profile`, { avatar: newAvatarUrl }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      setUser(profileRes.data);
+      showToast('Аватарка успешно обновлена!', 'success');
+    } catch (err) {
+      console.error('Ошибка при загрузке аватарки:', err);
+      showToast('Ошибка при загрузке фото', 'error');
+    } finally {
+      setIsUploadingAvatar(false);
+      if (fileInputRef.current) fileInputRef.current.value = ''; // Сбрасываем инпут
+    }
+  };
+
+  // Генерация инициалов
+  const getInitials = () => {
+    if (user?.name && user?.surname) return (user.name[0] + user.surname[0]).toUpperCase();
+    if (user?.name) return user.name[0].toUpperCase();
+    if (user?.email) return user.email.substring(0, 2).toUpperCase();
+    return 'СТ';
   };
 
   if (isLoading) {
@@ -103,9 +160,31 @@ export default function Profile() {
       
       {/* ВЕРХНЯЯ КАРТОЧКА: Основная инфа */}
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="bg-white rounded-[2.5rem] p-8 md:p-10 shadow-sm border border-gray-100 flex flex-col md:flex-row items-center md:items-start gap-8">
-        <div className="w-32 h-32 bg-indigo-50 rounded-[2rem] flex items-center justify-center shrink-0 border-2 border-indigo-100 relative overflow-hidden">
-          <User className="w-12 h-12 text-[#5A4BFF]" />
+        
+        {/* 🔥 БЛОК АВАТАРКИ */}
+        <div className="relative group cursor-pointer" onClick={() => fileInputRef.current?.click()}>
+          <div className="w-32 h-32 bg-indigo-50 rounded-[2rem] flex items-center justify-center shrink-0 border-2 border-indigo-100 relative overflow-hidden shadow-sm">
+            {isUploadingAvatar ? (
+              <Loader2 className="w-8 h-8 animate-spin text-[#5A4BFF]" />
+            ) : user?.avatar ? (
+              <img src={getFullUrl(user.avatar)} alt="Avatar" className="w-full h-full object-cover" />
+            ) : (
+              <span className="text-4xl font-black text-indigo-300">{getInitials()}</span>
+            )}
+          </div>
+          {/* Оверлей при наведении */}
+          <div className="absolute inset-0 bg-black/40 rounded-[2rem] opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+            <Camera className="w-8 h-8 text-white" />
+          </div>
+          <input 
+            type="file" 
+            ref={fileInputRef} 
+            onChange={handleAvatarUpload} 
+            accept="image/*" 
+            className="hidden" 
+          />
         </div>
+
         <div className="flex-1 text-center md:text-left w-full">
           {isEditing ? (
             <div className="flex flex-col sm:flex-row gap-4 mb-4">

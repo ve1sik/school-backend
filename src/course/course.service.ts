@@ -24,15 +24,48 @@ export class CourseService {
     return course;
   }
 
-  async getAllCourses() {
+  // 🔥 ИСПРАВЛЕНО: Умная логика выдачи курсов
+  async getAllCourses(userId?: string, userRole?: string) {
+    // 1. Если это Админ или Куратор — отдаем ВСЕ курсы (для админки)
+    if (userRole === 'ADMIN' || userRole === 'CURATOR') {
+      return this.prisma.course.findMany({
+        include: {
+          themes: {
+            orderBy: { order_index: 'asc' },
+            include: {
+              lessons: { orderBy: { order_index: 'asc' } },
+            },
+          },
+        },
+        orderBy: { title: 'asc' }, 
+      });
+    }
+
+    // 2. Если это Студент (или кто-то еще) — ищем, какие курсы он купил
+    // Достаем записи из таблицы Enrollment (Зачисления)
+    const enrollments = await this.prisma.enrollment.findMany({
+      where: { user_id: userId },
+      select: { course_id: true }
+    });
+
+    // Собираем массив ID купленных курсов
+    const purchasedCourseIds = enrollments.map(e => e.course_id);
+
+    // Если студент еще ничего не купил, отдаем пустой массив
+    if (purchasedCourseIds.length === 0) {
+      return [];
+    }
+
+    // Возвращаем ТОЛЬКО купленные курсы
     return this.prisma.course.findMany({
+      where: {
+        id: { in: purchasedCourseIds } // Фильтр IN
+      },
       include: {
         themes: {
           orderBy: { order_index: 'asc' },
           include: {
-            lessons: {
-              orderBy: { order_index: 'asc' },
-            },
+            lessons: { orderBy: { order_index: 'asc' } },
           },
         },
       },
