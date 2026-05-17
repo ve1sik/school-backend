@@ -116,9 +116,7 @@ export class GroupService {
       }
     });
   }
-}
-
-// 🔥 ЛОГИКА ЗАЧИСЛЕНИЯ ПОСЛЕ ПОКУПКИ
+  // 🔥 ЛОГИКА ЗАЧИСЛЕНИЯ ПОСЛЕ ПОКУПКИ
   async enrollStudent(groupId: string, studentId: string) {
     // 1. Привязываем ученика к группе
     const group = await this.prisma.group.update({
@@ -147,3 +145,5 @@ export class GroupService {
 
     return { success: true, message: 'Студент успешно добавлен в группу и получил курсы' };
   }
+}
+
