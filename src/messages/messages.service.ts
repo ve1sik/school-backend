@@ -9,19 +9,30 @@ export class MessagesService {
     if (role === 'STUDENT') {
       return this.prisma.user.findMany({
         where: { role: { in: ['CURATOR', 'ADMIN'] } },
-        // 🔥 Добавили email: true
         select: { id: true, name: true, surname: true, email: true, role: true, avatar: true } 
       });
     } else {
       return this.prisma.user.findMany({
         where: { role: 'STUDENT' },
-        // 🔥 Добавили email: true
         select: { id: true, name: true, surname: true, email: true, role: true, avatar: true }
       });
     }
   }
 
   async getHistory(userId1: string, userId2: string) {
+    // 🔥 МАГИЯ: Сначала помечаем все сообщения от собеседника ко мне как прочитанные
+    await this.prisma.message.updateMany({
+      where: {
+        sender_id: userId2,
+        receiver_id: userId1,
+        is_read: false
+      },
+      data: {
+        is_read: true
+      }
+    });
+
+    // Затем уже отдаем историю чата
     return this.prisma.message.findMany({
       where: {
         OR: [
@@ -41,5 +52,16 @@ export class MessagesService {
         text
       }
     });
+  }
+
+  // 🔥 НОВЫЙ МЕТОД: Считаем все непрочитанные сообщения для конкретного юзера
+  async getUnreadCount(userId: string) {
+    const count = await this.prisma.message.count({
+      where: {
+        receiver_id: userId,
+        is_read: false
+      }
+    });
+    return { count };
   }
 }

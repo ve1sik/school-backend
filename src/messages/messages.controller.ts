@@ -14,6 +14,14 @@ export class MessagesController {
     return this.messagesService.getContacts(payload.sub || payload.id, payload.role);
   }
 
+  // 🔥 НОВЫЙ ЭНДПОИНТ (СТРОГО ДО :id)
+  @Get('unread')
+  async getUnreadCount(@Headers('authorization') auth: string) {
+    if (!auth) throw new UnauthorizedException('Нет токена');
+    const payload = JSON.parse(Buffer.from(auth.split(' ')[1].split('.')[1], 'base64').toString());
+    return this.messagesService.getUnreadCount(payload.sub || payload.id);
+  }
+
   @Get(':id')
   async getHistory(@Headers('authorization') auth: string, @Param('id') contactId: string) {
     if (!auth) throw new UnauthorizedException('Нет токена');

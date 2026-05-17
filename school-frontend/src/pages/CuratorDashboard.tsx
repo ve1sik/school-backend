@@ -23,21 +23,17 @@ export default function CuratorDashboard() {
   const [submissions, setSubmissions] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   
-  // Переключатель: Новые (PENDING) или Проверенные (GRADED)
   const [activeTab, setActiveTab] = useState<'PENDING' | 'GRADED'>('PENDING');
 
-  // Навигация
   const [expandedCourse, setExpandedCourse] = useState<string | null>(null);
   const [selectedCourse, setSelectedCourse] = useState<string | null>(null);
   const [selectedLesson, setSelectedLesson] = useState<string | null>(null);
   
-  // Выбранный ученик
   const [activeStudentId, setActiveStudentId] = useState<string | null>(null); 
   
   const [searchQuery, setSearchQuery] = useState('');
   const [toast, setToast] = useState<{ text: string, type: 'success' | 'error' } | null>(null);
 
-  // Стейты для оценок (храним оценки и комменты в виде объекта { [submissionId]: value })
   const [scores, setScores] = useState<Record<string, number | ''>>({});
   const [comments, setComments] = useState<Record<string, string>>({});
 
@@ -52,21 +48,13 @@ export default function CuratorDashboard() {
       const token = localStorage.getItem('token');
       if (!token) { navigate('/login'); return; }
       
-      // Идеально, если бэк отдает сразу все домашки (и проверенные, и нет).
-      // Если у вас разные эндпоинты, поменяй урл в зависимости от activeTab.
-      // Допустим, мы запрашиваем все работы куратора:
       const res = await axios.get(`${API_URL}/submissions`, { 
         headers: { Authorization: `Bearer ${token}` },
-        params: { status: activeTab } // Передаем статус на бэк
+        params: { status: activeTab } 
       });
 
       if (!res.data || res.data.length === 0) {
-        // Демо-данные для наглядности (с несколькими заданиями у одного студента)
-        setSubmissions([
-          { id: 'demo-1', studentId: 's1', studentName: 'Михаил Романов', courseName: 'История ЕГЭ', lessonTitle: 'Эпоха дворцовых переворотов', question: 'Опишите причины начала эпохи дворцовых переворотов.', answer: '<p>Главной причиной стал Указ о престолонаследии 1722 года...</p>', maxScore: 4, score: activeTab === 'GRADED' ? 4 : null, status: activeTab, date: '12:30' },
-          { id: 'demo-2', studentId: 's1', studentName: 'Михаил Романов', courseName: 'История ЕГЭ', lessonTitle: 'Эпоха дворцовых переворотов', question: 'Кто пришел к власти после Петра I?', answer: '<p>Екатерина I</p>', maxScore: 2, score: activeTab === 'GRADED' ? 2 : null, status: activeTab, date: '12:35' },
-          { id: 'demo-3', studentId: 's2', studentName: 'Анна Смирнова', courseName: 'Обществознание', lessonTitle: 'Экономика', question: 'Что такое инфляция?', answer: '<p>Это процесс обесценивания денег...</p>', maxScore: 3, score: activeTab === 'GRADED' ? 2 : null, status: activeTab, date: 'Вчера' }
-        ]);
+        setSubmissions([]);
       } else {
         setSubmissions(res.data);
       }
@@ -79,12 +67,10 @@ export default function CuratorDashboard() {
 
   useEffect(() => {
     fetchSubmissions();
-    // Сбрасываем выбранного ученика при смене таба
     setActiveStudentId(null);
     setSelectedLesson(null);
   }, [activeTab]);
 
-  // ГРУППИРОВКА: Курс -> Урок -> Ученик -> Массив его работ
   const groupedData = useMemo(() => {
     const courses: Record<string, Record<string, Record<string, { studentName: string, submissions: any[] }>>> = {};
     
@@ -105,13 +91,11 @@ export default function CuratorDashboard() {
     return courses;
   }, [submissions, searchQuery]);
 
-  // Вытаскиваем работы выбранного студента
   const activeStudentData = useMemo(() => {
     if (!selectedCourse || !selectedLesson || !activeStudentId) return null;
     return groupedData[selectedCourse]?.[selectedLesson]?.[activeStudentId];
   }, [groupedData, selectedCourse, selectedLesson, activeStudentId]);
 
-  // Подтягиваем старые оценки в стейт, если мы в истории
   useEffect(() => {
     if (activeStudentData) {
       const initialScores: Record<string, number | ''> = {};
@@ -142,12 +126,10 @@ export default function CuratorDashboard() {
 
       showToast('Оценка сохранена!');
       
-      // Обновляем локальный стейт, чтобы убрать проверенную работу из вкладки PENDING
       if (activeTab === 'PENDING') {
         const newSubs = submissions.filter(s => s.id !== subId);
         setSubmissions(newSubs);
         
-        // Если у ученика больше не осталось работ, закрываем его
         const remainingForStudent = newSubs.filter(s => s.studentId === activeStudentId && s.lessonTitle === selectedLesson);
         if (remainingForStudent.length === 0) setActiveStudentId(null);
       }
@@ -179,7 +161,6 @@ export default function CuratorDashboard() {
             </div>
           </div>
 
-          {/* ВКЛАДКИ: Новые / История */}
           <div className="flex bg-gray-50 p-1.5 rounded-2xl mb-6">
             <button 
               onClick={() => setActiveTab('PENDING')} 
@@ -332,9 +313,12 @@ export default function CuratorDashboard() {
                 <h1 className="text-3xl md:text-4xl font-black text-gray-900 mb-2 tracking-tight">{activeStudentData.studentName}</h1>
                 <p className="text-gray-500 font-bold text-sm">{selectedLesson}</p>
               </div>
+              
+              {/* 🔥 ЖЕЛЕЗОБЕТОННЫЙ ПУТЬ ДЛЯ ПЕРЕХОДА В ЧАТ */}
               <button 
                 onClick={() => navigate(`/curator/messages?student=${activeStudentId}`)}
                 className="w-14 h-14 bg-purple-50 hover:bg-purple-600 rounded-[1.5rem] transition-all duration-300 flex items-center justify-center group shrink-0"
+                title="Написать в чат"
               >
                 <MessageSquare className="w-6 h-6 text-purple-600 group-hover:text-white" />
               </button>
