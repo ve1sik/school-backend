@@ -12,7 +12,6 @@ const getFullUrl = (url: string) => {
   return `${API_URL.replace('/api', '')}/${cleanPath}`;
 };
 
-// 🔥 Функция для перевода YYYY-MM-DD в красивый русский формат
 const formatShopDate = (dateString: string) => {
   if (!dateString) return '';
   try {
@@ -40,6 +39,9 @@ export default function Shop() {
   const [groups, setGroups] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [userGroups, setUserGroups] = useState<string[]>([]);
+  
+  // Добавляем стейт для лоадера кнопки покупки
+  const [buyingGroupId, setBuyingGroupId] = useState<string | null>(null);
 
   const getTokenConfig = () => ({ headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } });
 
@@ -63,8 +65,26 @@ export default function Shop() {
     }
   };
 
-  const handleBuy = (group: any) => {
-    alert(`скоро тут будет переход на оплату потока "${group.title}" за ${group.price}₽!\n\nГотовим кассу 🚀`);
+  // 🔥 НОВАЯ ФУНКЦИЯ ПОКУПКИ
+  const handleBuy = async (group: any) => {
+    // В реальном проекте тут будет редирект на ЮКассу/Robokassa
+    // А после успешной оплаты платежка дернет вебхук на сервере.
+    // Сейчас мы делаем эмуляцию успешной покупки по клику:
+    
+    setBuyingGroupId(group.id);
+    try {
+      // Отправляем запрос на зачисление ученика
+      await axios.post(`${API_URL}/groups/${group.id}/enroll`, {}, getTokenConfig());
+      
+      // Обновляем список купленных групп
+      setUserGroups(prev => [...prev, group.id]);
+      alert('Успешно куплено! Курсы добавлены в личный кабинет 🚀');
+    } catch (error) {
+      console.error("Ошибка при покупке:", error);
+      alert('Ошибка при покупке. Попробуй еще раз.');
+    } finally {
+      setBuyingGroupId(null);
+    }
   };
 
   if (isLoading) return <div className="h-full w-full flex items-center justify-center"><Loader2 className="w-12 h-12 animate-spin text-[#5A4BFF]" /></div>;
@@ -168,7 +188,6 @@ export default function Shop() {
                     {group.title}
                   </h3>
 
-                  {/* 🔥 БЛОК КУРАТОРА ВЕРНУЛСЯ! */}
                   {group.curator && (
                     <div className="flex items-center gap-4 mb-6 p-4 bg-gray-50 rounded-2xl border border-gray-100">
                       <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center overflow-hidden shrink-0 shadow-sm border border-gray-200">
@@ -203,7 +222,7 @@ export default function Shop() {
                       </span>
                       <div className="flex items-end gap-2">
                         <span className="text-3xl font-black text-gray-900 tracking-tight leading-none">
-                          {group.price.toLocaleString('ru-RU')} ₽
+                          {group.price > 0 ? `${group.price.toLocaleString('ru-RU')} ₽` : 'Бесплатно'}
                         </span>
                         {hasDiscount && (
                           <span className="text-sm font-bold text-gray-400 line-through mb-0.5">
@@ -223,9 +242,11 @@ export default function Shop() {
                     ) : (
                       <button 
                         onClick={() => handleBuy(group)}
-                        className="px-8 py-4 bg-gray-900 hover:bg-[#5A4BFF] text-white rounded-2xl font-black text-sm transition-all active:scale-95 shadow-lg flex items-center gap-2 group-hover/card:shadow-[#5A4BFF]/30 shrink-0"
+                        disabled={buyingGroupId === group.id}
+                        className="px-8 py-4 bg-gray-900 hover:bg-[#5A4BFF] text-white rounded-2xl font-black text-sm transition-all active:scale-95 shadow-lg flex items-center gap-2 group-hover/card:shadow-[#5A4BFF]/30 shrink-0 disabled:opacity-70"
                       >
-                        <CreditCard className="w-4 h-4" /> КУПИТЬ
+                        {buyingGroupId === group.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <CreditCard className="w-4 h-4" />}
+                        КУПИТЬ
                       </button>
                     )}
                   </div>

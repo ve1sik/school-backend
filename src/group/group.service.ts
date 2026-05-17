@@ -117,3 +117,33 @@ export class GroupService {
     });
   }
 }
+
+// 🔥 ЛОГИКА ЗАЧИСЛЕНИЯ ПОСЛЕ ПОКУПКИ
+  async enrollStudent(groupId: string, studentId: string) {
+    // 1. Привязываем ученика к группе
+    const group = await this.prisma.group.update({
+      where: { id: groupId },
+      data: {
+        students: { connect: { id: studentId } }
+      },
+      include: { courses: true } // Сразу вытягиваем все курсы этой группы
+    });
+
+    // 2. Выдаем ученику доступы (Enrollments) ко всем курсам этой группы
+    if (group.courses.length > 0) {
+      for (const course of group.courses) {
+        const existing = await this.prisma.enrollment.findFirst({
+          where: { user_id: studentId, course_id: course.id }
+        });
+        
+        // Защита от дубликатов (если курс уже был)
+        if (!existing) {
+          await this.prisma.enrollment.create({
+            data: { user_id: studentId, course_id: course.id }
+          });
+        }
+      }
+    }
+
+    return { success: true, message: 'Студент успешно добавлен в группу и получил курсы' };
+  }
