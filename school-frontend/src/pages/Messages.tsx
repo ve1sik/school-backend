@@ -1,242 +1,269 @@
 import { useState, useEffect, useRef } from 'react';
-import { Search, Send, User } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
+import { Search, Send, User, ShieldCheck, Inbox, X, Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import axios from 'axios';
 
-// ДЕМО-ДАННЫЕ (Пока бэкенд не отдаст реальную базу кураторов)
-const MOCK_TEACHERS = [
-  { id: 't1', name: 'Куратор МГУ', role: 'Поддержка', isOnline: true, avatar: null },
-  { id: 't2', name: 'Николай Шалдин', role: 'Преподаватель', isOnline: false, avatar: null },
-  { id: 't3', name: 'Анна Смирнова', role: 'Проверка эссе', isOnline: true, avatar: null },
-];
+const API_URL = 'https://prepodmgy.ru/api';
 
-const MOCK_CHAT_HISTORY: Record<string, any[]> = {
-  't1': [
-    { id: 'm1', senderId: 't1', text: 'Здравствуйте! Добро пожаловать на платформу. Если будут вопросы по темам или домашкам — пиши сюда, разберем вместе! 🚀', time: '10:00' },
-    { id: 'm2', senderId: 'me', text: 'Понял, спасибо! Пока всё ясно, прохожу первый модуль.', time: '10:15' }
-  ],
-  't2': [
-    { id: 'm3', senderId: 't2', text: 'Привет! Обрати внимание на ошибки в последнем тесте.', time: 'Вчера' }
-  ],
-  't3': []
+const getFullUrl = (url: string) => {
+  if (!url) return '';
+  if (url.startsWith('http')) return url;
+  const cleanPath = url.startsWith('/') ? url.slice(1) : url;
+  return `${API_URL.replace('/api', '')}/${cleanPath}`;
 };
 
 export default function Messages() {
+  const [searchParams] = useSearchParams();
   const [searchQuery, setSearchQuery] = useState('');
-  const [activeChatId, setActiveChatId] = useState<string>('t1');
-  const [newMessage, setNewMessage] = useState('');
-  const [messages, setMessages] = useState<Record<string, any[]>>(MOCK_CHAT_HISTORY);
   
+  const [contacts, setContacts] = useState<any[]>([]);
+  const [activeChatId, setActiveChatId] = useState<string | null>(searchParams.get('student'));
+  const [messages, setMessages] = useState<any[]>([]);
+  const [newMessage, setNewMessage] = useState('');
+  const [isLoadingContacts, setIsLoadingContacts] = useState(true);
+  const [myId, setMyId] = useState<string>('');
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Автоскролл вниз при новых сообщениях
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  };
+  const getTokenConfig = () => ({ headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } });
 
+  // 1. Узнаем свой ID и грузим контакты
   useEffect(() => {
-    scrollToBottom();
-  }, [messages, activeChatId]);
+    const initChat = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        if (!token) return;
+        const payload = JSON.parse(window.atob(token.split('.')[1]));
+        setMyId(payload.sub || payload.id);
 
-  const activeTeacher = MOCK_TEACHERS.find(t => t.id === activeChatId);
+        const res = await axios.get(`${API_URL}/messages/contacts`, getTokenConfig());
+        setContacts(res.data);
+      } catch (err) {
+        console.error('Ошибка загрузки контактов', err);
+      } finally {
+        setIsLoadingContacts(false);
+      }
+    };
+    initChat();
+  }, []);
 
-  // Логика живого поиска по преподам
-  const filteredTeachers = MOCK_TEACHERS.filter(teacher => 
-    teacher.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    teacher.role.toLowerCase().includes(searchQuery.toLowerCase())
+  // 2. Грузим историю сообщений каждые 3 секунды для выбранного чата (Polling)
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+
+    const fetchHistory = async () => {
+      if (!activeChatId) return;
+      try {
+        const res = await axios.get(`${API_URL}/messages/${activeChatId}`, getTokenConfig());
+        setMessages(res.data);
+      } catch (err) {
+        console.error('Ошибка загрузки истории', err);
+      }
+    };
+
+    if (activeChatId) {
+      fetchHistory(); // Грузим сразу при клике
+      interval = setInterval(fetchHistory, 3000); // И потом каждые 3 секунды
+    } else {
+      setMessages([]);
+    }
+
+    return () => clearInterval(interval);
+  }, [activeChatId]);
+
+  // Автоскролл
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
+  const activeUser = contacts.find(c => c.id === activeChatId);
+
+  const filteredContacts = contacts.filter(c => 
+    (c.name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
+    (c.surname || '').toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const handleSendMessage = (e: React.FormEvent) => {
+  const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newMessage.trim() || !activeChatId) return;
 
-    const newMsgObj = {
-      id: Date.now().toString(),
-      senderId: 'me',
-      text: newMessage,
-      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-    };
+    const textToSend = newMessage;
+    setNewMessage(''); // Сразу очищаем поле ввода для удобства
 
-    setMessages(prev => ({
-      ...prev,
-      [activeChatId]: [...(prev[activeChatId] || []), newMsgObj]
-    }));
-    
-    setNewMessage('');
-    
-    // Имитация ответа от куратора (для вау-эффекта на презентации)
-    if (activeChatId === 't1') {
-      setTimeout(() => {
-        const replyObj = {
-          id: Date.now().toString() + 'reply',
-          senderId: 't1',
-          text: 'Принято! Буду на связи. 😎',
-          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-        };
-        setMessages(prev => ({
-          ...prev,
-          ['t1']: [...(prev['t1'] || []), replyObj]
-        }));
-      }, 1500);
+    try {
+      await axios.post(`${API_URL}/messages/${activeChatId}`, { text: textToSend }, getTokenConfig());
+      // Запрашиваем обновленную историю сразу после отправки
+      const res = await axios.get(`${API_URL}/messages/${activeChatId}`, getTokenConfig());
+      setMessages(res.data);
+    } catch (err) {
+      console.error('Ошибка при отправке сообщения', err);
+      alert('Ошибка при отправке');
     }
   };
 
-  return (
-    <div className="max-w-7xl mx-auto h-[calc(100vh-100px)] flex flex-col pb-6 pt-4">
-      
-      <div className="mb-6">
-        <h1 className="text-4xl font-black tracking-tight text-gray-900">Сообщения</h1>
-      </div>
+  if (isLoadingContacts) {
+    return <div className="h-full w-full flex items-center justify-center"><Loader2 className="w-12 h-12 animate-spin text-[#5A4BFF]" /></div>;
+  }
 
-      <div className="flex-1 flex gap-6 overflow-hidden">
-        
-        {/* ЛЕВАЯ ПАНЕЛЬ: СПИСОК ЧАТОВ */}
-        <motion.div 
-          initial={{ opacity: 0, x: -20 }} 
-          animate={{ opacity: 1, x: 0 }} 
-          className="w-full max-w-[320px] bg-white rounded-[2.5rem] shadow-sm border border-gray-100 flex flex-col overflow-hidden shrink-0"
-        >
-          <div className="p-6 border-b border-gray-50">
-            <h2 className="text-xl font-black text-gray-900 mb-4 flex items-center gap-2">
-              Чат <span className="text-[#5A4BFF] text-2xl">💬</span>
-            </h2>
-            <div className="relative">
-              <Search className="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
-              <input 
-                type="text" 
-                placeholder="Поиск диалога..." 
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full bg-gray-50 border border-gray-100 rounded-xl py-3 pl-11 pr-4 outline-none focus:bg-white focus:border-[#5A4BFF] transition-all font-medium text-sm text-gray-700"
-              />
+  return (
+    <div className="flex h-[calc(100vh-40px)] bg-[#F4F7FE] font-sans text-gray-900 overflow-hidden rounded-[3rem] shadow-2xl border border-white/50">
+      
+      {/* ЛЕВАЯ ПАНЕЛЬ: СПИСОК КОНТАКТОВ */}
+      <aside className="w-full max-w-[380px] bg-white border-r border-gray-100 flex flex-col h-full shrink-0 z-20">
+        <div className="p-8 border-b border-gray-50">
+          <div className="flex items-center gap-3 mb-8">
+            <div className="w-12 h-12 bg-purple-100 rounded-2xl flex items-center justify-center text-purple-600">
+              <ShieldCheck className="w-6 h-6" />
+            </div>
+            <div>
+              <h2 className="text-2xl font-black leading-tight">Сообщения</h2>
+              <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Проверка связи</p>
             </div>
           </div>
 
-          <div className="flex-1 overflow-y-auto p-3 space-y-2 custom-scrollbar bg-gray-50/30">
-            {filteredTeachers.map(teacher => {
-              const chatMsgs = messages[teacher.id] || [];
-              const lastMsg = chatMsgs.length > 0 ? chatMsgs[chatMsgs.length - 1] : null;
+          <div className="relative">
+            <Search className="w-5 h-5 absolute left-4 top-1/2 -translate-y-1/2 text-gray-300" />
+            <input 
+              type="text" 
+              placeholder="Поиск собеседника..." 
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full bg-gray-50 border border-gray-100 rounded-2xl py-4 pl-12 pr-4 outline-none focus:bg-white focus:border-purple-400 transition-all font-medium text-sm"
+            />
+          </div>
+        </div>
 
+        <div className="flex-1 overflow-y-auto p-4 space-y-2 custom-scrollbar bg-gray-50/30">
+          <div className="px-4 mb-4 flex items-center justify-between">
+            <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Доступные диалоги</span>
+            <span className="bg-purple-100 text-purple-700 text-xs font-bold px-2 py-0.5 rounded-md">{filteredContacts.length}</span>
+          </div>
+
+          <AnimatePresence>
+            {filteredContacts.map(contact => {
               return (
-                <button
-                  key={teacher.id}
-                  onClick={() => setActiveChatId(teacher.id)}
-                  className={`w-full text-left p-4 rounded-2xl transition-all flex items-center gap-4 ${
-                    activeChatId === teacher.id 
-                      ? 'bg-indigo-50 border border-indigo-100 shadow-sm' 
-                      : 'bg-transparent border border-transparent hover:bg-gray-50'
+                <motion.button
+                  key={contact.id}
+                  initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }}
+                  onClick={() => setActiveChatId(contact.id)}
+                  className={`w-full text-left p-5 rounded-3xl transition-all flex items-center gap-4 relative overflow-hidden border ${
+                    activeChatId === contact.id 
+                      ? 'bg-purple-600 border-purple-600 text-white shadow-xl shadow-purple-500/20' 
+                      : 'bg-white border-transparent hover:border-purple-200 text-gray-900 shadow-sm'
                   }`}
                 >
                   <div className="relative shrink-0">
-                    <div className="w-12 h-12 bg-[#5A4BFF] rounded-full flex items-center justify-center text-white shadow-md">
-                      <User className="w-5 h-5" />
+                    <div className={`w-12 h-12 rounded-2xl flex items-center justify-center font-black shadow-inner overflow-hidden ${activeChatId === contact.id ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-400'}`}>
+                      {contact.avatar ? <img src={getFullUrl(contact.avatar)} className="w-full h-full object-cover" alt="ava"/> : <User className="w-5 h-5" />}
                     </div>
-                    {teacher.isOnline && (
-                      <span className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-emerald-400 border-2 border-white rounded-full"></span>
-                    )}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <h4 className="font-bold text-gray-900 truncate">{teacher.name}</h4>
-                    <p className={`text-xs truncate mt-0.5 ${activeChatId === teacher.id ? 'text-[#5A4BFF]' : 'text-gray-500'}`}>
-                      {lastMsg ? lastMsg.text : <span className="italic">Нет сообщений</span>}
+                    <h4 className="font-black text-sm truncate">{contact.name || 'Без'} {contact.surname || 'Имени'}</h4>
+                    <p className={`text-xs truncate font-medium mt-0.5 ${activeChatId === contact.id ? 'text-purple-200' : 'text-gray-500'}`}>
+                      {contact.role === 'CURATOR' ? 'Куратор' : contact.role === 'ADMIN' ? 'Администратор' : 'Студент'}
                     </p>
                   </div>
-                </button>
+                </motion.button>
               );
             })}
-            
-            {filteredTeachers.length === 0 && (
-              <div className="text-center py-10 text-gray-400">
-                <p className="font-bold text-sm">Никого не найдено</p>
-              </div>
-            )}
-          </div>
-        </motion.div>
+          </AnimatePresence>
+        </div>
+      </aside>
 
-        {/* ПРАВАЯ ПАНЕЛЬ: ОКНО ПЕРЕПИСКИ */}
-        <motion.div 
-          initial={{ opacity: 0, x: 20 }} 
-          animate={{ opacity: 1, x: 0 }} 
-          className="flex-1 bg-white rounded-[2.5rem] shadow-sm border border-gray-100 flex flex-col overflow-hidden"
-        >
-          {activeTeacher ? (
-            <>
-              {/* ШАПКА ЧАТА */}
-              <div className="p-6 border-b border-gray-50 bg-white flex items-center gap-4 z-10 shadow-sm">
-                <div className="w-12 h-12 bg-[#5A4BFF] rounded-full flex items-center justify-center text-white">
-                  <User className="w-5 h-5" />
+      {/* ПРАВАЯ ПАНЕЛЬ: ЧАТ */}
+      <main className="flex-1 overflow-hidden relative bg-white flex flex-col">
+        {activeUser && activeChatId ? (
+          <>
+            {/* ШАПКА ЧАТА */}
+            <div className="p-6 md:p-8 border-b border-gray-50 flex items-center justify-between bg-white z-10">
+              <div className="flex items-center gap-4">
+                <div className="w-14 h-14 bg-purple-50 rounded-2xl flex items-center justify-center text-purple-600 border border-purple-100 shadow-inner overflow-hidden">
+                  {activeUser.avatar ? <img src={getFullUrl(activeUser.avatar)} className="w-full h-full object-cover" alt="ava"/> : <User className="w-6 h-6" />}
                 </div>
                 <div>
-                  <h3 className="font-black text-lg text-gray-900">{activeTeacher.name}</h3>
-                  <div className="flex items-center gap-1.5 mt-0.5">
-                    {activeTeacher.isOnline ? (
-                      <><span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span><span className="text-xs font-bold text-emerald-600">В сети</span></>
-                    ) : (
-                      <><span className="w-2 h-2 rounded-full bg-gray-300"></span><span className="text-xs font-bold text-gray-400">Был(а) недавно</span></>
-                    )}
+                  <h3 className="font-black text-xl text-gray-900">{activeUser.name || 'Без'} {activeUser.surname || 'Имени'}</h3>
+                  <div className="flex items-center gap-2 mt-1">
+                    <span className="bg-gray-100 px-2 py-0.5 rounded-md text-[10px] font-black text-gray-500 uppercase tracking-wider">
+                      {activeUser.role === 'CURATOR' ? 'Куратор' : activeUser.role === 'ADMIN' ? 'Администратор' : 'Студент'}
+                    </span>
                   </div>
                 </div>
               </div>
+              <button onClick={() => setActiveChatId(null)} className="p-3 bg-gray-50 rounded-2xl text-gray-400 hover:text-gray-900 transition-colors">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
 
-              {/* ИСТОРИЯ СООБЩЕНИЙ */}
-              <div className="flex-1 overflow-y-auto p-6 space-y-6 bg-[#F8FAFC] custom-scrollbar flex flex-col">
-                <AnimatePresence initial={false}>
-                  {(messages[activeChatId] || []).map((msg) => {
-                    const isMe = msg.senderId === 'me';
+            {/* ИСТОРИЯ СООБЩЕНИЙ */}
+            <div className="flex-1 overflow-y-auto p-8 space-y-6 bg-[#F8FAFC]/50 custom-scrollbar flex flex-col">
+              <AnimatePresence initial={false}>
+                {messages.length === 0 ? (
+                   <div className="m-auto text-center text-gray-400 font-medium">Здесь пока нет сообщений.<br/>Напишите первым!</div>
+                ) : (
+                  messages.map((msg: any) => {
+                    const isMe = msg.sender_id === myId;
+                    const timeString = new Date(msg.created_at).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+                    
                     return (
                       <motion.div 
                         key={msg.id}
-                        initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }}
                         className={`flex w-full ${isMe ? 'justify-end' : 'justify-start'}`}
                       >
-                        <div className={`max-w-[70%] p-4 relative ${
+                        <div className={`max-w-[65%] p-5 rounded-3xl shadow-sm relative ${
                           isMe 
-                            ? 'bg-[#5A4BFF] text-white rounded-2xl rounded-br-sm shadow-md shadow-indigo-500/20' 
-                            : 'bg-white text-gray-800 rounded-2xl rounded-bl-sm border border-gray-100 shadow-sm'
+                            ? 'bg-purple-600 text-white rounded-br-none shadow-purple-500/10' 
+                            : 'bg-white text-gray-800 rounded-bl-none border border-gray-100'
                         }`}>
-                          <p className="text-[15px] leading-relaxed">{msg.text}</p>
-                          <span className={`text-[10px] font-bold mt-2 block text-right ${isMe ? 'text-indigo-200' : 'text-gray-400'}`}>
-                            {msg.time}
+                          <p className="text-[15px] font-medium leading-relaxed whitespace-pre-wrap">{msg.text}</p>
+                          <span className={`text-[10px] font-black mt-3 block text-right uppercase tracking-widest ${isMe ? 'text-purple-200' : 'text-gray-400'}`}>
+                            {timeString}
                           </span>
                         </div>
                       </motion.div>
                     );
-                  })}
-                </AnimatePresence>
-                <div ref={messagesEndRef} />
-              </div>
+                  })
+                )}
+              </AnimatePresence>
+              <div ref={messagesEndRef} />
+            </div>
 
-              {/* ПОЛЕ ВВОДА */}
-              <div className="p-6 bg-white border-t border-gray-50">
-                <form onSubmit={handleSendMessage} className="relative flex items-center">
+            {/* ПОЛЕ ВВОДА */}
+            <div className="p-8 bg-white border-t border-gray-50">
+              <form onSubmit={handleSendMessage} className="relative flex items-center gap-4">
+                <div className="relative flex-1">
                   <input 
                     type="text" 
                     value={newMessage}
                     onChange={(e) => setNewMessage(e.target.value)}
-                    placeholder="Напиши сообщение..." 
-                    className="w-full bg-gray-50 border border-gray-100 rounded-2xl py-4 pl-6 pr-16 outline-none focus:bg-white focus:border-[#5A4BFF] transition-all text-gray-900 font-medium"
+                    placeholder="Напишите сообщение..." 
+                    className="w-full bg-gray-50 border border-gray-100 rounded-2xl py-5 px-6 outline-none focus:bg-white focus:border-purple-400 transition-all text-gray-900 font-bold"
                   />
-                  <button 
-                    type="submit"
-                    disabled={!newMessage.trim()}
-                    className="absolute right-3 w-10 h-10 bg-[#5A4BFF] rounded-xl flex items-center justify-center text-white shadow-md shadow-indigo-500/30 hover:bg-[#4a3dec] transition-all disabled:opacity-50 disabled:shadow-none active:scale-95"
-                  >
-                    <Send className="w-4 h-4 ml-0.5" />
-                  </button>
-                </form>
-              </div>
-            </>
-          ) : (
-            <div className="h-full flex items-center justify-center text-gray-400 flex-col">
-              <div className="w-20 h-20 bg-gray-50 rounded-full flex items-center justify-center mb-4">
-                <Search className="w-8 h-8 text-gray-300" />
-              </div>
-              <p className="font-bold text-lg text-gray-500">Выберите чат из списка слева</p>
+                </div>
+                <button 
+                  type="submit"
+                  disabled={!newMessage.trim()}
+                  className="shrink-0 w-16 h-16 bg-purple-600 rounded-2xl flex items-center justify-center text-white shadow-xl shadow-purple-500/20 hover:bg-purple-700 transition-all active:scale-95 disabled:opacity-50 disabled:grayscale"
+                >
+                  <Send className="w-6 h-6 ml-0.5" />
+                </button>
+              </form>
             </div>
-          )}
-        </motion.div>
+          </>
+        ) : (
+          <div className="h-full flex items-center justify-center text-center p-12">
+            <div className="max-w-xs">
+              <div className="w-24 h-24 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-6 border border-gray-100 shadow-inner">
+                <Inbox className="w-10 h-10 text-gray-300" />
+              </div>
+              <h3 className="text-2xl font-black text-gray-900 mb-2">Выберите чат</h3>
+              <p className="text-gray-400 font-medium">Выберите человека из списка слева, чтобы начать общение.</p>
+            </div>
+          </div>
+        )}
+      </main>
 
-      </div>
     </div>
   );
 }
