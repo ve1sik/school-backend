@@ -27,8 +27,9 @@ export default function Messages() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const getTokenConfig = () => ({ headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } });
 
+  // 🔥 ОБНОВЛЕНО: Теперь грузим контакты по интервалу, чтобы бейджики обновлялись
   useEffect(() => {
-    const initChat = async () => {
+    const fetchContacts = async () => {
       try {
         const token = localStorage.getItem('token');
         if (!token) return;
@@ -43,7 +44,10 @@ export default function Messages() {
         setIsLoadingContacts(false);
       }
     };
-    initChat();
+    
+    fetchContacts();
+    const interval = setInterval(fetchContacts, 3000); // Опрашиваем каждые 3 сек
+    return () => clearInterval(interval);
   }, []);
 
   useEffect(() => {
@@ -73,7 +77,6 @@ export default function Messages() {
 
   const activeUser = contacts.find(c => c.id === activeChatId);
 
-  // 🔥 УМНЫЙ ПОИСК (Ищет по имени, фамилии и почте)
   const filteredContacts = contacts.filter(c => {
     const searchStr = `${c.name || ''} ${c.surname || ''} ${c.email || ''}`.toLowerCase();
     return searchStr.includes(searchQuery.toLowerCase());
@@ -138,13 +141,21 @@ export default function Messages() {
                   }`}
                 >
                   <div className="relative shrink-0">
-                    <div className="w-12 h-12 bg-[#5A4BFF] rounded-full flex items-center justify-center text-white shadow-md overflow-hidden">
+                    <div className="w-12 h-12 bg-[#5A4BFF] rounded-full flex items-center justify-center text-white shadow-md overflow-hidden relative">
                       {contact.avatar ? <img src={getFullUrl(contact.avatar)} className="w-full h-full object-cover" alt="ava"/> : <User className="w-5 h-5" />}
                     </div>
+                    {/* 🔥 БЕЙДЖИК НЕПРОЧИТАННЫХ СООБЩЕНИЙ */}
+                    {contact.unreadCount > 0 && activeChatId !== contact.id && (
+                      <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-[10px] font-black flex items-center justify-center rounded-full border-2 border-white shadow-sm z-10">
+                        {contact.unreadCount > 9 ? '9+' : contact.unreadCount}
+                      </span>
+                    )}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <h4 className="font-bold text-gray-900 truncate">{contact.name ? `${contact.name} ${contact.surname || ''}` : contact.email}</h4>
-                    <p className={`text-xs truncate mt-0.5 ${activeChatId === contact.id ? 'text-[#5A4BFF]' : 'text-gray-500'}`}>
+                    <h4 className={`font-bold truncate ${contact.unreadCount > 0 && activeChatId !== contact.id ? 'text-gray-900' : 'text-gray-700'}`}>
+                      {contact.name ? `${contact.name} ${contact.surname || ''}` : contact.email}
+                    </h4>
+                    <p className={`text-xs truncate mt-0.5 ${activeChatId === contact.id ? 'text-[#5A4BFF]' : contact.unreadCount > 0 ? 'text-red-500 font-bold' : 'text-gray-500'}`}>
                       {contact.role === 'CURATOR' ? 'Куратор' : contact.role === 'ADMIN' ? 'Администратор' : 'Студент'}
                     </p>
                   </div>

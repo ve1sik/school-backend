@@ -5,34 +5,47 @@ import { PrismaService } from '../prisma/prisma.service';
 export class MessagesService {
   constructor(private prisma: PrismaService) {}
 
+  // 🔥 ОБНОВЛЕНО: Теперь считаем непрочитанные для каждого контакта
   async getContacts(userId: string, role: string) {
+    let users;
     if (role === 'STUDENT') {
-      return this.prisma.user.findMany({
+      users = await this.prisma.user.findMany({
         where: { role: { in: ['CURATOR', 'ADMIN'] } },
         select: { id: true, name: true, surname: true, email: true, role: true, avatar: true } 
       });
     } else {
-      return this.prisma.user.findMany({
+      users = await this.prisma.user.findMany({
         where: { role: 'STUDENT' },
         select: { id: true, name: true, surname: true, email: true, role: true, avatar: true }
       });
     }
+
+    // Считаем сообщения для каждого
+    const contactsWithUnread = await Promise.all(users.map(async (user) => {
+      const unreadCount = await this.prisma.message.count({
+        where: {
+          sender_id: user.id,
+          receiver_id: userId,
+          is_read: false
+        }
+      });
+      return { ...user, unreadCount };
+    }));
+
+    // Сортируем: те, у кого есть новые сообщения, будут сверху списка!
+    return contactsWithUnread.sort((a, b) => b.unreadCount - a.unreadCount);
   }
 
   async getHistory(userId1: string, userId2: string) {
-    // 🔥 МАГИЯ: Сначала помечаем все сообщения от собеседника ко мне как прочитанные
     await this.prisma.message.updateMany({
       where: {
         sender_id: userId2,
         receiver_id: userId1,
         is_read: false
       },
-      data: {
-        is_read: true
-      }
+      data: { is_read: true }
     });
 
-    // Затем уже отдаем историю чата
     return this.prisma.message.findMany({
       where: {
         OR: [
@@ -54,7 +67,6 @@ export class MessagesService {
     });
   }
 
-  // 🔥 НОВЫЙ МЕТОД: Считаем все непрочитанные сообщения для конкретного юзера
   async getUnreadCount(userId: string) {
     const count = await this.prisma.message.count({
       where: {
