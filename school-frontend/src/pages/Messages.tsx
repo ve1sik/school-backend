@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
-import { useSearchParams } from 'react-router-dom';
-import { Search, Send, User, ShieldCheck, Inbox, X, Loader2 } from 'lucide-react';
+import { useSearchParams, useNavigate } from 'react-router-dom';
+import { Search, Send, User, ShieldCheck, Inbox, X, Loader2, ArrowLeft } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 
@@ -15,10 +15,11 @@ const getFullUrl = (url: string) => {
 
 export default function Messages() {
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState('');
   
   const [contacts, setContacts] = useState<any[]>([]);
-  const [activeChatId, setActiveChatId] = useState<string | null>(searchParams.get('student'));
+  const [activeChatId, setActiveChatId] = useState<string | null>(searchParams.get('curator'));
   const [messages, setMessages] = useState<any[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [isLoadingContacts, setIsLoadingContacts] = useState(true);
@@ -27,7 +28,13 @@ export default function Messages() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const getTokenConfig = () => ({ headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } });
 
-  // 🔥 ОБНОВЛЕНО: Теперь грузим контакты по интервалу, чтобы бейджики обновлялись
+  useEffect(() => {
+    const curatorFromUrl = searchParams.get('curator');
+    if (curatorFromUrl) {
+      setActiveChatId(curatorFromUrl);
+    }
+  }, [searchParams]);
+
   useEffect(() => {
     const fetchContacts = async () => {
       try {
@@ -46,7 +53,7 @@ export default function Messages() {
     };
     
     fetchContacts();
-    const interval = setInterval(fetchContacts, 3000); // Опрашиваем каждые 3 сек
+    const interval = setInterval(fetchContacts, 3000); 
     return () => clearInterval(interval);
   }, []);
 
@@ -75,12 +82,19 @@ export default function Messages() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  const activeUser = contacts.find(c => c.id === activeChatId);
+  const activeUser = contacts.find(c => String(c.id) === String(activeChatId));
 
-  const filteredContacts = contacts.filter(c => {
-    const searchStr = `${c.name || ''} ${c.surname || ''} ${c.email || ''}`.toLowerCase();
-    return searchStr.includes(searchQuery.toLowerCase());
-  });
+  // 🔥 МАГИЯ СОРТИРОВКИ: Сначала фильтруем по поиску, потом сортируем (непрочитанные сверху!)
+  const filteredAndSortedContacts = contacts
+    .filter(c => {
+      const searchStr = `${c.name || ''} ${c.surname || ''} ${c.email || ''}`.toLowerCase();
+      return searchStr.includes(searchQuery.toLowerCase());
+    })
+    .sort((a, b) => {
+      const unreadA = a.unreadCount || 0;
+      const unreadB = b.unreadCount || 0;
+      return unreadB - unreadA; // У кого больше непрочитанных, тот выше!
+    });
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -114,6 +128,12 @@ export default function Messages() {
           className="w-full max-w-[320px] bg-white rounded-[2.5rem] shadow-sm border border-gray-100 flex flex-col overflow-hidden shrink-0"
         >
           <div className="p-6 border-b border-gray-50">
+            <button 
+              onClick={() => navigate(-1)} 
+              className="flex items-center gap-2 text-gray-400 hover:text-purple-600 text-[10px] font-black uppercase tracking-widest transition-colors mb-6"
+            >
+              <ArrowLeft className="w-4 h-4" /> Назад
+            </button>
             <h2 className="text-xl font-black text-gray-900 mb-4 flex items-center gap-2">
               Чат <span className="text-[#5A4BFF] text-2xl">💬</span>
             </h2>
@@ -131,36 +151,47 @@ export default function Messages() {
 
           <div className="flex-1 overflow-y-auto p-3 space-y-2 custom-scrollbar bg-gray-50/30">
             <AnimatePresence>
-              {filteredContacts.map(contact => (
-                <motion.button
-                  key={contact.id}
-                  initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }}
-                  onClick={() => setActiveChatId(contact.id)}
-                  className={`w-full text-left p-4 rounded-2xl transition-all flex items-center gap-4 ${
-                    activeChatId === contact.id ? 'bg-indigo-50 border border-indigo-100 shadow-sm' : 'bg-transparent border border-transparent hover:bg-gray-50'
-                  }`}
-                >
-                  <div className="relative shrink-0">
-                    <div className="w-12 h-12 bg-[#5A4BFF] rounded-full flex items-center justify-center text-white shadow-md overflow-hidden relative">
-                      {contact.avatar ? <img src={getFullUrl(contact.avatar)} className="w-full h-full object-cover" alt="ava"/> : <User className="w-5 h-5" />}
+              {filteredAndSortedContacts.map(contact => {
+                const isActive = String(activeChatId) === String(contact.id);
+                const hasUnread = contact.unreadCount > 0 && !isActive;
+
+                return (
+                  <motion.button
+                    key={contact.id}
+                    initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }}
+                    onClick={() => setActiveChatId(contact.id)}
+                    className={`w-full text-left p-4 rounded-2xl transition-all flex items-center gap-4 ${
+                      isActive ? 'bg-indigo-50 border border-indigo-100 shadow-sm' : hasUnread ? 'bg-white border border-indigo-100 shadow-sm' : 'bg-transparent border border-transparent hover:bg-gray-50'
+                    }`}
+                  >
+                    {/* Аватарка */}
+                    <div className="relative shrink-0">
+                      <div className="w-12 h-12 bg-[#5A4BFF] rounded-full flex items-center justify-center text-white shadow-md overflow-hidden">
+                        {contact.avatar ? <img src={getFullUrl(contact.avatar)} className="w-full h-full object-cover" alt="ava"/> : <User className="w-5 h-5" />}
+                      </div>
                     </div>
-                    {/* 🔥 БЕЙДЖИК НЕПРОЧИТАННЫХ СООБЩЕНИЙ */}
-                    {contact.unreadCount > 0 && activeChatId !== contact.id && (
-                      <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-[10px] font-black flex items-center justify-center rounded-full border-2 border-white shadow-sm z-10">
-                        {contact.unreadCount > 9 ? '9+' : contact.unreadCount}
-                      </span>
+
+                    {/* Текстовая часть */}
+                    <div className="flex-1 min-w-0">
+                      <h4 className={`truncate ${hasUnread ? 'font-black text-gray-900' : 'font-bold text-gray-700'}`}>
+                        {contact.name ? `${contact.name} ${contact.surname || ''}` : contact.email}
+                      </h4>
+                      <p className={`text-xs truncate mt-0.5 ${isActive ? 'text-[#5A4BFF] font-bold' : hasUnread ? 'text-[#5A4BFF] font-black' : 'text-gray-500 font-medium'}`}>
+                        {hasUnread ? 'Новое сообщение!' : (contact.role === 'CURATOR' ? 'Куратор' : contact.role === 'ADMIN' ? 'Администратор' : 'Студент')}
+                      </p>
+                    </div>
+
+                    {/* 🔥 БЕЙДЖИК КАК В ТЕЛЕГРАМЕ (СПРАВА) */}
+                    {hasUnread && (
+                      <div className="shrink-0 pl-2">
+                        <div className="bg-[#5A4BFF] text-white text-[11px] font-black min-w-[22px] h-[22px] px-1.5 rounded-full flex items-center justify-center shadow-md">
+                          {contact.unreadCount > 99 ? '99+' : contact.unreadCount}
+                        </div>
+                      </div>
                     )}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <h4 className={`font-bold truncate ${contact.unreadCount > 0 && activeChatId !== contact.id ? 'text-gray-900' : 'text-gray-700'}`}>
-                      {contact.name ? `${contact.name} ${contact.surname || ''}` : contact.email}
-                    </h4>
-                    <p className={`text-xs truncate mt-0.5 ${activeChatId === contact.id ? 'text-[#5A4BFF]' : contact.unreadCount > 0 ? 'text-red-500 font-bold' : 'text-gray-500'}`}>
-                      {contact.role === 'CURATOR' ? 'Куратор' : contact.role === 'ADMIN' ? 'Администратор' : 'Студент'}
-                    </p>
-                  </div>
-                </motion.button>
-              ))}
+                  </motion.button>
+                );
+              })}
             </AnimatePresence>
           </div>
         </motion.div>
