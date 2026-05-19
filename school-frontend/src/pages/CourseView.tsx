@@ -140,13 +140,11 @@ const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswer
     });
   }
 
-  // 🔥 ЦВЕТА ИНПУТА ДЛЯ КРАТКИХ ОТВЕТОВ
   let inputStateClass = 'bg-white border-gray-100 focus:border-[#A855F7] focus:shadow-sm text-gray-900';
   if (isLocked) {
      if (result === 'SUCCESS' || (result === 'GRADED' && Number(serverSubmission?.score) > 0)) {
          inputStateClass = 'bg-emerald-50 border-emerald-400 text-emerald-700';
      } else if (result === 'ERROR' || (result === 'GRADED' && Number(serverSubmission?.score) === 0)) {
-         // Убрали зачеркивание у самого инпута, чтобы было красиво
          inputStateClass = 'bg-red-50 border-red-400 text-red-700';
      } else {
          inputStateClass = 'bg-gray-50 border-gray-200 text-gray-500';
@@ -214,7 +212,6 @@ const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswer
             Попыток: {attemptsLeft} из {maxAttempts}
           </div>
         )}
-        {/* 🔥 ВЫВОДИМ БАЛЛ ДЛЯ ВСЕХ ЗАДАНИЙ */}
         <div className="px-3 py-1.5 rounded-md bg-gray-100 text-gray-500 text-[10px] font-black uppercase tracking-widest">
           Макс. балл: {maxScore}
         </div>
@@ -250,7 +247,6 @@ const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswer
             <span className="text-sm bg-white px-3 py-1 rounded-lg shadow-sm border border-purple-50">Ожидает проверки ⏳</span>
           </motion.div>
         )}
-        {/* 🔥 ЗАМЕТНАЯ ПЛАШКА С БАЛЛОМ КУРАТОРА */}
         {result === 'GRADED' && serverSubmission && (
            <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="bg-emerald-50 border-2 border-emerald-200 p-5 rounded-xl mb-6 shadow-sm">
              <div className="flex flex-col sm:flex-row sm:items-center justify-between font-black text-emerald-600 gap-3 mb-4">
@@ -269,10 +265,9 @@ const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswer
         )}
       </AnimatePresence>
 
-      {/* 🔥 WYSIWYG СТИЛИ ДЛЯ ВОПРОСА */}
       <div className="ql-snow w-full">
         <div 
-          className="ql-editor !p-0 text-lg md:text-xl font-bold text-gray-900 mb-6 leading-relaxed break-words" 
+          className="ql-editor !p-0 text-lg md:text-xl font-bold text-gray-900 mb-6 leading-relaxed" 
           dangerouslySetInnerHTML={{ __html: safeHtml(block.question) }} 
         />
       </div>
@@ -290,7 +285,6 @@ const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswer
           let showGreenCheck = false;
           let showRedCross = false;
 
-          // 🔥 ИДЕАЛЬНАЯ ПОДСВЕТКА ВАРИАНТОВ (Красный крест/Зеленая галочка)
           if (result === 'SUCCESS' || (result === 'GRADED' && Number(serverSubmission?.score) > 0)) {
             if (isChecked) {
               optClass += "border-emerald-500 bg-emerald-50/30 text-emerald-900";
@@ -299,13 +293,12 @@ const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswer
               optClass += "border-gray-100 bg-white opacity-60 text-gray-400";
             }
           } else if (isExhausted) {
-             // Лимит исчерпан - показываем правильные и зачеркиваем неправильные
              if (opt.isCorrect) {
                optClass += "border-emerald-500 bg-emerald-50/30 text-emerald-900"; 
                showGreenCheck = true;
              } else if (isChecked && !opt.isCorrect) {
                optClass += "border-[#FF4A6B] bg-[#FF4A6B]/5"; 
-               textClass += "text-[#FF4A6B] line-through opacity-70"; // Зачеркиваем неверный выбор
+               textClass += "text-[#FF4A6B] line-through opacity-70"; 
                showRedCross = true;
              } else {
                optClass += "border-gray-100 bg-white opacity-60 text-gray-400";
@@ -334,7 +327,6 @@ const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswer
               </div>
               <span className={textClass}>{opt.text}</span>
               
-              {/* Иконки для наглядности (галочка / крестик) */}
               {showGreenCheck && (
                 <div className="ml-auto bg-emerald-500 text-white rounded-full p-1 shadow-md shrink-0">
                   <CheckCircle2 className="w-4 h-4" />
@@ -349,7 +341,6 @@ const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswer
           );
         })}
 
-        {/* 🔥 КРАТКИЙ ОТВЕТ: ПОДСВЕТКА И ВЫВОД ПРАВИЛЬНОГО ЕСЛИ ОШИБКА */}
         {block.type === 'test_short' && (
           <div className="space-y-3">
             <input 
@@ -360,7 +351,6 @@ const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswer
               placeholder="Введите ответ" 
               className={`w-full p-5 text-lg font-bold rounded-2xl border-2 transition-all outline-none ${inputStateClass}`}
             />
-            {/* Показываем правильный ответ, если попытки кончились */}
             {isExhausted && result !== 'SUCCESS' && (
                <motion.div initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }} className="text-sm font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 p-4 rounded-xl flex items-center gap-2">
                  <CheckCircle2 className="w-5 h-5" /> Правильный ответ: {block.correctAnswers?.join(' / ')}
@@ -369,7 +359,6 @@ const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswer
           </div>
         )}
 
-        {/* 🔥 ТАБЛИЦА В ЛИНЕЙКУ (Горизонтальная + Стрелочки + Зачеркивание) */}
         {block.type === 'matching' && block.pairs && (
           <div className="space-y-4 w-full overflow-x-auto custom-scrollbar pb-4 pt-2">
             <div className="flex gap-3 min-w-max">
@@ -394,13 +383,12 @@ const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswer
                        tBorderClass = 'border-emerald-400';
                        tInputClass = 'bg-emerald-50 text-emerald-700 font-bold';
                    } else if (isExhausted) {
-                       // 🔥 Если лимит исчерпан
                        if (isCorrectPair) {
                          tBorderClass = 'border-emerald-400';
                          tInputClass = 'bg-emerald-50 text-emerald-700 font-bold';
                        } else {
                          tBorderClass = 'border-red-400';
-                         tInputClass = 'bg-red-50 text-red-700 font-bold'; // Убрали зачеркивание отсюда
+                         tInputClass = 'bg-red-50 text-red-700 font-bold'; 
                        }
                    } else if (result === 'ERROR' || (result === 'GRADED' && Number(serverSubmission?.score) === 0)) {
                        tBorderClass = 'border-red-400';
@@ -414,12 +402,10 @@ const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswer
                 return (
                   <div key={idx} className="flex flex-col gap-2">
                     <div className={`flex flex-col w-32 shrink-0 border-2 rounded-xl overflow-hidden transition-all shadow-sm ${tBorderClass}`}>
-                      {/* Заголовок таблицы (препод) */}
                       <div className="bg-gray-100 p-2 text-center font-black text-gray-800 border-b-2 border-inherit flex items-center justify-center min-h-[3rem] break-words px-4">
                         {pair.left}
                       </div>
                       
-                      {/* 🔥 Если попытки кончились и ответ неверный — рисуем зачеркнутый текст и верный */}
                       {isExhausted && !isCorrectPair ? (
                         <div className={`w-full p-2 flex flex-col items-center justify-center min-h-[3.5rem] ${tInputClass}`}>
                           <span className="line-through opacity-60 text-sm leading-none mb-1">{displayRightValue || '—'}</span>
@@ -435,7 +421,6 @@ const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswer
                             if (!isLocked) handleMatchingChange(block.id, pair.left, e.target.value);
                           }}
                           onKeyDown={(e) => {
-                            // 🔥 Навигация стрелочками
                             if (e.key === 'ArrowRight' && (e.currentTarget.selectionStart === e.currentTarget.value.length || e.currentTarget.value === '')) {
                               e.preventDefault();
                               const nextInput = document.getElementById(`matching-${block.id}-${idx + 1}`);
@@ -508,7 +493,6 @@ const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswer
             <h5 className="flex items-center gap-2 text-purple-700 font-black text-sm uppercase tracking-widest mb-4">
               <BookOpen className="w-5 h-5" /> Разбор задания
             </h5>
-            {/* 🔥 WYSIWYG СТИЛИ ДЛЯ РАЗБОРА ЗАДАНИЯ */}
             <div className="ql-snow w-full">
               <div className="ql-editor !p-0 text-sm text-gray-800" dangerouslySetInnerHTML={{ __html: safeHtml(block.explanation) }} />
             </div>
@@ -649,7 +633,6 @@ export default function CourseView() {
       finalAnswerString = selected[0] || '';
     } else if (block.type === 'test') {
       const correctOptions = Array.isArray(block.options) ? block.options.filter((opt: any) => opt.isCorrect).map((opt: any) => opt.text) : [];
-      // 🔥 ЖЕСТКАЯ ПРОВЕРКА (Должны быть выбраны ВСЕ правильные и ни одного лишнего)
       isSuccess = correctOptions.length > 0 && 
                   selected.length === correctOptions.length && 
                   selected.every((val: string) => correctOptions.includes(val));
@@ -818,11 +801,13 @@ export default function CourseView() {
       <div key={block.id} className="space-y-3 w-full overflow-hidden">
         {block.title && <h3 className="text-xl font-black text-gray-900 break-words">{block.title}</h3>}
         {(block.image || block.url) && <ExpandableImage src={getFullUrl(block.image || block.url)} alt="Материал" className="my-4" />}
-        {/* 🔥 WYSIWYG СТИЛИ ДЛЯ ТЕОРИИ */}
-        <div className="ql-snow w-full">
-          <div 
-            className="ql-editor !p-0 text-gray-800 leading-relaxed break-words" 
-            dangerouslySetInnerHTML={{ __html: safeHtml(block.content) }} 
+        {/* 🔥 ВЫВОДИМ ЧЕРЕЗ САМ QUILL В РЕЖИМЕ ЧТЕНИЯ ДЛЯ 100% СОВПАДЕНИЯ С АДМИНКОЙ */}
+        <div className="text-gray-800 leading-relaxed theory-read-only">
+          <ReactQuill 
+            theme="snow"
+            value={block.content || ''}
+            readOnly={true}
+            modules={{ toolbar: false }}
           />
         </div>
       </div>
@@ -842,7 +827,7 @@ export default function CourseView() {
             <h3 className="text-lg font-black text-gray-900 leading-tight break-words">{block.title || 'Файл для скачивания'}</h3>
             {block.content && (
                <div className="ql-snow w-full mt-1">
-                 <div className="ql-editor !p-0 text-sm font-medium text-gray-600 break-words" dangerouslySetInnerHTML={{ __html: safeHtml(block.content) }} />
+                 <div className="ql-editor !p-0 text-sm font-medium text-gray-600" dangerouslySetInnerHTML={{ __html: safeHtml(block.content) }} />
                </div>
             )}
           </div>
@@ -876,14 +861,26 @@ export default function CourseView() {
       
       {/* 🔥 ГЛОБАЛЬНЫЕ СТИЛИ ДЛЯ РЕДАКТОРА */}
       <style>{`
+        /* Убираем рамки у Quill в режиме чтения (для ученика) */
+        .theory-read-only .ql-container.ql-snow {
+          border: none !important;
+          font-family: inherit !important;
+          font-size: 16px !important;
+        }
+        .theory-read-only .ql-editor {
+          padding: 0 !important;
+          color: inherit !important;
+        }
+        
+        /* Базовые правки для всех редакторов */
         .ql-editor { 
           min-height: auto !important; 
           font-family: inherit !important; 
           font-size: 16px !important; 
-          word-break: normal !important; 
-          overflow-wrap: break-word !important; 
-          white-space: normal !important;
-          padding: 0 !important;
+          
+          /* Возвращаем родное поведение Quill, убираем наши костыли */
+          white-space: pre-wrap !important;
+          word-wrap: break-word !important;
         }
         .ql-editor p { margin-bottom: 0.75em !important; line-height: 1.6 !important; }
         .ql-editor img { max-width: 100% !important; border-radius: 1rem !important; margin: 1rem 0 !important; }
@@ -1065,5 +1062,5 @@ export default function CourseView() {
 }
 
 function ChevronUpIcon(props: any) { return <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m18 15-6-6-6 6"/></svg>; }
-function ChevronDownIcon(props: any) { return <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>; }
+function ChevronDownIcon(props: any) { return <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6-6"/></svg>; }
 function ChevronRightIcon(props: any) { return <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6"/></svg>; }

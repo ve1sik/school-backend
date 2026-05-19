@@ -785,10 +785,13 @@ export default function HomeworkView() {
       <div key={block.id} className="space-y-3 w-full overflow-hidden">
         {block.title && <h3 className="text-xl font-black text-gray-900 break-words">{block.title}</h3>}
         {(block.image || block.url) && <ExpandableImage src={getFullUrl(block.image || block.url)} alt="Материал" className="my-4" />}
-        <div className="ql-snow w-full">
-          <div 
-            className="ql-editor !p-0 text-gray-800 leading-relaxed break-words" 
-            dangerouslySetInnerHTML={{ __html: safeHtml(block.content) }} 
+        {/* 🔥 ВЫВОДИМ ЧЕРЕЗ САМ QUILL В РЕЖИМЕ ЧТЕНИЯ ДЛЯ 100% СОВПАДЕНИЯ С АДМИНКОЙ */}
+        <div className="text-gray-800 leading-relaxed theory-read-only">
+          <ReactQuill 
+            theme="snow"
+            value={block.content || ''}
+            readOnly={true}
+            modules={{ toolbar: false }}
           />
         </div>
       </div>
