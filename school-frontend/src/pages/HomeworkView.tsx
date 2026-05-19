@@ -500,8 +500,14 @@ const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswer
             <h5 className="flex items-center gap-2 text-purple-700 font-black text-sm uppercase tracking-widest mb-4">
               <BookOpen className="w-5 h-5" /> Разбор задания
             </h5>
-            <div className="ql-snow w-full">
-              <div className="ql-editor !p-0 text-sm text-gray-800" dangerouslySetInnerHTML={{ __html: safeHtml(block.explanation) }} />
+            {/* 🔥 Заменили на Quill readOnly */}
+            <div className="w-full text-sm text-gray-800 theory-read-only">
+              <ReactQuill 
+                theme="snow"
+                value={block.explanation || ''}
+                readOnly={true}
+                modules={{ toolbar: false }}
+              />
             </div>
           </motion.div>
         )}

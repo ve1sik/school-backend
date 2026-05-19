@@ -823,13 +823,13 @@ export default function AdminCourses() {
   return (
     <div className="flex h-screen bg-[#F4F7FE] font-sans text-gray-900">
       
-      {/* 🔥 ГЛОБАЛЬНЫЕ СТИЛИ ДЛЯ РЕДАКТОРА */}
+     {/* 🔥 ГЛОБАЛЬНЫЕ СТИЛИ ДЛЯ РЕДАКТОРА */}
       <style>{`
         /* Убираем рамки у Quill в режиме чтения (для ученика) */
         .theory-read-only .ql-container.ql-snow {
           border: none !important;
           font-family: inherit !important;
-          font-size: 16px !important;
+          font-size: inherit !important; /* 🔥 ТЕПЕРЬ ШРИФТ НАСЛЕДУЕТСЯ ОТ TAILWIND */
         }
         .theory-read-only .ql-editor {
           padding: 0 !important;
@@ -840,7 +840,7 @@ export default function AdminCourses() {
         .ql-editor { 
           min-height: auto !important; 
           font-family: inherit !important; 
-          font-size: 16px !important; 
+          font-size: inherit !important; /* 🔥 ТЕПЕРЬ ШРИФТ НАСЛЕДУЕТСЯ ОТ TAILWIND */
           
           /* Возвращаем родное поведение Quill, убираем наши костыли */
           white-space: pre-wrap !important;

@@ -265,10 +265,13 @@ const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswer
         )}
       </AnimatePresence>
 
-      <div className="ql-snow w-full">
-        <div 
-          className="ql-editor !p-0 text-lg md:text-xl font-bold text-gray-900 mb-6 leading-relaxed" 
-          dangerouslySetInnerHTML={{ __html: safeHtml(block.question) }} 
+      {/* 🔥 Заменили на Quill readOnly */}
+      <div className="w-full text-lg md:text-xl font-bold text-gray-900 mb-6 leading-relaxed theory-read-only">
+        <ReactQuill 
+          theme="snow"
+          value={block.question || ''}
+          readOnly={true}
+          modules={{ toolbar: false }}
         />
       </div>
       
@@ -493,8 +496,14 @@ const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswer
             <h5 className="flex items-center gap-2 text-purple-700 font-black text-sm uppercase tracking-widest mb-4">
               <BookOpen className="w-5 h-5" /> Разбор задания
             </h5>
-            <div className="ql-snow w-full">
-              <div className="ql-editor !p-0 text-sm text-gray-800" dangerouslySetInnerHTML={{ __html: safeHtml(block.explanation) }} />
+            {/* 🔥 Заменили на Quill readOnly */}
+            <div className="w-full text-sm text-gray-800 theory-read-only">
+              <ReactQuill 
+                theme="snow"
+                value={block.explanation || ''}
+                readOnly={true}
+                modules={{ toolbar: false }}
+              />
             </div>
           </motion.div>
         )}
@@ -826,8 +835,13 @@ export default function CourseView() {
           <div className="min-w-0">
             <h3 className="text-lg font-black text-gray-900 leading-tight break-words">{block.title || 'Файл для скачивания'}</h3>
             {block.content && (
-               <div className="ql-snow w-full mt-1">
-                 <div className="ql-editor !p-0 text-sm font-medium text-gray-600" dangerouslySetInnerHTML={{ __html: safeHtml(block.content) }} />
+               <div className="w-full mt-1 text-sm font-medium text-gray-600 theory-read-only">
+                 <ReactQuill 
+                   theme="snow"
+                   value={block.content || ''}
+                   readOnly={true}
+                   modules={{ toolbar: false }}
+                 />
                </div>
             )}
           </div>
@@ -865,7 +879,7 @@ export default function CourseView() {
         .theory-read-only .ql-container.ql-snow {
           border: none !important;
           font-family: inherit !important;
-          font-size: 16px !important;
+          font-size: inherit !important; /* 🔥 ТЕПЕРЬ ШРИФТ НАСЛЕДУЕТСЯ ОТ TAILWIND */
         }
         .theory-read-only .ql-editor {
           padding: 0 !important;
@@ -876,7 +890,7 @@ export default function CourseView() {
         .ql-editor { 
           min-height: auto !important; 
           font-family: inherit !important; 
-          font-size: 16px !important; 
+          font-size: inherit !important; /* 🔥 ТЕПЕРЬ ШРИФТ НАСЛЕДУЕТСЯ ОТ TAILWIND */
           
           /* Возвращаем родное поведение Quill, убираем наши костыли */
           white-space: pre-wrap !important;
