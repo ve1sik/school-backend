@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { GraduationCap, X, PlayCircle, Trash2, ArrowLeft, FileText, CheckSquare, Eye, EyeOff, Pencil, Type, PenTool, CheckCircle2, ArrowUp, ArrowDown, Image as ImageIcon, UploadCloud, Plus, FileDown, Link2, BookOpen, Loader2, FileSignature, SaveAll, List, ArrowRight } from 'lucide-react';
+import { GraduationCap, X, PlayCircle, Trash2, ArrowLeft, FileText, CheckSquare, Eye, EyeOff, Pencil, Type, PenTool, CheckCircle2, ArrowUp, ArrowDown, Image as ImageIcon, UploadCloud, Plus, FileDown, Link2, BookOpen, Loader2, FileSignature, SaveAll, List, Copy, GripVertical } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
@@ -51,7 +51,7 @@ function ExpandableImage({ src, alt, className = '' }: { src: string, alt?: stri
   );
 }
 
-// 🔥 ПРОКАЧАННЫЙ РЕДАКТОР ("Ебанутая машина" для препода)
+// 🔥 ПРОКАЧАННЫЙ РЕДАКТОР
 const quillModules = {
   toolbar: [
     [{ 'header': [1, 2, 3, 4, 5, 6, false] }],
@@ -79,12 +79,10 @@ export default function AdminCourses() {
   const [newThemeTitle, setNewThemeTitle] = useState('');
   const [selectedThemeForLesson, setSelectedThemeForLesson] = useState<any | null>(null);
   
-  // Храним ID редактируемого элемента
   const [editingCourseId, setEditingCourseId] = useState<string | null>(null);
   const [editingThemeId, setEditingThemeId] = useState<string | null>(null);
   const [editingLessonTitleId, setEditingLessonTitleId] = useState<string | null>(null);
 
-  // Единый стейт для надежного сохранения текста
   const [editTitleValue, setEditTitleValue] = useState("");
 
   const [editingLessonId, setEditingLessonId] = useState<string | null>(null);
@@ -97,6 +95,11 @@ export default function AdminCourses() {
   const [shortAnswerInputs, setShortAnswerInputs] = useState<Record<string, string>>({});
   const [errors, setErrors] = useState<Record<string, boolean>>({});
   const [hasDraft, setHasDraft] = useState(false);
+
+  // 🔥 DRAG AND DROP СТЕЙТЫ ДЛЯ УРОКОВ
+  const [draggedLessonId, setDraggedLessonId] = useState<string | null>(null);
+  const [dragOverLessonId, setDragOverLessonId] = useState<string | null>(null);
+  const [dragOverThemeId, setDragOverThemeId] = useState<string | null>(null);
 
   const [toast, setToast] = useState<{ text: string, type: 'success' | 'error' } | null>(null);
 
@@ -156,6 +159,7 @@ export default function AdminCourses() {
     }
   };
 
+  // ... (весь код handleCreateItem, handleCreateTheme, handleSaveCourseTitle, handleSaveThemeTitle, handleSaveLessonTitle - без изменений)
   const handleCreateItem = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim()) return;
@@ -174,7 +178,6 @@ export default function AdminCourses() {
     } catch (err) { showToast('Ошибка при добавлении', 'error'); }
   };
 
-  // 🔥 ЖЕЛЕЗОБЕТОННОЕ СОХРАНЕНИЕ КУРСА
   const handleSaveCourseTitle = async (id: string, newTitle: string) => {
     const finalTitle = newTitle.trim();
     if (!finalTitle || editingCourseId !== id) {
@@ -203,7 +206,6 @@ export default function AdminCourses() {
     }
   };
 
-  // 🔥 ЖЕЛЕЗОБЕТОННОЕ СОХРАНЕНИЕ МОДУЛЯ (ПО ЛОГИКЕ УРОКОВ)
   const handleSaveThemeTitle = async (id: string, newTitle: string) => {
     const finalTitle = newTitle.trim();
     if (!finalTitle || editingThemeId !== id) {
@@ -213,13 +215,11 @@ export default function AdminCourses() {
 
     setEditingThemeId(null);
     
-    // 1. Сначала обновляем глобальный список (без багованного if, ровно как в курсе)
     setItems(prev => prev.map(course => ({
       ...course,
       themes: (course.themes || []).map((t: any) => t.id === id ? { ...t, title: finalTitle } : t)
     })));
 
-    // 2. Затем обновляем открытую модалку (ровно как в курсе)
     if (selectedCourseForThemes) {
       setSelectedCourseForThemes((prev: any) => ({ 
         ...prev, 
@@ -241,7 +241,6 @@ export default function AdminCourses() {
     }
   };
 
-  // 🔥 ЖЕЛЕЗОБЕТОННОЕ СОХРАНЕНИЕ УРОКА
   const handleSaveLessonTitle = async (id: string, newTitle: string) => {
     const finalTitle = newTitle.trim();
     if (!finalTitle || editingLessonTitleId !== id) {
@@ -279,6 +278,116 @@ export default function AdminCourses() {
       }
     }
   };
+
+  // 🔥 ЛОГИКА DRAG AND DROP ДЛЯ УРОКОВ
+  const handleDragStartLesson = (e: React.DragEvent, lessonId: string) => {
+    setDraggedLessonId(lessonId);
+    // Добавляем эффект прозрачности во время перетаскивания
+    setTimeout(() => {
+      const el = document.getElementById(`lesson-row-${lessonId}`);
+      if (el) el.classList.add('opacity-50');
+    }, 0);
+  };
+
+  const handleDragEndLesson = () => {
+    const el = document.getElementById(`lesson-row-${draggedLessonId}`);
+    if (el) el.classList.remove('opacity-50');
+    
+    setDraggedLessonId(null);
+    setDragOverLessonId(null);
+    setDragOverThemeId(null);
+  };
+
+  const handleDragOverLesson = (e: React.DragEvent, targetLessonId: string, themeId: string) => {
+    e.preventDefault();
+    if (draggedLessonId === targetLessonId) return;
+    setDragOverLessonId(targetLessonId);
+    setDragOverThemeId(themeId);
+  };
+
+  const handleDragOverTheme = (e: React.DragEvent, themeId: string) => {
+    e.preventDefault();
+    setDragOverThemeId(themeId);
+  };
+
+  const handleDropLesson = async (e: React.DragEvent, targetThemeId: string, targetLessonId?: string) => {
+    e.preventDefault();
+    if (!draggedLessonId) return;
+
+    // Находим урок, который тащим, и модуль, в котором он был
+    let sourceThemeId: string | null = null;
+    let draggedLesson: any = null;
+
+    selectedCourseForThemes.themes.forEach((t: any) => {
+      const lesson = t.lessons?.find((l: any) => l.id === draggedLessonId);
+      if (lesson) {
+        sourceThemeId = t.id;
+        draggedLesson = lesson;
+      }
+    });
+
+    if (!draggedLesson || !sourceThemeId) {
+      handleDragEndLesson();
+      return;
+    }
+
+    // Если тащим в то же место, ничего не делаем
+    if (draggedLessonId === targetLessonId) {
+      handleDragEndLesson();
+      return;
+    }
+
+    // Копируем данные для локального обновления UI
+    const updatedThemes = JSON.parse(JSON.stringify(selectedCourseForThemes.themes));
+
+    const sourceThemeIndex = updatedThemes.findIndex((t: any) => t.id === sourceThemeId);
+    const targetThemeIndex = updatedThemes.findIndex((t: any) => t.id === targetThemeId);
+
+    // Удаляем урок из старого модуля
+    updatedThemes[sourceThemeIndex].lessons = updatedThemes[sourceThemeIndex].lessons.filter((l: any) => l.id !== draggedLessonId);
+
+    // Вставляем урок в новый модуль
+    if (!updatedThemes[targetThemeIndex].lessons) {
+      updatedThemes[targetThemeIndex].lessons = [];
+    }
+
+    if (targetLessonId) {
+      // Вставляем перед конкретным уроком
+      const targetLessonIndex = updatedThemes[targetThemeIndex].lessons.findIndex((l: any) => l.id === targetLessonId);
+      updatedThemes[targetThemeIndex].lessons.splice(targetLessonIndex, 0, draggedLesson);
+    } else {
+      // Вставляем в конец модуля (если перетащили просто на пустую область модуля)
+      updatedThemes[targetThemeIndex].lessons.push(draggedLesson);
+    }
+
+    // Обновляем порядковые номера (order_index) во всех затронутых модулях
+    updatedThemes[sourceThemeIndex].lessons.forEach((l: any, i: number) => l.order_index = i + 1);
+    if (sourceThemeIndex !== targetThemeIndex) {
+      updatedThemes[targetThemeIndex].lessons.forEach((l: any, i: number) => l.order_index = i + 1);
+    }
+
+    // Обновляем UI мгновенно
+    setSelectedCourseForThemes((prev: any) => ({ ...prev, themes: updatedThemes }));
+    
+    // Сбрасываем стейты перетаскивания
+    handleDragEndLesson();
+
+    // 🔥 Отправляем изменения на бэкенд
+    try {
+      // Нам нужно обновить themeId и order_index для перетащенного урока
+      await axios.patch(`${API_URL}/lessons/${draggedLessonId}/reorder`, {
+        themeId: targetThemeId,
+        newOrderIndex: updatedThemes[targetThemeIndex].lessons.findIndex((l: any) => l.id === draggedLessonId) + 1
+      }, getTokenConfig());
+
+      showToast('Порядок уроков сохранен!', 'success');
+      // В идеале можно дернуть fetchItems() тут, но если бэкенд всё сохранил верно, то UI уже актуален
+    } catch (err) {
+      showToast('Ошибка сохранения порядка, изменения откачены', 'error');
+      fetchItems(); // В случае ошибки возвращаем как было с бэкенда
+    }
+  };
+
 
   const addBlock = (type: string, isHw: boolean) => {
     const newBlock: any = { id: Date.now().toString(), type };
@@ -378,6 +487,28 @@ export default function AdminCourses() {
     setTimeout(() => document.getElementById('lesson-form')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
   };
 
+  const handleDuplicateLesson = async (theme: any, lesson: any) => {
+    try {
+      showToast('Копируем урок...', 'success');
+      
+      const payload = { 
+        themeId: theme.id, 
+        title: `${lesson.title} (Копия)`, 
+        type: 'TEXT', 
+        content: lesson.content || '[]', 
+        is_homework: false,
+        order_index: ((theme.lessons || []).length) + 1
+      };
+
+      await axios.post(`${API_URL}/lessons`, payload, getTokenConfig());
+      
+      showToast('Урок успешно скопирован!', 'success');
+      fetchItems();
+    } catch (err) {
+      showToast('Ошибка при копировании урока', 'error');
+    }
+  };
+
   const isQuillEmpty = (html: string) => !html || html.replace(/<[^>]*>?/gm, '').trim().length === 0;
 
   const handleSaveLesson = async (theme: any) => {
@@ -421,8 +552,10 @@ export default function AdminCourses() {
 
     setErrors({});
     
-    const cleanedBlocks = blocks.map(b => ({ ...b, isHomework: false }));
-    const cleanedHwBlocks = hwBlocks.map(b => ({ ...b, isHomework: true }));
+    const regenerateIds = (arr: any[]) => arr.map(b => ({...b, id: `${b.id}-${Math.random().toString(36).substr(2, 9)}`}));
+
+    const cleanedBlocks = regenerateIds(blocks).map(b => ({ ...b, isHomework: false }));
+    const cleanedHwBlocks = regenerateIds(hwBlocks).map(b => ({ ...b, isHomework: true }));
 
     const payload = { 
       themeId: theme.id, 
@@ -829,7 +962,7 @@ export default function AdminCourses() {
         .theory-read-only .ql-container.ql-snow {
           border: none !important;
           font-family: inherit !important;
-          font-size: inherit !important; /* 🔥 ТЕПЕРЬ ШРИФТ НАСЛЕДУЕТСЯ ОТ TAILWIND */
+          font-size: inherit !important;
         }
         .theory-read-only .ql-editor {
           padding: 0 !important;
@@ -840,9 +973,8 @@ export default function AdminCourses() {
         .ql-editor { 
           min-height: auto !important; 
           font-family: inherit !important; 
-          font-size: inherit !important; /* 🔥 ТЕПЕРЬ ШРИФТ НАСЛЕДУЕТСЯ ОТ TAILWIND */
+          font-size: inherit !important; 
           
-          /* Возвращаем родное поведение Quill, убираем наши костыли */
           white-space: pre-wrap !important;
           word-wrap: break-word !important;
         }
@@ -970,9 +1102,18 @@ export default function AdminCourses() {
                     const visibleLessons = theme.lessons || [];
 
                     return (
-                      <div key={theme.id} className="bg-white rounded-[2.5rem] p-6 lg:p-8 shadow-sm border border-gray-100">
-                        <div className="flex flex-col lg:flex-row lg:justify-between lg:items-center gap-4 mb-8">
-                          <div className="flex-1 min-w-0">
+                      <div 
+                        key={theme.id} 
+                        className={`bg-white rounded-[2.5rem] p-6 lg:p-8 shadow-sm border-2 transition-all ${
+                          dragOverThemeId === theme.id && !dragOverLessonId 
+                            ? 'border-[#5A4BFF] bg-indigo-50/30' 
+                            : 'border-gray-100'
+                        }`}
+                        onDragOver={(e) => handleDragOverTheme(e, theme.id)}
+                        onDrop={(e) => handleDropLesson(e, theme.id)}
+                      >
+                        <div className="flex flex-col lg:flex-row lg:justify-between lg:items-center gap-4 mb-8 pointer-events-none">
+                          <div className="flex-1 min-w-0 pointer-events-auto">
                             {editingThemeId === theme.id ? (
                               <div className="flex items-center gap-2 w-full">
                                 <input 
@@ -995,14 +1136,14 @@ export default function AdminCourses() {
                               </h4>
                             )}
                           </div>
-                          <div className="flex gap-2 shrink-0 bg-gray-50 p-1.5 rounded-2xl">
+                          <div className="flex gap-2 shrink-0 bg-gray-50 p-1.5 rounded-2xl pointer-events-auto">
                             <button type="button" onClick={() => handleToggleThemeVisibility(theme.id, theme.is_visible)} className="p-2.5 bg-white rounded-xl shadow-sm text-gray-400 hover:text-gray-900 transition-colors">{theme.is_visible === false ? (<EyeOff className="w-5 h-5" />) : (<Eye className="w-5 h-5" />)}</button>
                             <button type="button" onClick={() => handleDeleteTheme(theme.id)} className="p-2.5 bg-white rounded-xl shadow-sm text-gray-400 hover:text-red-500 transition-colors"><Trash2 className="w-5 h-5" /></button>
                             <button type="button" onClick={() => { resetLessonForm(); setSelectedThemeForLesson(theme); setTimeout(() => document.getElementById('lesson-form')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100); }} className="px-5 py-2.5 ml-2 bg-[#5A4BFF] text-white rounded-xl text-sm font-black shadow-md transition-colors">+ Новый урок</button>
                           </div>
                         </div>
 
-                        <div className="space-y-3">
+                        <div className="space-y-3 min-h-[50px]">
                           {visibleLessons.map((lesson: any) => {
                             let hasVideo = false; let hasText = false; let hasTest = false; let hasShort = false; let hasHomework = false; let hasWritten = false;
                             let hasImage = false; let hasVideoFile = false; let hasFile = false; let hasLink = false; let hasMatching = false;
@@ -1019,9 +1160,28 @@ export default function AdminCourses() {
                               } catch(e) { hasText = true; }
                             }
                             
+                            const isDragOver = dragOverLessonId === lesson.id;
+                            const isDragging = draggedLessonId === lesson.id;
+
                             return (
-                              <div key={lesson.id} className="bg-gray-50 p-4 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 group border border-gray-100 hover:bg-white hover:shadow-md hover:border-gray-200 transition-all">
+                              <div 
+                                key={lesson.id} 
+                                id={`lesson-row-${lesson.id}`}
+                                draggable
+                                onDragStart={(e) => handleDragStartLesson(e, lesson.id)}
+                                onDragEnd={handleDragEndLesson}
+                                onDragOver={(e) => handleDragOverLesson(e, lesson.id, theme.id)}
+                                onDrop={(e) => handleDropLesson(e, theme.id, lesson.id)}
+                                className={`p-4 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 group border-2 transition-all cursor-grab active:cursor-grabbing ${
+                                  isDragOver 
+                                    ? 'border-[#5A4BFF] bg-indigo-50 mt-8 relative before:absolute before:-top-5 before:left-0 before:right-0 before:h-1 before:bg-[#5A4BFF] before:rounded-full' 
+                                    : 'border-gray-100 bg-gray-50 hover:bg-white hover:shadow-md hover:border-gray-200'
+                                }`}
+                              >
                                 <div className="flex-1 flex items-center gap-4 font-bold text-base text-gray-700 min-w-0">
+                                  <div className="cursor-grab active:cursor-grabbing text-gray-400 hover:text-gray-600 p-1">
+                                    <GripVertical className="w-5 h-5" />
+                                  </div>
                                   <div className="px-3 py-2.5 bg-white rounded-xl shadow-sm flex gap-2 border border-gray-100 shrink-0">
                                     {(hasVideo || hasVideoFile) && <PlayCircle className="w-4 h-4 text-indigo-500" />}
                                     {hasImage && <ImageIcon className="w-4 h-4 text-blue-500" />}
@@ -1059,6 +1219,7 @@ export default function AdminCourses() {
                                 </div>
 
                                 <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 shrink-0 transition-opacity">
+                                   <button type="button" onClick={() => handleDuplicateLesson(theme, lesson)} title="Создать копию" className="p-2 bg-white rounded-xl shadow-sm text-indigo-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors"><Copy className="w-4 h-4" /></button>
                                    <button type="button" onClick={() => startEditingLesson(theme, lesson)} className="p-2 bg-white rounded-xl shadow-sm text-indigo-600 hover:bg-gray-50"><Pencil className="w-4 h-4" /></button>
                                    <button type="button" onClick={() => handleToggleLessonVisibility(lesson.id, lesson.is_visible)} className="p-2 bg-white rounded-xl shadow-sm text-gray-400 hover:text-gray-900">{lesson.is_visible === false ? (<EyeOff className="w-4 h-4" />) : (<Eye className="w-4 h-4" />)}</button>
                                    <button type="button" onClick={() => handleDeleteLesson(lesson.id)} className="p-2 bg-white rounded-xl shadow-sm text-gray-400 hover:text-red-500"><Trash2 className="w-4 h-4" /></button>
@@ -1067,7 +1228,7 @@ export default function AdminCourses() {
                             );
                           })}
                           
-                          {visibleLessons.length === 0 && <p className="text-gray-400 text-sm font-bold pl-4 py-2 border border-dashed border-gray-200 rounded-xl">В этом модуле пока пусто.</p>}
+                          {visibleLessons.length === 0 && <p className="text-gray-400 text-sm font-bold pl-4 py-2 border border-dashed border-gray-200 rounded-xl pointer-events-none">В этом модуле пока пусто. Перетащите сюда урок или создайте новый.</p>}
                         </div>
 
                         {selectedThemeForLesson?.id === theme.id && (

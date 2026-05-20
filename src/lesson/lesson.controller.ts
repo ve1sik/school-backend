@@ -15,14 +15,19 @@ export class LessonController {
     return this.lessonService.getByTheme(themeId);
   }
 
-  // 🔥 ИСПРАВЛЕНО: Теперь контроллер понимает, когда мы сохраняем весь урок
+  // 🔥 ФИЧА: Эндпоинт для Drag and Drop (перетаскивание уроков)
+  @Patch(':id/reorder')
+  reorder(@Param('id') id: string, @Body() dto: { themeId: string; newOrderIndex: number }) {
+    return this.lessonService.reorder(id, dto.themeId, dto.newOrderIndex);
+  }
+
   @Patch(':id')
   update(@Param('id') id: string, @Body() dto: any) {
     // Если прислали только глазик (is_visible), обновляем только его
     if (Object.keys(dto).length === 1 && 'is_visible' in dto) {
       return this.lessonService.updateVisibility(id, dto.is_visible);
     }
-    // Во всех остальных случаях (кнопка "Сохранить изменения") — сохраняем всё, включая попытки!
+    // Во всех остальных случаях — сохраняем всё
     return this.lessonService.update(id, dto);
   }
 
