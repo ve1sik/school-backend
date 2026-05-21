@@ -71,6 +71,8 @@ model User {
   sent_messages     Message[] @relation("SentMessages")
   received_messages Message[] @relation("ReceivedMessages")
 
+  subjects          Subject[] @relation("TeacherSubjects")
+
   @@map("users")
 }
 
@@ -117,6 +119,10 @@ model Course {
   title       String
   description String? @db.Text
   cover_url   String?
+
+  // 🔥 НОВОЕ: Привязка курса к предмету (Русский, История и тд)
+  subject_id  String?
+  subject     Subject? @relation(fields: [subject_id], references: [id], onDelete: Cascade)
 
   themes      Theme[]
   enrollments Enrollment[]
@@ -278,4 +284,18 @@ model Message {
   receiver    User     @relation("ReceivedMessages", fields: [receiver_id], references: [id], onDelete: Cascade)
 
   @@map("messages")
+}
+
+model Subject {
+  id         String   @id @default(uuid())
+  title      String   // Например: "Русский язык", "История"
+  
+  // Связь с конкретным преподавателем (если нужно будет ограничить доступ)
+  teacher_id String?
+  teacher    User?    @relation("TeacherSubjects", fields: [teacher_id], references: [id])
+
+  // Связь с курсами (в одном предмете много курсов)
+  courses    Course[]
+
+  @@map("subjects")
 }

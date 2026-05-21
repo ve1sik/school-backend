@@ -1,10 +1,9 @@
 import { useState, useEffect } from 'react';
-import { GraduationCap, X, PlayCircle, Trash2, ArrowLeft, FileText, CheckSquare, Eye, EyeOff, Pencil, Type, PenTool, CheckCircle2, ArrowUp, ArrowDown, Image as ImageIcon, UploadCloud, Plus, FileDown, Link2, BookOpen, Loader2, FileSignature, SaveAll, List, Copy, GripVertical } from 'lucide-react';
+import { GraduationCap, X, PlayCircle, Trash2, ArrowLeft, FileText, CheckSquare, Eye, EyeOff, Pencil, Type, PenTool, CheckCircle2, ArrowUp, ArrowDown, Image as ImageIcon, UploadCloud, Plus, FileDown, Link2, BookOpen, Loader2, FileSignature, SaveAll, List, Copy, Search, Folder, ArrowRight, ChevronDown, ChevronsUp, ChevronUp, ChevronsDown } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 
-// Импортируем Ворд-редактор и его стили
 import ReactQuill from 'react-quill-new';
 import 'react-quill-new/dist/quill.snow.css';
 
@@ -51,7 +50,6 @@ function ExpandableImage({ src, alt, className = '' }: { src: string, alt?: stri
   );
 }
 
-// 🔥 ПРОКАЧАННЫЙ РЕДАКТОР
 const quillModules = {
   toolbar: [
     [{ 'header': [1, 2, 3, 4, 5, 6, false] }],
@@ -96,10 +94,21 @@ export default function AdminCourses() {
   const [errors, setErrors] = useState<Record<string, boolean>>({});
   const [hasDraft, setHasDraft] = useState(false);
 
-  // 🔥 DRAG AND DROP СТЕЙТЫ ДЛЯ УРОКОВ
-  const [draggedLessonId, setDraggedLessonId] = useState<string | null>(null);
-  const [dragOverLessonId, setDragOverLessonId] = useState<string | null>(null);
-  const [dragOverThemeId, setDragOverThemeId] = useState<string | null>(null);
+  // Стейты категорий и фильтров
+  const [categories, setCategories] = useState<any[]>([]);
+  const [selectedFilterCategory, setSelectedFilterCategory] = useState<string | null>(null);
+  const [isAddingCategory, setIsAddingCategory] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState('');
+  const [courseSearchQuery, setCourseSearchQuery] = useState('');
+  const [newCourseCategoryId, setNewCourseCategoryId] = useState('');
+  
+  const [isCategoriesExpanded, setIsCategoriesExpanded] = useState(false);
+
+  // СТЕЙТЫ ДЛЯ КОПИРОВАНИЯ УРОКА
+  const [copyLessonData, setCopyLessonData] = useState<{lesson: any, currentTheme: any} | null>(null);
+  const [targetCourseIdForCopy, setTargetCourseIdForCopy] = useState<string>('');
+  const [targetThemeIdForCopy, setTargetThemeIdForCopy] = useState<string>('');
+  const [isCopying, setIsCopying] = useState(false);
 
   const [toast, setToast] = useState<{ text: string, type: 'success' | 'error' } | null>(null);
 
@@ -112,6 +121,7 @@ export default function AdminCourses() {
   const getTokenConfig = () => ({ headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } });
 
   useEffect(() => {
+    fetchCategories();
     fetchItems();
     setShowThemeModal(false);
     setSelectedCourseForThemes(null);
@@ -126,6 +136,51 @@ export default function AdminCourses() {
       localStorage.setItem('lesson_draft', JSON.stringify(draft));
     }
   }, [newLessonTitle, blocks, hwBlocks, hasHomeworkSection, editingLessonId, selectedThemeForLesson]);
+
+  const fetchCategories = async () => {
+    try {
+      const res = await axios.get(`${API_URL}/categories`, getTokenConfig());
+      setCategories(res.data);
+    } catch (err) {
+      const localCats = JSON.parse(localStorage.getItem('temp_categories') || '[]');
+      setCategories(localCats);
+    }
+  };
+
+  const handleAddCategory = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newCategoryName.trim()) return;
+    try {
+      const res = await axios.post(`${API_URL}/categories`, { name: newCategoryName.trim() }, getTokenConfig());
+      setCategories([...categories, res.data]);
+      showToast('Раздел добавлен!');
+    } catch (err) {
+      const newCat = { id: `cat-${Date.now()}`, name: newCategoryName.trim() };
+      const localCats = [...categories, newCat];
+      setCategories(localCats);
+      localStorage.setItem('temp_categories', JSON.stringify(localCats));
+      showToast('Раздел добавлен (локально)!');
+    }
+    setNewCategoryName('');
+    setIsAddingCategory(false);
+  };
+
+  const handleDeleteCategory = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      await axios.delete(`${API_URL}/categories/${id}`, getTokenConfig());
+      setCategories(categories.filter(c => c.id !== id));
+      if (selectedFilterCategory === id) setSelectedFilterCategory(null);
+      showToast('Раздел удален!');
+    } catch (err) {
+      const localCats = JSON.parse(localStorage.getItem('temp_categories') || '[]');
+      const newLocalCats = localCats.filter((c: any) => c.id !== id);
+      setCategories(newLocalCats);
+      localStorage.setItem('temp_categories', JSON.stringify(newLocalCats));
+      if (selectedFilterCategory === id) setSelectedFilterCategory(null);
+      showToast('Раздел удален (локально)!');
+    }
+  };
 
   const restoreDraft = () => {
     try {
@@ -148,9 +203,16 @@ export default function AdminCourses() {
     setIsLoading(true);
     try {
       const res = await axios.get(`${API_URL}/courses`, getTokenConfig());
-      setItems(res.data);
+      const localCourseCats = JSON.parse(localStorage.getItem('temp_course_categories') || '{}');
+      
+      const mergedCourses = res.data.map((c: any) => ({
+        ...c,
+        categoryId: c.categoryId || localCourseCats[c.id] || null
+      }));
+
+      setItems(mergedCourses);
       if (selectedCourseForThemes) {
-        setSelectedCourseForThemes(res.data.find((c: any) => c.id === selectedCourseForThemes.id) || null);
+        setSelectedCourseForThemes(mergedCourses.find((c: any) => c.id === selectedCourseForThemes.id) || null);
       }
     } catch (err) { 
       setItems([]); 
@@ -159,15 +221,37 @@ export default function AdminCourses() {
     }
   };
 
-  // ... (весь код handleCreateItem, handleCreateTheme, handleSaveCourseTitle, handleSaveThemeTitle, handleSaveLessonTitle - без изменений)
   const handleCreateItem = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim()) return;
     setIsLoading(true);
     try {
-      await axios.post(`${API_URL}/courses`, { title, description: '', cover_url: "" }, getTokenConfig());
-      setTitle(''); fetchItems(); showToast('Программа успешно создана!');
-    } catch (err) { showToast('Ошибка при создании', 'error'); } finally { setIsLoading(false); }
+      const payload: any = { title, description: '', cover_url: "" };
+      if (newCourseCategoryId) payload.categoryId = newCourseCategoryId;
+
+      let res;
+      try {
+        res = await axios.post(`${API_URL}/courses`, payload, getTokenConfig());
+      } catch (err: any) {
+        if (err.response?.status === 500 && newCourseCategoryId) {
+          res = await axios.post(`${API_URL}/courses`, { title, description: '', cover_url: "" }, getTokenConfig());
+          const localCourseCats = JSON.parse(localStorage.getItem('temp_course_categories') || '{}');
+          localCourseCats[res.data.id] = newCourseCategoryId;
+          localStorage.setItem('temp_course_categories', JSON.stringify(localCourseCats));
+        } else {
+          throw err;
+        }
+      }
+
+      setTitle(''); 
+      setNewCourseCategoryId('');
+      fetchItems(); 
+      showToast('Программа успешно создана!');
+    } catch (err) { 
+      showToast('Ошибка при создании', 'error'); 
+    } finally { 
+      setIsLoading(false); 
+    }
   };
 
   const handleCreateTheme = async (e: React.FormEvent) => {
@@ -186,7 +270,6 @@ export default function AdminCourses() {
     }
     
     setEditingCourseId(null);
-    
     setItems(prev => prev.map(c => c.id === id ? { ...c, title: finalTitle } : c));
     if (selectedCourseForThemes && selectedCourseForThemes.id === id) {
       setSelectedCourseForThemes((prev: any) => ({ ...prev, title: finalTitle }));
@@ -200,9 +283,31 @@ export default function AdminCourses() {
         await axios.put(`${API_URL}/courses/${id}`, { title: finalTitle }, getTokenConfig());
         showToast('Название сохранено!', 'success');
       } catch (putErr: any) {
-        showToast('Ошибка сохранения. Открой консоль (F12)', 'error'); 
+        showToast('Ошибка сохранения', 'error'); 
         fetchItems();
       }
+    }
+  };
+
+  const handleUpdateCourseCategory = async (courseId: string, categoryId: string) => {
+    const finalCategoryId = categoryId || null;
+    
+    setSelectedCourseForThemes((prev: any) => prev ? { ...prev, categoryId: finalCategoryId } : null);
+    setItems(prev => prev.map(c => c.id === courseId ? { ...c, categoryId: finalCategoryId } : c));
+    
+    const localCourseCats = JSON.parse(localStorage.getItem('temp_course_categories') || '{}');
+    if (finalCategoryId) {
+      localCourseCats[courseId] = finalCategoryId;
+    } else {
+      delete localCourseCats[courseId];
+    }
+    localStorage.setItem('temp_course_categories', JSON.stringify(localCourseCats));
+
+    try {
+      await axios.patch(`${API_URL}/courses/${courseId}`, { categoryId: finalCategoryId }, getTokenConfig());
+      showToast('Раздел курса обновлен');
+    } catch (err) {
+      showToast('Раздел привязан (локально)', 'success');
     }
   };
 
@@ -235,7 +340,7 @@ export default function AdminCourses() {
         await axios.put(`${API_URL}/themes/${id}`, { title: finalTitle }, getTokenConfig());
         showToast('Название модуля сохранено!', 'success');
       } catch (putErr: any) {
-        showToast('Ошибка сохранения. Открой консоль (F12)', 'error'); 
+        showToast('Ошибка сохранения', 'error'); 
         fetchItems(); 
       }
     }
@@ -273,121 +378,70 @@ export default function AdminCourses() {
         await axios.put(`${API_URL}/lessons/${id}`, { title: finalTitle }, getTokenConfig());
         showToast('Название урока сохранено!', 'success');
       } catch (putErr: any) {
-        showToast('Ошибка сохранения. Открой консоль (F12)', 'error'); 
+        showToast('Ошибка сохранения', 'error'); 
         fetchItems(); 
       }
     }
   };
 
-  // 🔥 ЛОГИКА DRAG AND DROP ДЛЯ УРОКОВ
-  const handleDragStartLesson = (e: React.DragEvent, lessonId: string) => {
-    setDraggedLessonId(lessonId);
-    // Добавляем эффект прозрачности во время перетаскивания
-    setTimeout(() => {
-      const el = document.getElementById(`lesson-row-${lessonId}`);
-      if (el) el.classList.add('opacity-50');
-    }, 0);
-  };
-
-  const handleDragEndLesson = () => {
-    const el = document.getElementById(`lesson-row-${draggedLessonId}`);
-    if (el) el.classList.remove('opacity-50');
+  // 🔥 НАДЕЖНАЯ ФУНКЦИЯ ДЛЯ ПЕРЕМЕЩЕНИЯ УРОКОВ СТРЕЛОЧКАМИ
+  const handleMoveLesson = async (themeIndex: number, lessonIndex: number, direction: 'up' | 'down', type: 'step' | 'module') => {
+    if (!selectedCourseForThemes) return;
     
-    setDraggedLessonId(null);
-    setDragOverLessonId(null);
-    setDragOverThemeId(null);
-  };
+    const themesCopy = JSON.parse(JSON.stringify(selectedCourseForThemes.themes));
+    const currentTheme = themesCopy[themeIndex];
+    const lessonToMove = currentTheme.lessons[lessonIndex];
 
-  const handleDragOverLesson = (e: React.DragEvent, targetLessonId: string, themeId: string) => {
-    e.preventDefault();
-    if (draggedLessonId === targetLessonId) return;
-    setDragOverLessonId(targetLessonId);
-    setDragOverThemeId(themeId);
-  };
+    let targetThemeIndex = themeIndex;
+    let targetLessonIndex = lessonIndex;
 
-  const handleDragOverTheme = (e: React.DragEvent, themeId: string) => {
-    e.preventDefault();
-    setDragOverThemeId(themeId);
-  };
-
-  const handleDropLesson = async (e: React.DragEvent, targetThemeId: string, targetLessonId?: string) => {
-    e.preventDefault();
-    if (!draggedLessonId) return;
-
-    // Находим урок, который тащим, и модуль, в котором он был
-    let sourceThemeId: string | null = null;
-    let draggedLesson: any = null;
-
-    selectedCourseForThemes.themes.forEach((t: any) => {
-      const lesson = t.lessons?.find((l: any) => l.id === draggedLessonId);
-      if (lesson) {
-        sourceThemeId = t.id;
-        draggedLesson = lesson;
+    if (type === 'step') {
+      if (direction === 'up') {
+        if (lessonIndex > 0) targetLessonIndex = lessonIndex - 1;
+        else return; 
+      } else {
+        if (lessonIndex < currentTheme.lessons.length - 1) targetLessonIndex = lessonIndex + 1;
+        else return; 
       }
-    });
-
-    if (!draggedLesson || !sourceThemeId) {
-      handleDragEndLesson();
-      return;
+      currentTheme.lessons.splice(lessonIndex, 1);
+      currentTheme.lessons.splice(targetLessonIndex, 0, lessonToMove);
+    } 
+    else if (type === 'module') {
+      if (direction === 'up') {
+        if (themeIndex > 0) {
+          targetThemeIndex = themeIndex - 1;
+          if (!themesCopy[targetThemeIndex].lessons) themesCopy[targetThemeIndex].lessons = [];
+          targetLessonIndex = themesCopy[targetThemeIndex].lessons.length; 
+        } else return;
+      } else {
+        if (themeIndex < themesCopy.length - 1) {
+          targetThemeIndex = themeIndex + 1;
+          targetLessonIndex = 0; 
+        } else return;
+      }
+      currentTheme.lessons.splice(lessonIndex, 1);
+      if (!themesCopy[targetThemeIndex].lessons) themesCopy[targetThemeIndex].lessons = [];
+      themesCopy[targetThemeIndex].lessons.splice(targetLessonIndex, 0, lessonToMove);
     }
 
-    // Если тащим в то же место, ничего не делаем
-    if (draggedLessonId === targetLessonId) {
-      handleDragEndLesson();
-      return;
+    themesCopy[themeIndex].lessons.forEach((l: any, i: number) => l.order_index = i + 1);
+    if (themeIndex !== targetThemeIndex) {
+      themesCopy[targetThemeIndex].lessons.forEach((l: any, i: number) => l.order_index = i + 1);
     }
 
-    // Копируем данные для локального обновления UI
-    const updatedThemes = JSON.parse(JSON.stringify(selectedCourseForThemes.themes));
+    setSelectedCourseForThemes((prev: any) => ({ ...prev, themes: themesCopy }));
 
-    const sourceThemeIndex = updatedThemes.findIndex((t: any) => t.id === sourceThemeId);
-    const targetThemeIndex = updatedThemes.findIndex((t: any) => t.id === targetThemeId);
-
-    // Удаляем урок из старого модуля
-    updatedThemes[sourceThemeIndex].lessons = updatedThemes[sourceThemeIndex].lessons.filter((l: any) => l.id !== draggedLessonId);
-
-    // Вставляем урок в новый модуль
-    if (!updatedThemes[targetThemeIndex].lessons) {
-      updatedThemes[targetThemeIndex].lessons = [];
-    }
-
-    if (targetLessonId) {
-      // Вставляем перед конкретным уроком
-      const targetLessonIndex = updatedThemes[targetThemeIndex].lessons.findIndex((l: any) => l.id === targetLessonId);
-      updatedThemes[targetThemeIndex].lessons.splice(targetLessonIndex, 0, draggedLesson);
-    } else {
-      // Вставляем в конец модуля (если перетащили просто на пустую область модуля)
-      updatedThemes[targetThemeIndex].lessons.push(draggedLesson);
-    }
-
-    // Обновляем порядковые номера (order_index) во всех затронутых модулях
-    updatedThemes[sourceThemeIndex].lessons.forEach((l: any, i: number) => l.order_index = i + 1);
-    if (sourceThemeIndex !== targetThemeIndex) {
-      updatedThemes[targetThemeIndex].lessons.forEach((l: any, i: number) => l.order_index = i + 1);
-    }
-
-    // Обновляем UI мгновенно
-    setSelectedCourseForThemes((prev: any) => ({ ...prev, themes: updatedThemes }));
-    
-    // Сбрасываем стейты перетаскивания
-    handleDragEndLesson();
-
-    // 🔥 Отправляем изменения на бэкенд
     try {
-      // Нам нужно обновить themeId и order_index для перетащенного урока
-      await axios.patch(`${API_URL}/lessons/${draggedLessonId}/reorder`, {
-        themeId: targetThemeId,
-        newOrderIndex: updatedThemes[targetThemeIndex].lessons.findIndex((l: any) => l.id === draggedLessonId) + 1
+      await axios.patch(`${API_URL}/lessons/${lessonToMove.id}/reorder`, {
+        themeId: themesCopy[targetThemeIndex].id,
+        newOrderIndex: targetLessonIndex + 1
       }, getTokenConfig());
-
-      showToast('Порядок уроков сохранен!', 'success');
-      // В идеале можно дернуть fetchItems() тут, но если бэкенд всё сохранил верно, то UI уже актуален
+      showToast('Порядок сохранен!', 'success');
     } catch (err) {
-      showToast('Ошибка сохранения порядка, изменения откачены', 'error');
-      fetchItems(); // В случае ошибки возвращаем как было с бэкенда
+      showToast('Ошибка сохранения порядка', 'error');
+      fetchItems(); 
     }
   };
-
 
   const addBlock = (type: string, isHw: boolean) => {
     const newBlock: any = { id: Date.now().toString(), type };
@@ -487,25 +541,32 @@ export default function AdminCourses() {
     setTimeout(() => document.getElementById('lesson-form')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
   };
 
-  const handleDuplicateLesson = async (theme: any, lesson: any) => {
+  const executeCopyLesson = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!copyLessonData || !targetThemeIdForCopy) return;
+
+    setIsCopying(true);
     try {
       showToast('Копируем урок...', 'success');
       
       const payload = { 
-        themeId: theme.id, 
-        title: `${lesson.title} (Копия)`, 
+        themeId: targetThemeIdForCopy, 
+        title: `${copyLessonData.lesson.title} (Копия)`, 
         type: 'TEXT', 
-        content: lesson.content || '[]', 
+        content: copyLessonData.lesson.content || '[]', 
         is_homework: false,
-        order_index: ((theme.lessons || []).length) + 1
+        order_index: 999 
       };
 
       await axios.post(`${API_URL}/lessons`, payload, getTokenConfig());
       
       showToast('Урок успешно скопирован!', 'success');
+      setCopyLessonData(null);
       fetchItems();
     } catch (err) {
       showToast('Ошибка при копировании урока', 'error');
+    } finally {
+      setIsCopying(false);
     }
   };
 
@@ -551,7 +612,6 @@ export default function AdminCourses() {
     }
 
     setErrors({});
-    
     const regenerateIds = (arr: any[]) => arr.map(b => ({...b, id: `${b.id}-${Math.random().toString(36).substr(2, 9)}`}));
 
     const cleanedBlocks = regenerateIds(blocks).map(b => ({ ...b, isHomework: false }));
@@ -623,6 +683,7 @@ export default function AdminCourses() {
               <button type="button" onClick={() => removeBlock(block.id, isHw)} className="p-2 bg-white rounded-lg shadow-sm text-rose-500 hover:text-rose-700 ml-2"><Trash2 className="w-4 h-4" /></button>
             </div>
             
+            {/* Блоки Видео, Текст, Картинка и др. */}
             {block.type === 'video' && (
               <div>
                 <div className="flex items-center gap-3 mb-6 group/header bg-indigo-50 p-4 rounded-xl">
@@ -630,104 +691,77 @@ export default function AdminCourses() {
                   <input value={block.title !== undefined ? block.title : 'Видео'} onChange={(e) => updateBlock(block.id, { title: e.target.value }, isHw)} className="flex-1 bg-transparent border-b-2 border-dashed border-transparent hover:border-indigo-300 focus:border-indigo-600 outline-none font-black text-xl transition-all text-indigo-900 placeholder:text-indigo-300" placeholder="Заголовок блока..." />
                 </div>
                 <input value={block.url} onChange={(e) => updateBlock(block.id, { url: e.target.value }, isHw)} placeholder="Вставьте ссылку на YouTube/VK/Яндекс.Диск..." className="w-full p-4 rounded-xl border border-gray-200 outline-none mb-4 font-medium focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition-all" />
-                <p className="text-xs text-gray-400 font-bold ml-2 -mt-2 mb-4">* Для Яндекс.Диска вставляйте содержимое атрибута src="..." из кнопки "Поделиться - Код для вставки"</p>
               </div>
             )}
-
             {block.type === 'text' && (
               <div className="flex flex-col gap-4">
                 <div className="flex items-center gap-3 group/header bg-emerald-50 p-4 rounded-xl">
                   <FileText className="w-6 h-6 text-emerald-600 shrink-0" />
                   <input value={block.title !== undefined ? block.title : 'Текст'} onChange={(e) => updateBlock(block.id, { title: e.target.value }, isHw)} className="flex-1 bg-transparent border-b-2 border-dashed border-transparent hover:border-emerald-300 focus:border-emerald-600 outline-none font-black text-xl transition-all text-emerald-900 placeholder:text-emerald-300" placeholder="Заголовок блока..." />
                 </div>
-                
                 <div className="bg-white rounded-2xl overflow-visible border border-gray-200 focus-within:border-emerald-400 focus-within:ring-2 focus-within:ring-emerald-100 transition-all z-10 relative">
                   <ReactQuill theme="snow" modules={quillModules} value={block.content || ''} onChange={(val) => updateBlock(block.id, { content: val }, isHw)} placeholder="Введите текст лекции..." className="min-h-[200px] pb-12 text-content" />
                 </div>
-                
-                <div 
-                  onDragOver={handleDragOver}
-                  onDrop={(e) => handleDrop(block.id, e, isHw, 'image', 'imageName')}
-                  className="p-5 bg-gray-50 rounded-2xl border border-dashed border-gray-300 flex items-center gap-4 mt-2 hover:bg-emerald-50/50 transition-colors"
-                >
+                <div onDragOver={handleDragOver} onDrop={(e) => handleDrop(block.id, e, isHw, 'image', 'imageName')} className="p-5 bg-gray-50 rounded-2xl border border-dashed border-gray-300 flex items-center gap-4 mt-2 hover:bg-emerald-50/50 transition-colors">
                   <label className="cursor-pointer px-5 py-3 bg-white border border-gray-300 rounded-xl hover:border-emerald-400 transition-all flex items-center gap-2 font-bold text-gray-500 text-sm shadow-sm">
-                    <UploadCloud className="w-4 h-4" /> Выбрать или перетащить файл
+                    <UploadCloud className="w-4 h-4" /> Выбрать файл
                     <input type="file" accept="image/*" className="hidden" onChange={(e) => handleFileUpload(block.id, e, isHw, 'image', 'imageName')} />
                   </label>
-                  {block.imageName && <span className="text-xs font-bold text-emerald-600 flex items-center gap-1 bg-emerald-50 px-3 py-1.5 rounded-lg"><CheckCircle2 className="w-4 h-4" /> {block.imageName}</span>}
-                  {block.image && <button type="button" onClick={() => updateBlock(block.id, { image: '', imageName: '' }, isHw)} className="p-2 bg-white rounded-lg shadow-sm text-gray-400 hover:text-red-500 transition-colors"><Trash2 className="w-4 h-4" /></button>}
+                  {block.imageName && <span className="text-xs font-bold text-emerald-600"><CheckCircle2 className="w-4 h-4 inline" /> {block.imageName}</span>}
+                  {block.image && <button type="button" onClick={() => updateBlock(block.id, { image: '', imageName: '' }, isHw)} className="p-2 bg-white rounded-lg shadow-sm text-gray-400 hover:text-red-500"><Trash2 className="w-4 h-4" /></button>}
                 </div>
                 {block.image && <ExpandableImage src={getFullUrl(block.image)} className="mt-4" /> }
               </div>
             )}
-
             {block.type === 'image' && (
               <div>
                 <div className="flex items-center gap-3 mb-6 group/header bg-blue-50 p-4 rounded-xl">
                   <ImageIcon className="w-6 h-6 text-blue-600 shrink-0" />
                   <input value={block.title !== undefined ? block.title : 'Изображение'} onChange={(e) => updateBlock(block.id, { title: e.target.value }, isHw)} className="flex-1 bg-transparent border-b-2 border-dashed border-transparent hover:border-blue-300 focus:border-blue-600 outline-none font-black text-xl transition-all text-blue-900 placeholder:text-blue-300" placeholder="Заголовок блока..." />
                 </div>
-                
-                <div 
-                  onDragOver={handleDragOver}
-                  onDrop={(e) => handleDrop(block.id, e, isHw)}
-                  className="flex items-center gap-4 p-8 bg-gray-50 border-2 border-dashed border-gray-300 rounded-2xl hover:bg-blue-50/50 transition-colors"
-                >
+                <div onDragOver={handleDragOver} onDrop={(e) => handleDrop(block.id, e, isHw)} className="flex items-center gap-4 p-8 bg-gray-50 border-2 border-dashed border-gray-300 rounded-2xl hover:bg-blue-50/50 transition-colors">
                   <label className="cursor-pointer px-6 py-4 bg-white border border-gray-200 rounded-xl hover:border-blue-500 transition-all flex items-center gap-3 font-bold text-blue-600 shadow-sm">
-                    <UploadCloud className="w-5 h-5" /> Выбрать или перетащить
+                    <UploadCloud className="w-5 h-5" /> Выбрать
                     <input type="file" accept="image/*" className="hidden" onChange={(e) => handleFileUpload(block.id, e, isHw)} />
                   </label>
-                  {block.fileName && <span className="text-sm font-bold text-emerald-600 flex items-center gap-2 bg-emerald-50 px-4 py-2 rounded-lg"><CheckCircle2 className="w-4 h-4" /> {block.fileName}</span>}
+                  {block.fileName && <span className="text-sm font-bold text-emerald-600"><CheckCircle2 className="w-4 h-4 inline" /> {block.fileName}</span>}
                 </div>
                 {block.url && <ExpandableImage src={getFullUrl(block.url)} className="mt-6" />}
               </div>
             )}
-
             {block.type === 'video_file' && (
               <div>
                 <div className="flex items-center gap-3 mb-6 group/header bg-indigo-50 p-4 rounded-xl">
                   <PlayCircle className="w-6 h-6 text-indigo-600 shrink-0" />
                   <input value={block.title !== undefined ? block.title : 'Видео-файл'} onChange={(e) => updateBlock(block.id, { title: e.target.value }, isHw)} className="flex-1 bg-transparent border-b-2 border-dashed border-transparent hover:border-indigo-300 focus:border-indigo-600 outline-none font-black text-xl transition-all text-indigo-900 placeholder:text-indigo-300" placeholder="Заголовок блока..." />
                 </div>
-                
-                <div 
-                  onDragOver={handleDragOver}
-                  onDrop={(e) => handleDrop(block.id, e, isHw)}
-                  className="flex items-center gap-4 mb-4 p-8 bg-gray-50 border-2 border-dashed border-gray-300 rounded-2xl hover:bg-indigo-50/50 transition-colors"
-                >
+                <div onDragOver={handleDragOver} onDrop={(e) => handleDrop(block.id, e, isHw)} className="flex items-center gap-4 mb-4 p-8 bg-gray-50 border-2 border-dashed border-gray-300 rounded-2xl hover:bg-indigo-50/50 transition-colors">
                   <label className="cursor-pointer px-6 py-4 bg-white border border-gray-200 rounded-xl hover:border-indigo-500 transition-all flex items-center gap-3 font-bold text-indigo-600 shadow-sm">
-                    <UploadCloud className="w-5 h-5" /> Загрузить или перетащить (MP4)
+                    <UploadCloud className="w-5 h-5" /> Загрузить (MP4)
                     <input type="file" accept="video/*" className="hidden" onChange={(e) => handleFileUpload(block.id, e, isHw)} />
                   </label>
-                  {block.fileName && <span className="text-sm font-bold text-emerald-600 flex items-center gap-2 bg-emerald-50 px-4 py-2 rounded-lg"><CheckCircle2 className="w-4 h-4" /> {block.fileName}</span>}
+                  {block.fileName && <span className="text-sm font-bold text-emerald-600"><CheckCircle2 className="w-4 h-4 inline" /> {block.fileName}</span>}
                 </div>
               </div>
             )}
-
             {block.type === 'file' && (
               <div>
                 <div className="flex items-center gap-3 mb-6 group/header bg-cyan-50 p-4 rounded-xl">
                   <FileDown className="w-6 h-6 text-cyan-600 shrink-0" />
                   <input value={block.title !== undefined ? block.title : 'Файл для скачивания'} onChange={(e) => updateBlock(block.id, { title: e.target.value }, isHw)} className="flex-1 bg-transparent border-b-2 border-dashed border-transparent hover:border-cyan-300 focus:border-cyan-600 outline-none font-black text-xl transition-all text-cyan-900 placeholder:text-cyan-300" placeholder="Заголовок блока..." />
                 </div>
-                
-                <div 
-                  onDragOver={handleDragOver}
-                  onDrop={(e) => handleDrop(block.id, e, isHw)}
-                  className="flex items-center gap-4 mb-4 p-8 bg-gray-50 border-2 border-dashed border-gray-300 rounded-2xl hover:bg-cyan-50/50 transition-colors"
-                >
+                <div onDragOver={handleDragOver} onDrop={(e) => handleDrop(block.id, e, isHw)} className="flex items-center gap-4 mb-4 p-8 bg-gray-50 border-2 border-dashed border-gray-300 rounded-2xl hover:bg-cyan-50/50 transition-colors">
                   <label className="cursor-pointer px-6 py-4 bg-white border border-gray-200 rounded-xl hover:border-cyan-500 transition-colors flex items-center gap-2 font-bold text-gray-600 shadow-sm">
-                    <UploadCloud className="w-5 h-5" /> Выбрать или перетащить файл (PDF/Word)
+                    <UploadCloud className="w-5 h-5" /> Выбрать файл
                     <input type="file" className="hidden" onChange={(e) => handleFileUpload(block.id, e, isHw)} />
                   </label>
-                  {block.fileName && <span className="text-sm font-bold text-emerald-600 flex items-center gap-2 bg-emerald-50 px-4 py-2 rounded-lg"><CheckCircle2 className="w-4 h-4" /> {block.fileName}</span>}
+                  {block.fileName && <span className="text-sm font-bold text-emerald-600"><CheckCircle2 className="w-4 h-4 inline" /> {block.fileName}</span>}
                 </div>
                 <div className="bg-white rounded-2xl overflow-visible border border-gray-200 focus-within:border-cyan-400 focus-within:ring-2 focus-within:ring-cyan-100 transition-all z-10 relative">
-                  <ReactQuill theme="snow" modules={quillModules} value={block.content || ''} onChange={(val) => updateBlock(block.id, { content: val }, isHw)} placeholder="Краткое описание файла или инструкция (необязательно)..." className="min-h-[100px] pb-12" />
+                  <ReactQuill theme="snow" modules={quillModules} value={block.content || ''} onChange={(val) => updateBlock(block.id, { content: val }, isHw)} placeholder="Краткое описание файла или инструкция..." className="min-h-[100px] pb-12" />
                 </div>
               </div>
             )}
-
             {block.type === 'link' && (
               <div>
                 <div className="flex items-center gap-3 mb-6 group/header bg-pink-50 p-4 rounded-xl">
@@ -737,16 +771,15 @@ export default function AdminCourses() {
                 <div className="flex flex-col sm:flex-row gap-6">
                   <div className="flex-1">
                     <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">Текст на кнопке</label>
-                    <input value={block.buttonText || ''} onChange={(e) => updateBlock(block.id, { buttonText: e.target.value }, isHw)} placeholder="Например: Подключиться к трансляции" className="w-full p-4 rounded-xl border border-gray-200 outline-none font-bold focus:border-pink-400 transition-all" />
+                    <input value={block.buttonText || ''} onChange={(e) => updateBlock(block.id, { buttonText: e.target.value }, isHw)} placeholder="Например: Подключиться" className="w-full p-4 rounded-xl border border-gray-200 outline-none font-bold focus:border-pink-400 transition-all" />
                   </div>
                   <div className="flex-1">
-                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">URL ссылки (Zoom, Яндекс.Диск и тд)</label>
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">URL ссылки</label>
                     <input value={block.url || ''} onChange={(e) => updateBlock(block.id, { url: e.target.value }, isHw)} placeholder="https://..." className="w-full p-4 rounded-xl border border-gray-200 outline-none focus:border-pink-400 transition-all font-medium text-pink-600" />
                   </div>
                 </div>
               </div>
             )}
-
             {['test', 'test_short', 'written', 'matching'].includes(block.type) && (
               <>
                 <div className={`flex items-center gap-3 mb-6 group/header p-4 rounded-xl ${block.type === 'test' ? 'bg-rose-50' : block.type === 'test_short' ? 'bg-amber-50' : block.type === 'matching' ? 'bg-indigo-50' : 'bg-purple-50'}`}>
@@ -756,40 +789,33 @@ export default function AdminCourses() {
                 
                 <div className="flex flex-col sm:flex-row gap-4 mb-6">
                   <div className="flex-1">
-                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">
-                      Текст задания {isError && isQuillEmpty(block.question) && <span className="text-red-500">* Обязательное поле</span>}
-                    </label>
-                    <div className={`bg-white rounded-2xl overflow-visible border transition-all z-10 relative ${isError && isQuillEmpty(block.question) ? 'border-red-400 ring-2 ring-red-100' : 'border-gray-200 focus-within:border-indigo-400 focus-within:ring-2 focus-within:ring-indigo-100'}`}>
-                      <ReactQuill theme="snow" modules={quillModules} value={block.question || ''} onChange={(val) => updateBlock(block.id, { question: val }, isHw)} placeholder="Введите вопрос или текст задания..." className="min-h-[120px] pb-12" />
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">Текст задания</label>
+                    <div className={`bg-white rounded-2xl overflow-visible border transition-all z-10 relative ${isError && isQuillEmpty(block.question) ? 'border-red-400 ring-2 ring-red-100' : 'border-gray-200 focus-within:border-indigo-400'}`}>
+                      <ReactQuill theme="snow" modules={quillModules} value={block.question || ''} onChange={(val) => updateBlock(block.id, { question: val }, isHw)} placeholder="Введите вопрос..." className="min-h-[120px] pb-12" />
                     </div>
                   </div>
-                  
                   <div className="flex flex-col gap-4 w-full sm:w-32 shrink-0">
                     {['test', 'test_short', 'matching'].includes(block.type) && (
                       <div>
                         <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">Попыток</label>
-                        <input type="number" min="1" max="100" value={block.maxAttempts !== undefined ? block.maxAttempts : 3} onChange={(e) => updateBlock(block.id, { maxAttempts: e.target.value === '' ? '' : parseInt(e.target.value) }, isHw)} className={`w-full p-4 rounded-xl border border-gray-200 outline-none font-black text-center transition-all ${block.type === 'test' ? 'text-rose-600 focus:border-rose-400' : block.type === 'matching' ? 'text-indigo-600 focus:border-indigo-400' : 'text-amber-600 focus:border-amber-400'}`} />
+                        <input type="number" min="1" max="100" value={block.maxAttempts !== undefined ? block.maxAttempts : 3} onChange={(e) => updateBlock(block.id, { maxAttempts: e.target.value === '' ? '' : parseInt(e.target.value) }, isHw)} className="w-full p-4 rounded-xl border border-gray-200 outline-none font-black text-center" />
                       </div>
                     )}
                     <div>
                       <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">Макс. балл</label>
-                      <input type="number" min="1" max="1000" value={block.maxScore !== undefined ? block.maxScore : 3} onChange={(e) => updateBlock(block.id, { maxScore: e.target.value === '' ? '' : parseInt(e.target.value) }, isHw)} className={`w-full p-4 rounded-xl border border-gray-200 outline-none font-black text-center transition-all text-purple-600 focus:border-purple-400`} />
+                      <input type="number" min="1" max="1000" value={block.maxScore !== undefined ? block.maxScore : 3} onChange={(e) => updateBlock(block.id, { maxScore: e.target.value === '' ? '' : parseInt(e.target.value) }, isHw)} className="w-full p-4 rounded-xl border border-gray-200 outline-none font-black text-center text-purple-600" />
                     </div>
                   </div>
                 </div>
 
-                <div 
-                  onDragOver={handleDragOver}
-                  onDrop={(e) => handleDrop(block.id, e, isHw, 'questionImage', 'questionImageName')}
-                  className="mb-8 p-5 bg-gray-50 rounded-2xl border border-dashed border-gray-300 hover:bg-gray-100/50 flex flex-col sm:flex-row sm:items-center gap-4 transition-colors"
-                >
+                <div onDragOver={handleDragOver} onDrop={(e) => handleDrop(block.id, e, isHw, 'questionImage', 'questionImageName')} className="mb-8 p-5 bg-gray-50 rounded-2xl border border-dashed border-gray-300 hover:bg-gray-100/50 flex flex-col sm:flex-row sm:items-center gap-4 transition-colors">
                   <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest sm:mb-0 block shrink-0">Картинка к вопросу:</label>
                   <div className="flex items-center gap-4 flex-1">
                     <label className="cursor-pointer px-5 py-3 bg-white border border-gray-200 rounded-xl hover:border-indigo-400 transition-all flex items-center gap-2 font-bold text-gray-500 text-sm shadow-sm">
-                      <UploadCloud className="w-4 h-4" /> Прикрепить или перетащить
+                      <UploadCloud className="w-4 h-4" /> Прикрепить
                       <input type="file" accept="image/*" className="hidden" onChange={(e) => handleFileUpload(block.id, e, isHw, 'questionImage', 'questionImageName')} />
                     </label>
-                    {block.questionImageName && <span className="text-xs font-bold text-emerald-600 flex items-center gap-1 bg-emerald-50 px-3 py-1.5 rounded-lg"><CheckCircle2 className="w-4 h-4" /> {block.questionImageName}</span>}
+                    {block.questionImageName && <span className="text-xs font-bold text-emerald-600"><CheckCircle2 className="w-4 h-4 inline" /> {block.questionImageName}</span>}
                     {block.questionImage && <button type="button" onClick={() => updateBlock(block.id, { questionImage: '', questionImageName: '' }, isHw)} className="p-2 bg-white rounded-lg shadow-sm text-gray-400 hover:text-red-500"><Trash2 className="w-4 h-4" /></button>}
                   </div>
                 </div>
@@ -799,9 +825,9 @@ export default function AdminCourses() {
 
             {block.type === 'test' && (
               <div className="space-y-3">
-                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block">Варианты ответов {isError && (!block.options || block.options.length === 0 || !block.options.some((o:any)=>o.isCorrect)) && <span className="text-red-500">* Добавьте хотя бы один правильный</span>}</label>
+                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block">Варианты ответов</label>
                 {block.options?.map((opt: any, optIdx: number) => (
-                  <div key={optIdx} className={`flex items-center gap-3 p-3 rounded-2xl border-2 transition-all ${opt.isCorrect ? 'border-emerald-400 bg-emerald-50 shadow-sm' : isError && !opt.text.trim() ? 'border-red-400 bg-red-50' : 'border-gray-200 bg-white'}`}>
+                  <div key={optIdx} className={`flex items-center gap-3 p-3 rounded-2xl border-2 transition-all ${opt.isCorrect ? 'border-emerald-400 bg-emerald-50' : 'border-gray-200 bg-white'}`}>
                     <label className="flex items-center justify-center cursor-pointer relative w-8 h-8 shrink-0">
                       <input type="checkbox" checked={opt.isCorrect} onChange={(e) => { const newOpts = [...block.options]; newOpts[optIdx].isCorrect = e.target.checked; updateBlock(block.id, { options: newOpts }, isHw); }} className="sr-only" />
                       <div className={`w-6 h-6 rounded border-2 flex items-center justify-center transition-colors ${opt.isCorrect ? 'bg-emerald-500 border-emerald-500' : 'bg-gray-100 border-gray-300'}`}>
@@ -820,10 +846,7 @@ export default function AdminCourses() {
 
             {block.type === 'test_short' && (
               <div>
-                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3 block">
-                  Правильные ответы (Ученик может ввести любой из них) {isError && (!block.correctAnswers || block.correctAnswers.length === 0) && <span className="text-red-500">* Добавьте хотя бы один</span>}
-                </label>
-                
+                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3 block">Правильные ответы</label>
                 <div className="flex flex-wrap gap-2 mb-4">
                   {(block.correctAnswers || []).map((ans: string, idx: number) => (
                     <span key={idx} className="px-4 py-2 bg-emerald-100 text-emerald-700 border border-emerald-200 rounded-xl flex items-center gap-2 font-bold text-sm shadow-sm">
@@ -832,25 +855,17 @@ export default function AdminCourses() {
                     </span>
                   ))}
                 </div>
-
                 <div className="flex flex-col sm:flex-row gap-2 mb-4">
-                  <input 
-                    type="text" 
-                    value={shortAnswerInputs[block.id] || ''} 
-                    onChange={(e) => setShortAnswerInputs({ ...shortAnswerInputs, [block.id]: e.target.value })} 
+                  <input type="text" value={shortAnswerInputs[block.id] || ''} onChange={(e) => setShortAnswerInputs({ ...shortAnswerInputs, [block.id]: e.target.value })} 
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') {
-                        e.preventDefault();
-                        const val = shortAnswerInputs[block.id]?.trim();
+                        e.preventDefault(); const val = shortAnswerInputs[block.id]?.trim();
                         if (val) { updateBlock(block.id, { correctAnswers: [...(block.correctAnswers || []), val] }, isHw); setShortAnswerInputs({ ...shortAnswerInputs, [block.id]: '' }); }
                       }
                     }}
-                    placeholder="Например: Москва" 
-                    className={`flex-1 p-4 rounded-xl border-2 outline-none font-bold transition-colors ${isError && (!block.correctAnswers || block.correctAnswers.length === 0) ? 'border-red-400 bg-red-50' : 'border-gray-200 focus:border-amber-400'}`} 
+                    placeholder="Например: Москва" className="flex-1 p-4 rounded-xl border-2 outline-none font-bold border-gray-200 focus:border-amber-400" 
                   />
-                  <button 
-                    type="button" 
-                    onClick={() => {
+                  <button type="button" onClick={() => {
                       const val = shortAnswerInputs[block.id]?.trim();
                       if (val) { updateBlock(block.id, { correctAnswers: [...(block.correctAnswers || []), val] }, isHw); setShortAnswerInputs({ ...shortAnswerInputs, [block.id]: '' }); }
                     }} 
@@ -859,58 +874,42 @@ export default function AdminCourses() {
                     <Plus className="w-4 h-4" /> Добавить
                   </button>
                 </div>
-
                 <label className="flex items-center gap-3 cursor-pointer p-3 bg-gray-50 rounded-xl border border-gray-100 hover:bg-gray-100 transition-colors w-max">
                   <input type="checkbox" checked={block.ignoreTypos !== false} onChange={(e) => updateBlock(block.id, { ignoreTypos: e.target.checked }, isHw)} className="w-5 h-5 rounded border-gray-300 text-amber-500 focus:ring-amber-500 cursor-pointer" />
-                  <span className="text-sm font-bold text-gray-700">Игнорировать опечатки, регистр и букву Ё при проверке</span>
+                  <span className="text-sm font-bold text-gray-700">Игнорировать опечатки, регистр и Ё</span>
                 </label>
               </div>
             )}
 
             {block.type === 'matching' && (
-              <div className="space-y-4">
-                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block">
-                  Таблица ответов (Сверху - заголовок, Снизу - правильный ответ) {isError && (!block.pairs || block.pairs.length === 0 || block.pairs.some((p:any) => !p.left.trim() || !p.right.trim())) && <span className="text-red-500">* Заполните все поля</span>}
-                </label>
-                
+              <div className="space-y-4 mb-6">
+                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block">Таблица ответов</label>
                 <div className="flex overflow-x-auto gap-3 pb-4 custom-scrollbar">
                   {block.pairs?.map((pair: any, idx: number) => (
-                    <div key={idx} className={`flex flex-col gap-2 p-3 rounded-2xl border-2 shrink-0 w-32 transition-all ${isError && (!pair.left.trim() || !pair.right.trim()) ? 'border-red-400 bg-red-50' : 'border-gray-200 bg-white'}`}>
+                    <div key={idx} className="flex flex-col gap-2 p-3 rounded-2xl border-2 shrink-0 w-32 transition-all border-gray-200 bg-white">
                       <div className="flex justify-between items-center mb-1">
-                        <span className="text-[10px] font-bold text-gray-400 uppercase">Ячейка {idx + 1}</span>
+                        <span className="text-[10px] font-bold text-gray-400 uppercase">Пара {idx + 1}</span>
                         <button type="button" onClick={() => { const newPairs = block.pairs.filter((_:any, i:number) => i !== idx); updateBlock(block.id, { pairs: newPairs }, isHw); }} className="text-gray-400 hover:text-red-500"><X className="w-4 h-4" /></button>
                       </div>
-                      <input 
-                        value={pair.left} 
-                        onChange={(e) => { const newPairs = [...block.pairs]; newPairs[idx].left = e.target.value; updateBlock(block.id, { pairs: newPairs }, isHw); }} 
-                        placeholder="Буква" 
-                        className="w-full p-3 bg-gray-50 rounded-xl outline-none font-black text-center text-indigo-700 focus:bg-white focus:ring-2 focus:ring-indigo-400 transition-all border border-transparent focus:border-indigo-200" 
-                      />
-                      <input 
-                        value={pair.right} 
-                        onChange={(e) => { const newPairs = [...block.pairs]; newPairs[idx].right = e.target.value; updateBlock(block.id, { pairs: newPairs }, isHw); }} 
-                        placeholder="Ответ" 
-                        className="w-full p-3 bg-gray-50 rounded-xl outline-none font-black text-center text-emerald-700 focus:bg-white focus:ring-2 focus:ring-emerald-400 transition-all border border-transparent focus:border-emerald-200" 
-                      />
+                      <input value={pair.left} onChange={(e) => { const newPairs = [...block.pairs]; newPairs[idx].left = e.target.value; updateBlock(block.id, { pairs: newPairs }, isHw); }} placeholder="Ключ" className="w-full p-3 bg-gray-50 rounded-xl outline-none font-black text-center text-indigo-700 focus:bg-white focus:ring-2 focus:ring-indigo-400 transition-all border border-transparent" />
+                      <input value={pair.right} onChange={(e) => { const newPairs = [...block.pairs]; newPairs[idx].right = e.target.value; updateBlock(block.id, { pairs: newPairs }, isHw); }} placeholder="Значение" className="w-full p-3 bg-gray-50 rounded-xl outline-none font-black text-center text-emerald-700 focus:bg-white focus:ring-2 focus:ring-emerald-400 transition-all border border-transparent" />
                     </div>
                   ))}
-                  
                   <button type="button" onClick={() => { updateBlock(block.id, { pairs: [...(block.pairs || []), { left: '', right: '' }] }, isHw); }} className="w-32 shrink-0 flex flex-col items-center justify-center border-2 border-dashed border-indigo-300 text-indigo-500 hover:bg-indigo-50 hover:border-indigo-400 rounded-2xl font-black transition-all">
-                    <Plus className="w-6 h-6 mb-1" />
-                    Добавить
+                    <Plus className="w-6 h-6 mb-1" /> Добавить
                   </button>
                 </div>
               </div>
             )}
 
             {['test', 'test_short', 'written', 'matching'].includes(block.type) && (
-              <div className="mt-8 pt-8 border-t-2 border-dashed border-gray-200 space-y-6">
+              <div className="pt-8 border-t-2 border-dashed border-gray-200 space-y-6">
                 <div>
-                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-2">Источник / Тип задания (необязательно)</label>
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-2">Источник / Тип задания</label>
                   <input value={block.source || ''} onChange={(e) => updateBlock(block.id, { source: e.target.value }, isHw)} placeholder="Например: Тип 5 №2 (Решу ЕГЭ)" className="w-full p-4 rounded-xl border-2 border-gray-100 outline-none focus:border-indigo-400 font-bold text-gray-700 bg-gray-50 focus:bg-white transition-all" />
                 </div>
                 <div>
-                  <label className="text-[10px] font-black text-indigo-500 uppercase tracking-widest flex items-center gap-2 mb-2"><BookOpen className="w-3.5 h-3.5" /> Пояснение / Разбор задания (покажется ученику после ответа)</label>
+                  <label className="text-[10px] font-black text-indigo-500 uppercase tracking-widest flex items-center gap-2 mb-2"><BookOpen className="w-3.5 h-3.5" /> Пояснение / Разбор задания</label>
                   <div className="bg-indigo-50/30 rounded-2xl overflow-hidden border-2 border-indigo-100 focus-within:border-indigo-400 focus-within:shadow-md transition-all relative z-0">
                     <ReactQuill theme="snow" modules={quillModules} value={block.explanation || ''} onChange={(val) => updateBlock(block.id, { explanation: val }, isHw)} placeholder="Напишите подробное правило или разбор..." className="min-h-[140px] pb-12" />
                   </div>
@@ -953,32 +952,37 @@ export default function AdminCourses() {
     );
   };
 
+  const filteredCourses = items.filter(course => {
+    const matchesSearch = course.title.toLowerCase().includes(courseSearchQuery.toLowerCase());
+    const matchesCategory = selectedFilterCategory ? course.categoryId === selectedFilterCategory : true;
+    return matchesSearch && matchesCategory;
+  });
+
   return (
     <div className="flex h-screen bg-[#F4F7FE] font-sans text-gray-900">
       
-     {/* 🔥 ГЛОБАЛЬНЫЕ СТИЛИ ДЛЯ РЕДАКТОРА */}
+      {/* ГЛОБАЛЬНЫЕ СТИЛИ */}
       <style>{`
-        /* Убираем рамки у Quill в режиме чтения (для ученика) */
-        .theory-read-only .ql-container.ql-snow {
-          border: none !important;
-          font-family: inherit !important;
-          font-size: inherit !important;
-        }
-        .theory-read-only .ql-editor {
-          padding: 0 !important;
-          color: inherit !important;
-        }
-        
-        /* Базовые правки для всех редакторов */
         .ql-editor { 
           min-height: auto !important; 
           font-family: inherit !important; 
-          font-size: inherit !important; 
+          font-size: 16px !important; 
+          padding: 0 !important;
           
-          white-space: pre-wrap !important;
-          word-wrap: break-word !important;
+          white-space: normal !important; 
+          word-wrap: break-word !important; 
+          overflow-wrap: break-word !important; 
+          word-break: normal !important;
         }
-        .ql-editor p { margin-bottom: 0.75em !important; line-height: 1.6 !important; }
+        
+        .ql-editor p { 
+          margin-bottom: 0.75em !important; 
+          line-height: 1.6 !important; 
+          white-space: normal !important; 
+          word-wrap: break-word !important; 
+          overflow-wrap: break-word !important; 
+        }
+
         .ql-editor img { max-width: 100% !important; border-radius: 1rem !important; margin: 1rem 0 !important; }
         .ql-align-center { text-align: center !important; }
         .ql-align-right { text-align: right !important; }
@@ -987,7 +991,7 @@ export default function AdminCourses() {
         .ql-editor li { margin-bottom: 0.5em !important; }
       `}</style>
 
-      {/* БОКОВАЯ ПАНЕЛЬ С ОГРАНИЧЕНИЕМ ПО ВЫСОТЕ И СВОИМ СКРОЛЛОМ */}
+      {/* БОКОВАЯ ПАНЕЛЬ */}
       <aside className="w-72 bg-white border border-gray-100 flex flex-col sticky top-4 z-10 shadow-xl shrink-0 self-start max-h-[calc(100vh-2rem)] overflow-hidden rounded-[2rem] ml-4">
         <div className="p-6 flex items-center gap-3 border-b border-gray-50 shrink-0">
           <div className="w-12 h-12 bg-gray-900 rounded-2xl flex items-center justify-center"><GraduationCap className="w-6 h-6 text-white" /></div>
@@ -1004,6 +1008,7 @@ export default function AdminCourses() {
 
       <main className="flex-1 p-4 md:p-8 overflow-y-auto relative scroll-smooth min-w-0">
         <div className="max-w-7xl mx-auto">
+          
           <div className="flex justify-between items-center mb-8">
             <h1 className="text-4xl font-black">Создание контента</h1>
             {hasDraft && !showThemeModal && (
@@ -1012,65 +1017,232 @@ export default function AdminCourses() {
                </button>
             )}
           </div>
+
+          {/* 🔥 ПЛАШКА С КАТЕГОРИЯМИ И ПОИСКОМ */}
+          <div className="bg-white p-5 rounded-3xl shadow-sm mb-8 flex flex-col xl:flex-row gap-5 items-start xl:items-center justify-between border border-gray-100 relative">
+            <div className="relative w-full xl:flex-1 pr-14">
+               <div className={`flex flex-wrap gap-2 transition-all duration-300 overflow-hidden ${isCategoriesExpanded ? 'max-h-[500px]' : 'max-h-[44px]'}`}>
+                  <button 
+                    onClick={() => setSelectedFilterCategory(null)} 
+                    className={`px-5 py-2.5 rounded-xl font-bold text-sm whitespace-nowrap transition-all flex items-center gap-2 ${!selectedFilterCategory ? 'bg-indigo-600 text-white shadow-md' : 'bg-gray-50 text-gray-600 hover:bg-gray-100'}`}
+                  >
+                    <Folder className="w-4 h-4" /> Все курсы
+                  </button>
+                  
+                  {categories.map(c => (
+                    <div key={c.id} className="relative group/cat flex items-center">
+                      <button 
+                        onClick={() => setSelectedFilterCategory(c.id)} 
+                        className={`px-5 py-2.5 rounded-xl font-bold text-sm whitespace-nowrap transition-all pr-8 ${selectedFilterCategory === c.id ? 'bg-indigo-600 text-white shadow-md' : 'bg-gray-50 text-gray-600 hover:bg-gray-100'}`}
+                      >
+                        {c.name}
+                      </button>
+                      <button 
+                        onClick={(e) => handleDeleteCategory(c.id, e)}
+                        className={`absolute right-2 p-1 rounded-md opacity-0 group-hover/cat:opacity-100 transition-opacity ${selectedFilterCategory === c.id ? 'text-indigo-200 hover:text-white hover:bg-indigo-500' : 'text-gray-400 hover:text-red-500 hover:bg-gray-200'}`}
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                  
+                  <button 
+                    onClick={() => setIsAddingCategory(true)} 
+                    className="px-5 py-2.5 rounded-xl font-bold text-sm whitespace-nowrap transition-all bg-purple-50 text-purple-600 hover:bg-purple-100 flex items-center gap-2"
+                  >
+                    <Plus className="w-4 h-4"/> Раздел
+                  </button>
+               </div>
+               
+               {categories.length > 2 && (
+                 <button 
+                   onClick={() => setIsCategoriesExpanded(!isCategoriesExpanded)} 
+                   className="absolute right-0 top-0 p-2.5 bg-gray-50 border border-gray-200 rounded-xl shadow-sm text-gray-500 hover:text-indigo-600 hover:bg-white transition-all z-10"
+                 >
+                   <ChevronDown className={`w-5 h-5 transform transition-transform duration-300 ${isCategoriesExpanded ? 'rotate-180' : ''}`} />
+                 </button>
+               )}
+            </div>
+            
+            <div className="relative w-full xl:w-72 shrink-0">
+               <Search className="w-4 h-4 text-gray-400 absolute left-4 top-1/2 -translate-y-1/2" />
+               <input 
+                 type="text" 
+                 placeholder="Найти курс..." 
+                 value={courseSearchQuery} 
+                 onChange={e => setCourseSearchQuery(e.target.value)} 
+                 className="w-full bg-gray-50 border border-gray-200 text-sm font-bold text-gray-700 rounded-xl pl-11 pr-4 py-3 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 transition-all placeholder:font-medium"
+               />
+            </div>
+          </div>
           
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             <div className="lg:col-span-1">
               <div className="bg-white p-8 rounded-[2rem] shadow-sm sticky top-8 border border-gray-100">
-                <h2 className="text-xl font-black mb-6">Создать новую программу</h2>
+                <h2 className="text-xl font-black mb-6">Создать программу</h2>
                 <form onSubmit={handleCreateItem} className="space-y-4">
-                  <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Название курса..." className="w-full px-5 py-4 bg-gray-50 rounded-xl outline-none focus:bg-white focus:ring-2 focus:ring-gray-200 transition-all font-medium" required />
-                  <button type="submit" disabled={isLoading} className="w-full py-4 text-white rounded-xl font-black transition-colors bg-[#5A4BFF] hover:bg-[#4a3dec] flex items-center justify-center gap-2">
-                    {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Добавить'}
+                  <div>
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 block ml-2">Раздел (Предмет)</label>
+                    <select 
+                      value={newCourseCategoryId} 
+                      onChange={e => setNewCourseCategoryId(e.target.value)} 
+                      className="w-full px-5 py-4 bg-gray-50 rounded-xl outline-none focus:bg-white focus:ring-2 focus:ring-indigo-200 transition-all font-bold text-gray-700 border border-transparent focus:border-indigo-500 cursor-pointer"
+                    >
+                      <option value="">Без раздела (Все курсы)</option>
+                      {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                    </select>
+                  </div>
+                  
+                  <div>
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 block ml-2">Название курса</label>
+                    <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Например: История 10 класс..." className="w-full px-5 py-4 bg-gray-50 rounded-xl outline-none focus:bg-white focus:ring-2 focus:ring-indigo-200 focus:border-indigo-500 transition-all font-bold border border-transparent" required />
+                  </div>
+
+                  <button type="submit" disabled={isLoading} className="w-full mt-2 py-4 text-white rounded-xl font-black transition-colors bg-[#5A4BFF] hover:bg-[#4a3dec] flex items-center justify-center gap-2 shadow-lg shadow-indigo-500/30">
+                    {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Добавить курс'}
                   </button>
                 </form>
               </div>
             </div>
             
             <div className="lg:col-span-2 space-y-4">
-              {items.map((item) => (
-                <div key={item.id} onClick={() => { setSelectedCourseForThemes(item); setShowThemeModal(true); }} className="bg-white p-6 rounded-[2rem] shadow-sm flex items-center justify-between cursor-pointer hover:shadow-md hover:border-gray-200 border border-transparent transition-all group">
-                  <div className="flex-1 mr-4 min-w-0">
-                    {editingCourseId === item.id ? (
-                      <div className="flex items-center gap-2 w-full">
-                        <input 
-                          autoFocus 
-                          value={editTitleValue} 
-                          onChange={(e) => setEditTitleValue(e.target.value)} 
-                          onKeyDown={(e) => { 
-                            if(e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); handleSaveCourseTitle(item.id, editTitleValue); } 
-                            if(e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); setEditingCourseId(null); } 
-                          }} 
-                          onClick={(e) => e.stopPropagation()} 
-                          className="text-xl font-black px-4 py-2 border-2 rounded-xl outline-none w-full bg-indigo-50 border-[#5A4BFF]" 
-                        />
-                        <button onClick={(e) => { e.stopPropagation(); handleSaveCourseTitle(item.id, editTitleValue); }} className="p-2 bg-emerald-500 text-white rounded-xl hover:bg-emerald-600 transition-colors shrink-0"><CheckCircle2 className="w-6 h-6" /></button>
-                        <button onClick={(e) => { e.stopPropagation(); setEditingCourseId(null); }} className="p-2 bg-rose-500 text-white rounded-xl hover:bg-rose-600 transition-colors shrink-0"><X className="w-6 h-6" /></button>
-                      </div>
-                    ) : (
-                      <h3 className="text-xl font-black cursor-pointer hover:text-indigo-600 transition-colors flex items-center gap-3 min-w-0" onClick={(e) => { e.stopPropagation(); setEditingCourseId(item.id); setEditTitleValue(item.title); }}>
-                        <span className="truncate">{item.title}</span> <Pencil className="w-4 h-4 text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
-                      </h3>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-3 shrink-0">
-                    <button type="button" className="px-6 py-2.5 bg-gray-50 group-hover:bg-[#5A4BFF] group-hover:text-white text-gray-600 rounded-xl font-bold text-sm transition-colors">Модули и Уроки</button>
-                    <button type="button" onClick={(e) => { e.stopPropagation(); handleDeleteItem(item.id); }} className="p-2.5 text-gray-400 hover:bg-red-50 hover:text-red-500 rounded-xl transition-colors z-10"><Trash2 className="w-5 h-5" /></button>
-                  </div>
+              {filteredCourses.length === 0 ? (
+                <div className="bg-white p-12 rounded-[2rem] text-center border border-gray-100 shadow-sm flex flex-col items-center">
+                  <Folder className="w-16 h-16 text-gray-200 mb-4" />
+                  <h3 className="text-xl font-black text-gray-800">Курсов не найдено</h3>
+                  <p className="text-gray-500 mt-2 font-medium">Попробуйте изменить параметры поиска или выберите другой раздел.</p>
                 </div>
-              ))}
+              ) : (
+                filteredCourses.map((item) => (
+                  <div key={item.id} onClick={() => { setSelectedCourseForThemes(item); setShowThemeModal(true); }} className="bg-white p-6 rounded-[2rem] shadow-sm flex flex-col sm:flex-row sm:items-center justify-between cursor-pointer hover:shadow-md hover:border-indigo-200 border-2 border-transparent transition-all group gap-4">
+                    <div className="flex-1 min-w-0">
+                      
+                      {item.categoryId && (
+                        <div className="mb-2">
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-purple-50 text-purple-600 rounded-lg text-[10px] font-black uppercase tracking-widest">
+                            <Folder className="w-3 h-3" />
+                            {categories.find(c => c.id === item.categoryId)?.name || 'Неизвестный раздел'}
+                          </span>
+                        </div>
+                      )}
+
+                      {editingCourseId === item.id ? (
+                        <div className="flex items-center gap-2 w-full">
+                          <input 
+                            autoFocus 
+                            value={editTitleValue} 
+                            onChange={(e) => setEditTitleValue(e.target.value)} 
+                            onKeyDown={(e) => { 
+                              if(e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); handleSaveCourseTitle(item.id, editTitleValue); } 
+                              if(e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); setEditingCourseId(null); } 
+                            }} 
+                            onClick={(e) => e.stopPropagation()} 
+                            className="text-xl font-black px-4 py-2 border-2 rounded-xl outline-none w-full bg-indigo-50 border-[#5A4BFF]" 
+                          />
+                          <button onClick={(e) => { e.stopPropagation(); handleSaveCourseTitle(item.id, editTitleValue); }} className="p-2 bg-emerald-500 text-white rounded-xl hover:bg-emerald-600 transition-colors shrink-0"><CheckCircle2 className="w-6 h-6" /></button>
+                          <button onClick={(e) => { e.stopPropagation(); setEditingCourseId(null); }} className="p-2 bg-rose-500 text-white rounded-xl hover:bg-rose-600 transition-colors shrink-0"><X className="w-6 h-6" /></button>
+                        </div>
+                      ) : (
+                        <h3 className="text-xl font-black text-gray-900 group-hover:text-indigo-600 transition-colors flex items-center gap-3 min-w-0" onClick={(e) => { e.stopPropagation(); setEditingCourseId(item.id); setEditTitleValue(item.title); }}>
+                          <span className="truncate">{item.title}</span> <Pencil className="w-4 h-4 text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
+                        </h3>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-3 shrink-0">
+                      <button type="button" className="w-full sm:w-auto px-6 py-3 bg-gray-50 group-hover:bg-[#5A4BFF] group-hover:text-white group-hover:shadow-lg group-hover:shadow-indigo-500/20 text-gray-600 rounded-xl font-bold text-sm transition-all flex items-center justify-center gap-2">
+                        Модули и Уроки <ArrowRight className="w-4 h-4" />
+                      </button>
+                      <button type="button" onClick={(e) => { e.stopPropagation(); handleDeleteItem(item.id); }} className="p-3 text-gray-400 hover:bg-red-50 hover:text-red-500 rounded-xl transition-colors z-10"><Trash2 className="w-5 h-5" /></button>
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           </div>
         </div>
       </main>
 
+      {/* МОДАЛКА ДОБАВЛЕНИЯ РАЗДЕЛА */}
+      <AnimatePresence>
+        {isAddingCategory && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[60] bg-gray-900/60 backdrop-blur-sm flex justify-center items-center p-4">
+             <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }} className="bg-white rounded-3xl p-8 w-full max-w-md shadow-2xl relative">
+                <button onClick={() => setIsAddingCategory(false)} className="absolute top-5 right-5 p-2 bg-gray-50 rounded-full hover:bg-gray-200 text-gray-500 transition-colors"><X className="w-5 h-5"/></button>
+                <div className="w-12 h-12 bg-purple-100 text-purple-600 rounded-2xl flex items-center justify-center mb-6">
+                  <Folder className="w-6 h-6" />
+                </div>
+                <h3 className="text-2xl font-black mb-2 text-gray-900">Новый раздел</h3>
+                <p className="text-gray-500 font-medium mb-6 text-sm">Создайте категорию (предмет), чтобы группировать в ней курсы.</p>
+                <form onSubmit={handleAddCategory}>
+                   <input type="text" autoFocus required value={newCategoryName} onChange={e => setNewCategoryName(e.target.value)} placeholder="Например: Русский язык" className="w-full px-5 py-4 bg-gray-50 text-gray-900 rounded-xl outline-none focus:bg-white focus:ring-2 focus:ring-purple-500 border border-transparent focus:border-purple-200 font-bold mb-6 transition-all text-lg"/>
+                   <button type="submit" className="w-full py-4 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-black shadow-lg shadow-purple-500/30 transition-all active:scale-95 text-lg">Добавить раздел</button>
+                </form>
+             </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* МОДАЛКА КОПИРОВАНИЯ УРОКА */}
+      <AnimatePresence>
+        {copyLessonData && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[70] bg-gray-900/60 backdrop-blur-sm flex justify-center items-center p-4">
+             <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }} className="bg-white rounded-3xl p-8 w-full max-w-lg shadow-2xl relative">
+                <button onClick={() => setCopyLessonData(null)} className="absolute top-5 right-5 p-2 bg-gray-50 rounded-full hover:bg-gray-200 text-gray-500 transition-colors"><X className="w-5 h-5"/></button>
+                <div className="w-12 h-12 bg-indigo-100 text-indigo-600 rounded-2xl flex items-center justify-center mb-6">
+                  <Copy className="w-6 h-6" />
+                </div>
+                <h3 className="text-2xl font-black mb-2 text-gray-900">Копирование урока</h3>
+                <p className="text-gray-500 font-medium mb-6 text-sm">Урок <strong>«{copyLessonData.lesson.title}»</strong> будет скопирован со всеми заданиями.</p>
+                
+                <form onSubmit={executeCopyLesson} className="space-y-4">
+                  <div>
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 block ml-2">Выберите курс</label>
+                    <select 
+                      required
+                      value={targetCourseIdForCopy} 
+                      onChange={e => { setTargetCourseIdForCopy(e.target.value); setTargetThemeIdForCopy(''); }} 
+                      className="w-full px-5 py-4 bg-gray-50 rounded-xl outline-none focus:bg-white focus:ring-2 focus:ring-indigo-200 transition-all font-bold text-gray-700 border border-transparent focus:border-indigo-500 cursor-pointer"
+                    >
+                      <option value="" disabled>-- Выберите курс --</option>
+                      {items.map(c => <option key={c.id} value={c.id}>{c.title}</option>)}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 block ml-2">Выберите модуль</label>
+                    <select 
+                      required
+                      disabled={!targetCourseIdForCopy}
+                      value={targetThemeIdForCopy} 
+                      onChange={e => setTargetThemeIdForCopy(e.target.value)} 
+                      className="w-full px-5 py-4 bg-gray-50 rounded-xl outline-none focus:bg-white focus:ring-2 focus:ring-indigo-200 transition-all font-bold text-gray-700 border border-transparent focus:border-indigo-500 cursor-pointer disabled:opacity-50"
+                    >
+                      <option value="" disabled>-- Выберите модуль --</option>
+                      {items.find(c => c.id === targetCourseIdForCopy)?.themes?.map((t: any) => (
+                        <option key={t.id} value={t.id}>{t.order_index}. {t.title}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <button type="submit" disabled={isCopying || !targetThemeIdForCopy} className="w-full mt-4 py-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-black shadow-lg shadow-indigo-500/30 transition-all active:scale-95 text-lg flex items-center justify-center gap-2 disabled:opacity-50 disabled:active:scale-100">
+                    {isCopying ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Подтвердить и скопировать'}
+                  </button>
+                </form>
+             </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* МОДАЛКА УПРАВЛЕНИЯ КУРСОМ */}
       <AnimatePresence>
         {showThemeModal && selectedCourseForThemes && (
           <motion.div className="fixed inset-0 z-50 bg-gray-900/60 backdrop-blur-sm flex justify-center items-center p-4 lg:p-8">
             <motion.div className="bg-[#F8FAFC] rounded-[2.5rem] w-full max-w-[1400px] max-h-[95vh] overflow-hidden flex flex-col relative shadow-2xl">
-              <button type="button" onClick={() => { setShowThemeModal(false); resetLessonForm(); }} className="absolute top-6 right-6 p-2 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-full z-10 shadow-sm transition-colors"><X className="w-5 h-5" /></button>
+              <button type="button" onClick={() => { setShowThemeModal(false); resetLessonForm(); fetchItems(); }} className="absolute top-6 right-6 p-2 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-full z-20 shadow-sm transition-colors"><X className="w-5 h-5" /></button>
               
-              <div className="p-8 pb-6 bg-white border-b border-gray-100 flex items-center shrink-0">
-                <div className="flex-1 mr-12 min-w-0">
+              {/* 🔥 ШАПКА КУРСА */}
+              <div className="p-6 lg:p-8 pr-16 bg-white border-b border-gray-100 flex flex-col xl:flex-row xl:items-center justify-between shrink-0 gap-6 relative z-10">
+                <div className="w-full xl:flex-1 min-w-0">
                   {editingCourseId === selectedCourseForThemes.id ? (
                     <div className="flex items-center gap-2 w-full max-w-2xl">
                       <input 
@@ -1093,27 +1265,32 @@ export default function AdminCourses() {
                     </h2>
                   )}
                 </div>
+
+                <div className="w-max shrink-0 bg-gray-50 p-2.5 rounded-2xl border border-gray-100 flex items-center gap-3">
+                   <label className="text-[10px] font-black text-indigo-500 uppercase tracking-widest flex items-center gap-1.5 ml-2">
+                     <Folder className="w-3.5 h-3.5" /> Относится к разделу:
+                   </label>
+                   <select
+                     value={selectedCourseForThemes.categoryId || ''}
+                     onChange={(e) => handleUpdateCourseCategory(selectedCourseForThemes.id, e.target.value)}
+                     className="w-48 bg-white border border-gray-200 text-sm font-bold text-gray-800 rounded-xl px-3 py-2 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 transition-all cursor-pointer shadow-sm"
+                   >
+                     <option value="">Без раздела</option>
+                     {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                   </select>
+                </div>
               </div>
 
               <div className="flex-1 overflow-y-auto overflow-x-hidden p-6 lg:p-8 flex flex-col lg:flex-row gap-8 scroll-smooth relative items-start custom-scrollbar">
                 
                 <div className="flex-1 space-y-6 min-w-0 pb-20">
-                  {(selectedCourseForThemes.themes || []).map((theme: any) => {
+                  {(selectedCourseForThemes.themes || []).map((theme: any, tIdx: number) => {
                     const visibleLessons = theme.lessons || [];
 
                     return (
-                      <div 
-                        key={theme.id} 
-                        className={`bg-white rounded-[2.5rem] p-6 lg:p-8 shadow-sm border-2 transition-all ${
-                          dragOverThemeId === theme.id && !dragOverLessonId 
-                            ? 'border-[#5A4BFF] bg-indigo-50/30' 
-                            : 'border-gray-100'
-                        }`}
-                        onDragOver={(e) => handleDragOverTheme(e, theme.id)}
-                        onDrop={(e) => handleDropLesson(e, theme.id)}
-                      >
-                        <div className="flex flex-col lg:flex-row lg:justify-between lg:items-center gap-4 mb-8 pointer-events-none">
-                          <div className="flex-1 min-w-0 pointer-events-auto">
+                      <div key={theme.id} className="bg-white rounded-[2.5rem] p-6 lg:p-8 shadow-sm border-2 border-gray-100">
+                        <div className="flex flex-col lg:flex-row lg:justify-between lg:items-center gap-4 mb-8">
+                          <div className="flex-1 min-w-0">
                             {editingThemeId === theme.id ? (
                               <div className="flex items-center gap-2 w-full">
                                 <input 
@@ -1136,7 +1313,7 @@ export default function AdminCourses() {
                               </h4>
                             )}
                           </div>
-                          <div className="flex gap-2 shrink-0 bg-gray-50 p-1.5 rounded-2xl pointer-events-auto">
+                          <div className="flex gap-2 shrink-0 bg-gray-50 p-1.5 rounded-2xl">
                             <button type="button" onClick={() => handleToggleThemeVisibility(theme.id, theme.is_visible)} className="p-2.5 bg-white rounded-xl shadow-sm text-gray-400 hover:text-gray-900 transition-colors">{theme.is_visible === false ? (<EyeOff className="w-5 h-5" />) : (<Eye className="w-5 h-5" />)}</button>
                             <button type="button" onClick={() => handleDeleteTheme(theme.id)} className="p-2.5 bg-white rounded-xl shadow-sm text-gray-400 hover:text-red-500 transition-colors"><Trash2 className="w-5 h-5" /></button>
                             <button type="button" onClick={() => { resetLessonForm(); setSelectedThemeForLesson(theme); setTimeout(() => document.getElementById('lesson-form')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100); }} className="px-5 py-2.5 ml-2 bg-[#5A4BFF] text-white rounded-xl text-sm font-black shadow-md transition-colors">+ Новый урок</button>
@@ -1144,7 +1321,7 @@ export default function AdminCourses() {
                         </div>
 
                         <div className="space-y-3 min-h-[50px]">
-                          {visibleLessons.map((lesson: any) => {
+                          {visibleLessons.map((lesson: any, lIdx: number) => {
                             let hasVideo = false; let hasText = false; let hasTest = false; let hasShort = false; let hasHomework = false; let hasWritten = false;
                             let hasImage = false; let hasVideoFile = false; let hasFile = false; let hasLink = false; let hasMatching = false;
                             
@@ -1159,29 +1336,19 @@ export default function AdminCourses() {
                                 hasMatching = parsed.some((b:any) => b.type === 'matching');
                               } catch(e) { hasText = true; }
                             }
-                            
-                            const isDragOver = dragOverLessonId === lesson.id;
-                            const isDragging = draggedLessonId === lesson.id;
 
                             return (
-                              <div 
-                                key={lesson.id} 
-                                id={`lesson-row-${lesson.id}`}
-                                draggable
-                                onDragStart={(e) => handleDragStartLesson(e, lesson.id)}
-                                onDragEnd={handleDragEndLesson}
-                                onDragOver={(e) => handleDragOverLesson(e, lesson.id, theme.id)}
-                                onDrop={(e) => handleDropLesson(e, theme.id, lesson.id)}
-                                className={`p-4 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 group border-2 transition-all cursor-grab active:cursor-grabbing ${
-                                  isDragOver 
-                                    ? 'border-[#5A4BFF] bg-indigo-50 mt-8 relative before:absolute before:-top-5 before:left-0 before:right-0 before:h-1 before:bg-[#5A4BFF] before:rounded-full' 
-                                    : 'border-gray-100 bg-gray-50 hover:bg-white hover:shadow-md hover:border-gray-200'
-                                }`}
-                              >
-                                <div className="flex-1 flex items-center gap-4 font-bold text-base text-gray-700 min-w-0">
-                                  <div className="cursor-grab active:cursor-grabbing text-gray-400 hover:text-gray-600 p-1">
-                                    <GripVertical className="w-5 h-5" />
+                              <div key={lesson.id} className="p-3 bg-gray-50 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 group border border-gray-100 hover:bg-white hover:shadow-md hover:border-indigo-100 transition-all">
+                                <div className="flex-1 flex items-center gap-3 font-bold text-base text-gray-700 min-w-0">
+                                  
+                                  {/* 🔥 НОВЫЕ КНОПКИ УПРАВЛЕНИЯ ПОРЯДКОМ */}
+                                  <div className="flex flex-col gap-1 shrink-0 bg-white shadow-sm border border-gray-100 rounded-lg p-1">
+                                    <button onClick={() => handleMoveLesson(tIdx, lIdx, 'up', 'module')} title="В предыдущий модуль" disabled={tIdx === 0 && lIdx === 0} className="text-indigo-400 hover:text-indigo-600 hover:bg-indigo-50 rounded disabled:opacity-30 disabled:hover:bg-transparent p-1 transition-colors"><ChevronsUp size={18}/></button>
+                                    <button onClick={() => handleMoveLesson(tIdx, lIdx, 'up', 'step')} title="Наверх" disabled={lIdx === 0} className="text-gray-400 hover:text-gray-900 hover:bg-gray-100 rounded disabled:opacity-30 disabled:hover:bg-transparent p-1 transition-colors"><ChevronUp size={18}/></button>
+                                    <button onClick={() => handleMoveLesson(tIdx, lIdx, 'down', 'step')} title="Вниз" disabled={lIdx === visibleLessons.length - 1} className="text-gray-400 hover:text-gray-900 hover:bg-gray-100 rounded disabled:opacity-30 disabled:hover:bg-transparent p-1 transition-colors"><ChevronDown size={18}/></button>
+                                    <button onClick={() => handleMoveLesson(tIdx, lIdx, 'down', 'module')} title="В следующий модуль" disabled={tIdx === (selectedCourseForThemes.themes.length - 1) && lIdx === visibleLessons.length - 1} className="text-indigo-400 hover:text-indigo-600 hover:bg-indigo-50 rounded disabled:opacity-30 disabled:hover:bg-transparent p-1 transition-colors"><ChevronsDown size={18}/></button>
                                   </div>
+
                                   <div className="px-3 py-2.5 bg-white rounded-xl shadow-sm flex gap-2 border border-gray-100 shrink-0">
                                     {(hasVideo || hasVideoFile) && <PlayCircle className="w-4 h-4 text-indigo-500" />}
                                     {hasImage && <ImageIcon className="w-4 h-4 text-blue-500" />}
@@ -1218,8 +1385,8 @@ export default function AdminCourses() {
                                   )}
                                 </div>
 
-                                <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 shrink-0 transition-opacity">
-                                   <button type="button" onClick={() => handleDuplicateLesson(theme, lesson)} title="Создать копию" className="p-2 bg-white rounded-xl shadow-sm text-indigo-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors"><Copy className="w-4 h-4" /></button>
+                                <div className="flex items-center gap-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 shrink-0 transition-opacity">
+                                   <button type="button" onClick={() => { setTargetCourseIdForCopy(selectedCourseForThemes.id); setTargetThemeIdForCopy(theme.id); setCopyLessonData({lesson, currentTheme: theme}); }} title="Создать копию" className="p-2 bg-white rounded-xl shadow-sm text-indigo-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors"><Copy className="w-4 h-4" /></button>
                                    <button type="button" onClick={() => startEditingLesson(theme, lesson)} className="p-2 bg-white rounded-xl shadow-sm text-indigo-600 hover:bg-gray-50"><Pencil className="w-4 h-4" /></button>
                                    <button type="button" onClick={() => handleToggleLessonVisibility(lesson.id, lesson.is_visible)} className="p-2 bg-white rounded-xl shadow-sm text-gray-400 hover:text-gray-900">{lesson.is_visible === false ? (<EyeOff className="w-4 h-4" />) : (<Eye className="w-4 h-4" />)}</button>
                                    <button type="button" onClick={() => handleDeleteLesson(lesson.id)} className="p-2 bg-white rounded-xl shadow-sm text-gray-400 hover:text-red-500"><Trash2 className="w-4 h-4" /></button>
@@ -1228,11 +1395,11 @@ export default function AdminCourses() {
                             );
                           })}
                           
-                          {visibleLessons.length === 0 && <p className="text-gray-400 text-sm font-bold pl-4 py-2 border border-dashed border-gray-200 rounded-xl pointer-events-none">В этом модуле пока пусто. Перетащите сюда урок или создайте новый.</p>}
+                          {visibleLessons.length === 0 && <p className="text-gray-400 text-sm font-bold pl-4 py-2 border border-dashed border-gray-200 rounded-xl pointer-events-none">В этом модуле пока пусто. Создайте новый урок.</p>}
                         </div>
 
                         {selectedThemeForLesson?.id === theme.id && (
-                          <div id="lesson-form" className="mt-8 p-6 lg:p-8 bg-white rounded-[2rem] border-[4px] border-[#5A4BFF] shadow-2xl relative">
+                          <div id="lesson-form" className="mt-8 p-6 lg:p-8 bg-white rounded-[2rem] border-[4px] border-[#5A4BFF] shadow-2xl relative pointer-events-auto">
                             <button type="button" onClick={resetLessonForm} className="absolute top-6 right-6 p-2 bg-gray-50 text-gray-400 rounded-full hover:text-gray-900 transition-colors"><X className="w-5 h-5" /></button>
                             <h5 className="font-black text-2xl mb-8">{editingLessonId ? 'Редактирование' : 'Создание'} урока</h5>
                             
@@ -1273,7 +1440,6 @@ export default function AdminCourses() {
                               </div>
                             )}
 
-                            {/* Для мобилок оставляем кнопку внизу */}
                             <div className="flex flex-col sm:flex-row gap-4 border-t border-gray-100 pt-8 mt-8 lg:hidden">
                                 <button type="button" onClick={() => handleSaveLesson(theme)} className="flex-1 py-5 bg-[#5A4BFF] hover:bg-[#4a3dec] text-white rounded-2xl font-black text-xl transition-all shadow-xl active:scale-95 flex justify-center items-center gap-2">
                                   {editingLessonId ? 'Сохранить изменения' : 'Создать урок'}
@@ -1289,8 +1455,8 @@ export default function AdminCourses() {
                   })}
                 </div>
 
-                {/* 🔥 ПРАВАЯ ПАНЕЛЬ С УПРАВЛЕНИЕМ УРОКОМ */}
-                <div className="w-full lg:w-[320px] shrink-0 sticky top-4 flex flex-col gap-6 self-start max-h-[calc(100vh-4rem)] overflow-y-auto custom-scrollbar pr-2 pb-8 z-30 pt-2">
+                {/* ПРАВАЯ ПАНЕЛЬ С УПРАВЛЕНИЕМ УРОКОМ */}
+                <div className="w-full lg:w-[320px] shrink-0 sticky top-4 flex flex-col gap-6 self-start max-h-[calc(100vh-4rem)] overflow-y-auto custom-scrollbar pr-2 pb-8 z-30 pt-2 pointer-events-auto">
                   {selectedThemeForLesson && (
                     <div className="bg-[#5A4BFF] p-6 rounded-[2rem] shadow-xl text-white">
                       <h4 className="font-black text-sm text-center mb-4 uppercase tracking-widest text-indigo-100">Управление уроком</h4>
