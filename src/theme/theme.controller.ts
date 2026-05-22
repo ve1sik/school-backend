@@ -16,6 +16,13 @@ export class ThemeController {
     return this.themeService.create(dto);
   }
 
+  @UseGuards(AuthGuard('jwt'), RolesGuard)
+  @Roles(Role.ADMIN, Role.CURATOR)
+  @Patch(':id/reorder')
+  async reorder(@Param('id') id: string, @Body() dto: { newOrderIndex: number }) {
+    return this.themeService.reorder(id, dto.newOrderIndex);
+  }
+
   // 🔥 Точная копия логики из курсов! Принимаем любой dto (включая title)
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   @Roles(Role.ADMIN, Role.CURATOR)

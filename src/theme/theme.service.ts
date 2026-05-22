@@ -28,4 +28,33 @@ export class ThemeService {
       where: { id },
     });
   }
+
+  async reorder(id: string, newOrderIndex: number) {
+    const theme = await this.prisma.theme.findUnique({ where: { id } });
+    if (!theme) throw new Error('Theme not found');
+
+    const oldOrderIndex = theme.order_index;
+    const courseId = theme.course_id;
+
+    await this.prisma.$transaction(async (prisma) => {
+      if (oldOrderIndex < newOrderIndex) {
+        await prisma.theme.updateMany({
+          where: { course_id: courseId, order_index: { gt: oldOrderIndex, lte: newOrderIndex } },
+          data: { order_index: { decrement: 1 } },
+        });
+      } else if (oldOrderIndex > newOrderIndex) {
+        await prisma.theme.updateMany({
+          where: { course_id: courseId, order_index: { gte: newOrderIndex, lt: oldOrderIndex } },
+          data: { order_index: { increment: 1 } },
+        });
+      }
+
+      await prisma.theme.update({
+        where: { id },
+        data: { order_index: newOrderIndex },
+      });
+    });
+
+    return { success: true };
+  }
 }

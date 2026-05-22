@@ -384,6 +384,31 @@ export default function AdminCourses() {
     }
   };
 
+  const handleMoveTheme = async (themeIndex: number, direction: 'up' | 'down') => {
+    if (!selectedCourseForThemes) return;
+
+    const themesCopy = JSON.parse(JSON.stringify(selectedCourseForThemes.themes || []));
+    const targetIndex = direction === 'up' ? themeIndex - 1 : themeIndex + 1;
+    if (targetIndex < 0 || targetIndex >= themesCopy.length) return;
+
+    const themeToMove = themesCopy[themeIndex];
+    themesCopy.splice(themeIndex, 1);
+    themesCopy.splice(targetIndex, 0, themeToMove);
+    themesCopy.forEach((t: any, i: number) => { t.order_index = i + 1; });
+
+    setSelectedCourseForThemes((prev: any) => ({ ...prev, themes: themesCopy }));
+
+    try {
+      await axios.patch(`${API_URL}/themes/${themeToMove.id}/reorder`, {
+        newOrderIndex: targetIndex + 1,
+      }, getTokenConfig());
+      showToast('Порядок сохранен!', 'success');
+    } catch (err) {
+      showToast('Ошибка сохранения порядка', 'error');
+      fetchItems();
+    }
+  };
+
   // 🔥 НАДЕЖНАЯ ФУНКЦИЯ ДЛЯ ПЕРЕМЕЩЕНИЯ УРОКОВ СТРЕЛОЧКАМИ
   const handleMoveLesson = async (themeIndex: number, lessonIndex: number, direction: 'up' | 'down', type: 'step' | 'module') => {
     if (!selectedCourseForThemes) return;
@@ -1241,8 +1266,8 @@ export default function AdminCourses() {
               <button type="button" onClick={() => { setShowThemeModal(false); resetLessonForm(); fetchItems(); }} className="absolute top-6 right-6 p-2 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-full z-20 shadow-sm transition-colors"><X className="w-5 h-5" /></button>
               
               {/* 🔥 ШАПКА КУРСА */}
-              <div className="p-6 lg:p-8 pr-16 bg-white border-b border-gray-100 flex flex-col xl:flex-row xl:items-center justify-between shrink-0 gap-6 relative z-10">
-                <div className="w-full xl:flex-1 min-w-0">
+              <div className="p-6 lg:p-8 bg-white border-b border-gray-100 flex flex-col xl:flex-row xl:items-center shrink-0 gap-4 sm:gap-6 relative z-10">
+                <div className="w-full xl:flex-1 xl:min-w-[12rem] min-w-0">
                   {editingCourseId === selectedCourseForThemes.id ? (
                     <div className="flex items-center gap-2 w-full max-w-2xl">
                       <input 
@@ -1266,14 +1291,14 @@ export default function AdminCourses() {
                   )}
                 </div>
 
-                <div className="w-max shrink-0 bg-gray-50 p-2.5 rounded-2xl border border-gray-100 flex items-center gap-3">
-                   <label className="text-[10px] font-black text-indigo-500 uppercase tracking-widest flex items-center gap-1.5 ml-2">
-                     <Folder className="w-3.5 h-3.5" /> Относится к разделу:
+                <div className="w-full xl:w-auto max-w-full shrink-0 bg-gray-50 p-2.5 rounded-2xl border border-gray-100 flex items-center gap-3 xl:ml-auto mr-14 sm:mr-16">
+                   <label className="text-[10px] font-black text-indigo-500 uppercase tracking-widest flex items-center gap-1.5 ml-2 shrink-0">
+                     <Folder className="w-3.5 h-3.5 shrink-0" /> Относится к разделу:
                    </label>
                    <select
                      value={selectedCourseForThemes.categoryId || ''}
                      onChange={(e) => handleUpdateCourseCategory(selectedCourseForThemes.id, e.target.value)}
-                     className="w-48 bg-white border border-gray-200 text-sm font-bold text-gray-800 rounded-xl px-3 py-2 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 transition-all cursor-pointer shadow-sm"
+                     className="w-full min-w-0 sm:w-48 max-w-full bg-white border border-gray-200 text-sm font-bold text-gray-800 rounded-xl px-3 py-2 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 transition-all cursor-pointer shadow-sm"
                    >
                      <option value="">Без раздела</option>
                      {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
@@ -1290,7 +1315,12 @@ export default function AdminCourses() {
                     return (
                       <div key={theme.id} className="bg-white rounded-[2.5rem] p-6 lg:p-8 shadow-sm border-2 border-gray-100">
                         <div className="flex flex-col lg:flex-row lg:justify-between lg:items-center gap-4 mb-8">
-                          <div className="flex-1 min-w-0">
+                          <div className="flex-1 flex items-center gap-3 min-w-0">
+                            <div className="flex flex-col gap-1 shrink-0 bg-white shadow-sm border border-gray-100 rounded-lg p-1">
+                              <button type="button" onClick={() => handleMoveTheme(tIdx, 'up')} title="Наверх" disabled={tIdx === 0} className="text-gray-400 hover:text-gray-900 hover:bg-gray-100 rounded disabled:opacity-30 disabled:hover:bg-transparent p-1 transition-colors"><ChevronUp size={18} /></button>
+                              <button type="button" onClick={() => handleMoveTheme(tIdx, 'down')} title="Вниз" disabled={tIdx === (selectedCourseForThemes.themes.length - 1)} className="text-gray-400 hover:text-gray-900 hover:bg-gray-100 rounded disabled:opacity-30 disabled:hover:bg-transparent p-1 transition-colors"><ChevronDown size={18} /></button>
+                            </div>
+                            <div className="flex-1 min-w-0">
                             {editingThemeId === theme.id ? (
                               <div className="flex items-center gap-2 w-full">
                                 <input 
@@ -1312,6 +1342,7 @@ export default function AdminCourses() {
                                 <span className="truncate">Модуль {theme.order_index}. {theme.title}</span> <Pencil className="w-5 h-5 text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
                               </h4>
                             )}
+                            </div>
                           </div>
                           <div className="flex gap-2 shrink-0 bg-gray-50 p-1.5 rounded-2xl">
                             <button type="button" onClick={() => handleToggleThemeVisibility(theme.id, theme.is_visible)} className="p-2.5 bg-white rounded-xl shadow-sm text-gray-400 hover:text-gray-900 transition-colors">{theme.is_visible === false ? (<EyeOff className="w-5 h-5" />) : (<Eye className="w-5 h-5" />)}</button>
