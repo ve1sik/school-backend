@@ -5,14 +5,23 @@ import { SubmissionsService } from './submissions.service';
 export class SubmissionsController {
   constructor(private readonly submissionsService: SubmissionsService) {}
 
-  // 1. Студент сдает работу
   @Post()
   createSubmission(@Headers('authorization') auth: string, @Body() body: any) {
     if (!auth) throw new UnauthorizedException('Нет токена');
-    
+
     const token = auth.split(' ')[1];
     const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString());
-    const userId = payload.sub || payload.id; 
+    const userId = payload.sub || payload.id;
+
+    if (body.autoGraded === true) {
+      const score = Number(body.score) || 0;
+      return this.submissionsService.createAutoGradedSubmission(
+        userId,
+        body,
+        score,
+        score > 0,
+      );
+    }
 
     return this.submissionsService.createSubmission(userId, body);
   }

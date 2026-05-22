@@ -4,11 +4,19 @@ import axios from 'axios';
 import { 
   ArrowLeft, Loader2, CheckCircle2, Clock, PenTool, CheckSquare, 
   XCircle, Type, PlayCircle, FileDown, Link2, ExternalLink, 
-  Image as ImageIcon, BookOpen, X, FileSignature, ListTodo, ChevronRight
+  Image as ImageIcon, X, FileSignature, ListTodo, ChevronRight
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ReactQuill from 'react-quill-new';
 import 'react-quill-new/dist/quill.snow.css';
+import {
+  QuestionBlock,
+  OptionText,
+  ExplanationBlock,
+  getOptionLetter,
+  getOptionLetterClass,
+  LESSON_TEST_STYLES,
+} from '../components/LessonTestUI';
 
 const API_URL = 'https://prepodmgy.ru/api';
 
@@ -159,7 +167,7 @@ const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswer
   }
 
   return (
-    <div className="bg-white border border-gray-100 rounded-[2rem] p-6 md:p-8 relative shadow-lg shadow-gray-200/50 mb-8">
+    <div className="bg-white border border-gray-100 rounded-[2rem] p-6 md:p-8 relative shadow-lg shadow-indigo-100/40 mb-8">
       <div className="flex justify-between items-center mb-6">
         <h4 className="font-black text-xl text-gray-900 flex items-center gap-3">
           <group.Icon className={`w-6 h-6 ${group.iconColor?.split(' ')[1] || ''}`} />
@@ -211,7 +219,7 @@ const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswer
       </div>
 
       <div className="flex flex-wrap items-center gap-2 mb-6">
-        <div className="px-3 py-1.5 rounded-md bg-purple-50 text-purple-600 text-[10px] font-black uppercase tracking-widest">
+        <div className="px-3 py-1.5 rounded-lg bg-purple-50 text-purple-600 text-[10px] font-black uppercase tracking-widest border border-purple-100">
           Вопрос {activeStep + 1}
         </div>
         {block.type !== 'written' && (
@@ -272,22 +280,20 @@ const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswer
         )}
       </AnimatePresence>
 
-      <div className="ql-snow w-full">
-        <div 
-          className="ql-editor !p-0 text-lg md:text-xl font-bold text-gray-900 mb-6 leading-relaxed break-words" 
-          dangerouslySetInnerHTML={{ __html: safeHtml(block.question) }} 
-        />
-      </div>
+      <QuestionBlock content={block.question || ''} mode="html" />
       
       {(block.questionImage || block.image) && (
         <ExpandableImage src={getFullUrl(block.questionImage || block.image)} alt="Схема" className="mb-8" />
       )}
 
       <div className="space-y-3 mb-8">
+        {block.type === 'test' && (
+          <p className="text-[10px] font-black uppercase tracking-[0.15em] text-gray-400 mb-1 pl-1">Выберите вариант ответа</p>
+        )}
         {block.type === 'test' && Array.isArray(block.options) && block.options.map((opt: any, idx: number) => {
           const isChecked = selected.includes(opt.text) || (typeof serverSubmission?.answer === 'string' && serverSubmission.answer.includes(opt.text));
-          let optClass = "flex items-center gap-4 p-4 md:p-5 rounded-2xl border-2 transition-all cursor-pointer relative ";
-          let textClass = "font-bold text-base break-words ";
+          let optClass = "group flex items-center gap-3 md:gap-4 p-4 md:p-5 rounded-2xl border-2 transition-all cursor-pointer relative ";
+          let textClass = "";
           
           let showGreenCheck = false;
           let showRedCross = false;
@@ -328,21 +334,26 @@ const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswer
 
           if (isLocked) optClass += " opacity-90 pointer-events-none";
 
+          const letterClass = `w-9 h-9 rounded-xl flex items-center justify-center font-black text-sm shrink-0 border-2 transition-all ${getOptionLetterClass(isChecked, isLocked, result, isExhausted, opt)}`;
+
           return (
             <label key={idx} className={optClass}>
-              <div className="relative flex items-center justify-center w-6 h-6 shrink-0">
-                <input type="checkbox" checked={isChecked} disabled={isLocked} onChange={() => { if (!isLocked) handleAnswerToggle(block.id, opt.text); }} className="peer w-6 h-6 rounded border-2 border-gray-300 appearance-none checked:bg-[#A855F7] checked:border-[#A855F7] transition-all cursor-pointer" />
-                <CheckSquare className="w-3.5 h-3.5 text-white absolute pointer-events-none opacity-0 peer-checked:opacity-100 transition-opacity" />
-              </div>
-              <span className={textClass}>{opt.text}</span>
-              
+              <input
+                type="checkbox"
+                checked={isChecked}
+                disabled={isLocked}
+                onChange={() => { if (!isLocked) handleAnswerToggle(block.id, opt.text); }}
+                className="sr-only"
+              />
+              <span className={letterClass}>{getOptionLetter(idx)}</span>
+              <OptionText text={opt.text} className={textClass} />
               {showGreenCheck && (
-                <div className="ml-auto bg-emerald-500 text-white rounded-full p-1 shadow-md shrink-0">
+                <div className="ml-auto bg-emerald-500 text-white rounded-full p-1.5 shadow-md shrink-0">
                   <CheckCircle2 className="w-4 h-4" />
                 </div>
               )}
               {showRedCross && (
-                <div className="ml-auto bg-[#FF4A6B] text-white rounded-full p-1 shadow-md shrink-0">
+                <div className="ml-auto bg-[#FF4A6B] text-white rounded-full p-1.5 shadow-md shrink-0">
                   <X className="w-4 h-4" />
                 </div>
               )}
@@ -352,13 +363,14 @@ const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswer
 
         {block.type === 'test_short' && (
           <div className="space-y-3">
+            <p className="text-[10px] font-black uppercase tracking-[0.15em] text-gray-400 pl-1">Краткий ответ</p>
             <input 
               type="text" 
               value={serverSubmission?.answer || selected[0] || ''} 
               onChange={(e) => { if (!isLocked) handleTextAnswerChange(block.id, e.target.value); }} 
               disabled={isLocked}
-              placeholder="Введите ответ" 
-              className={`w-full p-5 text-lg font-bold rounded-2xl border-2 transition-all outline-none ${inputStateClass}`}
+              placeholder="Введите ответ одной фразой..." 
+              className={`w-full px-5 py-4 md:py-5 text-base md:text-lg font-semibold rounded-2xl border-2 transition-all outline-none placeholder:text-gray-400 placeholder:font-medium ${inputStateClass}`}
             />
             {isExhausted && result !== 'SUCCESS' && (
                <motion.div initial={{ opacity: 0, y: -5 }} animate={{ opacity: 1, y: 0 }} className="text-sm font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 p-4 rounded-xl flex items-center gap-2">
@@ -371,6 +383,7 @@ const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswer
         {/* 🔥 ИДЕАЛЬНАЯ ТАБЛИЦА В ЛИНЕЙКУ (Стрелочки + Зачеркивание) */}
         {block.type === 'matching' && block.pairs && (
           <div className="space-y-4 w-full overflow-x-auto custom-scrollbar pb-4 pt-2">
+            <p className="text-[10px] font-black uppercase tracking-[0.15em] text-gray-400 pl-1">Заполните соответствия</p>
             <div className="flex gap-3 min-w-max">
               {block.pairs.map((pair: any, idx: number) => {
                 const currentSelectedPair = selected.find((s: string) => s.startsWith(`${pair.left}|||`));
@@ -410,9 +423,9 @@ const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswer
                 }
 
                 return (
-                  <div key={idx} className="flex flex-col gap-2 w-32 shrink-0">
-                    <div className={`flex flex-col border-2 rounded-xl overflow-hidden transition-all shadow-sm ${tBorderClass}`}>
-                      <div className="bg-gray-100 p-2 text-center font-black text-gray-800 border-b-2 border-inherit flex items-center justify-center min-h-[3rem] break-words px-2">
+                  <div key={idx} className="flex flex-col gap-2 w-36 shrink-0">
+                    <div className={`flex flex-col border-2 rounded-2xl overflow-hidden transition-all shadow-sm ${tBorderClass}`}>
+                      <div className="bg-gradient-to-b from-gray-50 to-gray-100/80 px-3 py-3 text-center font-bold text-gray-800 border-b-2 border-inherit flex items-center justify-center min-h-[3.25rem] break-words text-sm leading-snug">
                         {pair.left}
                       </div>
                       <input
@@ -496,19 +509,8 @@ const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswer
 
       <AnimatePresence>
         {(isLocked || isExhausted) && block.explanation && (
-          <motion.div initial={{ opacity: 0, height: 0, marginTop: 0 }} animate={{ opacity: 1, height: 'auto', marginTop: 24 }} exit={{ opacity: 0, height: 0, marginTop: 0 }} className="bg-purple-50/50 border border-purple-100 rounded-2xl p-6 overflow-hidden">
-            <h5 className="flex items-center gap-2 text-purple-700 font-black text-sm uppercase tracking-widest mb-4">
-              <BookOpen className="w-5 h-5" /> Разбор задания
-            </h5>
-            {/* 🔥 Заменили на Quill readOnly */}
-            <div className="w-full text-sm text-gray-800 theory-read-only">
-              <ReactQuill 
-                theme="snow"
-                value={block.explanation || ''}
-                readOnly={true}
-                modules={{ toolbar: false }}
-              />
-            </div>
+          <motion.div initial={{ opacity: 0, height: 0, marginTop: 0 }} animate={{ opacity: 1, height: 'auto', marginTop: 24 }} exit={{ opacity: 0, height: 0, marginTop: 0 }} className="overflow-hidden">
+            <ExplanationBlock content={block.explanation || ''} mode="quill" />
           </motion.div>
         )}
       </AnimatePresence>
@@ -706,26 +708,24 @@ export default function HomeworkView() {
       if (isSuccess || isNowExhausted) {
         try {
           const token = localStorage.getItem('token');
+          const finalScore = isSuccess ? (block.maxScore || 100) : 0;
           const res = await axios.post(`${API_URL}/submissions`, {
             lessonId: homework.id,
             blockId: block.id,
             question: questionWithImage,
             answer: finalAnswerString,
-            maxScore: block.maxScore || 100
+            maxScore: block.maxScore || 100,
+            autoGraded: true,
+            score: finalScore,
           }, { headers: { Authorization: `Bearer ${token}` } });
 
-          if (res.data && res.data.id) {
-            const finalScore = isSuccess ? (block.maxScore || 100) : 0;
-            const comment = isSuccess ? '🤖 Автоматическая проверка: Верно!' : '🤖 Автоматическая проверка: Неверно. Попытки исчерпаны.';
-            
-            await axios.patch(`${API_URL}/submissions/${res.data.id}/grade`, {
-              score: finalScore,
-              comment: comment
-            });
-
+          if (res.data?.id) {
+            const comment = res.data.comment || (isSuccess
+              ? '🤖 Автоматическая проверка: Верно!'
+              : '🤖 Автоматическая проверка: Неверно. Попытки исчерпаны.');
             setSubmissions(prev => [
               ...prev.filter(s => s.blockId !== block.id && s.block_id !== block.id),
-              { blockId: block.id, status: 'GRADED', score: finalScore, answer: finalAnswerString, comment }
+              { blockId: block.id, status: 'GRADED', score: finalScore, answer: finalAnswerString, comment },
             ]);
           }
         } catch (error) {}
@@ -882,6 +882,7 @@ export default function HomeworkView() {
         .ql-align-justify { text-align: justify !important; }
         .ql-editor ol, .ql-editor ul { padding-left: 1.5em !important; margin-bottom: 1em !important; }
         .ql-editor li { margin-bottom: 0.5em !important; }
+        ${LESSON_TEST_STYLES}
       `}</style>
 
       {/* ЛЕВЫЙ САЙДБАР: Формат плашки, как в CourseView */}

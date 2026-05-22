@@ -334,8 +334,15 @@ export default function CuratorDashboard() {
                     {/* ВОПРОС И ОТВЕТ */}
                     <div className="p-8 md:p-10 bg-gray-50 border-b border-gray-100">
                       <div className="flex items-center justify-between mb-6">
-                        <div className="flex items-center gap-2 text-gray-500 font-black text-xs uppercase tracking-widest">
-                          <PenTool className="w-4 h-4 text-purple-500" /> Задание {index + 1}
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-gray-500 font-black text-xs uppercase tracking-widest flex items-center gap-2">
+                            <PenTool className="w-4 h-4 text-purple-500" /> Задание {index + 1}
+                          </span>
+                          {sub.isAutoGraded && (
+                            <span className="px-2.5 py-1 rounded-lg bg-indigo-100 text-indigo-700 text-[10px] font-black uppercase tracking-wider">
+                              🤖 Автопроверка
+                            </span>
+                          )}
                         </div>
                         <div className="bg-white px-4 py-2 rounded-xl text-xs font-black text-gray-400 shadow-sm border border-gray-100">
                           Макс. балл: <span className="text-purple-600 text-base">{sub.maxScore}</span>
