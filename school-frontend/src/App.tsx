@@ -19,8 +19,9 @@ import CuratorDashboard from './pages/CuratorDashboard';
 import CuratorMessages from './pages/CuratorMessages';
 import Shop from './pages/Shop';
 
-// 🔥 Импортируем нашу новую страницу Групп
+// 🔥 Наша админка Групп и Пользователей
 import AdminGroups from './pages/AdminGroups';
+import AdminUsers from './pages/AdminUsers';
 
 export default function App() {
   return (
@@ -31,8 +32,7 @@ export default function App() {
       <Route path="/curator" element={<CuratorDashboard />} />
       <Route path="/curator/messages" element={<CuratorMessages />} />
 
-      {/* ВСЁ, ЧТО ВНУТРИ ЭТОГО БЛОКА, БУДЕТ С ПАНЕЛЬЮ (LAYOUT) 
-      */}
+      {/* ВСЁ, ЧТО ВНУТРИ ЭТОГО БЛОКА, БУДЕТ С ПАНЕЛЬЮ (LAYOUT) */}
       <Route path="/" element={<Layout />}>
         <Route index element={<Dashboard />} />
         <Route path="courses" element={<StudentCourses />} />
@@ -47,6 +47,7 @@ export default function App() {
         {/* 🔥 АДМИНКА */}
         <Route path="admin" element={<AdminCourses />} />
         <Route path="admin/groups" element={<AdminGroups />} /> 
+        <Route path="admin/users" element={<AdminUsers />} /> 
         
         <Route path="schedule" element={<Schedule />} />
         

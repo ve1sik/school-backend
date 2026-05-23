@@ -872,36 +872,59 @@ export default function CourseView() {
       
       {/* 🔥 ГЛОБАЛЬНЫЕ СТИЛИ ДЛЯ РЕДАКТОРА */}
       <style>{`
-        /* Убираем рамки у Quill в режиме чтения (для ученика) */
-        .theory-read-only .ql-container.ql-snow {
-          border: none !important;
-          font-family: inherit !important;
-          font-size: inherit !important; /* 🔥 ТЕПЕРЬ ШРИФТ НАСЛЕДУЕТСЯ ОТ TAILWIND */
-        }
-        .theory-read-only .ql-editor {
-          padding: 0 !important;
-          color: inherit !important;
-        }
-        
-        /* Базовые правки для всех редакторов */
-        .ql-editor { 
-          min-height: auto !important; 
-          font-family: inherit !important; 
-          font-size: inherit !important; /* 🔥 ТЕПЕРЬ ШРИФТ НАСЛЕДУЕТСЯ ОТ TAILWIND */
-          
-          /* Возвращаем родное поведение Quill, убираем наши костыли */
-          white-space: pre-wrap !important;
-          word-wrap: break-word !important;
-        }
-        .ql-editor p { margin-bottom: 0.75em !important; line-height: 1.6 !important; }
-        .ql-editor img { max-width: 100% !important; border-radius: 1rem !important; margin: 1rem 0 !important; }
-        .ql-align-center { text-align: center !important; }
-        .ql-align-right { text-align: right !important; }
-        .ql-align-justify { text-align: justify !important; }
-        .ql-editor ol, .ql-editor ul { padding-left: 1.5em !important; margin-bottom: 1em !important; }
-        .ql-editor li { margin-bottom: 0.5em !important; }
-        ${LESSON_TEST_STYLES}
-      `}</style>
+  /* Убираем рамки у Quill в режиме чтения */
+  .theory-read-only .ql-container.ql-snow {
+    border: none !important;
+    font-family: inherit !important;
+    font-size: inherit !important;
+    min-width: 0 !important;
+    overflow: hidden !important;
+  }
+  .theory-read-only .ql-editor {
+    padding: 0 !important;
+    color: inherit !important;
+    white-space: normal !important;
+    word-break: break-word !important;
+    overflow-wrap: break-word !important;
+    max-width: 100% !important;
+    overflow-x: hidden !important;
+  }
+  
+  /* Базовые правки для всех редакторов */
+  .ql-container {
+    min-width: 0 !important;
+    overflow: hidden !important;
+  }
+  .ql-editor { 
+    min-height: auto !important; 
+    font-family: inherit !important; 
+    font-size: 16px !important;
+    white-space: normal !important;
+    word-break: break-word !important;
+    overflow-wrap: break-word !important;
+    word-wrap: break-word !important;
+    max-width: 100% !important;
+    overflow-x: hidden !important;
+  }
+  .ql-editor p { 
+    margin-bottom: 0.75em !important; 
+    line-height: 1.6 !important;
+    white-space: normal !important;
+    word-break: break-word !important;
+    overflow-wrap: break-word !important;
+  }
+  .ql-editor span, .ql-editor strong, .ql-editor em {
+    word-break: break-word !important;
+    overflow-wrap: break-word !important;
+  }
+  .ql-editor img { max-width: 100% !important; border-radius: 1rem !important; margin: 1rem 0 !important; }
+  .ql-align-center { text-align: center !important; }
+  .ql-align-right { text-align: right !important; }
+  .ql-align-justify { text-align: justify !important; }
+  .ql-editor ol, .ql-editor ul { padding-left: 1.5em !important; margin-bottom: 1em !important; }
+  .ql-editor li { margin-bottom: 0.5em !important; }
+  ${LESSON_TEST_STYLES}
+`}</style>
 
       {/* 🔥 БОКОВАЯ ПАНЕЛЬ: Одинаковая высота и стиль с главным блоком */}
       <aside className="w-[300px] lg:w-[340px] bg-white rounded-[2rem] border border-gray-100 flex flex-col h-full shrink-0 z-20 shadow-sm overflow-hidden">

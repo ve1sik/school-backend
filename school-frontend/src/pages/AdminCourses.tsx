@@ -988,33 +988,52 @@ export default function AdminCourses() {
       
       {/* ГЛОБАЛЬНЫЕ СТИЛИ */}
       <style>{`
-        .ql-editor { 
-          min-height: auto !important; 
-          font-family: inherit !important; 
-          font-size: 16px !important; 
-          padding: 0 !important;
-          
-          white-space: normal !important; 
-          word-wrap: break-word !important; 
-          overflow-wrap: break-word !important; 
-          word-break: normal !important;
-        }
-        
-        .ql-editor p { 
-          margin-bottom: 0.75em !important; 
-          line-height: 1.6 !important; 
-          white-space: normal !important; 
-          word-wrap: break-word !important; 
-          overflow-wrap: break-word !important; 
-        }
+  /* ===== QUILL CORE FIXES ===== */
+  .ql-container {
+    min-width: 0 !important;
+    overflow: hidden !important;
+  }
+  .ql-editor { 
+    min-height: auto !important; 
+    font-family: inherit !important; 
+    font-size: 16px !important; 
+    padding: 12px 16px !important;
+    
+    /* 🔥 ГЛАВНЫЙ ФИК ПЕРЕНОСА */
+    white-space: normal !important;
+    word-break: break-word !important;
+    overflow-wrap: break-word !important;
+    word-wrap: break-word !important;
+    max-width: 100% !important;
+    overflow-x: hidden !important;
+  }
+  .ql-editor p { 
+    margin-bottom: 0.75em !important; 
+    line-height: 1.6 !important; 
+    white-space: normal !important;
+    word-break: break-word !important;
+    overflow-wrap: break-word !important;
+  }
+  /* 🔥 ФИК ДЛЯ ВЛОЖЕННЫХ КОНТЕЙНЕРОВ */
+  .ql-editor .ql-clipboard,
+  .ql-editor span,
+  .ql-editor strong,
+  .ql-editor em {
+    word-break: break-word !important;
+    overflow-wrap: break-word !important;
+  }
+  .ql-editor img { max-width: 100% !important; border-radius: 1rem !important; margin: 1rem 0 !important; }
+  .ql-align-center { text-align: center !important; }
+  .ql-align-right { text-align: right !important; }
+  .ql-align-justify { text-align: justify !important; }
+  .ql-editor ol, .ql-editor ul { padding-left: 1.5em !important; margin-bottom: 1em !important; }
+  .ql-editor li { margin-bottom: 0.5em !important; }
 
-        .ql-editor img { max-width: 100% !important; border-radius: 1rem !important; margin: 1rem 0 !important; }
-        .ql-align-center { text-align: center !important; }
-        .ql-align-right { text-align: right !important; }
-        .ql-align-justify { text-align: justify !important; }
-        .ql-editor ol, .ql-editor ul { padding-left: 1.5em !important; margin-bottom: 1em !important; }
-        .ql-editor li { margin-bottom: 0.5em !important; }
-      `}</style>
+  /* 🔥 ОГРАНИЧЕНИЕ ШИРИНЫ БЛОКА ТЕКСТОВОГО РЕДАКТОРА */
+  .ql-snow .ql-editor {
+    min-height: 120px;
+  }
+`}</style>
 
       {/* БОКОВАЯ ПАНЕЛЬ */}
       <aside className="w-72 bg-white border border-gray-100 flex flex-col sticky top-4 z-10 shadow-xl shrink-0 self-start max-h-[calc(100vh-2rem)] overflow-hidden rounded-[2rem] ml-4">

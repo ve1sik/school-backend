@@ -124,6 +124,7 @@ export default function Layout() {
     if (item) return item.label;
     if (location.pathname === '/admin') return 'Управление курсами';
     if (location.pathname === '/admin/groups') return 'Управление потоками';
+    if (location.pathname === '/admin/users') return 'Управление пользователями';
     if (location.pathname.startsWith('/curator')) return 'Кабинет куратора';
     if (location.pathname.includes('/mistakes')) return 'Разбор полетов';
     return 'Платформа';
@@ -133,8 +134,10 @@ export default function Layout() {
     <div className="flex h-screen bg-[#F4F7FE] font-sans">
       
       {/* АВТОМАТИЧЕСКАЯ ВЫДВИЖНАЯ ПАНЕЛЬ */}
-      <aside className="group w-[92px] hover:w-72 bg-white border-r border-gray-100 flex flex-col shadow-sm shrink-0 transition-all duration-300 ease-in-out overflow-hidden z-20">
-        <div className="p-5 flex flex-col h-full w-72">
+      {/* 🔥 ИЗМЕНЕНО: Ширина при наведении стала w-[320px] вместо w-72 */}
+      <aside className="group w-[92px] hover:w-[320px] bg-white border-r border-gray-100 flex flex-col shadow-sm shrink-0 transition-all duration-300 ease-in-out overflow-hidden z-20">
+        {/* 🔥 ИЗМЕНЕНО: Внутренний контейнер тоже стал w-[320px] */}
+        <div className="p-5 flex flex-col h-full w-[320px]">
           
           <div className="flex items-center gap-4 mb-8 pl-1.5">
             <div className="w-10 h-10 bg-[#5A4BFF] rounded-xl flex items-center justify-center shadow-md shadow-indigo-500/30 shrink-0">
@@ -149,7 +152,7 @@ export default function Layout() {
             {menuItems.map((item) => {
               const isActive = location.pathname === item.path;
               const isShop = item.path === '/shop';
-              const isMessages = item.path === '/messages'; // 🔥 Проверяем, это ли кнопка сообщений
+              const isMessages = item.path === '/messages';
               
               return (
                 <Link
@@ -166,7 +169,6 @@ export default function Layout() {
                   <div className="relative">
                     <item.icon className={`w-6 h-6 shrink-0 ${isActive ? 'text-[#5A4BFF]' : isShop ? 'text-purple-400' : 'text-gray-400'}`} />
                     
-                    {/* 🔥 КРАСНЫЙ БЕЙДЖИК НЕПРОЧИТАННЫХ (рисуем только если больше 0) */}
                     {isMessages && unreadCount > 0 && (
                       <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-[9px] font-black flex items-center justify-center rounded-full border-2 border-white shadow-sm">
                         {unreadCount > 9 ? '9+' : unreadCount}
@@ -176,7 +178,6 @@ export default function Layout() {
 
                   <span className="text-sm font-bold whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center gap-2">
                     {item.label}
-                    {/* Цифра также показывается текстом, когда меню открыто */}
                     {isMessages && unreadCount > 0 && (
                        <span className="bg-red-500 text-white text-[10px] px-1.5 py-0.5 rounded-md leading-none">
                          {unreadCount}
@@ -189,28 +190,44 @@ export default function Layout() {
 
             {isAdmin && (
               <div className="pt-2 mt-2 border-t border-gray-50 space-y-1.5">
+                {/* 🔥 ИЗМЕНЕНО: Стили активных админских кнопок теперь такие же, как у обычных */}
                 <Link
                   to="/admin"
                   className={`flex items-center gap-4 p-3 rounded-xl transition-all ${
                     location.pathname === '/admin'
-                      ? 'bg-gray-900 text-[#00FFCC] shadow-lg shadow-emerald-500/20' 
+                      ? 'bg-[#EEF2FF] text-[#5A4BFF] shadow-sm' 
                       : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'
                   }`}
                 >
-                  <BookOpen className={`w-6 h-6 shrink-0 ${location.pathname === '/admin' ? 'text-[#00FFCC]' : 'text-gray-400'}`} />
+                  <BookOpen className={`w-6 h-6 shrink-0 ${location.pathname === '/admin' ? 'text-[#5A4BFF]' : 'text-gray-400'}`} />
                   <span className="text-sm font-bold whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-300">
                     Управление курсами
                   </span>
                 </Link>
+
+                <Link
+                  to="/admin/users"
+                  className={`flex items-center gap-4 p-3 rounded-xl transition-all ${
+                    location.pathname === '/admin/users'
+                      ? 'bg-[#EEF2FF] text-[#5A4BFF] shadow-sm' 
+                      : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'
+                  }`}
+                >
+                  <Users className={`w-6 h-6 shrink-0 ${location.pathname === '/admin/users' ? 'text-[#5A4BFF]' : 'text-gray-400'}`} />
+                  <span className="text-sm font-bold whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                    Управление пользователями
+                  </span>
+                </Link>
+
                 <Link
                   to="/admin/groups"
                   className={`flex items-center gap-4 p-3 rounded-xl transition-all ${
                     location.pathname === '/admin/groups'
-                      ? 'bg-gray-900 text-[#00FFCC] shadow-lg shadow-emerald-500/20' 
+                      ? 'bg-[#EEF2FF] text-[#5A4BFF] shadow-sm' 
                       : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'
                   }`}
                 >
-                  <ShieldCheck className={`w-6 h-6 shrink-0 ${location.pathname === '/admin/groups' ? 'text-[#00FFCC]' : 'text-gray-400'}`} />
+                  <ShieldCheck className={`w-6 h-6 shrink-0 ${location.pathname === '/admin/groups' ? 'text-[#5A4BFF]' : 'text-gray-400'}`} />
                   <span className="text-sm font-bold whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-300">
                     Управление потоками
                   </span>
@@ -220,11 +237,11 @@ export default function Layout() {
                   to="/curator"
                   className={`flex items-center gap-4 p-3 rounded-xl transition-all ${
                     location.pathname.startsWith('/curator')
-                      ? 'bg-gray-900 text-[#00FFCC] shadow-lg shadow-emerald-500/20' 
+                      ? 'bg-[#EEF2FF] text-[#5A4BFF] shadow-sm' 
                       : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'
                   }`}
                 >
-                  <Users className={`w-6 h-6 shrink-0 ${location.pathname.startsWith('/curator') ? 'text-[#00FFCC]' : 'text-gray-400'}`} />
+                  <Users className={`w-6 h-6 shrink-0 ${location.pathname.startsWith('/curator') ? 'text-[#5A4BFF]' : 'text-gray-400'}`} />
                   <span className="text-sm font-bold whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-300">
                     Кабинет куратора
                   </span>
@@ -256,7 +273,6 @@ export default function Layout() {
           <div className="flex items-center gap-6">
             <button className="text-gray-400 hover:text-gray-600 transition-colors relative">
               <Bell className="w-6 h-6" />
-              {/* Тут мы тоже можем привязать бейджик потом, если сделаем общие уведомления */}
               <span className="absolute top-0 right-0 w-2 h-2 bg-red-500 rounded-full border-2 border-[#F4F7FE]"></span>
             </button>
             

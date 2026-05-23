@@ -866,24 +866,56 @@ export default function HomeworkView() {
   return (
     <div className="flex h-screen bg-[#F4F7FE] font-sans text-gray-900 p-4 md:p-6 lg:p-8 gap-4 lg:gap-8 overflow-hidden">
       <style>{`
-        .ql-editor { 
-          min-height: auto !important; 
-          font-family: inherit !important; 
-          font-size: 16px !important; 
-          word-break: normal !important; 
-          overflow-wrap: break-word !important; 
-          white-space: normal !important;
-          padding: 0 !important;
-        }
-        .ql-editor p { margin-bottom: 0.75em !important; line-height: 1.6 !important; }
-        .ql-editor img { max-width: 100% !important; border-radius: 1rem !important; margin: 1rem 0 !important; }
-        .ql-align-center { text-align: center !important; }
-        .ql-align-right { text-align: right !important; }
-        .ql-align-justify { text-align: justify !important; }
-        .ql-editor ol, .ql-editor ul { padding-left: 1.5em !important; margin-bottom: 1em !important; }
-        .ql-editor li { margin-bottom: 0.5em !important; }
-        ${LESSON_TEST_STYLES}
-      `}</style>
+  .theory-read-only .ql-container.ql-snow {
+    border: none !important;
+    font-family: inherit !important;
+    font-size: inherit !important;
+    min-width: 0 !important;
+    overflow: hidden !important;
+  }
+  .theory-read-only .ql-editor {
+    padding: 0 !important;
+    white-space: normal !important;
+    word-break: break-word !important;
+    overflow-wrap: break-word !important;
+    max-width: 100% !important;
+    overflow-x: hidden !important;
+  }
+  .ql-container {
+    min-width: 0 !important;
+    overflow: hidden !important;
+  }
+  .ql-editor { 
+    min-height: auto !important; 
+    font-family: inherit !important; 
+    font-size: 16px !important; 
+    white-space: normal !important;
+    word-break: break-word !important;
+    overflow-wrap: break-word !important;
+    word-wrap: break-word !important;
+    max-width: 100% !important;
+    overflow-x: hidden !important;
+    padding: 0 !important;
+  }
+  .ql-editor p { 
+    margin-bottom: 0.75em !important; 
+    line-height: 1.6 !important;
+    white-space: normal !important;
+    word-break: break-word !important;
+    overflow-wrap: break-word !important;
+  }
+  .ql-editor span, .ql-editor strong, .ql-editor em {
+    word-break: break-word !important;
+    overflow-wrap: break-word !important;
+  }
+  .ql-editor img { max-width: 100% !important; border-radius: 1rem !important; margin: 1rem 0 !important; }
+  .ql-align-center { text-align: center !important; }
+  .ql-align-right { text-align: right !important; }
+  .ql-align-justify { text-align: justify !important; }
+  .ql-editor ol, .ql-editor ul { padding-left: 1.5em !important; margin-bottom: 1em !important; }
+  .ql-editor li { margin-bottom: 0.5em !important; }
+  ${LESSON_TEST_STYLES}
+`}</style>
 
       {/* ЛЕВЫЙ САЙДБАР: Формат плашки, как в CourseView */}
       <aside className="w-[300px] lg:w-[340px] bg-white rounded-[2rem] border border-gray-100 flex flex-col h-full shrink-0 z-20 shadow-sm overflow-hidden">
