@@ -14,7 +14,8 @@ import {
   GraduationCap,
   User,
   ShoppingCart,
-  Users
+  Users,
+  Layers
 } from 'lucide-react';
 
 const API_URL = 'https://prepodmgy.ru/api';
@@ -113,6 +114,7 @@ export default function Layout() {
     { path: '/courses', icon: BookOpen, label: 'Курсы' },
     { path: '/schedule', icon: Calendar, label: 'Расписание' },
     { path: '/homework', icon: FileText, label: 'Домашнее задание' },
+    { path: '/flashcards', icon: Layers, label: 'Флеш-карточки' },
     { path: '/messages', icon: MessageSquare, label: 'Сообщения' },
     { path: '/shop', icon: ShoppingCart, label: 'Магазин курсов' },
     { path: '/profile', icon: User, label: 'Мой профиль' },
@@ -125,6 +127,8 @@ export default function Layout() {
     if (location.pathname === '/admin') return 'Управление курсами';
     if (location.pathname === '/admin/groups') return 'Управление потоками';
     if (location.pathname === '/admin/users') return 'Управление пользователями';
+    if (location.pathname === '/admin/decks') return 'Флеш-карточки';
+    if (location.pathname === '/flashcards') return 'Флеш-карточки';
     if (location.pathname.startsWith('/curator')) return 'Кабинет куратора';
     if (location.pathname.includes('/mistakes')) return 'Разбор полетов';
     return 'Платформа';
@@ -230,6 +234,20 @@ export default function Layout() {
                   <ShieldCheck className={`w-6 h-6 shrink-0 ${location.pathname === '/admin/groups' ? 'text-[#5A4BFF]' : 'text-gray-400'}`} />
                   <span className="text-sm font-bold whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-300">
                     Управление потоками
+                  </span>
+                </Link>
+
+                <Link
+                  to="/admin/decks"
+                  className={`flex items-center gap-4 p-3 rounded-xl transition-all ${
+                    location.pathname === '/admin/decks'
+                      ? 'bg-[#EEF2FF] text-[#5A4BFF] shadow-sm' 
+                      : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'
+                  }`}
+                >
+                  <Layers className={`w-6 h-6 shrink-0 ${location.pathname === '/admin/decks' ? 'text-[#5A4BFF]' : 'text-gray-400'}`} />
+                  <span className="text-sm font-bold whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                    Карточки (колоды)
                   </span>
                 </Link>
 

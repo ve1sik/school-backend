@@ -23,6 +23,8 @@ const user_module_1 = require("./user/user.module");
 const messages_module_1 = require("./messages/messages.module");
 const enrollment_module_1 = require("./enrollment/enrollment.module");
 const subject_module_1 = require("./subject/subject.module");
+const deck_module_1 = require("./deck/deck.module");
+const flashcard_module_1 = require("./flashcard/flashcard.module");
 const upload_controller_1 = require("./upload/upload.controller");
 let AppModule = class AppModule {
 };
@@ -47,6 +49,8 @@ exports.AppModule = AppModule = __decorate([
             messages_module_1.MessagesModule,
             enrollment_module_1.EnrollmentModule,
             subject_module_1.SubjectModule,
+            deck_module_1.DeckModule,
+            flashcard_module_1.FlashcardModule,
         ],
         controllers: [
             upload_controller_1.UploadController,

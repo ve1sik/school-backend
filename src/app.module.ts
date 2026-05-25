@@ -16,6 +16,8 @@ import { UserModule } from './user/user.module';
 import { MessagesModule } from './messages/messages.module';
 import { EnrollmentModule } from './enrollment/enrollment.module';
 import { SubjectModule } from './subject/subject.module';
+import { DeckModule } from './deck/deck.module';
+import { FlashcardModule } from './flashcard/flashcard.module';
 
 // Контроллер загрузки
 import { UploadController } from './upload/upload.controller';
@@ -41,6 +43,8 @@ import { UploadController } from './upload/upload.controller';
     MessagesModule,
     EnrollmentModule,
     SubjectModule,
+    DeckModule,
+    FlashcardModule,
   ],
   controllers: [
     UploadController,

@@ -22,6 +22,8 @@ import Shop from './pages/Shop';
 // 🔥 Наша админка Групп и Пользователей
 import AdminGroups from './pages/AdminGroups';
 import AdminUsers from './pages/AdminUsers';
+import AdminDecks from './pages/AdminDecks';
+import FlashcardStudy from './pages/FlashcardStudy';
 
 export default function App() {
   return (
@@ -47,7 +49,8 @@ export default function App() {
         {/* 🔥 АДМИНКА */}
         <Route path="admin" element={<AdminCourses />} />
         <Route path="admin/groups" element={<AdminGroups />} /> 
-        <Route path="admin/users" element={<AdminUsers />} /> 
+        <Route path="admin/users" element={<AdminUsers />} />
+        <Route path="admin/decks" element={<AdminDecks />} />
         
         <Route path="schedule" element={<Schedule />} />
         
@@ -65,6 +68,7 @@ export default function App() {
       </Route>
 
       <Route path="homework/:id" element={<HomeworkView />} />
+      <Route path="flashcards" element={<FlashcardStudy />} />
 
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

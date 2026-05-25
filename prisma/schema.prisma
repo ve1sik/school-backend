@@ -70,6 +70,7 @@ model User {
 
   sent_messages     Message[] @relation("SentMessages")
   received_messages Message[] @relation("ReceivedMessages")
+  flashcard_progress FlashcardProgress[]
 
   subjects          Subject[] @relation("TeacherSubjects")
 
@@ -163,6 +164,7 @@ model Lesson {
   created_at DateTime @default(now())
 
   submissions Submission[]
+  decks       Deck[]
 
   is_homework Boolean @default(false)
 
@@ -298,4 +300,49 @@ model Subject {
   courses    Course[]
 
   @@map("subjects")
+}
+
+// ──────────────────────────────────────────────
+//  ФЛЕШ-КАРТОЧКИ (Spaced Repetition)
+// ──────────────────────────────────────────────
+
+model Deck {
+  id          String      @id @default(uuid())
+  title       String
+  description String?
+  lesson_id   String?
+  lesson      Lesson?     @relation(fields: [lesson_id], references: [id], onDelete: SetNull)
+  cards       Flashcard[]
+  created_at  DateTime    @default(now())
+
+  @@map("decks")
+}
+
+model Flashcard {
+  id          String              @id @default(uuid())
+  deck_id     String
+  deck        Deck                @relation(fields: [deck_id], references: [id], onDelete: Cascade)
+  front       String              @db.Text
+  back        String              @db.Text
+  order_index Int                 @default(0)
+  progress    FlashcardProgress[]
+  created_at  DateTime            @default(now())
+
+  @@map("flashcards")
+}
+
+model FlashcardProgress {
+  id               String     @id @default(uuid())
+  user_id          String
+  user             User       @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  flashcard_id     String
+  flashcard        Flashcard  @relation(fields: [flashcard_id], references: [id], onDelete: Cascade)
+  interval         Int        @default(1)
+  ease_factor      Float      @default(2.5)
+  next_review_at   DateTime   @default(now())
+  last_reviewed_at DateTime?
+  repetitions      Int        @default(0)
+
+  @@unique([user_id, flashcard_id])
+  @@map("flashcard_progress")
 }
