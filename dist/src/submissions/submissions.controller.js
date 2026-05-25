@@ -25,12 +25,24 @@ let SubmissionsController = class SubmissionsController {
         const token = auth.split(' ')[1];
         const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString());
         const userId = payload.sub || payload.id;
+        if (body.autoGraded === true) {
+            const score = Number(body.score) || 0;
+            return this.submissionsService.createAutoGradedSubmission(userId, body, score, score > 0);
+        }
         return this.submissionsService.createSubmission(userId, body);
     }
-    getPending() {
-        return this.submissionsService.getPendingSubmissions();
+    getSubmissionsByStatus(auth, status) {
+        if (!auth)
+            throw new common_1.UnauthorizedException('Нет токена');
+        const finalStatus = status === 'GRADED' ? 'GRADED' : 'PENDING';
+        return this.submissionsService.getSubmissionsByStatus(finalStatus);
     }
-    gradeSubmission(id, body) {
+    getPending() {
+        return this.submissionsService.getSubmissionsByStatus('PENDING');
+    }
+    gradeSubmission(auth, id, body) {
+        if (!auth)
+            throw new common_1.UnauthorizedException('Нет токена');
         return this.submissionsService.gradeSubmission(id, body.score, body.comment);
     }
     getMySubmission(auth, lessonId) {
@@ -60,6 +72,14 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], SubmissionsController.prototype, "createSubmission", null);
 __decorate([
+    (0, common_1.Get)(),
+    __param(0, (0, common_1.Headers)('authorization')),
+    __param(1, (0, common_1.Query)('status')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, String]),
+    __metadata("design:returntype", void 0)
+], SubmissionsController.prototype, "getSubmissionsByStatus", null);
+__decorate([
     (0, common_1.Get)('pending'),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", []),
@@ -67,10 +87,11 @@ __decorate([
 ], SubmissionsController.prototype, "getPending", null);
 __decorate([
     (0, common_1.Patch)(':id/grade'),
-    __param(0, (0, common_1.Param)('id')),
-    __param(1, (0, common_1.Body)()),
+    __param(0, (0, common_1.Headers)('authorization')),
+    __param(1, (0, common_1.Param)('id')),
+    __param(2, (0, common_1.Body)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:paramtypes", [String, String, Object]),
     __metadata("design:returntype", void 0)
 ], SubmissionsController.prototype, "gradeSubmission", null);
 __decorate([

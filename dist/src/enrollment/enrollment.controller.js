@@ -17,20 +17,30 @@ const common_1 = require("@nestjs/common");
 const enrollment_service_1 = require("./enrollment.service");
 const enroll_dto_1 = require("./dto/enroll.dto");
 const passport_1 = require("@nestjs/passport");
+const roles_guard_1 = require("../auth/roles.guard");
+const roles_decorator_1 = require("../auth/roles.decorator");
 let EnrollmentController = class EnrollmentController {
     constructor(enrollmentService) {
         this.enrollmentService = enrollmentService;
     }
     async enroll(req, dto) {
-        const userId = req.user.userId || req.user.id || req.user.sub;
-        return this.enrollmentService.enroll(userId, dto.course_id);
+        const requesterId = req.user.sub || req.user.id || req.user.userId;
+        const targetUserId = dto.userId || dto.user_id || requesterId;
+        const courseId = dto.courseId || dto.course_id;
+        if (!courseId) {
+            throw new common_1.ForbiddenException('Не указан курс');
+        }
+        if (targetUserId !== requesterId && req.user.role !== 'ADMIN') {
+            throw new common_1.ForbiddenException('Недостаточно прав для записи другого пользователя');
+        }
+        return this.enrollmentService.enroll(targetUserId, courseId);
     }
     async getMyCourses(req) {
-        const userId = req.user.userId || req.user.id || req.user.sub;
+        const userId = req.user.sub || req.user.id || req.user.userId;
         return this.enrollmentService.getMyCourses(userId);
     }
-    findShopGroups() {
-        return this.groupService.findShopGroups();
+    async unenroll(userId, courseId) {
+        return this.enrollmentService.unenroll(userId, courseId);
     }
 };
 exports.EnrollmentController = EnrollmentController;
@@ -50,14 +60,16 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], EnrollmentController.prototype, "getMyCourses", null);
 __decorate([
-    Roles('ADMIN', 'CURATOR', 'STUDENT'),
-    (0, common_1.Get)('shop'),
+    (0, roles_decorator_1.Roles)('ADMIN'),
+    (0, common_1.Delete)(':userId/:courseId'),
+    __param(0, (0, common_1.Param)('userId')),
+    __param(1, (0, common_1.Param)('courseId')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", []),
-    __metadata("design:returntype", void 0)
-], EnrollmentController.prototype, "findShopGroups", null);
+    __metadata("design:paramtypes", [String, String]),
+    __metadata("design:returntype", Promise)
+], EnrollmentController.prototype, "unenroll", null);
 exports.EnrollmentController = EnrollmentController = __decorate([
-    (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
+    (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt'), roles_guard_1.RolesGuard),
     (0, common_1.Controller)('enrollments'),
     __metadata("design:paramtypes", [enrollment_service_1.EnrollmentService])
 ], EnrollmentController);

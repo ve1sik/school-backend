@@ -28,6 +28,12 @@ export declare class LessonController {
         test_data: import("@prisma/client/runtime/library").JsonValue | null;
         is_homework: boolean;
     }[]>;
+    reorder(id: string, dto: {
+        themeId: string;
+        newOrderIndex: number;
+    }): Promise<{
+        success: boolean;
+    }>;
     update(id: string, dto: any): Promise<{
         id: string;
         created_at: Date;

@@ -29,8 +29,9 @@ export declare class CourseController {
         title: string;
         description: string | null;
         cover_url: string | null;
+        subject_id: string | null;
     }>;
-    getAll(): Promise<({
+    getAll(auth: string): Promise<({
         themes: ({
             lessons: {
                 id: string;
@@ -57,12 +58,14 @@ export declare class CourseController {
         title: string;
         description: string | null;
         cover_url: string | null;
+        subject_id: string | null;
     })[]>;
     createCourse(dto: any): Promise<{
         id: string;
         title: string;
         description: string | null;
         cover_url: string | null;
+        subject_id: string | null;
     }>;
     createTheme(courseId: string, body: any): Promise<{
         message: string;
@@ -74,11 +77,13 @@ export declare class CourseController {
         title: string;
         description: string | null;
         cover_url: string | null;
+        subject_id: string | null;
     }>;
     deleteCourse(id: string): Promise<{
         id: string;
         title: string;
         description: string | null;
         cover_url: string | null;
+        subject_id: string | null;
     }>;
 }

@@ -28,20 +28,29 @@ let GroupController = class GroupController {
     findAll() {
         return this.groupService.findAll();
     }
+    findShopGroups() {
+        return this.groupService.findShopGroups();
+    }
     findOne(id) {
         return this.groupService.findOne(id);
     }
     update(id, updateGroupDto) {
         return this.groupService.update(id, updateGroupDto);
     }
-    setStudents(id, studentIds) {
-        return this.groupService.setStudents(id, studentIds);
-    }
-    setCourses(id, courseIds) {
-        return this.groupService.setCourses(id, courseIds);
-    }
     remove(id) {
         return this.groupService.remove(id);
+    }
+    updateCourses(id, body) {
+        return this.groupService.updateCourses(id, body.courseIds);
+    }
+    updateStudents(id, body) {
+        if (body.userId) {
+            return this.groupService.enrollStudent(id, body.userId);
+        }
+        return this.groupService.updateStudents(id, body.studentIds || []);
+    }
+    removeStudent(id, userId) {
+        return this.groupService.removeStudent(id, userId);
     }
 };
 exports.GroupController = GroupController;
@@ -61,6 +70,13 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], GroupController.prototype, "findAll", null);
 __decorate([
+    (0, roles_decorator_1.Roles)('ADMIN', 'CURATOR', 'STUDENT'),
+    (0, common_1.Get)('shop'),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", void 0)
+], GroupController.prototype, "findShopGroups", null);
+__decorate([
     (0, roles_decorator_1.Roles)('ADMIN', 'CURATOR'),
     (0, common_1.Get)(':id'),
     __param(0, (0, common_1.Param)('id')),
@@ -79,30 +95,39 @@ __decorate([
 ], GroupController.prototype, "update", null);
 __decorate([
     (0, roles_decorator_1.Roles)('ADMIN'),
-    (0, common_1.Post)(':id/students'),
-    __param(0, (0, common_1.Param)('id')),
-    __param(1, (0, common_1.Body)('studentIds')),
-    __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, Array]),
-    __metadata("design:returntype", void 0)
-], GroupController.prototype, "setStudents", null);
-__decorate([
-    (0, roles_decorator_1.Roles)('ADMIN'),
-    (0, common_1.Post)(':id/courses'),
-    __param(0, (0, common_1.Param)('id')),
-    __param(1, (0, common_1.Body)('courseIds')),
-    __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, Array]),
-    __metadata("design:returntype", void 0)
-], GroupController.prototype, "setCourses", null);
-__decorate([
-    (0, roles_decorator_1.Roles)('ADMIN'),
     (0, common_1.Delete)(':id'),
     __param(0, (0, common_1.Param)('id')),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", void 0)
 ], GroupController.prototype, "remove", null);
+__decorate([
+    (0, roles_decorator_1.Roles)('ADMIN'),
+    (0, common_1.Post)(':id/courses'),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", void 0)
+], GroupController.prototype, "updateCourses", null);
+__decorate([
+    (0, roles_decorator_1.Roles)('ADMIN'),
+    (0, common_1.Post)(':id/students'),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", void 0)
+], GroupController.prototype, "updateStudents", null);
+__decorate([
+    (0, roles_decorator_1.Roles)('ADMIN'),
+    (0, common_1.Delete)(':id/students/:userId'),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Param)('userId')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, String]),
+    __metadata("design:returntype", void 0)
+], GroupController.prototype, "removeStudent", null);
 exports.GroupController = GroupController = __decorate([
     (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt'), roles_guard_1.RolesGuard),
     (0, common_1.Controller)('groups'),

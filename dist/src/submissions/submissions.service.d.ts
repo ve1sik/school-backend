@@ -1,7 +1,9 @@
 import { PrismaService } from '../prisma/prisma.service';
+export declare const AUTO_GRADE_COMMENT_PREFIX = "\uD83E\uDD16 \u0410\u0432\u0442\u043E\u043C\u0430\u0442\u0438\u0447\u0435\u0441\u043A\u0430\u044F \u043F\u0440\u043E\u0432\u0435\u0440\u043A\u0430";
 export declare class SubmissionsService {
     private prisma;
     constructor(prisma: PrismaService);
+    private mapSubmissionForCurator;
     createSubmission(userId: string, body: any): Promise<{
         id: string;
         created_at: Date;
@@ -16,15 +18,33 @@ export declare class SubmissionsService {
         status: import(".prisma/client").$Enums.SubmissionStatus;
         updated_at: Date;
     }>;
-    getPendingSubmissions(): Promise<{
+    createAutoGradedSubmission(userId: string, body: any, score: number, isSuccess: boolean): Promise<{
         id: string;
-        studentName: string;
-        courseName: string;
-        lessonTitle: string;
+        created_at: Date;
+        score: number | null;
+        user_id: string;
         question: string;
         answer: string;
-        maxScore: number;
+        lesson_id: string;
+        block_id: string;
+        max_score: number;
+        comment: string | null;
         status: import(".prisma/client").$Enums.SubmissionStatus;
+        updated_at: Date;
+    }>;
+    getSubmissionsByStatus(status: 'PENDING' | 'GRADED'): Promise<{
+        id: any;
+        studentId: any;
+        studentName: any;
+        courseName: any;
+        lessonTitle: any;
+        question: any;
+        answer: any;
+        maxScore: any;
+        score: any;
+        comment: any;
+        status: any;
+        isAutoGraded: any;
         date: string;
     }[]>;
     gradeSubmission(id: string, score: number, comment: string): Promise<{

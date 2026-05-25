@@ -28,6 +28,9 @@ export declare class LessonService {
         test_data: import("@prisma/client/runtime/library").JsonValue | null;
         is_homework: boolean;
     }>;
+    reorder(id: string, newThemeId: string, newOrderIndex: number): Promise<{
+        success: boolean;
+    }>;
     getByTheme(themeId: string): Promise<{
         id: string;
         created_at: Date;

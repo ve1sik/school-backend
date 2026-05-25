@@ -9,6 +9,13 @@ export declare class ThemeService {
         is_visible: boolean;
         course_id: string;
     }>;
+    update(id: string, dto: any): Promise<{
+        id: string;
+        title: string;
+        order_index: number;
+        is_visible: boolean;
+        course_id: string;
+    }>;
     delete(id: string): Promise<{
         id: string;
         title: string;
@@ -16,11 +23,7 @@ export declare class ThemeService {
         is_visible: boolean;
         course_id: string;
     }>;
-    updateVisibility(id: string, is_visible: boolean): Promise<{
-        id: string;
-        title: string;
-        order_index: number;
-        is_visible: boolean;
-        course_id: string;
+    reorder(id: string, newOrderIndex: number): Promise<{
+        success: boolean;
     }>;
 }

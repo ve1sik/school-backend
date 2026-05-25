@@ -25,6 +25,9 @@ let LessonController = class LessonController {
     getByTheme(themeId) {
         return this.lessonService.getByTheme(themeId);
     }
+    reorder(id, dto) {
+        return this.lessonService.reorder(id, dto.themeId, dto.newOrderIndex);
+    }
     update(id, dto) {
         if (Object.keys(dto).length === 1 && 'is_visible' in dto) {
             return this.lessonService.updateVisibility(id, dto.is_visible);
@@ -50,6 +53,14 @@ __decorate([
     __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", void 0)
 ], LessonController.prototype, "getByTheme", null);
+__decorate([
+    (0, common_1.Patch)(':id/reorder'),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", void 0)
+], LessonController.prototype, "reorder", null);
 __decorate([
     (0, common_1.Patch)(':id'),
     __param(0, (0, common_1.Param)('id')),

@@ -7,8 +7,6 @@ export declare class EnrollmentController {
         course: {
             id: string;
             title: string;
-            description: string | null;
-            cover_url: string | null;
         };
     } & {
         id: string;
@@ -22,6 +20,7 @@ export declare class EnrollmentController {
             title: string;
             description: string | null;
             cover_url: string | null;
+            subject_id: string | null;
         };
     } & {
         id: string;
@@ -29,5 +28,7 @@ export declare class EnrollmentController {
         course_id: string;
         user_id: string;
     })[]>;
-    findShopGroups(): any;
+    unenroll(userId: string, courseId: string): Promise<{
+        success: boolean;
+    }>;
 }

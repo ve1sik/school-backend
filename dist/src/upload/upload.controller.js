@@ -34,7 +34,7 @@ let UploadController = class UploadController {
     async getFile(filename, res) {
         const path = (0, path_1.join)(process.cwd(), 'uploads', filename);
         if (!fs.existsSync(path)) {
-            return res.status(404).send('Брат, файла нет на диске!');
+            return res.status(404).send('файла нет на диске!');
         }
         return res.sendFile(path);
     }

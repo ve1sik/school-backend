@@ -1,3 +1,6 @@
 export declare class EnrollCourseDto {
-    course_id: string;
+    userId?: string;
+    user_id?: string;
+    courseId?: string;
+    course_id?: string;
 }

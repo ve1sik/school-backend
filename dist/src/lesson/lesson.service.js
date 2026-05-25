@@ -43,6 +43,44 @@ let LessonService = class LessonService {
             },
         });
     }
+    async reorder(id, newThemeId, newOrderIndex) {
+        const lesson = await this.prisma.lesson.findUnique({ where: { id } });
+        if (!lesson)
+            throw new Error('Lesson not found');
+        const oldThemeId = lesson.theme_id;
+        const oldOrderIndex = lesson.order_index;
+        await this.prisma.$transaction(async (prisma) => {
+            if (oldThemeId === newThemeId) {
+                if (oldOrderIndex < newOrderIndex) {
+                    await prisma.lesson.updateMany({
+                        where: { theme_id: newThemeId, order_index: { gt: oldOrderIndex, lte: newOrderIndex } },
+                        data: { order_index: { decrement: 1 } },
+                    });
+                }
+                else if (oldOrderIndex > newOrderIndex) {
+                    await prisma.lesson.updateMany({
+                        where: { theme_id: newThemeId, order_index: { gte: newOrderIndex, lt: oldOrderIndex } },
+                        data: { order_index: { increment: 1 } },
+                    });
+                }
+            }
+            else {
+                await prisma.lesson.updateMany({
+                    where: { theme_id: newThemeId, order_index: { gte: newOrderIndex } },
+                    data: { order_index: { increment: 1 } },
+                });
+                await prisma.lesson.updateMany({
+                    where: { theme_id: oldThemeId, order_index: { gt: oldOrderIndex } },
+                    data: { order_index: { decrement: 1 } },
+                });
+            }
+            await prisma.lesson.update({
+                where: { id },
+                data: { theme_id: newThemeId, order_index: newOrderIndex },
+            });
+        });
+        return { success: true };
+    }
     async getByTheme(themeId) {
         return this.prisma.lesson.findMany({
             where: { theme_id: themeId },

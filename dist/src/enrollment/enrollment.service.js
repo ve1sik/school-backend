@@ -22,20 +22,33 @@ let EnrollmentService = class EnrollmentService {
         });
         if (!course)
             throw new common_1.BadRequestException('Курс не найден.');
+        const user = await this.prisma.user.findUnique({ where: { id: userId } });
+        if (!user)
+            throw new common_1.NotFoundException('Пользователь не найден.');
         const existingEnrollment = await this.prisma.enrollment.findFirst({
             where: { user_id: userId, course_id: courseId },
         });
-        if (existingEnrollment)
-            throw new common_1.BadRequestException('Вы уже записаны на этот курс.');
+        if (existingEnrollment) {
+            throw new common_1.BadRequestException('Пользователь уже записан на этот курс.');
+        }
         return this.prisma.enrollment.create({
             data: {
                 user: { connect: { id: userId } },
                 course: { connect: { id: courseId } },
             },
             include: {
-                course: true,
-            }
+                course: { select: { id: true, title: true } },
+            },
         });
+    }
+    async unenroll(userId, courseId) {
+        const enrollment = await this.prisma.enrollment.findFirst({
+            where: { user_id: userId, course_id: courseId },
+        });
+        if (!enrollment)
+            throw new common_1.NotFoundException('Запись на курс не найдена.');
+        await this.prisma.enrollment.delete({ where: { id: enrollment.id } });
+        return { success: true };
     }
     async getMyCourses(userId) {
         return this.prisma.enrollment.findMany({
@@ -43,17 +56,6 @@ let EnrollmentService = class EnrollmentService {
             include: {
                 course: true,
             },
-        });
-    }
-    async findShopGroups() {
-        return this.prisma.group.findMany({
-            where: {
-                is_public: true,
-                price: { gt: 0 }
-            },
-            include: {
-                curator: { select: { name: true, surname: true, avatar: true } }
-            }
         });
     }
 };

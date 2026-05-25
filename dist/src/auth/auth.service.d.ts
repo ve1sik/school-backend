@@ -38,21 +38,18 @@ export declare class AuthService {
         created_at: Date;
     }>;
     updateProfile(userId: string, dto: any): Promise<{
-        message: string;
-        user: {
-            id: string;
-            email: string;
-            invite_code: string | null;
-            role: import(".prisma/client").$Enums.Role;
-            name: string | null;
-            surname: string | null;
-            patronymic: string | null;
-            birthday: string | null;
-            city: string | null;
-            avatar: string | null;
-            parent_id: string | null;
-            created_at: Date;
-        };
+        id: string;
+        email: string;
+        invite_code: string | null;
+        role: import(".prisma/client").$Enums.Role;
+        name: string | null;
+        surname: string | null;
+        patronymic: string | null;
+        birthday: string | null;
+        city: string | null;
+        avatar: string | null;
+        parent_id: string | null;
+        created_at: Date;
     }>;
     generateInviteCode(userId: string): Promise<{
         code: string;

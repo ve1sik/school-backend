@@ -26,8 +26,14 @@ let CourseController = class CourseController {
     findOne(id) {
         return this.courseService.findOne(id);
     }
-    async getAll() {
-        return this.courseService.getAllCourses();
+    async getAll(auth) {
+        if (!auth)
+            throw new common_1.UnauthorizedException('Нет токена');
+        const token = auth.split(' ')[1];
+        const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString());
+        const userId = payload.sub || payload.id;
+        const userRole = payload.role;
+        return this.courseService.getAllCourses(userId, userRole);
     }
     async createCourse(dto) {
         return this.courseService.create(dto);
@@ -51,9 +57,11 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], CourseController.prototype, "findOne", null);
 __decorate([
+    (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
     (0, common_1.Get)(),
+    __param(0, (0, common_1.Headers)('authorization')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", []),
+    __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", Promise)
 ], CourseController.prototype, "getAll", null);
 __decorate([

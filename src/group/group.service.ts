@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
@@ -103,6 +103,21 @@ export class GroupService {
       }
     }
     return group;
+  }
+
+  async removeStudent(groupId: string, userId: string) {
+    const group = await this.prisma.group.findUnique({
+      where: { id: groupId },
+      include: { students: { where: { id: userId } } },
+    });
+    if (!group) throw new NotFoundException('Группа не найдена');
+
+    return this.prisma.group.update({
+      where: { id: groupId },
+      data: {
+        students: { disconnect: { id: userId } },
+      },
+    });
   }
 
   async findShopGroups() {

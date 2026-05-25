@@ -72,24 +72,24 @@ let AuthService = class AuthService {
         const dataToUpdate = {};
         if (dto.email)
             dataToUpdate.email = dto.email;
-        if (dto.name)
+        if (dto.name !== undefined)
             dataToUpdate.name = dto.name;
-        if (dto.surname)
+        if (dto.surname !== undefined)
             dataToUpdate.surname = dto.surname;
-        if (dto.patronymic)
+        if (dto.patronymic !== undefined)
             dataToUpdate.patronymic = dto.patronymic;
-        if (dto.birthday)
+        if (dto.birthday !== undefined)
             dataToUpdate.birthday = dto.birthday;
-        if (dto.city)
+        if (dto.city !== undefined)
             dataToUpdate.city = dto.city;
-        if (dto.avatar)
+        if (dto.avatar !== undefined)
             dataToUpdate.avatar = dto.avatar;
         const updatedUser = await this.prisma.user.update({
             where: { id: userId },
             data: dataToUpdate,
         });
         const { password_hash, refresh_token, ...result } = updatedUser;
-        return { message: 'Профиль обновлен', user: result };
+        return result;
     }
     async generateInviteCode(userId) {
         const code = Math.random().toString(36).substring(2, 8).toUpperCase();

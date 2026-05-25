@@ -6,8 +6,6 @@ export declare class EnrollmentService {
         course: {
             id: string;
             title: string;
-            description: string | null;
-            cover_url: string | null;
         };
     } & {
         id: string;
@@ -15,30 +13,21 @@ export declare class EnrollmentService {
         course_id: string;
         user_id: string;
     }>;
+    unenroll(userId: string, courseId: string): Promise<{
+        success: boolean;
+    }>;
     getMyCourses(userId: string): Promise<({
         course: {
             id: string;
             title: string;
             description: string | null;
             cover_url: string | null;
+            subject_id: string | null;
         };
     } & {
         id: string;
         created_at: Date;
         course_id: string;
         user_id: string;
-    })[]>;
-    findShopGroups(): Promise<({
-        curator: {
-            name: string;
-            surname: string;
-            avatar: string;
-        };
-    } & {
-        id: string;
-        title: string;
-        price: number;
-        is_public: boolean;
-        curator_id: string | null;
     })[]>;
 }

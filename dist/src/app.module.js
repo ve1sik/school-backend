@@ -20,6 +20,9 @@ const submissions_module_1 = require("./submissions/submissions.module");
 const schedule_module_1 = require("./schedule/schedule.module");
 const group_module_1 = require("./group/group.module");
 const user_module_1 = require("./user/user.module");
+const messages_module_1 = require("./messages/messages.module");
+const enrollment_module_1 = require("./enrollment/enrollment.module");
+const subject_module_1 = require("./subject/subject.module");
 const upload_controller_1 = require("./upload/upload.controller");
 let AppModule = class AppModule {
 };
@@ -41,6 +44,9 @@ exports.AppModule = AppModule = __decorate([
             schedule_module_1.ScheduleModule,
             group_module_1.GroupModule,
             user_module_1.UserModule,
+            messages_module_1.MessagesModule,
+            enrollment_module_1.EnrollmentModule,
+            subject_module_1.SubjectModule,
         ],
         controllers: [
             upload_controller_1.UploadController,

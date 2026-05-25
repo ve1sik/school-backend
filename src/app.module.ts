@@ -12,9 +12,10 @@ import { DashboardModule } from './dashboard/dashboard.module';
 import { SubmissionsModule } from './submissions/submissions.module';
 import { ScheduleModule } from './schedule/schedule.module'; 
 import { GroupModule } from './group/group.module';
-// 🔥 ДОБАВИЛИ НАШ НОВЫЙ МОДУЛЬ ПОЛЬЗОВАТЕЛЕЙ (ДЛЯ СПИСКА СТУДЕНТОВ)
 import { UserModule } from './user/user.module';
 import { MessagesModule } from './messages/messages.module';
+import { EnrollmentModule } from './enrollment/enrollment.module';
+import { SubjectModule } from './subject/subject.module';
 
 // Контроллер загрузки
 import { UploadController } from './upload/upload.controller';
@@ -36,8 +37,10 @@ import { UploadController } from './upload/upload.controller';
     SubmissionsModule,
     ScheduleModule,
     GroupModule, 
-    UserModule, // 🔥 РЕГИСТРИРУЕМ МОДУЛЬ ЮЗЕРОВ ЗДЕСЬ
+    UserModule,
     MessagesModule,
+    EnrollmentModule,
+    SubjectModule,
   ],
   controllers: [
     UploadController,

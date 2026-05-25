@@ -16,18 +16,37 @@ export declare class SubmissionsController {
         status: import(".prisma/client").$Enums.SubmissionStatus;
         updated_at: Date;
     }>;
-    getPending(): Promise<{
-        id: string;
-        studentName: string;
-        courseName: string;
-        lessonTitle: string;
-        question: string;
-        answer: string;
-        maxScore: number;
-        status: import(".prisma/client").$Enums.SubmissionStatus;
+    getSubmissionsByStatus(auth: string, status: string): Promise<{
+        id: any;
+        studentId: any;
+        studentName: any;
+        courseName: any;
+        lessonTitle: any;
+        question: any;
+        answer: any;
+        maxScore: any;
+        score: any;
+        comment: any;
+        status: any;
+        isAutoGraded: any;
         date: string;
     }[]>;
-    gradeSubmission(id: string, body: any): Promise<{
+    getPending(): Promise<{
+        id: any;
+        studentId: any;
+        studentName: any;
+        courseName: any;
+        lessonTitle: any;
+        question: any;
+        answer: any;
+        maxScore: any;
+        score: any;
+        comment: any;
+        status: any;
+        isAutoGraded: any;
+        date: string;
+    }[]>;
+    gradeSubmission(auth: string, id: string, body: any): Promise<{
         id: string;
         created_at: Date;
         score: number | null;

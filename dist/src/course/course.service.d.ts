@@ -29,8 +29,9 @@ export declare class CourseService {
         title: string;
         description: string | null;
         cover_url: string | null;
+        subject_id: string | null;
     }>;
-    getAllCourses(): Promise<({
+    getAllCourses(userId?: string, userRole?: string): Promise<({
         themes: ({
             lessons: {
                 id: string;
@@ -57,23 +58,27 @@ export declare class CourseService {
         title: string;
         description: string | null;
         cover_url: string | null;
+        subject_id: string | null;
     })[]>;
     create(dto: any): Promise<{
         id: string;
         title: string;
         description: string | null;
         cover_url: string | null;
+        subject_id: string | null;
     }>;
     updateCourse(id: string, dto: any): Promise<{
         id: string;
         title: string;
         description: string | null;
         cover_url: string | null;
+        subject_id: string | null;
     }>;
     delete(id: string): Promise<{
         id: string;
         title: string;
         description: string | null;
         cover_url: string | null;
+        subject_id: string | null;
     }>;
 }

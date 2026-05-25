@@ -34,15 +34,37 @@ let CourseService = class CourseService {
             throw new common_1.NotFoundException('Курс не найден');
         return course;
     }
-    async getAllCourses() {
+    async getAllCourses(userId, userRole) {
+        if (userRole === 'ADMIN' || userRole === 'CURATOR') {
+            return this.prisma.course.findMany({
+                include: {
+                    themes: {
+                        orderBy: { order_index: 'asc' },
+                        include: {
+                            lessons: { orderBy: { order_index: 'asc' } },
+                        },
+                    },
+                },
+                orderBy: { title: 'asc' },
+            });
+        }
+        const enrollments = await this.prisma.enrollment.findMany({
+            where: { user_id: userId },
+            select: { course_id: true }
+        });
+        const purchasedCourseIds = enrollments.map(e => e.course_id);
+        if (purchasedCourseIds.length === 0) {
+            return [];
+        }
         return this.prisma.course.findMany({
+            where: {
+                id: { in: purchasedCourseIds }
+            },
             include: {
                 themes: {
                     orderBy: { order_index: 'asc' },
                     include: {
-                        lessons: {
-                            orderBy: { order_index: 'asc' },
-                        },
+                        lessons: { orderBy: { order_index: 'asc' } },
                     },
                 },
             },

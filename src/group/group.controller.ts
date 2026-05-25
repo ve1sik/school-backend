@@ -54,7 +54,16 @@ export class GroupController {
 
   @Roles('ADMIN')
   @Post(':id/students')
-  updateStudents(@Param('id') id: string, @Body() body: { studentIds: string[] }) {
-    return this.groupService.updateStudents(id, body.studentIds);
+  updateStudents(@Param('id') id: string, @Body() body: { studentIds?: string[]; userId?: string }) {
+    if (body.userId) {
+      return this.groupService.enrollStudent(id, body.userId);
+    }
+    return this.groupService.updateStudents(id, body.studentIds || []);
+  }
+
+  @Roles('ADMIN')
+  @Delete(':id/students/:userId')
+  removeStudent(@Param('id') id: string, @Param('userId') userId: string) {
+    return this.groupService.removeStudent(id, userId);
   }
 }

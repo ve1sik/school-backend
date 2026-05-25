@@ -22,53 +22,132 @@ let GroupService = class GroupService {
     async findAll() {
         return this.prisma.group.findMany({
             include: {
-                curator: { select: { id: true, name: true, surname: true, email: true } },
-                _count: { select: { students: true, courses: true } },
-            },
-            orderBy: { created_at: 'desc' }
+                _count: {
+                    select: { students: true, courses: true }
+                },
+                curator: true
+            }
         });
     }
     async findOne(id) {
-        const group = await this.prisma.group.findUnique({
+        return this.prisma.group.findUnique({
             where: { id },
-            include: {
-                curator: { select: { id: true, name: true, surname: true, email: true, avatar: true } },
-                students: { select: { id: true, name: true, surname: true, email: true, avatar: true } },
-                courses: { select: { id: true, title: true, cover_url: true } },
-            },
+            include: { courses: true, students: true, curator: true }
         });
-        if (!group)
-            throw new common_1.NotFoundException('Группа не найдена');
-        return group;
     }
     async update(id, data) {
-        return this.prisma.group.update({
-            where: { id },
-            data,
-        });
-    }
-    async setStudents(id, studentIds) {
-        return this.prisma.group.update({
-            where: { id },
-            data: {
-                students: {
-                    set: studentIds.map(studentId => ({ id: studentId }))
-                }
+        const { curator_id, ...rest } = data;
+        const updateData = { ...rest };
+        if (curator_id !== undefined) {
+            if (curator_id === null || curator_id === '') {
+                updateData.curator = { disconnect: true };
             }
-        });
-    }
-    async setCourses(id, courseIds) {
+            else {
+                updateData.curator = { connect: { id: curator_id } };
+            }
+        }
         return this.prisma.group.update({
             where: { id },
-            data: {
-                courses: {
-                    set: courseIds.map(courseId => ({ id: courseId }))
-                }
-            }
+            data: updateData
         });
     }
     async remove(id) {
         return this.prisma.group.delete({ where: { id } });
+    }
+    async updateCourses(groupId, courseIds) {
+        const group = await this.prisma.group.update({
+            where: { id: groupId },
+            data: {
+                courses: { set: courseIds.map(id => ({ id })) }
+            },
+            include: { students: true }
+        });
+        if (group.students.length > 0) {
+            for (const student of group.students) {
+                for (const courseId of courseIds) {
+                    const existing = await this.prisma.enrollment.findFirst({
+                        where: { user_id: student.id, course_id: courseId }
+                    });
+                    if (!existing) {
+                        await this.prisma.enrollment.create({
+                            data: { user_id: student.id, course_id: courseId }
+                        });
+                    }
+                }
+            }
+        }
+        return group;
+    }
+    async updateStudents(groupId, studentIds) {
+        const group = await this.prisma.group.update({
+            where: { id: groupId },
+            data: {
+                students: { set: studentIds.map(id => ({ id })) }
+            },
+            include: { courses: true }
+        });
+        if (group.courses.length > 0) {
+            for (const studentId of studentIds) {
+                for (const course of group.courses) {
+                    const existing = await this.prisma.enrollment.findFirst({
+                        where: { user_id: studentId, course_id: course.id }
+                    });
+                    if (!existing) {
+                        await this.prisma.enrollment.create({
+                            data: { user_id: studentId, course_id: course.id }
+                        });
+                    }
+                }
+            }
+        }
+        return group;
+    }
+    async removeStudent(groupId, userId) {
+        const group = await this.prisma.group.findUnique({
+            where: { id: groupId },
+            include: { students: { where: { id: userId } } },
+        });
+        if (!group)
+            throw new common_1.NotFoundException('Группа не найдена');
+        return this.prisma.group.update({
+            where: { id: groupId },
+            data: {
+                students: { disconnect: { id: userId } },
+            },
+        });
+    }
+    async findShopGroups() {
+        return this.prisma.group.findMany({
+            where: {
+                is_public: true,
+                price: { gt: 0 }
+            },
+            include: {
+                curator: { select: { name: true, surname: true, avatar: true } }
+            }
+        });
+    }
+    async enrollStudent(groupId, studentId) {
+        const group = await this.prisma.group.update({
+            where: { id: groupId },
+            data: {
+                students: { connect: { id: studentId } }
+            },
+            include: { courses: true }
+        });
+        if (group.courses.length > 0) {
+            for (const course of group.courses) {
+                const existing = await this.prisma.enrollment.findFirst({
+                    where: { user_id: studentId, course_id: course.id }
+                });
+                if (!existing) {
+                    await this.prisma.enrollment.create({
+                        data: { user_id: studentId, course_id: course.id }
+                    });
+                }
+            }
+        }
+        return { success: true, message: 'Студент успешно добавлен в группу и получил курсы' };
     }
 };
 exports.GroupService = GroupService;

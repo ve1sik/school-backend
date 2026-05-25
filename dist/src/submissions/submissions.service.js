@@ -9,12 +9,40 @@ var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.SubmissionsService = void 0;
+exports.SubmissionsService = exports.AUTO_GRADE_COMMENT_PREFIX = void 0;
 const common_1 = require("@nestjs/common");
 const prisma_service_1 = require("../prisma/prisma.service");
+exports.AUTO_GRADE_COMMENT_PREFIX = '🤖 Автоматическая проверка';
 let SubmissionsService = class SubmissionsService {
     constructor(prisma) {
         this.prisma = prisma;
+    }
+    mapSubmissionForCurator(sub) {
+        const isAutoGraded = sub.status === 'GRADED' &&
+            typeof sub.comment === 'string' &&
+            sub.comment.includes(exports.AUTO_GRADE_COMMENT_PREFIX);
+        return {
+            id: sub.id,
+            studentId: sub.user_id,
+            studentName: sub.user.name
+                ? `${sub.user.name} ${sub.user.surname || ''}`.trim()
+                : sub.user.email || 'Ученик',
+            courseName: sub.lesson?.theme?.course?.title || 'Неизвестный курс',
+            lessonTitle: sub.lesson?.title || 'Неизвестный урок',
+            question: sub.question,
+            answer: sub.answer,
+            maxScore: sub.max_score,
+            score: sub.score,
+            comment: sub.comment,
+            status: sub.status,
+            isAutoGraded,
+            date: new Date(sub.created_at).toLocaleString('ru-RU', {
+                day: '2-digit',
+                month: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit',
+            }),
+        };
     }
     async createSubmission(userId, body) {
         return this.prisma.submission.create({
@@ -25,32 +53,51 @@ let SubmissionsService = class SubmissionsService {
                 question: body.question,
                 answer: body.answer,
                 max_score: body.maxScore || 3,
-                status: 'PENDING'
-            }
+                status: 'PENDING',
+            },
         });
     }
-    async getPendingSubmissions() {
+    async createAutoGradedSubmission(userId, body, score, isSuccess) {
+        const comment = isSuccess
+            ? `${exports.AUTO_GRADE_COMMENT_PREFIX}: Верно!`
+            : `${exports.AUTO_GRADE_COMMENT_PREFIX}: Неверно. Попытки исчерпаны.`;
+        return this.prisma.submission.create({
+            data: {
+                user_id: userId,
+                lesson_id: body.lessonId,
+                block_id: body.blockId,
+                question: body.question,
+                answer: body.answer,
+                max_score: body.maxScore || 3,
+                score,
+                comment,
+                status: 'GRADED',
+            },
+        });
+    }
+    async getSubmissionsByStatus(status) {
+        const where = status === 'PENDING'
+            ? {
+                OR: [
+                    { status: 'PENDING' },
+                    {
+                        status: 'GRADED',
+                        comment: { contains: exports.AUTO_GRADE_COMMENT_PREFIX },
+                    },
+                ],
+            }
+            : { status: 'GRADED' };
         const subs = await this.prisma.submission.findMany({
-            where: { status: 'PENDING' },
+            where,
             include: {
                 user: true,
                 lesson: {
-                    include: { theme: { include: { course: true } } }
-                }
+                    include: { theme: { include: { course: true } } },
+                },
             },
-            orderBy: { created_at: 'asc' }
+            orderBy: { created_at: 'desc' },
         });
-        return subs.map(sub => ({
-            id: sub.id,
-            studentName: sub.user.name ? `${sub.user.name} ${sub.user.surname || ''}`.trim() : 'Ученик',
-            courseName: sub.lesson.theme.course.title,
-            lessonTitle: sub.lesson.title,
-            question: sub.question,
-            answer: sub.answer,
-            maxScore: sub.max_score,
-            status: sub.status,
-            date: new Date(sub.created_at).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
-        }));
+        return subs.map((sub) => this.mapSubmissionForCurator(sub));
     }
     async gradeSubmission(id, score, comment) {
         return this.prisma.submission.update({
