@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Mail, Lock, LogIn, Loader2, GraduationCap, Users, MessageCircle, Share2 } from 'lucide-react';
+import { Mail, Lock, LogIn, Loader2, GraduationCap, Users, MessageCircle, Share2, User } from 'lucide-react';
 import axios from 'axios';
 
 const API_URL = 'https://prepodmgy.ru/api';
@@ -13,7 +13,7 @@ export default function Login() {
     email: '', password: '', name: '', surname: '', invite_code: ''
   });
   const [isLoading, setIsLoading] = useState(false);
-  const [, setError] = useState('');
+  const [error, setError] = useState('');
   const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -26,7 +26,12 @@ export default function Login() {
       if (mode === 'login') {
         res = await axios.post(`${API_URL}/auth/login`, { email: formData.email, password: formData.password });
       } else if (mode === 'register_student') {
-        res = await axios.post(`${API_URL}/auth/register`, { email: formData.email, password: formData.password });
+        res = await axios.post(`${API_URL}/auth/register`, {
+          email: formData.email,
+          password: formData.password,
+          name: formData.name,
+          surname: formData.surname,
+        });
       } else {
         res = await axios.post(`${API_URL}/auth/register-parent`, formData);
       }
@@ -65,26 +70,38 @@ export default function Login() {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           
-          {mode === 'register_parent' && (
+          {/* Имя и фамилия — обязательно при любой регистрации */}
+          {(mode === 'register_student' || mode === 'register_parent') && (
             <div className="grid grid-cols-2 gap-3">
-              <input 
-                placeholder="Имя" 
-                className="p-3 bg-gray-50 border rounded-xl outline-none focus:border-[#5A4BFF]"
-                onChange={e => setFormData({...formData, name: e.target.value})}
-              />
-              <input 
-                placeholder="Фамилия" 
-                className="p-3 bg-gray-50 border rounded-xl outline-none focus:border-[#5A4BFF]"
-                onChange={e => setFormData({...formData, surname: e.target.value})}
-              />
+              <div className="relative">
+                <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <input 
+                  required
+                  placeholder="Имя"
+                  value={formData.name}
+                  className="w-full pl-10 pr-3 py-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-[#5A4BFF] font-bold text-gray-800 placeholder:font-normal placeholder:text-gray-400"
+                  onChange={e => setFormData({...formData, name: e.target.value})}
+                />
+              </div>
+              <div className="relative">
+                <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <input 
+                  required
+                  placeholder="Фамилия"
+                  value={formData.surname}
+                  className="w-full pl-10 pr-3 py-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-[#5A4BFF] font-bold text-gray-800 placeholder:font-normal placeholder:text-gray-400"
+                  onChange={e => setFormData({...formData, surname: e.target.value})}
+                />
+              </div>
             </div>
           )}
 
           <div className="relative">
             <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
             <input 
-              type="email" required placeholder="Email" 
-              className="w-full pl-12 pr-4 py-3 bg-gray-50 border rounded-xl outline-none focus:border-[#5A4BFF]"
+              type="email" required placeholder="Email"
+              value={formData.email}
+              className="w-full pl-12 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-[#5A4BFF] font-bold text-gray-800 placeholder:font-normal placeholder:text-gray-400"
               onChange={e => setFormData({...formData, email: e.target.value})}
             />
           </div>
@@ -92,8 +109,9 @@ export default function Login() {
           <div className="relative">
             <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
             <input 
-              type="password" required placeholder="Пароль" 
-              className="w-full pl-12 pr-4 py-3 bg-gray-50 border rounded-xl outline-none focus:border-[#5A4BFF]"
+              type="password" required placeholder="Пароль (минимум 6 символов)"
+              value={formData.password}
+              className="w-full pl-12 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-[#5A4BFF] font-bold text-gray-800 placeholder:font-normal placeholder:text-gray-400"
               onChange={e => setFormData({...formData, password: e.target.value})}
             />
           </div>
@@ -105,6 +123,13 @@ export default function Login() {
                 className="bg-transparent text-center font-black text-[#5A4BFF] placeholder:text-indigo-200 outline-none uppercase"
                 onChange={e => setFormData({...formData, invite_code: e.target.value})}
               />
+            </div>
+          )}
+
+          {error && (
+            <div className="flex items-start gap-3 bg-rose-50 border border-rose-200 text-rose-700 rounded-2xl px-4 py-3 text-sm font-bold">
+              <span className="mt-0.5 shrink-0">⚠️</span>
+              <span>{error}</span>
             </div>
           )}
 

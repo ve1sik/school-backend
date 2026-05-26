@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { ChevronLeft, ChevronRight, Video, Clock, Link as LinkIcon, Plus, X, Trash2, CalendarDays, Loader2, MapPin, AlertCircle, Sparkles } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Video, Clock, Link as LinkIcon, Plus, X, Trash2, CalendarDays, Loader2, MapPin, AlertCircle, Sparkles, ExternalLink, ArrowRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 
@@ -100,6 +100,15 @@ export default function Schedule() {
     }
   };
 
+  // Ближайшие события (сегодня + будущие, максимум 3)
+  const now = new Date();
+  const upcomingEvents = events
+    .filter(e => new Date(e.date) >= now)
+    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+    .slice(0, 3);
+
+  const isToday = (d: string) => new Date(d).toDateString() === now.toDateString();
+
   if (isLoading) return <div className="h-screen flex items-center justify-center bg-[#F4F7FE]"><Loader2 className="w-12 h-12 animate-spin text-[#5A4BFF]" /></div>;
 
   return (
@@ -107,6 +116,47 @@ export default function Schedule() {
       
       <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-[#5A4BFF]/10 rounded-full blur-[120px] pointer-events-none -z-10"></div>
       <div className="absolute bottom-0 left-0 w-[400px] h-[400px] bg-purple-500/10 rounded-full blur-[100px] pointer-events-none -z-10"></div>
+
+      {/* ── СТРИП БЛИЖАЙШИХ ЗАНЯТИЙ ── */}
+      {upcomingEvents.length > 0 && (
+        <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}
+          className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {upcomingEvents.map(ev => {
+            const evDate = new Date(ev.date);
+            const today = isToday(ev.date);
+            const typeColors: Record<string, string> = {
+              WEBINAR: 'from-[#5A4BFF] to-violet-600',
+              DEADLINE: 'from-rose-500 to-red-600',
+              OFFLINE: 'from-emerald-500 to-teal-600',
+            };
+            const typeLabels: Record<string, string> = { WEBINAR: 'Вебинар', DEADLINE: 'Дедлайн', OFFLINE: 'Офлайн' };
+            return (
+              <div key={ev.id} className={`relative rounded-[2rem] p-6 bg-gradient-to-br ${typeColors[ev.type] || typeColors.WEBINAR} text-white overflow-hidden shadow-lg`}>
+                <div className="absolute -bottom-6 -right-6 w-28 h-28 bg-white/10 rounded-full blur-2xl" />
+                <div className="relative z-10">
+                  <div className="flex items-center justify-between mb-4">
+                    <span className="text-[10px] font-black uppercase tracking-widest bg-white/20 px-2.5 py-1 rounded-lg">
+                      {today ? '🔴 Сегодня' : evDate.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}
+                    </span>
+                    <span className="text-xs font-bold bg-white/20 px-2.5 py-1 rounded-lg flex items-center gap-1">
+                      <Clock className="w-3 h-3" />{evDate.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                  </div>
+                  <p className="font-black text-base leading-snug mb-4 line-clamp-2">{ev.title}</p>
+                  {ev.link ? (
+                    <a href={ev.link} target="_blank" rel="noreferrer"
+                      className="inline-flex items-center gap-2 bg-white text-gray-900 font-black text-xs px-4 py-2.5 rounded-xl hover:scale-105 transition-transform active:scale-95 shadow-md">
+                      {today ? '🚀 Войти в урок' : 'Ссылка'} <ExternalLink className="w-3.5 h-3.5" />
+                    </a>
+                  ) : (
+                    <span className="text-xs font-bold text-white/60">{typeLabels[ev.type]}</span>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </motion.div>
+      )}
 
       <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col md:flex-row md:justify-between md:items-end gap-4">
         <div>

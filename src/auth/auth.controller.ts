@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Patch, Get, UseGuards, Request } from '@nestjs/common';
+import { Controller, Post, Body, Patch, Get, UseGuards, Request, BadRequestException } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { AuthGuard } from '@nestjs/passport';
 
@@ -31,6 +31,12 @@ export class AuthController {
   // --- РОДИТЕЛЬСКИЙ КОНТРОЛЬ ---
 
   @UseGuards(AuthGuard('jwt'))
+  @Patch('change-password')
+  async changePassword(@Request() req, @Body() body: { oldPassword: string; newPassword: string }) {
+    return this.authService.changePassword(req.user.sub, body.oldPassword, body.newPassword);
+  }
+
+  @UseGuards(AuthGuard('jwt'))
   @Post('invite-code')
   async generateCode(@Request() req) {
     return this.authService.generateInviteCode(req.user.sub);
@@ -38,7 +44,8 @@ export class AuthController {
 
   @UseGuards(AuthGuard('jwt'))
   @Post('link-student')
-  async linkStudent(@Request() req, @Body('code') code: string) {
+  async linkStudent(@Request() req, @Body() body: { code?: string; invite_code?: string }) {
+    const code = body.code || body.invite_code;
     return this.authService.linkToStudent(req.user.sub, code);
   }
 

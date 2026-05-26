@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { ShoppingCart, CheckCircle2, Sparkles, GraduationCap, CreditCard, Loader2, PlayCircle, ShieldCheck, Target, UserCircle, Calendar, Zap, Star } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { ShoppingCart, CheckCircle2, Sparkles, GraduationCap, CreditCard, Loader2, ShieldCheck, Target, UserCircle, Calendar, Zap, Star, Search, X, AlertCircle } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 
 const API_URL = 'https://prepodmgy.ru/api';
@@ -35,13 +35,21 @@ const getFeatureBg = (index: number) => {
   return 'bg-emerald-50';
 };
 
+type Toast = { id: string; type: 'success' | 'error'; text: string };
+
 export default function Shop() {
   const [groups, setGroups] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [userGroups, setUserGroups] = useState<string[]>([]);
-  
-  // Добавляем стейт для лоадера кнопки покупки
   const [buyingGroupId, setBuyingGroupId] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [toasts, setToasts] = useState<Toast[]>([]);
+
+  const showToast = (type: 'success' | 'error', text: string) => {
+    const id = Math.random().toString(36).slice(2);
+    setToasts(prev => [...prev, { id, type, text }]);
+    setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 3500);
+  };
 
   const getTokenConfig = () => ({ headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } });
 
@@ -76,21 +84,38 @@ export default function Shop() {
       // Отправляем запрос на зачисление ученика
       await axios.post(`${API_URL}/groups/${group.id}/enroll`, {}, getTokenConfig());
       
-      // Обновляем список купленных групп
       setUserGroups(prev => [...prev, group.id]);
-      alert('Успешно куплено! Курсы добавлены в личный кабинет 🚀');
+      showToast('success', '🚀 Куплено! Курсы добавлены в личный кабинет');
     } catch (error) {
       console.error("Ошибка при покупке:", error);
-      alert('Ошибка при покупке. Попробуй еще раз.');
+      showToast('error', 'Ошибка при покупке. Попробуй ещё раз.');
     } finally {
       setBuyingGroupId(null);
     }
   };
 
+  const filteredGroups = groups.filter(g =>
+    !searchQuery || g.title.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
   if (isLoading) return <div className="h-full w-full flex items-center justify-center"><Loader2 className="w-12 h-12 animate-spin text-[#5A4BFF]" /></div>;
 
   return (
     <div className="max-w-7xl mx-auto pb-20">
+
+      {/* Toast уведомления */}
+      <div className="fixed bottom-6 right-6 z-50 flex flex-col gap-3 pointer-events-none">
+        <AnimatePresence>
+          {toasts.map(t => (
+            <motion.div key={t.id} initial={{ opacity: 0, y: 20, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 10, scale: 0.95 }}
+              className={`pointer-events-auto flex items-center gap-3 px-5 py-4 rounded-2xl shadow-2xl font-bold text-sm max-w-xs
+                ${t.type === 'success' ? 'bg-emerald-500 text-white' : 'bg-rose-500 text-white'}`}>
+              {t.type === 'success' ? <CheckCircle2 className="w-5 h-5 shrink-0" /> : <AlertCircle className="w-5 h-5 shrink-0" />}
+              {t.text}
+            </motion.div>
+          ))}
+        </AnimatePresence>
+      </div>
       
       <div className="mb-12 relative overflow-hidden rounded-[3rem] bg-gradient-to-br from-gray-900 via-indigo-900 to-[#5A4BFF] p-10 md:p-16 shadow-2xl">
         <div className="absolute top-0 right-0 w-96 h-96 bg-white/10 blur-[100px] rounded-full pointer-events-none"></div>
@@ -116,7 +141,30 @@ export default function Shop() {
         </div>
       </div>
 
-      {groups.length === 0 ? (
+      {/* Поиск */}
+      <div className="mb-8 relative max-w-md">
+        <Search className="w-5 h-5 text-gray-400 absolute left-4 top-1/2 -translate-y-1/2" />
+        <input
+          type="text"
+          placeholder="Найти курс..."
+          value={searchQuery}
+          onChange={e => setSearchQuery(e.target.value)}
+          className="w-full bg-white border border-gray-200 rounded-2xl pl-12 pr-10 py-3.5 outline-none focus:border-[#5A4BFF] focus:ring-4 focus:ring-[#5A4BFF]/10 transition-all font-bold text-gray-700 shadow-sm"
+        />
+        {searchQuery && (
+          <button onClick={() => setSearchQuery('')} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors">
+            <X className="w-4 h-4" />
+          </button>
+        )}
+      </div>
+
+      {filteredGroups.length === 0 && searchQuery ? (
+        <div className="bg-white rounded-[3rem] p-12 text-center border border-gray-100 shadow-sm">
+          <Search className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+          <h2 className="text-2xl font-black text-gray-800 mb-2">Ничего не найдено</h2>
+          <p className="text-gray-500">Попробуй изменить запрос.</p>
+        </div>
+      ) : groups.length === 0 ? (
         <div className="bg-white rounded-[3rem] p-12 text-center border border-gray-100 shadow-sm">
           <ShoppingCart className="w-16 h-16 text-gray-300 mx-auto mb-4" />
           <h2 className="text-2xl font-black text-gray-800 mb-2">Витрина пока пуста</h2>
@@ -124,7 +172,7 @@ export default function Shop() {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-          {groups.map((group) => {
+          {filteredGroups.map((group) => {
             const isOwned = userGroups.includes(group.id);
             
             const hasDiscount = group.old_price && group.old_price > group.price;

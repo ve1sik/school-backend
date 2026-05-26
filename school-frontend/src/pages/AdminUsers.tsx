@@ -54,6 +54,9 @@ export default function AdminUsers() {
   const [showCourseModal, setShowCourseModal] = useState(false);
   const [showGroupModal, setShowGroupModal] = useState(false);
   const [showSubjectModal, setShowSubjectModal] = useState(false);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [createForm, setCreateForm] = useState({ email: '', password: '', name: '', surname: '', role: 'STUDENT' as Role });
+  const [isCreating, setIsCreating] = useState(false);
   
   const [selectedRole, setSelectedRole] = useState<Role>('STUDENT');
   const [selectedCourseId, setSelectedCourseId] = useState('');
@@ -187,6 +190,23 @@ export default function AdminUsers() {
     }
   };
 
+  const handleCreateUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!createForm.email || !createForm.password) return;
+    setIsCreating(true);
+    try {
+      await axios.post(`${API_URL}/users`, createForm, getTokenConfig());
+      showToast(`Аккаунт создан: ${createForm.email}`);
+      setShowCreateModal(false);
+      setCreateForm({ email: '', password: '', name: '', surname: '', role: 'STUDENT' });
+      fetchData();
+    } catch (err: any) {
+      showToast(err.response?.data?.message || 'Ошибка создания', 'error');
+    } finally {
+      setIsCreating(false);
+    }
+  };
+
   const handleDeleteUser = async (userId: string) => {
     if (!confirm('Удалить пользователя? Это действие необратимо!')) return;
     try {
@@ -262,17 +282,23 @@ export default function AdminUsers() {
       {/* MAIN CONTENT */}
       <main className="flex-1 p-4 md:p-8 overflow-hidden flex flex-col gap-6">
         
-        <div className="flex justify-between items-center">
-          <h1 className="text-4xl font-black">Управление пользователями</h1>
-          <div className="relative w-96">
-            <Search className="w-4 h-4 text-gray-400 absolute left-4 top-1/2 -translate-y-1/2" />
-            <input 
-              type="text" 
-              placeholder="Поиск по имени или email..." 
-              value={searchQuery} 
-              onChange={e => setSearchQuery(e.target.value)} 
-              className="w-full bg-white border border-gray-200 text-sm font-bold text-gray-700 rounded-xl pl-11 pr-4 py-3 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 transition-all placeholder:font-medium shadow-sm"
-            />
+        <div className="flex justify-between items-center gap-4">
+          <h1 className="text-4xl font-black shrink-0">Управление пользователями</h1>
+          <div className="flex items-center gap-3 ml-auto">
+            <div className="relative w-72">
+              <Search className="w-4 h-4 text-gray-400 absolute left-4 top-1/2 -translate-y-1/2" />
+              <input 
+                type="text" 
+                placeholder="Поиск по имени или email..." 
+                value={searchQuery} 
+                onChange={e => setSearchQuery(e.target.value)} 
+                className="w-full bg-white border border-gray-200 text-sm font-bold text-gray-700 rounded-xl pl-11 pr-4 py-3 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 transition-all placeholder:font-medium shadow-sm"
+              />
+            </div>
+            <button onClick={() => setShowCreateModal(true)}
+              className="flex items-center gap-2 px-5 py-3 bg-[#5A4BFF] text-white rounded-xl font-black text-sm hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-500/20 shrink-0">
+              <Plus className="w-4 h-4" /> Создать аккаунт
+            </button>
           </div>
         </div>
 
@@ -693,6 +719,61 @@ export default function AdminUsers() {
               <button onClick={handleAssignSubject} disabled={!selectedSubjectId} className="w-full py-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-black shadow-lg shadow-emerald-500/30 transition-all active:scale-95 text-lg disabled:opacity-50">
                 Назначить
               </button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* СОЗДАНИЕ АККАУНТА */}
+      <AnimatePresence>
+        {showCreateModal && (
+          <motion.div className="fixed inset-0 z-50 bg-gray-900/40 backdrop-blur-md flex items-center justify-center p-4">
+            <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-[2.5rem] w-full max-w-md p-8 shadow-2xl relative">
+              <button onClick={() => setShowCreateModal(false)} className="absolute top-6 right-6 p-2 bg-gray-100 hover:bg-gray-200 rounded-full transition-colors">
+                <X className="w-5 h-5 text-gray-600" />
+              </button>
+              <h3 className="text-2xl font-black mb-6 flex items-center gap-3">
+                <Plus className="w-6 h-6 text-[#5A4BFF]" /> Новый аккаунт
+              </h3>
+              <form onSubmit={handleCreateUser} className="space-y-4">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1 ml-1">Имя</label>
+                    <input value={createForm.name} onChange={e => setCreateForm({...createForm, name: e.target.value})}
+                      placeholder="Иван" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-[#5A4BFF] font-bold transition-all" />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1 ml-1">Фамилия</label>
+                    <input value={createForm.surname} onChange={e => setCreateForm({...createForm, surname: e.target.value})}
+                      placeholder="Иванов" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-[#5A4BFF] font-bold transition-all" />
+                  </div>
+                </div>
+                <div>
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1 ml-1">Email *</label>
+                  <input type="email" required value={createForm.email} onChange={e => setCreateForm({...createForm, email: e.target.value})}
+                    placeholder="ivan@example.com" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-[#5A4BFF] font-bold transition-all" />
+                </div>
+                <div>
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1 ml-1">Пароль *</label>
+                  <input type="text" required value={createForm.password} onChange={e => setCreateForm({...createForm, password: e.target.value})}
+                    placeholder="Минимум 6 символов" className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-[#5A4BFF] font-bold transition-all" />
+                </div>
+                <div>
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1 ml-1">Роль</label>
+                  <select value={createForm.role} onChange={e => setCreateForm({...createForm, role: e.target.value as Role})}
+                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-[#5A4BFF] font-bold transition-all appearance-none cursor-pointer">
+                    <option value="STUDENT">Ученик</option>
+                    <option value="CURATOR">Куратор</option>
+                    <option value="ADMIN">Администратор</option>
+                    <option value="PARENT">Родитель</option>
+                  </select>
+                </div>
+                <button type="submit" disabled={isCreating}
+                  className="w-full py-4 bg-[#5A4BFF] text-white rounded-2xl font-black text-base hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-500/20 flex items-center justify-center gap-2 disabled:opacity-70 mt-2">
+                  {isCreating ? <Loader2 className="w-5 h-5 animate-spin" /> : <><Plus className="w-5 h-5" /> Создать аккаунт</>}
+                </button>
+              </form>
             </motion.div>
           </motion.div>
         )}

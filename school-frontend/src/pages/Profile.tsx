@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { User, MapPin, Calendar, ShieldCheck, Copy, CheckCircle2, Loader2, Mail, Save, X, Camera } from 'lucide-react';
+import { User, MapPin, Calendar, Copy, CheckCircle2, Loader2, Mail, Save, X, Camera, BookOpen, Flame, Star, Trophy, Zap, Target, Medal } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 
@@ -17,6 +17,7 @@ const getFullUrl = (url: string) => {
 
 export default function Profile() {
   const [user, setUser] = useState<any>(null);
+  const [stats, setStats] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [copied, setCopied] = useState(false);
 
@@ -64,6 +65,14 @@ export default function Profile() {
           city: userData.city || '',
           birthday: userData.birthday || ''
         });
+
+        // Загружаем статистику
+        try {
+          const statsRes = await axios.get(`${API_URL}/dashboard/analytics`, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          setStats(statsRes.data);
+        } catch { /* silent */ }
       } catch (err) {
         console.error('Ошибка загрузки профиля', err);
       } finally {
@@ -303,27 +312,42 @@ export default function Profile() {
           </div>
         </motion.div>
 
-        {/* ПРАВАЯ КАРТОЧКА: Статус обучения */}
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="bg-[#5A4BFF] rounded-[2.5rem] p-8 md:p-10 shadow-lg shadow-indigo-500/30 text-white relative overflow-hidden flex flex-col">
-          <div className="absolute -bottom-10 -right-10 w-64 h-64 bg-white/10 rounded-full blur-3xl"></div>
-          
-          <div className="relative z-10">
-            <h2 className="text-2xl font-black mb-1">Статус обучения</h2>
-            <p className="text-[10px] font-black text-indigo-200 uppercase tracking-widest mb-6">Тарифный план</p>
-            
-            <div className="text-4xl md:text-5xl font-black tracking-tight mb-8">
-              СТУДЕНТ PRO
-            </div>
+        {/* ПРАВАЯ КАРТОЧКА: Статистика + Достижения */}
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="flex flex-col gap-4">
 
-            <div className="bg-white/10 backdrop-blur-md border border-white/20 p-5 rounded-2xl">
-              <p className="font-medium text-indigo-50">
-                Твой рейтинг выше, чем у 85% студентов на потоке. Красава! Так держать! 🚀
-              </p>
-            </div>
+          {/* Мини-статы */}
+          <div className="grid grid-cols-3 gap-3">
+            {[
+              { icon: BookOpen, val: stats?.totalTests ?? '—', label: 'Заданий', color: 'text-indigo-500', bg: 'bg-indigo-50' },
+              { icon: Flame, val: stats?.streakDays ?? 0, label: 'Стрик', color: 'text-orange-500', bg: 'bg-orange-50' },
+              { icon: Star, val: stats?.averageScore ?? '—', label: 'Балл', color: 'text-amber-500', bg: 'bg-amber-50' },
+            ].map(({ icon: Icon, val, label, color, bg }) => (
+              <div key={label} className={`${bg} rounded-[1.5rem] p-5 flex flex-col items-center`}>
+                <Icon className={`w-5 h-5 ${color} mb-2`} />
+                <span className="text-2xl font-black text-gray-900">{val}</span>
+                <span className="text-xs font-bold text-gray-400 mt-1">{label}</span>
+              </div>
+            ))}
           </div>
 
-          <div className="mt-auto pt-10 flex justify-end relative z-10">
-            <ShieldCheck className="w-32 h-32 text-white/10 absolute -bottom-4 -right-4 rotate-12" />
+          {/* Достижения */}
+          <div className="bg-white rounded-[2.5rem] p-6 shadow-sm border border-gray-100 flex-1">
+            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-5">Достижения</p>
+            <div className="grid grid-cols-3 gap-3">
+              {[
+                { icon: '🎯', label: 'Первый тест', unlocked: (stats?.totalTests ?? 0) >= 1 },
+                { icon: '🔥', label: '3 дня подряд', unlocked: (stats?.streakDays ?? 0) >= 3 },
+                { icon: '📚', label: '10 заданий', unlocked: (stats?.totalTests ?? 0) >= 10 },
+                { icon: '⭐', label: 'Балл 80+', unlocked: (stats?.averageScore ?? 0) >= 80 },
+                { icon: '🚀', label: '7 дней подряд', unlocked: (stats?.streakDays ?? 0) >= 7 },
+                { icon: '🏆', label: 'Балл 95+', unlocked: (stats?.averageScore ?? 0) >= 95 },
+              ].map(({ icon, label, unlocked }) => (
+                <div key={label} className={`flex flex-col items-center p-3 rounded-2xl border-2 transition-all ${unlocked ? 'border-amber-200 bg-amber-50' : 'border-gray-100 bg-gray-50 opacity-40 grayscale'}`}>
+                  <span className="text-2xl mb-1">{icon}</span>
+                  <span className="text-[10px] font-bold text-gray-600 text-center leading-tight">{label}</span>
+                </div>
+              ))}
+            </div>
           </div>
         </motion.div>
 

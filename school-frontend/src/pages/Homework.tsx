@@ -1,18 +1,18 @@
 import { useState, useEffect } from 'react';
-import { FileText, AlertCircle, Clock, CheckCircle2, Loader2, FolderOpen, ChevronRight, Search, Book, ListTodo } from 'lucide-react';
+import { FileText, AlertCircle, Clock, CheckCircle2, Loader2, FolderOpen, ChevronRight, Search, Book, Calendar, XCircle } from 'lucide-react';
 import { motion, AnimatePresence, type Variants } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 
 const API_URL = 'https://prepodmgy.ru/api';
 
+type TabType = 'TODO' | 'OVERDUE' | 'REVIEW' | 'GRADED';
+
 export default function Homework() {
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(true);
   const [homeworks, setHomeworks] = useState<any[]>([]);
-  const [activeTab, setActiveTab] = useState<'TODO' | 'COMPLETED'>('TODO');
-  
-  // 🔥 ДОБАВИЛИ СОСТОЯНИЕ ДЛЯ ПОИСКА
+  const [activeTab, setActiveTab] = useState<TabType>('TODO');
   const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
@@ -20,10 +20,21 @@ export default function Homework() {
       try {
         const token = localStorage.getItem('token');
         
-        const [coursesRes, subsRes] = await Promise.all([
+        const [coursesRes, subsRes, schedRes] = await Promise.all([
           axios.get(`${API_URL}/courses`, { headers: { Authorization: `Bearer ${token}` } }),
-          axios.get(`${API_URL}/submissions/my`, { headers: { Authorization: `Bearer ${token}` } }).catch(() => ({ data: [] }))
+          axios.get(`${API_URL}/submissions/my`, { headers: { Authorization: `Bearer ${token}` } }).catch(() => ({ data: [] })),
+          axios.get(`${API_URL}/schedule`, { headers: { Authorization: `Bearer ${token}` } }).catch(() => ({ data: [] })),
         ]);
+
+        // Собираем дедлайны из расписания — матчим по названию урока
+        const deadlineEvents: any[] = schedRes.data.filter((e: any) => e.type === 'DEADLINE');
+        const findDeadline = (title: string): string | null => {
+          const match = deadlineEvents.find(d =>
+            d.title.toLowerCase().includes(title.toLowerCase()) ||
+            title.toLowerCase().includes(d.title.toLowerCase())
+          );
+          return match ? match.date : null;
+        };
 
         const mySubs = subsRes.data;
         const extractedHomeworks: any[] = [];
@@ -56,10 +67,15 @@ export default function Homework() {
                 let score = null;
                 let maxScore = hwMaxScore || lesson.max_score || 100;
 
+                const deadline = findDeadline(lesson.title);
+                const isOverdue = status === 'TODO' && deadline && new Date(deadline) < new Date();
+
                 if (submission) {
                   status = submission.status === 'GRADED' ? 'GRADED' : 'REVIEW';
                   score = submission.score;
                   maxScore = submission.max_score || maxScore;
+                } else if (isOverdue) {
+                  status = 'OVERDUE';
                 }
 
                 extractedHomeworks.push({
@@ -67,9 +83,10 @@ export default function Homework() {
                   title: lesson.title,
                   courseName: course.title,
                   themeName: theme.title,
-                  status, 
+                  status,
                   score,
-                  maxScore
+                  maxScore,
+                  deadline,
                 });
               }
             });
@@ -87,19 +104,21 @@ export default function Homework() {
     fetchRealHomeworks();
   }, []);
 
-  // 🔥 УМНАЯ ФИЛЬТРАЦИЯ (Вкладки + Поиск)
   const filteredHomeworks = homeworks.filter(hw => {
-    // Проверка вкладки
-    const matchesTab = activeTab === 'TODO' ? hw.status === 'TODO' : hw.status !== 'TODO';
-    
-    // Проверка поиска
+    const matchesTab = hw.status === activeTab;
     const searchLower = searchQuery.toLowerCase();
-    const matchesSearch = hw.title.toLowerCase().includes(searchLower) || 
-                          hw.courseName.toLowerCase().includes(searchLower) || 
+    const matchesSearch = hw.title.toLowerCase().includes(searchLower) ||
+                          hw.courseName.toLowerCase().includes(searchLower) ||
                           hw.themeName.toLowerCase().includes(searchLower);
-                          
     return matchesTab && matchesSearch;
   });
+
+  const counts = {
+    TODO: homeworks.filter(h => h.status === 'TODO').length,
+    OVERDUE: homeworks.filter(h => h.status === 'OVERDUE').length,
+    REVIEW: homeworks.filter(h => h.status === 'REVIEW').length,
+    GRADED: homeworks.filter(h => h.status === 'GRADED').length,
+  };
 
   // 🔥 ГРУППИРОВКА ЗАДАНИЙ (Курс -> Модуль -> Массив заданий)
   const groupedHomeworks = filteredHomeworks.reduce((acc, hw) => {
@@ -129,21 +148,24 @@ export default function Homework() {
         </h1>
         <p className="text-gray-500 font-medium text-lg mb-8">Отслеживай свои домашние работы и оценки куратора.</p>
 
-        {/* 🔥 ПАНЕЛЬ УПРАВЛЕНИЯ: Вкладки + Поиск */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-          <div className="flex gap-4 overflow-x-auto pb-2 md:pb-0">
-            <button 
-              onClick={() => setActiveTab('TODO')}
-              className={`px-6 py-3 rounded-2xl font-bold transition-all whitespace-nowrap ${activeTab === 'TODO' ? 'bg-[#5A4BFF] text-white shadow-lg shadow-indigo-500/20' : 'bg-white text-gray-500 hover:bg-gray-50 border border-gray-100'}`}
-            >
-              К выполнению
-            </button>
-            <button 
-              onClick={() => setActiveTab('COMPLETED')}
-              className={`px-6 py-3 rounded-2xl font-bold transition-all whitespace-nowrap ${activeTab === 'COMPLETED' ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20' : 'bg-white text-gray-500 hover:bg-gray-50 border border-gray-100'}`}
-            >
-              Сданные работы
-            </button>
+          <div className="flex gap-3 overflow-x-auto pb-2 md:pb-0 flex-wrap">
+            {([
+              { key: 'TODO', label: 'К выполнению', activeClass: 'bg-[#5A4BFF] text-white shadow-lg shadow-indigo-500/20' },
+              { key: 'OVERDUE', label: '🚨 Просрочено', activeClass: 'bg-rose-500 text-white shadow-lg shadow-rose-500/20' },
+              { key: 'REVIEW', label: '⏳ На проверке', activeClass: 'bg-amber-500 text-white shadow-lg shadow-amber-500/20' },
+              { key: 'GRADED', label: '✅ Оценено', activeClass: 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20' },
+            ] as const).map(({ key, label, activeClass }) => (
+              <button key={key} onClick={() => setActiveTab(key)}
+                className={`px-5 py-3 rounded-2xl font-bold transition-all whitespace-nowrap flex items-center gap-2 ${activeTab === key ? activeClass : 'bg-white text-gray-500 hover:bg-gray-50 border border-gray-100'}`}>
+                {label}
+                {counts[key] > 0 && (
+                  <span className={`text-[10px] font-black px-1.5 py-0.5 rounded-md ${activeTab === key ? 'bg-white/20' : 'bg-gray-100 text-gray-500'}`}>
+                    {counts[key]}
+                  </span>
+                )}
+              </button>
+            ))}
           </div>
 
           <div className="relative w-full md:w-80 shrink-0">
@@ -187,6 +209,9 @@ export default function Homework() {
                       if (hw.status === 'TODO') {
                         badgeBg = 'bg-orange-100'; badgeText = 'text-orange-600'; iconColor = 'text-orange-500'; statusText = 'К ВЫПОЛНЕНИЮ';
                         buttonStyle = 'bg-gray-900 hover:bg-black text-white shadow-xl shadow-gray-900/20'; buttonText = 'НАЧАТЬ ВЫПОЛНЕНИЕ';
+                      } else if (hw.status === 'OVERDUE') {
+                        badgeBg = 'bg-rose-100'; badgeText = 'text-rose-600'; Icon = XCircle; iconColor = 'text-rose-500'; statusText = 'ПРОСРОЧЕНО';
+                        buttonStyle = 'bg-rose-500 hover:bg-rose-600 text-white shadow-xl shadow-rose-500/20'; buttonText = 'СДАТЬ СЕЙЧАС';
                       } else if (hw.status === 'REVIEW') {
                         badgeBg = 'bg-indigo-100'; badgeText = 'text-[#5A4BFF]'; Icon = Clock; iconColor = 'text-[#5A4BFF]'; statusText = 'НА ПРОВЕРКЕ';
                         buttonStyle = 'bg-gray-50 text-gray-400 hover:bg-gray-100 hover:text-gray-600'; buttonText = 'СМОТРЕТЬ ДЕТАЛИ';
@@ -195,19 +220,32 @@ export default function Homework() {
                         buttonStyle = 'bg-gray-50 text-emerald-600 hover:bg-emerald-50 border border-emerald-100'; buttonText = 'ПОСМОТРЕТЬ ОЦЕНКУ';
                       }
 
+                      const deadlineDate = hw.deadline ? new Date(hw.deadline) : null;
+                      const daysLeft = deadlineDate ? Math.ceil((deadlineDate.getTime() - Date.now()) / 86400000) : null;
+
                       return (
-                        <motion.div key={hw.id} variants={itemVariants} className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-gray-100 flex flex-col justify-between min-h-[300px] hover:shadow-xl hover:-translate-y-1 transition-all duration-300 group">
+                        <motion.div key={hw.id} variants={itemVariants}
+                          className={`bg-white rounded-[2.5rem] p-8 shadow-sm border flex flex-col justify-between min-h-[300px] hover:shadow-xl hover:-translate-y-1 transition-all duration-300 group ${hw.status === 'OVERDUE' ? 'border-rose-200' : 'border-gray-100'}`}>
                           <div>
                             <div className="flex justify-between items-start mb-8">
                               <div className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest ${badgeBg} ${badgeText}`}>{statusText}</div>
                               <div className="p-2 rounded-full bg-gray-50"><Icon className={`w-6 h-6 ${iconColor}`} /></div>
                             </div>
                             <h3 className="text-2xl font-black text-gray-900 mb-3 leading-tight line-clamp-3">{hw.title}</h3>
+                            {deadlineDate && hw.status !== 'GRADED' && (
+                              <div className={`flex items-center gap-1.5 mt-3 text-xs font-bold ${daysLeft !== null && daysLeft <= 1 ? 'text-rose-500' : 'text-gray-400'}`}>
+                                <Calendar className="w-3.5 h-3.5" />
+                                {hw.status === 'OVERDUE'
+                                  ? `Просрочено: ${deadlineDate.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' })}`
+                                  : `Сдать до: ${deadlineDate.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' })}${daysLeft !== null && daysLeft <= 2 ? ` (осталось ${daysLeft} д.)` : ''}`
+                                }
+                              </div>
+                            )}
                           </div>
                           <div className="mt-8 pt-6 border-t border-gray-50">
                             <button onClick={() => navigate(`/homework/${hw.id}`)} className={`w-full py-4 rounded-2xl font-black text-sm transition-all active:scale-95 flex items-center justify-center gap-2 ${buttonStyle}`}>
                               {buttonText}
-                              {hw.status === 'TODO' && <ChevronRight className="w-4 h-4" />}
+                              {(hw.status === 'TODO' || hw.status === 'OVERDUE') && <ChevronRight className="w-4 h-4" />}
                             </button>
                           </div>
                         </motion.div>

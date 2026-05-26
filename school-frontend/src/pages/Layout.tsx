@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Home, 
   BookOpen, 
@@ -15,7 +16,12 @@ import {
   User,
   ShoppingCart,
   Users,
-  Layers
+  Layers,
+  MessageCircle,
+  CheckCircle2,
+  AlertCircle,
+  Clock,
+  X
 } from 'lucide-react';
 
 const API_URL = 'https://prepodmgy.ru/api';
@@ -27,8 +33,23 @@ export default function Layout() {
   
   const [userData, setUserData] = useState<any>(null);
   
-  // 🔥 СТЕЙТ ДЛЯ НЕПРОЧИТАННЫХ СООБЩЕНИЙ
   const [unreadCount, setUnreadCount] = useState(0);
+
+  // Уведомления
+  const [showNotifPanel, setShowNotifPanel] = useState(false);
+  const [notifications, setNotifications] = useState<{id: string; type: 'message'|'graded'|'deadline'|'cards'; text: string; sub?: string; link?: string}[]>([]);
+  const notifRef = useRef<HTMLDivElement>(null);
+
+  // Закрытие панели кликом вне
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (notifRef.current && !notifRef.current.contains(e.target as Node)) {
+        setShowNotifPanel(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
 
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -64,23 +85,70 @@ export default function Layout() {
     fetchUserData();
   }, [navigate]);
 
-  // 🔥 ПОЛЛИНГ НЕПРОЧИТАННЫХ СООБЩЕНИЙ (раз в 5 секунд)
+  // Поллинг: сообщения + сборка всех уведомлений
   useEffect(() => {
-    const fetchUnread = async () => {
+    const fetchNotifs = async () => {
       try {
         const token = localStorage.getItem('token');
         if (!token) return;
-        const res = await axios.get(`${API_URL}/messages/unread`, {
-          headers: { Authorization: `Bearer ${token}` }
+        const headers = { Authorization: `Bearer ${token}` };
+        const lastSeen = localStorage.getItem('notif_last_seen') || '0';
+
+        const [unreadRes, schedRes, subsRes, cardsRes] = await Promise.all([
+          axios.get(`${API_URL}/messages/unread`, { headers }).catch(() => ({ data: { count: 0 } })),
+          axios.get(`${API_URL}/schedule`, { headers }).catch(() => ({ data: [] })),
+          axios.get(`${API_URL}/submissions/my`, { headers }).catch(() => ({ data: [] })),
+          axios.get(`${API_URL}/flashcards/stats`, { headers }).catch(() => ({ data: { dueTodayCount: 0, newCount: 0 } })),
+        ]);
+
+        setUnreadCount(unreadRes.data.count || 0);
+
+        const notifs: typeof notifications = [];
+
+        // 1. Непрочитанные сообщения
+        if (unreadRes.data.count > 0) {
+          notifs.push({ id: 'msg', type: 'message', text: `${unreadRes.data.count} новых сообщений`, sub: 'от куратора', link: '/messages' });
+        }
+
+        // 2. Проверенные домашки (с момента lastSeen)
+        const graded = (subsRes.data as any[]).filter(
+          s => s.status === 'GRADED' && new Date(s.updated_at || s.created_at).getTime() > parseInt(lastSeen)
+        );
+        if (graded.length > 0) {
+          notifs.push({ id: 'graded', type: 'graded', text: `${graded.length} домашних работ проверено`, sub: 'Посмотреть оценку', link: '/homework' });
+        }
+
+        // 3. Дедлайны завтра
+        const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1);
+        const tomorrowStr = tomorrow.toDateString();
+        const deadlines = (schedRes.data as any[]).filter(
+          e => e.type === 'DEADLINE' && new Date(e.date).toDateString() === tomorrowStr
+        );
+        deadlines.forEach(d => {
+          notifs.push({ id: `dl-${d.id}`, type: 'deadline', text: `Дедлайн завтра: ${d.title}`, sub: new Date(d.date).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }), link: '/schedule' });
         });
-        setUnreadCount(res.data.count);
-      } catch (e) {
-        // Тихо гасим ошибку, чтобы не засорять консоль
-      }
+
+        // 4. Занятие сегодня с ссылкой
+        const todayStr = new Date().toDateString();
+        const todayEvents = (schedRes.data as any[]).filter(
+          e => e.type === 'WEBINAR' && new Date(e.date).toDateString() === todayStr && e.link
+        );
+        todayEvents.forEach(e => {
+          notifs.push({ id: `ev-${e.id}`, type: 'deadline', text: `Занятие сегодня: ${e.title}`, sub: `в ${new Date(e.date).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}`, link: e.link });
+        });
+
+        // 5. Карточки на повтор
+        const cardsDue = (cardsRes.data.dueTodayCount || 0) + (cardsRes.data.newCount || 0);
+        if (cardsDue > 0) {
+          notifs.push({ id: 'cards', type: 'cards', text: `${cardsDue} карточек ждут повторения`, sub: 'Учить сейчас', link: '/flashcards' });
+        }
+
+        setNotifications(notifs);
+      } catch { /* silent */ }
     };
 
-    fetchUnread(); // Сразу при загрузке
-    const interval = setInterval(fetchUnread, 5000); // И потом каждые 5 сек
+    fetchNotifs();
+    const interval = setInterval(fetchNotifs, 15000);
     return () => clearInterval(interval);
   }, []);
 
@@ -289,10 +357,73 @@ export default function Layout() {
           <h1 className="text-2xl font-black text-gray-900">{getPageTitle()}</h1>
           
           <div className="flex items-center gap-6">
-            <button className="text-gray-400 hover:text-gray-600 transition-colors relative">
-              <Bell className="w-6 h-6" />
-              <span className="absolute top-0 right-0 w-2 h-2 bg-red-500 rounded-full border-2 border-[#F4F7FE]"></span>
-            </button>
+            {/* КОЛОКОЛЬЧИК */}
+            <div className="relative" ref={notifRef}>
+              <button
+                onClick={() => { setShowNotifPanel(v => !v); localStorage.setItem('notif_last_seen', Date.now().toString()); }}
+                className="text-gray-400 hover:text-gray-700 transition-colors relative p-1"
+              >
+                <Bell className="w-6 h-6" />
+                {notifications.length > 0 && (
+                  <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] bg-red-500 text-white text-[10px] font-black flex items-center justify-center rounded-full px-1 border-2 border-[#F4F7FE]">
+                    {notifications.length}
+                  </span>
+                )}
+              </button>
+
+              <AnimatePresence>
+                {showNotifPanel && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 8, scale: 0.97 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 8, scale: 0.97 }}
+                    transition={{ duration: 0.15 }}
+                    className="absolute right-0 top-10 w-80 bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden z-50"
+                  >
+                    <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+                      <span className="font-black text-gray-900">Уведомления</span>
+                      <button onClick={() => setShowNotifPanel(false)} className="p-1 text-gray-400 hover:text-gray-700 transition-colors">
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+
+                    {notifications.length === 0 ? (
+                      <div className="py-10 text-center text-gray-400">
+                        <Bell className="w-8 h-8 mx-auto mb-2 opacity-20" />
+                        <p className="font-bold text-sm">Всё спокойно</p>
+                      </div>
+                    ) : (
+                      <div className="max-h-80 overflow-y-auto divide-y divide-gray-50">
+                        {notifications.map(n => {
+                          const iconMap = {
+                            message: <MessageCircle className="w-4 h-4 text-indigo-500" />,
+                            graded: <CheckCircle2 className="w-4 h-4 text-emerald-500" />,
+                            deadline: <AlertCircle className="w-4 h-4 text-rose-500" />,
+                            cards: <Clock className="w-4 h-4 text-amber-500" />,
+                          };
+                          const bgMap = { message: 'bg-indigo-50', graded: 'bg-emerald-50', deadline: 'bg-rose-50', cards: 'bg-amber-50' };
+                          const isExternal = n.link?.startsWith('http');
+                          const Wrapper = isExternal
+                            ? ({ children }: any) => <a href={n.link} target="_blank" rel="noreferrer" className="flex items-start gap-3 px-5 py-4 hover:bg-gray-50 transition-colors cursor-pointer">{children}</a>
+                            : ({ children }: any) => <div onClick={() => { navigate(n.link!); setShowNotifPanel(false); }} className="flex items-start gap-3 px-5 py-4 hover:bg-gray-50 transition-colors cursor-pointer">{children}</div>;
+                          return (
+                            <Wrapper key={n.id}>
+                              <div className={`w-8 h-8 ${bgMap[n.type]} rounded-xl flex items-center justify-center shrink-0 mt-0.5`}>
+                                {iconMap[n.type]}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="font-bold text-gray-900 text-sm leading-snug">{n.text}</p>
+                                {n.sub && <p className="text-xs text-gray-400 font-medium mt-0.5">{n.sub}</p>}
+                              </div>
+                            </Wrapper>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
             
             <Link to="/profile" className="flex items-center gap-3 cursor-pointer group hover:opacity-80 transition-opacity">
               <div className="text-right">

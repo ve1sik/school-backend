@@ -22,9 +22,13 @@ export class AuthService {
     const existingUser = await this.prisma.user.findUnique({
       where: { email: dto.email },
     });
-    
+
     if (existingUser) {
       throw new BadRequestException('Пользователь с таким email уже существует.');
+    }
+
+    if (!dto.name || !dto.surname) {
+      throw new BadRequestException('Имя и фамилия обязательны для регистрации.');
     }
 
     const salt = await bcrypt.genSalt(10);
@@ -34,6 +38,8 @@ export class AuthService {
       data: {
         email: dto.email,
         password_hash: hash,
+        name: dto.name.trim(),
+        surname: dto.surname.trim(),
       },
     });
 
@@ -92,6 +98,22 @@ export class AuthService {
     
     // 🔥 ФИКС: Просто возвращаем result
     return result; 
+  }
+
+  // 4b. СМЕНА ПАРОЛЯ
+  async changePassword(userId: string, oldPassword: string, newPassword: string) {
+    if (!newPassword || newPassword.length < 6) {
+      throw new BadRequestException('Новый пароль должен содержать минимум 6 символов');
+    }
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new UnauthorizedException('Пользователь не найден');
+
+    const isValid = await bcrypt.compare(oldPassword, user.password_hash);
+    if (!isValid) throw new BadRequestException('Неверный текущий пароль');
+
+    const newHash = await bcrypt.hash(newPassword, 10);
+    await this.prisma.user.update({ where: { id: userId }, data: { password_hash: newHash } });
+    return { success: true };
   }
 
   // --- РОДИТЕЛЬСКИЙ КОНТРОЛЬ ---
