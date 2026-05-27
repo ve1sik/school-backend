@@ -50,6 +50,14 @@ export class UserService {
     });
   }
 
+  async findAllTeachers() {
+    return this.prisma.user.findMany({
+      where: { role: 'TEACHER' },
+      select: { id: true, name: true, surname: true, email: true, avatar: true },
+      orderBy: { created_at: 'desc' },
+    });
+  }
+
   async createUser(dto: { email: string; password: string; name?: string; surname?: string; role?: Role }) {
     const existing = await this.prisma.user.findUnique({ where: { email: dto.email } });
     if (existing) throw new BadRequestException('Пользователь с таким email уже существует');

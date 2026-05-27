@@ -29,6 +29,12 @@ export class UserController {
   }
 
   @Roles('ADMIN')
+  @Get('teachers')
+  findAllTeachers() {
+    return this.userService.findAllTeachers();
+  }
+
+  @Roles('ADMIN')
   @Post()
   create(@Body() dto: { email: string; password: string; name?: string; surname?: string; role?: any }) {
     return this.userService.createUser(dto);

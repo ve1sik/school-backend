@@ -175,10 +175,19 @@ export default function FlashcardStudy() {
 
   // ── HOME SCREEN ──
   if (phase === 'home') return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-indigo-50 p-4 md:p-8">
-      <div className="max-w-2xl mx-auto">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-indigo-50 flex">
 
-        <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-gray-500 hover:text-gray-800 font-bold mb-8 transition-colors">
+      {/* Боковая панель «назад» */}
+      <aside className="hidden md:flex flex-col items-center py-8 px-3 gap-4 w-14 shrink-0">
+        <button onClick={() => navigate(-1)}
+          className="w-10 h-10 flex items-center justify-center rounded-xl bg-white border border-gray-200 text-gray-400 hover:text-indigo-600 hover:border-indigo-200 transition-all shadow-sm">
+          <ChevronLeft className="w-5 h-5" />
+        </button>
+      </aside>
+
+      <div className="flex-1 p-4 md:p-8 max-w-2xl">
+        {/* Мобильная кнопка назад */}
+        <button onClick={() => navigate(-1)} className="md:hidden flex items-center gap-2 text-gray-500 hover:text-gray-800 font-bold mb-6 transition-colors">
           <ChevronLeft className="w-5 h-5" /> Назад
         </button>
 
@@ -253,6 +262,7 @@ export default function FlashcardStudy() {
       </div>
     </div>
   );
+
 
   // ── STUDY SCREEN ──
   return (

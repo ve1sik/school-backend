@@ -1,16 +1,12 @@
 import { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Activity, Loader2, BarChart2, List, PenTool, AlertCircle, CheckSquare, Mic,
-  FileText, Target, X, BookOpen, ChevronRight, TrendingDown, Layers,
-  PanelRightOpen, GraduationCap, ChevronDown, ChevronUp,
+  Activity, Loader2, PenTool, AlertCircle, CheckSquare, Mic,
+  Target, X, BookOpen, ChevronRight, TrendingDown, Layers,
+  PanelRightOpen, GraduationCap, ChevronDown, ChevronUp, Star,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
-  ResponsiveContainer, Cell, ReferenceLine, LabelList,
-} from 'recharts';
 
 const COURSE_INLINE_LIMIT = 3;
 const PASS_SCORE = 70;
@@ -38,23 +34,6 @@ const scoreBarColor = (score: number) => {
   return '#f43f5e';
 };
 
-const ChartTooltip = ({ active, payload }: any) => {
-  if (!active || !payload?.length) return null;
-  const data = payload[0].payload;
-  return (
-    <div className="bg-white p-4 rounded-2xl shadow-xl border border-gray-100 max-w-sm">
-      <p className="text-[10px] font-black uppercase tracking-widest text-indigo-500 mb-1">
-        {data.moduleTitle ? `Модуль ${data.orderIndex}` : 'Урок'}
-      </p>
-      <p className="text-sm font-bold text-gray-800 mb-2 leading-snug">{data.fullName || data.name}</p>
-      <p className="text-2xl font-black" style={{ color: scoreBarColor(data.score) }}>
-        {data.earned} / {data.max} баллов
-      </p>
-      <p className="text-sm font-bold text-gray-600 mt-1">{data.score}% · {data.taskCount} заданий</p>
-      <p className="text-xs text-gray-400 mt-1">{data.score >= PASS_SCORE ? 'выше проходного 70%' : 'ниже 70%'}</p>
-    </div>
-  );
-};
 
 type ScoreChartRow = {
   name: string;
@@ -129,97 +108,37 @@ function buildGlobalOverview(
   };
 }
 
-function ScoresBarChart({ data, title }: { data: ScoreChartRow[]; title: string }) {
+function ScoreTable({ data }: { data: ScoreChartRow[] }) {
   const sorted = [...data].sort((a, b) => a.orderIndex - b.orderIndex);
-
+  if (!sorted.length) return (
+    <div className="flex items-center justify-center h-24 text-gray-400 font-bold text-sm bg-gray-50 rounded-2xl border border-dashed border-gray-200">
+      Нет данных
+    </div>
+  );
   return (
-    <div className="space-y-6">
-      <p className="text-sm font-bold text-gray-600">{title}</p>
-      <div className="flex flex-wrap gap-3 text-xs font-bold">
-        <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-100">
-          <span className="w-2.5 h-2.5 rounded-sm bg-emerald-500" /> 70+ отлично
-        </span>
-        <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-50 text-amber-700 border border-amber-100">
-          <span className="w-2.5 h-2.5 rounded-sm bg-amber-500" /> 50–69 средне
-        </span>
-        <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-rose-50 text-rose-700 border border-rose-100">
-          <span className="w-2.5 h-2.5 rounded-sm bg-rose-500" /> &lt;50 слабо
-        </span>
-        <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gray-50 text-gray-500 border border-gray-200">
-          пунктир — проходной балл 70
-        </span>
-      </div>
-
-      <div className="w-full min-h-[280px] lg:min-h-[320px]">
-        <ResponsiveContainer width="100%" height={Math.max(280, sorted.length * 56)}>
-          <BarChart
-            layout="vertical"
-            data={sorted}
-            margin={{ top: 8, right: 52, left: 4, bottom: 8 }}
-            barCategoryGap="20%"
-          >
-            <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e5e7eb" />
-            <XAxis
-              type="number"
-              domain={[0, 100]}
-              axisLine={false}
-              tickLine={false}
-              tick={{ fill: '#9ca3af', fontSize: 12, fontWeight: 700 }}
-              ticks={[0, 25, 50, 70, 100]}
-            />
-            <YAxis
-              type="category"
-              dataKey="fullName"
-              width={200}
-              axisLine={false}
-              tickLine={false}
-              tick={{ fill: '#374151', fontSize: 11, fontWeight: 700 }}
-            />
-            <Tooltip content={<ChartTooltip />} cursor={{ fill: 'rgba(90, 75, 255, 0.06)' }} />
-            <ReferenceLine x={PASS_SCORE} stroke="#94a3b8" strokeDasharray="6 4" strokeWidth={2} />
-            <Bar dataKey="score" radius={[0, 10, 10, 0]} maxBarSize={28}>
-              {sorted.map((entry, i) => (
-                <Cell key={i} fill={scoreBarColor(entry.score)} />
-              ))}
-              <LabelList
-                dataKey="earned"
-                position="right"
-                formatter={(_v, _n, entry: any) => `${entry?.payload?.earned ?? 0}/${entry?.payload?.max ?? 0}`}
-                style={{ fontSize: 11, fontWeight: 800, fill: '#374151' }}
-              />
-            </Bar>
-          </BarChart>
-        </ResponsiveContainer>
-      </div>
-
-      <div className="space-y-2">
-        {sorted.map((row) => (
-          <div
-            key={row.fullName}
-            className="flex items-center gap-3 p-3 rounded-xl bg-gray-50/80 border border-gray-100"
-          >
-            <div
-              className="w-12 h-12 rounded-xl flex flex-col items-center justify-center font-black text-xs shrink-0 text-white shadow-sm leading-tight"
-              style={{ backgroundColor: scoreBarColor(row.score) }}
-            >
-              <span>{row.earned}/{row.max}</span>
-            </div>
+    <div className="space-y-2">
+      {sorted.map((row) => {
+        const color = scoreBarColor(row.score);
+        const emoji = row.score >= 70 ? '✅' : row.score >= 50 ? '🟡' : '🔴';
+        return (
+          <div key={row.fullName} className="flex items-center gap-4 p-4 rounded-2xl bg-gray-50 border border-gray-100">
+            <div className="text-lg font-black w-8 text-center shrink-0">{emoji}</div>
             <div className="flex-1 min-w-0">
-              <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">
-                {row.moduleTitle ? `Модуль ${row.orderIndex}` : 'Урок'} · {row.taskCount} зад.
-              </p>
-              <p className="font-bold text-gray-900 truncate">{row.moduleTitle || row.fullName}</p>
-              <p className="text-xs text-gray-500">{row.score}% от максимума</p>
+              <p className="font-bold text-gray-900 text-sm leading-snug truncate">{row.moduleTitle || row.fullName}</p>
+              <div className="flex items-center gap-2 mt-1.5">
+                <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden">
+                  <div className="h-full rounded-full transition-all" style={{ width: `${row.score}%`, backgroundColor: color }} />
+                </div>
+                <span className="text-xs font-black shrink-0" style={{ color }}>{row.score}%</span>
+              </div>
             </div>
-            <div className="w-24 sm:w-32 h-2 bg-gray-200 rounded-full overflow-hidden shrink-0">
-              <div
-                className="h-full rounded-full transition-all"
-                style={{ width: `${row.score}%`, backgroundColor: scoreBarColor(row.score) }}
-              />
+            <div className="text-right shrink-0">
+              <p className="text-base font-black text-gray-900">{row.earned}</p>
+              <p className="text-xs text-gray-400">из {row.max}</p>
             </div>
           </div>
-        ))}
-      </div>
+        );
+      })}
     </div>
   );
 }
@@ -885,121 +804,62 @@ export default function Dashboard() {
           transition={{ duration: 0.2 }}
           className="grid grid-cols-1 xl:grid-cols-3 gap-6"
         >
-          {/* ИТОГОВЫЙ БАЛЛ */}
-          <motion.div
-            variants={itemVariants}
-            initial="hidden"
-            animate="show"
-            className="bg-[#0F172A] p-8 md:p-10 rounded-[2.5rem] shadow-xl text-white flex flex-col justify-between relative overflow-hidden xl:col-span-1"
-          >
-            <div className="absolute -top-10 -right-10 w-64 h-64 bg-[#00FFCC]/20 rounded-full blur-3xl pointer-events-none" />
-            <div className="relative z-10 mb-8">
-              <Target className="w-8 h-8 text-[#00FFCC] mb-4" />
-              <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">{selectedStats.title}</p>
-              <h3 className="text-xl font-bold text-gray-300">
-                {isCourseView ? 'Средний балл по курсу' : `Модуль ${(currentData as ModuleStats)?.orderIndex}`}
-              </h3>
-              {!isCourseView && (
-                <p className="text-sm text-gray-500 mt-1 line-clamp-2">{(currentData as ModuleStats)?.title}</p>
-              )}
-            </div>
-            <div className="relative z-10">
-              <span className="text-5xl md:text-6xl font-black tracking-tighter text-[#00FFCC]">
-                {isCourseView ? selectedStats?.totalEarned : (currentData as ModuleStats)?.earned ?? 0}
-                <span className="text-2xl text-gray-500">/{isCourseView ? selectedStats?.totalMax : (currentData as ModuleStats)?.max ?? 0}</span>
-              </span>
-              <p className="text-3xl font-black text-white mt-2">{currentData?.averageScore ?? 0}%</p>
-              <p className="text-sm font-medium text-gray-400 mt-3 leading-relaxed max-w-[250px]">
-                Сумма баллов по проверенным заданиям. Процент — от максимума в заданиях.
-              </p>
+          {/* ── ИТОГ КУРСА / МОДУЛЯ ── */}
+          <motion.div variants={itemVariants} initial="hidden" animate="show" className="xl:col-span-3">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+              {/* Балл */}
+              <div className="bg-[#0F172A] rounded-[2rem] p-6 text-white relative overflow-hidden">
+                <div className="absolute -top-6 -right-6 w-32 h-32 bg-[#00FFCC]/15 rounded-full blur-2xl" />
+                <Target className="w-6 h-6 text-[#00FFCC] mb-3" />
+                <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">Средний балл</p>
+                <p className="text-4xl font-black text-[#00FFCC]">{currentData?.averageScore ?? 0}<span className="text-base text-gray-500">%</span></p>
+                <p className="text-xs text-gray-500 mt-1">{currentData?.averageScore >= 70 ? '✅ Отлично' : currentData?.averageScore >= 50 ? '🟡 Средне' : '🔴 Нужно подтянуть'}</p>
+              </div>
+
+              {/* Баллы */}
+              <div className="bg-white rounded-[2rem] p-6 border border-gray-100 shadow-sm">
+                <Star className="w-6 h-6 text-indigo-400 mb-3" />
+                <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">Баллов набрано</p>
+                <p className="text-4xl font-black text-gray-900">
+                  {isCourseView ? selectedStats?.totalEarned : (currentData as ModuleStats)?.earned ?? 0}
+                </p>
+                <p className="text-xs text-gray-400 mt-1">
+                  из {isCourseView ? selectedStats?.totalMax : (currentData as ModuleStats)?.max ?? 0} возможных
+                </p>
+              </div>
+
+              {/* Тесты */}
+              <div className="bg-indigo-50 rounded-[2rem] p-6 border border-indigo-100">
+                <CheckSquare className="w-6 h-6 text-indigo-500 mb-3" />
+                <p className="text-[10px] font-black uppercase tracking-widest text-indigo-400 mb-1">Тесты</p>
+                <p className="text-4xl font-black text-indigo-700">{currentData?.breakdown?.tests ?? 0}<span className="text-base font-bold text-indigo-300">%</span></p>
+                <div className="mt-2 h-1.5 bg-indigo-200 rounded-full overflow-hidden">
+                  <div className="h-full bg-indigo-500 rounded-full transition-all" style={{ width: `${currentData?.breakdown?.tests ?? 0}%` }} />
+                </div>
+              </div>
+
+              {/* Письменные */}
+              <div className="bg-orange-50 rounded-[2rem] p-6 border border-orange-100">
+                <PenTool className="w-6 h-6 text-orange-500 mb-3" />
+                <p className="text-[10px] font-black uppercase tracking-widest text-orange-400 mb-1">Письменные</p>
+                <p className="text-4xl font-black text-orange-700">{currentData?.breakdown?.written ?? 0}<span className="text-base font-bold text-orange-300">%</span></p>
+                <div className="mt-2 h-1.5 bg-orange-200 rounded-full overflow-hidden">
+                  <div className="h-full bg-orange-500 rounded-full transition-all" style={{ width: `${currentData?.breakdown?.written ?? 0}%` }} />
+                </div>
+              </div>
             </div>
           </motion.div>
 
-          {/* ГРАФИК */}
-          <motion.div
-            variants={itemVariants}
-            initial="hidden"
-            animate="show"
-            className={`bg-white p-8 md:p-10 rounded-[2.5rem] shadow-sm border border-gray-100 flex flex-col ${isCourseView ? 'xl:col-span-3' : 'xl:col-span-2'}`}
-          >
-            <div className="mb-6">
-              <h3 className="text-2xl font-black text-gray-900 mb-2">
-                {isCourseView ? 'Баллы по модулям курса' : 'Баллы по урокам модуля'}
-              </h3>
-              <p className="text-sm font-medium text-gray-500">
-                {isCourseView
-                  ? 'Каждая полоска — один модуль. Число справа — итоговый балл из 100. Список ниже дублирует график для удобства.'
-                  : 'Как меняется твой балл от урока к уроку внутри выбранного модуля.'}
-              </p>
-            </div>
-            <div className="flex-1 w-full">
-              {currentData?.progressData && currentData.progressData.length > 0 ? (
-                <ScoresBarChart
-                  data={currentData.progressData as ScoreChartRow[]}
-                  title={isCourseView
-                    ? 'Каждая строка — модуль. Справа: набрано / максимум баллов в заданиях модуля.'
-                    : 'Каждая строка — урок. Справа: сколько баллов набрано из возможных в этом уроке.'}
-                />
-              ) : (
-                <div className="w-full min-h-[200px] flex items-center justify-center text-gray-400 font-bold text-sm bg-gray-50 rounded-2xl border border-dashed border-gray-200">
-                  Нет данных для графика
-                </div>
-              )}
-            </div>
-          </motion.div>
-
-          {/* ДЕТАЛИЗАЦИЯ */}
-          <motion.div
-            variants={itemVariants}
-            initial="hidden"
-            animate="show"
-            className="bg-white p-8 md:p-10 rounded-[2.5rem] shadow-sm border border-gray-100 xl:col-span-3"
-          >
-            <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4 mb-8">
-              <h3 className="text-2xl font-black text-gray-900">Детализация успеваемости</h3>
-              <div className="inline-flex items-center gap-2 bg-gray-50 px-4 py-2 rounded-xl border border-gray-100">
-                <FileText className="w-4 h-4 text-gray-400" />
-                <span className="text-sm font-bold text-gray-600">Шкала: 100 баллов</span>
-              </div>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div className="bg-indigo-50/50 p-6 rounded-3xl border border-indigo-100/50">
-                <div className="flex justify-between items-center mb-4">
-                  <div className="flex items-center gap-3">
-                    <div className="p-3 bg-white rounded-xl shadow-sm"><CheckSquare className="w-5 h-5 text-[#5A4BFF]" /></div>
-                    <span className="font-bold text-gray-800 leading-tight">Тестовая часть<br /><span className="text-xs text-gray-400">33%</span></span>
-                  </div>
-                  <span className="font-black text-xl">{currentData?.breakdown?.tests ?? 0}/100</span>
-                </div>
-                <div className="w-full h-3 bg-indigo-100 rounded-full overflow-hidden">
-                  <div className="h-full bg-[#5A4BFF] transition-all duration-1000" style={{ width: `${currentData?.breakdown?.tests ?? 0}%` }} />
-                </div>
-              </div>
-              <div className="bg-orange-50/50 p-6 rounded-3xl border border-orange-100/50">
-                <div className="flex justify-between items-center mb-4">
-                  <div className="flex items-center gap-3">
-                    <div className="p-3 bg-white rounded-xl shadow-sm"><PenTool className="w-5 h-5 text-[#FF6B00]" /></div>
-                    <span className="font-bold text-gray-800 leading-tight">Развёрнутые ответы<br /><span className="text-xs text-gray-400">33%</span></span>
-                  </div>
-                  <span className="font-black text-xl">{currentData?.breakdown?.written ?? 0}/100</span>
-                </div>
-                <div className="w-full h-3 bg-orange-100 rounded-full overflow-hidden">
-                  <div className="h-full bg-[#FF6B00] transition-all duration-1000" style={{ width: `${currentData?.breakdown?.written ?? 0}%` }} />
-                </div>
-              </div>
-              <div className="bg-teal-50/50 p-6 rounded-3xl border border-teal-100/50">
-                <div className="flex justify-between items-center mb-4">
-                  <div className="flex items-center gap-3">
-                    <div className="p-3 bg-white rounded-xl shadow-sm"><Mic className="w-5 h-5 text-[#00E5B5]" /></div>
-                    <span className="font-bold text-gray-800 leading-tight">Устные опросы<br /><span className="text-xs text-gray-400">33%</span></span>
-                  </div>
-                  <span className="font-black text-xl">{currentData?.breakdown?.oral ?? 0}/100</span>
-                </div>
-                <div className="w-full h-3 bg-teal-100 rounded-full overflow-hidden">
-                  <div className="h-full bg-[#00E5B5] transition-all duration-1000" style={{ width: `${currentData?.breakdown?.oral ?? 0}%` }} />
-                </div>
-              </div>
-            </div>
+          {/* ── ТАБЛИЦА МОДУЛЕЙ / УРОКОВ ── */}
+          <motion.div variants={itemVariants} initial="hidden" animate="show"
+            className="bg-white p-6 md:p-8 rounded-[2.5rem] shadow-sm border border-gray-100 xl:col-span-3">
+            <h3 className="text-xl font-black text-gray-900 mb-2">
+              {isCourseView ? '📚 Баллы по модулям' : '📖 Баллы по урокам'}
+            </h3>
+            <p className="text-sm text-gray-400 font-medium mb-6">
+              ✅ ≥70% · 🟡 50–69% · 🔴 &lt;50%
+            </p>
+            <ScoreTable data={(currentData?.progressData ?? []) as ScoreChartRow[]} />
           </motion.div>
 
           {/* ГДЕ ОШИБСЯ */}

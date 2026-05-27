@@ -524,14 +524,20 @@ export default function HomeworkView() {
   
   const [isLoading, setIsLoading] = useState(true);
   const [homework, setHomework] = useState<any>(null);
+  const [sourceCourseId, setSourceCourseId] = useState<string | null>(null);
   
   const [hwBlocks, setHwBlocks] = useState<any[]>([]); 
   const [hwTheoryBlocks, setHwTheoryBlocks] = useState<any[]>([]);
   const [hwGroups, setHwGroups] = useState<any[]>([]);
 
-  const [testAnswers, setTestAnswers] = useState<Record<string, string[]>>(() => getSafeLocal('demo_answers', {}));
-  const [testResults, setTestResults] = useState<Record<string, 'SUCCESS' | 'ERROR' | 'PENDING' | 'GRADED'>>(() => getSafeLocal('demo_results', {}));
-  const [attemptsUsed, setAttemptsUsed] = useState<Record<string, number>>(() => getSafeLocal('demo_attempts', {}));
+  // Ключи хранилища привязаны к lessonId — чтобы не смешивались между уроками
+  const answersKey = `hw_answers_${id}`;
+  const resultsKey = `hw_results_${id}`;
+  const attemptsKey = `hw_attempts_${id}`;
+
+  const [testAnswers, setTestAnswers] = useState<Record<string, string[]>>(() => getSafeLocal(answersKey, {}));
+  const [testResults, setTestResults] = useState<Record<string, 'SUCCESS' | 'ERROR' | 'PENDING' | 'GRADED'>>(() => getSafeLocal(resultsKey, {}));
+  const [attemptsUsed, setAttemptsUsed] = useState<Record<string, number>>(() => getSafeLocal(attemptsKey, {}));
   
   const [submissions, setSubmissions] = useState<any[]>([]);
 
@@ -555,6 +561,7 @@ export default function HomeworkView() {
               if (lesson.id === id) {
                 foundLesson = lesson;
                 foundLesson.themeTitle = theme.title;
+                setSourceCourseId(course.id);
               }
             });
           });
@@ -608,26 +615,26 @@ export default function HomeworkView() {
     const updated = current.includes(answerText) ? current.filter((a: string) => a !== answerText) : [...current, answerText];
     const newAnswers = { ...testAnswers, [blockId]: updated };
     setTestAnswers(newAnswers);
-    localStorage.setItem('demo_answers', JSON.stringify(newAnswers));
+    localStorage.setItem(answersKey, JSON.stringify(newAnswers));
 
     if (testResults?.[blockId] === 'ERROR') {
       const newResults = { ...testResults };
       delete newResults[blockId];
       setTestResults(newResults);
-      localStorage.setItem('demo_results', JSON.stringify(newResults));
+      localStorage.setItem(resultsKey, JSON.stringify(newResults));
     }
   };
 
   const handleTextAnswerChange = (blockId: string, text: string) => {
     const newAnswers = { ...testAnswers, [blockId]: [text] };
     setTestAnswers(newAnswers);
-    localStorage.setItem('demo_answers', JSON.stringify(newAnswers));
+    localStorage.setItem(answersKey, JSON.stringify(newAnswers));
 
     if (testResults?.[blockId] === 'ERROR') {
       const newResults = { ...testResults };
       delete newResults[blockId];
       setTestResults(newResults);
-      localStorage.setItem('demo_results', JSON.stringify(newResults));
+      localStorage.setItem(resultsKey, JSON.stringify(newResults));
     }
   };
 
@@ -638,13 +645,13 @@ export default function HomeworkView() {
     
     const newAnswers = { ...testAnswers, [blockId]: filtered };
     setTestAnswers(newAnswers);
-    localStorage.setItem('demo_answers', JSON.stringify(newAnswers));
+    localStorage.setItem(answersKey, JSON.stringify(newAnswers));
 
     if (testResults?.[blockId] === 'ERROR') {
       const newResults = { ...testResults };
       delete newResults[blockId];
       setTestResults(newResults);
-      localStorage.setItem('demo_results', JSON.stringify(newResults));
+      localStorage.setItem(resultsKey, JSON.stringify(newResults));
     }
   };
 
@@ -701,7 +708,7 @@ export default function HomeworkView() {
       currentAttempts += 1;
       const newAttempts = { ...attemptsUsed, [block.id]: currentAttempts };
       setAttemptsUsed(newAttempts);
-      localStorage.setItem('demo_attempts', JSON.stringify(newAttempts));
+      localStorage.setItem(attemptsKey, JSON.stringify(newAttempts));
 
       const isNowExhausted = currentAttempts >= maxAttempts;
 
@@ -749,7 +756,7 @@ export default function HomeworkView() {
 
     const newResults = { ...testResults, [block.id]: newResultState };
     setTestResults(newResults);
-    localStorage.setItem('demo_results', JSON.stringify(newResults));
+    localStorage.setItem(resultsKey, JSON.stringify(newResults));
   };
 
   const renderTheoryBlock = (block: any) => {
@@ -921,7 +928,11 @@ export default function HomeworkView() {
       <aside className="w-[300px] lg:w-[340px] bg-white rounded-[2rem] border border-gray-100 flex flex-col h-full shrink-0 z-20 shadow-sm overflow-hidden">
         <div className="p-6 md:p-8 border-b border-gray-100 bg-white shrink-0">
           <button 
-            onClick={() => navigate(-1)}
+            onClick={() => {
+              if (window.history.length > 1) navigate(-1);
+              else if (sourceCourseId) navigate(`/courses/${sourceCourseId}`);
+              else navigate('/homework');
+            }}
             className="flex items-center gap-2 text-gray-400 hover:text-[#A855F7] font-black text-[11px] uppercase tracking-wider transition-colors mb-6"
           >
             <ArrowLeft className="w-4 h-4" /> К списку заданий

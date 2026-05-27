@@ -44,7 +44,17 @@ export default function Messages() {
         setMyId(payload.sub || payload.id);
 
         const res = await axios.get(`${API_URL}/messages/contacts`, getTokenConfig());
-        setContacts(res.data);
+        const role: string = payload.role || '';
+        
+        // Для студентов — только кураторы и преподаватели из их группы
+        if (role === 'STUDENT') {
+          const filtered = (res.data as any[]).filter(
+            (c: any) => c.role === 'CURATOR' || c.role === 'TEACHER' || c.role === 'ADMIN'
+          );
+          setContacts(filtered);
+        } else {
+          setContacts(res.data);
+        }
       } catch (err) {
         console.error('Ошибка загрузки контактов', err);
       } finally {

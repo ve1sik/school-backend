@@ -3,14 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ShieldCheck, LogOut, Lock, ArrowRight, Loader2, User,
-  TrendingUp, Flame, BookOpen, CheckSquare, Edit3, BrainCircuit,
-  AlertTriangle, Star, BarChart2, RefreshCw
+  TrendingUp, Flame, BookOpen, CheckSquare, BrainCircuit,
+  AlertTriangle, Star, RefreshCw, PenTool, Mic
 } from 'lucide-react';
 import axios from 'axios';
-import {
-  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  BarChart, Bar, Cell
-} from 'recharts';
 
 const API_URL = 'https://prepodmgy.ru/api';
 
@@ -172,132 +168,93 @@ export default function ParentDashboard() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-
-                {/* ИТОГОВЫЙ БАЛЛ */}
-                <div className="bg-gray-900 rounded-[2.5rem] p-8 shadow-xl text-white flex flex-col relative overflow-hidden">
-                  <div className="absolute -bottom-10 -right-10 w-48 h-48 bg-white/5 rounded-full blur-3xl" />
-                  <TrendingUp className="w-7 h-7 text-[#00FFCC] mb-6" />
-                  <p className="text-gray-400 font-bold mb-2">Итоговый балл</p>
-                  <div className="flex items-end gap-2 mb-4">
-                    <span className="text-6xl font-black" style={{ color: scoreColor(data?.averageScore ?? 0) }}>
-                      {data?.averageScore ?? 0}
-                    </span>
-                    <span className="text-2xl text-gray-500 mb-2">/100</span>
+              {/* ── ЦИФРЫ ── */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                {[
+                  { icon: TrendingUp, label: 'Средний балл', val: `${data?.averageScore ?? 0}%`, iconColor: 'text-[#00FFCC]', bg: 'bg-gray-900', textColor: 'text-white', subColor: 'text-gray-400' },
+                  { icon: Flame, label: 'Стрик', val: `${data?.streakDays ?? 0} дн.`, iconColor: 'text-orange-500', bg: 'bg-orange-50', textColor: 'text-orange-700', subColor: 'text-orange-400' },
+                  { icon: BookOpen, label: 'Всего заданий', val: `${data?.totalTests ?? 0}`, iconColor: 'text-indigo-500', bg: 'bg-indigo-50', textColor: 'text-indigo-700', subColor: 'text-indigo-400' },
+                  { icon: Star, label: 'Оценено работ', val: `${data?.breakdown ? Object.values(data.breakdown).reduce((a: any, b: any) => a + (b > 0 ? 1 : 0), 0) : 0}`, iconColor: 'text-emerald-500', bg: 'bg-emerald-50', textColor: 'text-emerald-700', subColor: 'text-emerald-400' },
+                ].map(({ icon: Icon, label, val, iconColor, bg, textColor, subColor }) => (
+                  <div key={label} className={`${bg} rounded-[2rem] p-6`}>
+                    <Icon className={`w-6 h-6 ${iconColor} mb-3`} />
+                    <p className={`text-3xl font-black ${textColor}`}>{val}</p>
+                    <p className={`text-xs font-bold ${subColor} uppercase tracking-widest mt-1`}>{label}</p>
                   </div>
-                  <div className="w-full h-2 bg-white/10 rounded-full overflow-hidden mt-auto">
-                    <motion.div initial={{ width: 0 }} animate={{ width: `${data?.averageScore ?? 0}%` }} transition={{ duration: 1, delay: 0.3 }}
-                      className="h-full rounded-full" style={{ backgroundColor: scoreColor(data?.averageScore ?? 0) }} />
-                  </div>
-                  <p className="text-xs text-gray-500 font-medium mt-3">
-                    {(data?.averageScore ?? 0) >= 80 ? 'Отличный результат! 🏆' : (data?.averageScore ?? 0) >= 60 ? 'Хороший прогресс 📈' : 'Требует внимания ⚠️'}
-                  </p>
-                </div>
-
-                {/* ГРАФИК ПРОГРЕССА */}
-                <div className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-gray-100 lg:col-span-2">
-                  <div className="flex items-center gap-2 mb-6">
-                    <BarChart2 className="w-5 h-5 text-indigo-500" />
-                    <h3 className="text-xl font-black text-gray-900">Прогресс за 7 дней</h3>
-                  </div>
-                  {data?.progressData?.length > 0 ? (
-                    <ResponsiveContainer width="100%" height={180}>
-                      <LineChart data={data.progressData}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
-                        <XAxis dataKey="name" tick={{ fontSize: 12, fontWeight: 700, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
-                        <YAxis domain={[0, 100]} tick={{ fontSize: 12, fontWeight: 700, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
-                        <Tooltip
-                          contentStyle={{ borderRadius: '1rem', border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.1)', fontWeight: 700 }}
-                          formatter={(v: any) => [`${v} баллов`, 'Средний балл']}
-                        />
-                        <Line type="monotone" dataKey="score" stroke="#5A4BFF" strokeWidth={3} dot={{ fill: '#5A4BFF', r: 5 }} activeDot={{ r: 7 }} />
-                      </LineChart>
-                    </ResponsiveContainer>
-                  ) : (
-                    <div className="h-[180px] flex items-center justify-center text-gray-300">
-                      <p className="font-bold">Пока нет данных</p>
-                    </div>
-                  )}
-                </div>
+                ))}
               </div>
 
-              {/* ДЕТАЛИЗАЦИЯ + АКТИВНОСТЬ */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-
-                {/* ДЕТАЛИЗАЦИЯ ПО ТИПАМ */}
-                <div className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-gray-100">
-                  <h3 className="text-xl font-black text-gray-900 mb-6">Детализация успеваемости</h3>
-                  <div className="space-y-5">
-                    {[
-                      { icon: CheckSquare, label: 'Авто-тесты', val: data?.breakdown?.tests ?? 0, color: '#5A4BFF', bg: 'bg-indigo-50' },
-                      { icon: Edit3, label: 'Письменные задания', val: data?.breakdown?.written ?? 0, color: '#f97316', bg: 'bg-orange-50' },
-                      { icon: Star, label: 'Устные опросы', val: data?.breakdown?.oral ?? 0, color: '#10b981', bg: 'bg-emerald-50' },
-                    ].map(({ icon: Icon, label, val, color, bg }) => (
-                      <div key={label} className="flex items-center gap-4">
-                        <div className={`w-12 h-12 ${bg} rounded-2xl flex items-center justify-center shrink-0`}>
-                          <Icon className="w-6 h-6" style={{ color }} />
-                        </div>
-                        <div className="flex-1">
-                          <div className="flex justify-between mb-1.5">
-                            <span className="font-bold text-gray-700 text-sm">{label}</span>
-                            <span className="font-black text-sm">{val}/100</span>
-                          </div>
-                          <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
-                            <motion.div initial={{ width: 0 }} animate={{ width: `${val}%` }} transition={{ duration: 0.8, delay: 0.2 }}
-                              className="h-full rounded-full" style={{ backgroundColor: color }} />
-                          </div>
+              {/* ── ТИПЫ ЗАДАНИЙ ── */}
+              <div className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-gray-100">
+                <h3 className="text-xl font-black text-gray-900 mb-6">📊 Успеваемость по типам заданий</h3>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {[
+                    { icon: CheckSquare, label: 'Тесты', val: data?.breakdown?.tests ?? 0, color: '#5A4BFF', bg: 'bg-indigo-50', textColor: 'text-indigo-700' },
+                    { icon: PenTool, label: 'Письменные', val: data?.breakdown?.written ?? 0, color: '#f97316', bg: 'bg-orange-50', textColor: 'text-orange-700' },
+                    { icon: Mic, label: 'Устные', val: data?.breakdown?.oral ?? 0, color: '#10b981', bg: 'bg-emerald-50', textColor: 'text-emerald-700' },
+                  ].map(({ icon: Icon, label, val, color, bg, textColor }) => (
+                    <div key={label} className={`${bg} rounded-2xl p-5 flex items-center gap-4`}>
+                      <Icon className="w-8 h-8 shrink-0" style={{ color }} />
+                      <div className="flex-1">
+                        <p className={`text-3xl font-black ${textColor}`}>{val}<span className="text-base font-bold opacity-50">%</span></p>
+                        <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mt-0.5">{label}</p>
+                        <div className="mt-2 h-1.5 bg-white/60 rounded-full overflow-hidden">
+                          <div className="h-full rounded-full" style={{ width: `${val}%`, backgroundColor: color }} />
                         </div>
                       </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* АКТИВНОСТЬ */}
-                <div className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-gray-100">
-                  <h3 className="text-xl font-black text-gray-900 mb-6">Активность</h3>
-                  {data?.activityData?.length > 0 ? (
-                    <ResponsiveContainer width="100%" height={200}>
-                      <BarChart data={data.activityData} barSize={36}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" vertical={false} />
-                        <XAxis dataKey="name" tick={{ fontSize: 12, fontWeight: 700, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
-                        <YAxis tick={{ fontSize: 12, fontWeight: 700, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
-                        <Tooltip contentStyle={{ borderRadius: '1rem', border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.1)', fontWeight: 700 }}
-                          formatter={(v: any) => [`${v} шт.`, 'Выполнено']} />
-                        <Bar dataKey="count" radius={[8, 8, 0, 0]}>
-                          {data.activityData.map((_: any, i: number) => (
-                            <Cell key={i} fill={['#5A4BFF', '#f97316', '#10b981'][i % 3]} />
-                          ))}
-                        </Bar>
-                      </BarChart>
-                    </ResponsiveContainer>
-                  ) : (
-                    <div className="h-[200px] flex items-center justify-center text-gray-300">
-                      <p className="font-bold">Нет данных</p>
                     </div>
-                  )}
+                  ))}
                 </div>
               </div>
 
-              {/* ПРОГРЕСС ПО МОДУЛЯМ */}
+              {/* ── АКТИВНОСТЬ ── */}
+              {data?.activityData?.length > 0 && (
+                <div className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-gray-100">
+                  <h3 className="text-xl font-black text-gray-900 mb-6">📅 Активность по дням</h3>
+                  <div className="flex items-end gap-3">
+                    {data.activityData.map((d: any, i: number) => {
+                      const maxCount = Math.max(...data.activityData.map((x: any) => x.count || 0), 1);
+                      const pct = Math.round(((d.count || 0) / maxCount) * 100);
+                      return (
+                        <div key={i} className="flex-1 flex flex-col items-center gap-2">
+                          <span className="text-xs font-black text-gray-500">{d.count || 0}</span>
+                          <div className="w-full bg-gray-100 rounded-lg overflow-hidden" style={{ height: 80 }}>
+                            <div className="w-full bg-[#5A4BFF] rounded-lg transition-all" style={{ height: `${pct}%`, marginTop: `${100 - pct}%` }} />
+                          </div>
+                          <span className="text-[10px] font-bold text-gray-400">{d.name}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* ПРОГРЕСС ПО ТЕМАМ */}
               {data?.modules?.length > 0 && (
                 <div className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-gray-100">
-                  <h3 className="text-xl font-black text-gray-900 mb-6">Успеваемость по темам</h3>
-                  <div className="space-y-4">
-                    {data.modules.map((m: any) => (
-                      <div key={m.id} className="flex items-center gap-4">
-                        <div className="w-48 shrink-0">
-                          <p className="font-bold text-gray-700 text-sm truncate">{m.title}</p>
-                          <p className="text-xs text-gray-400">{m.totalTests} заданий</p>
+                  <h3 className="text-xl font-black text-gray-900 mb-6">📚 Успеваемость по темам</h3>
+                  <div className="space-y-3">
+                    {data.modules.map((m: any) => {
+                      const c = scoreColor(m.averageScore);
+                      const emoji = m.averageScore >= 70 ? '✅' : m.averageScore >= 50 ? '🟡' : '🔴';
+                      return (
+                        <div key={m.id} className="flex items-center gap-4 p-4 bg-gray-50 rounded-2xl">
+                          <span className="text-xl shrink-0">{emoji}</span>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-bold text-gray-900 text-sm truncate">{m.title}</p>
+                            <div className="flex items-center gap-2 mt-1">
+                              <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden">
+                                <div className="h-full rounded-full" style={{ width: `${m.averageScore}%`, backgroundColor: c }} />
+                              </div>
+                            </div>
+                          </div>
+                          <div className="text-right shrink-0">
+                            <p className="font-black text-base" style={{ color: c }}>{m.averageScore}%</p>
+                            <p className="text-xs text-gray-400">{m.totalTests} зад.</p>
+                          </div>
                         </div>
-                        <div className="flex-1 h-3 bg-gray-100 rounded-full overflow-hidden">
-                          <motion.div initial={{ width: 0 }} animate={{ width: `${m.averageScore}%` }} transition={{ duration: 0.8 }}
-                            className="h-full rounded-full transition-all" style={{ backgroundColor: scoreColor(m.averageScore) }} />
-                        </div>
-                        <span className="w-12 text-right font-black text-sm" style={{ color: scoreColor(m.averageScore) }}>
-                          {m.averageScore}%
-                        </span>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               )}

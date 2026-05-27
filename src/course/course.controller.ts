@@ -31,14 +31,14 @@ export class CourseController {
   }
 
   @UseGuards(AuthGuard('jwt'), RolesGuard)
-  @Roles(Role.ADMIN, Role.CURATOR)
+  @Roles(Role.ADMIN, Role.CURATOR, Role.TEACHER)
   @Post()
   async createCourse(@Body() dto: any) {
     return this.courseService.create(dto);
   }
 
   @UseGuards(AuthGuard('jwt'), RolesGuard)
-  @Roles(Role.ADMIN, Role.CURATOR)
+  @Roles(Role.ADMIN, Role.CURATOR, Role.TEACHER)
   @Post(':courseId/themes')
   async createTheme(
     @Param('courseId') courseId: string,
@@ -48,14 +48,14 @@ export class CourseController {
   }
 
   @UseGuards(AuthGuard('jwt'), RolesGuard)
-  @Roles(Role.ADMIN, Role.CURATOR)
+  @Roles(Role.ADMIN, Role.CURATOR, Role.TEACHER)
   @Patch(':id')
   async update(@Param('id') id: string, @Body() dto: any) {
     return this.courseService.updateCourse(id, dto);
   }
 
   @UseGuards(AuthGuard('jwt'), RolesGuard)
-  @Roles(Role.ADMIN, Role.CURATOR)
+  @Roles(Role.ADMIN, Role.CURATOR, Role.TEACHER)
   @Delete(':id')
   async deleteCourse(@Param('id') id: string) {
     return this.courseService.delete(id); 

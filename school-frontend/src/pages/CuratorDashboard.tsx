@@ -81,6 +81,9 @@ export default function CuratorDashboard() {
     const courses: Record<string, Record<string, { studentName: string, hasErrors: boolean, lessons: Record<string, { lessonId: string, submissions: any[] }> }>> = {};
     
     submissions.forEach(sub => {
+      // Показываем только развёрнутые и устные ответы — авто-тесты куратору не нужны
+      if (sub.isAutoGraded) return;
+
       if (searchQuery && !sub.studentName.toLowerCase().includes(searchQuery.toLowerCase())) return;
 
       if (!courses[sub.courseName]) courses[sub.courseName] = {};

@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react';
-import { Users, GraduationCap, BookOpen, X, Search, Crown, UserCircle, Mail, Calendar, MapPin, Shield, Trash2, Plus, Check, ChevronRight, Building2, Loader2 } from 'lucide-react';
+import { Users, GraduationCap, BookOpen, X, Search, Crown, UserCircle, Mail, Calendar, MapPin, Shield, Trash2, Plus, Check, ChevronRight, ChevronDown, Building2, Loader2, Filter } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 
 const API_URL = 'https://prepodmgy.ru/api';
 
-type Role = 'STUDENT' | 'CURATOR' | 'ADMIN' | 'PARENT';
+type Role = 'STUDENT' | 'CURATOR' | 'ADMIN' | 'PARENT' | 'TEACHER';
 
 interface User {
   id: string;
@@ -64,6 +64,8 @@ export default function AdminUsers() {
   const [selectedSubjectId, setSelectedSubjectId] = useState('');
   
   const [toast, setToast] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
+  const [expandedCard, setExpandedCard] = useState<string | null>('all');
+  const [selectedGroupFilter, setSelectedGroupFilter] = useState('');
 
   const showToast = (text: string, type: 'success' | 'error' = 'success') => {
     setToast({ text, type });
@@ -221,23 +223,44 @@ export default function AdminUsers() {
 
   const filteredUsers = users.filter(u => {
     const fullName = `${u.surname || ''} ${u.name || ''} ${u.patronymic || ''} ${u.email}`.toLowerCase();
-    return fullName.includes(searchQuery.toLowerCase());
+    const matchesSearch = fullName.includes(searchQuery.toLowerCase());
+    const matchesGroup = !selectedGroupFilter || u.groups?.some(g => g.id === selectedGroupFilter);
+    return matchesSearch && matchesGroup;
   });
 
   const students = filteredUsers.filter(u => u.role === 'STUDENT');
+  const teachers = filteredUsers.filter(u => u.role === 'TEACHER');
   const curators = filteredUsers.filter(u => u.role === 'CURATOR');
   const admins = filteredUsers.filter(u => u.role === 'ADMIN');
   const parents = filteredUsers.filter(u => u.role === 'PARENT');
 
   const getRoleBadge = (role: Role) => {
-    const badges = {
+    const badges: Record<Role, { text: string; class: string }> = {
       STUDENT: { text: 'Ученик', class: 'bg-blue-50 text-blue-600 border-blue-200' },
       CURATOR: { text: 'Куратор', class: 'bg-purple-50 text-purple-600 border-purple-200' },
       ADMIN: { text: 'Админ', class: 'bg-rose-50 text-rose-600 border-rose-200' },
-      PARENT: { text: 'Родитель', class: 'bg-amber-50 text-amber-600 border-amber-200' }
+      PARENT: { text: 'Родитель', class: 'bg-amber-50 text-amber-600 border-amber-200' },
+      TEACHER: { text: 'Препод', class: 'bg-sky-50 text-sky-600 border-sky-200' },
     };
     return badges[role];
   };
+
+  const toggleCard = (id: string) => {
+    setExpandedCard(prev => (prev === id ? null : id));
+  };
+
+  const accordionSections = [
+    { id: 'all', label: 'Все пользователи', icon: UserCircle, users: filteredUsers, color: 'gray', iconBg: 'bg-gray-100', iconColor: 'text-gray-600', badgeBg: 'bg-gray-100 text-gray-700' },
+    { id: 'students', label: 'Ученики', icon: GraduationCap, users: students, color: 'blue', iconBg: 'bg-blue-100', iconColor: 'text-blue-600', badgeBg: 'bg-blue-100 text-blue-700' },
+    { id: 'teachers', label: 'Преподаватели', icon: BookOpen, users: teachers, color: 'sky', iconBg: 'bg-sky-100', iconColor: 'text-sky-600', badgeBg: 'bg-sky-100 text-sky-700' },
+    { id: 'curators', label: 'Кураторы', icon: Crown, users: curators, color: 'purple', iconBg: 'bg-purple-100', iconColor: 'text-purple-600', badgeBg: 'bg-purple-100 text-purple-700' },
+    { id: 'admins', label: 'Администраторы', icon: Shield, users: admins, color: 'rose', iconBg: 'bg-rose-100', iconColor: 'text-rose-600', badgeBg: 'bg-rose-100 text-rose-700' },
+  ];
+
+  const activeGroupObj = groups.find(g => g.id === selectedGroupFilter);
+  const groupCurators = selectedGroupFilter ? users.filter(u => u.role === 'CURATOR' && u.groups?.some(g => g.id === selectedGroupFilter)) : [];
+  const groupTeachers = selectedGroupFilter ? users.filter(u => u.role === 'TEACHER' && u.groups?.some(g => g.id === selectedGroupFilter)) : [];
+  const groupStudents = selectedGroupFilter ? users.filter(u => u.role === 'STUDENT' && u.groups?.some(g => g.id === selectedGroupFilter)) : [];
 
   if (isLoading) {
     return (
@@ -248,7 +271,7 @@ export default function AdminUsers() {
   }
 
   return (
-    <div className="flex h-screen bg-[#F4F7FE] font-sans text-gray-900">
+    <div className="flex h-screen bg-[#F4F7FE] font-sans text-gray-900 overflow-hidden">
       
       {/* SIDEBAR */}
       <aside className="w-72 bg-white border-r border-gray-100 flex flex-col sticky top-4 z-10 shadow-xl shrink-0 self-start max-h-[calc(100vh-2rem)] overflow-hidden rounded-[2rem] ml-4">
@@ -280,9 +303,10 @@ export default function AdminUsers() {
       </aside>
 
       {/* MAIN CONTENT */}
-      <main className="flex-1 p-4 md:p-8 overflow-hidden flex flex-col gap-6">
+      <main className="flex-1 p-4 md:p-8 overflow-y-auto flex flex-col gap-5 min-w-0">
         
-        <div className="flex justify-between items-center gap-4">
+        {/* HEADER */}
+        <div className="flex flex-wrap justify-between items-center gap-4">
           <h1 className="text-4xl font-black shrink-0">Управление пользователями</h1>
           <div className="flex items-center gap-3 ml-auto">
             <div className="relative w-72">
@@ -302,156 +326,223 @@ export default function AdminUsers() {
           </div>
         </div>
 
-        <div className="flex-1 grid grid-cols-3 gap-6 overflow-hidden">
-          
-          {/* ВСЕ ПОЛЬЗОВАТЕЛИ */}
-          <div className="bg-white rounded-[2rem] border border-gray-100 shadow-sm flex flex-col overflow-hidden">
-            <div className="p-6 border-b border-gray-100 shrink-0">
-              <h2 className="text-xl font-black text-gray-900 flex items-center gap-3">
-                <UserCircle className="w-6 h-6 text-gray-600" /> Все пользователи
-              </h2>
-              <p className="text-sm text-gray-500 mt-1 font-medium">Всего: {filteredUsers.length}</p>
-            </div>
-            
-            <div className="flex-1 overflow-y-auto p-4 space-y-2 custom-scrollbar">
-              {filteredUsers.map(user => {
-                const badge = getRoleBadge(user.role);
-                const isActive = selectedUser?.id === user.id;
-                
-                return (
-                  <button 
-                    key={user.id}
-                    onClick={() => setSelectedUser(user)}
-                    className={`w-full text-left p-4 rounded-xl transition-all border ${isActive ? 'bg-indigo-50 border-indigo-200 shadow-sm' : 'bg-gray-50 border-transparent hover:bg-white hover:border-gray-200 hover:shadow-sm'}`}
-                  >
-                    <div className="flex items-center gap-3 mb-2">
-                      {user.avatar ? (
-                        <img src={user.avatar} alt="" className="w-10 h-10 rounded-full object-cover" />
-                      ) : (
-                        <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center">
-                          <UserCircle className="w-6 h-6 text-gray-400" />
-                        </div>
-                      )}
-                      <div className="flex-1 min-w-0">
-                        <h3 className="font-black text-gray-900 truncate text-sm">
-                          {user.surname || user.name ? `${user.surname || ''} ${user.name || ''}`.trim() : 'Без имени'}
-                        </h3>
-                        <p className="text-xs text-gray-500 truncate font-medium">{user.email}</p>
-                      </div>
-                    </div>
-                    <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest border ${badge.class}`}>
-                      {badge.text}
-                    </div>
-                  </button>
-                );
-              })}
-              
-              {filteredUsers.length === 0 && (
-                <div className="text-center py-12 text-gray-400">
-                  <UserCircle className="w-16 h-16 mx-auto mb-3 opacity-20" />
-                  <p className="font-bold">Пользователи не найдены</p>
-                </div>
-              )}
-            </div>
-          </div>
+        {/* GROUP FILTER */}
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm px-5 py-4 flex items-center gap-4">
+          <Filter className="w-4 h-4 text-gray-400 shrink-0" />
+          <label className="text-sm font-black text-gray-500 shrink-0">Показать группу:</label>
+          <select
+            value={selectedGroupFilter}
+            onChange={e => setSelectedGroupFilter(e.target.value)}
+            className="flex-1 max-w-xs px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 font-bold text-gray-700 text-sm cursor-pointer transition-all"
+          >
+            <option value="">Все группы</option>
+            {groups.map(g => <option key={g.id} value={g.id}>{g.title}</option>)}
+          </select>
+          {selectedGroupFilter && (
+            <button onClick={() => setSelectedGroupFilter('')} className="p-1.5 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors">
+              <X className="w-4 h-4 text-gray-500" />
+            </button>
+          )}
+        </div>
 
-          {/* УЧЕНИКИ */}
-          <div className="bg-white rounded-[2rem] border border-gray-100 shadow-sm flex flex-col overflow-hidden">
-            <div className="p-6 border-b border-gray-100 shrink-0 bg-blue-50/30">
-              <h2 className="text-xl font-black text-blue-900 flex items-center gap-3">
-                <GraduationCap className="w-6 h-6 text-blue-600" /> Ученики
-              </h2>
-              <p className="text-sm text-blue-600 mt-1 font-medium">Всего: {students.length}</p>
-            </div>
-            
-            <div className="flex-1 overflow-y-auto p-4 space-y-2 custom-scrollbar">
-              {students.map(user => {
-                const isActive = selectedUser?.id === user.id;
-                return (
-                  <button 
-                    key={user.id}
-                    onClick={() => setSelectedUser(user)}
-                    className={`w-full text-left p-4 rounded-xl transition-all border ${isActive ? 'bg-blue-50 border-blue-200 shadow-sm' : 'bg-gray-50 border-transparent hover:bg-white hover:border-gray-200 hover:shadow-sm'}`}
-                  >
-                    <div className="flex items-center gap-3">
-                      {user.avatar ? (
-                        <img src={user.avatar} alt="" className="w-10 h-10 rounded-full object-cover" />
-                      ) : (
-                        <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
-                          <GraduationCap className="w-6 h-6 text-blue-500" />
-                        </div>
-                      )}
-                      <div className="flex-1 min-w-0">
-                        <h3 className="font-black text-gray-900 truncate text-sm">
-                          {user.surname || user.name ? `${user.surname || ''} ${user.name || ''}`.trim() : 'Без имени'}
-                        </h3>
-                        <p className="text-xs text-gray-500 truncate font-medium">{user.email}</p>
-                      </div>
+        {/* GROUP MINI-TABLE */}
+        <AnimatePresence>
+          {selectedGroupFilter && activeGroupObj && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              className="bg-white rounded-2xl border border-indigo-100 shadow-sm overflow-hidden"
+            >
+              <div className="px-6 py-4 border-b border-indigo-50 bg-indigo-50/40 flex items-center gap-3">
+                <Building2 className="w-5 h-5 text-indigo-600" />
+                <h3 className="font-black text-indigo-900">Группа: {activeGroupObj.title}</h3>
+                <span className="ml-auto text-xs font-bold text-indigo-500">{groupStudents.length + groupTeachers.length + groupCurators.length} участников</span>
+              </div>
+              <div className="divide-y divide-gray-50">
+                {/* Кураторы */}
+                {groupCurators.length > 0 && (
+                  <div className="px-6 py-3">
+                    <p className="text-[10px] font-black text-purple-400 uppercase tracking-widest mb-2">Кураторы</p>
+                    <div className="flex flex-wrap gap-2">
+                      {groupCurators.map(u => (
+                        <button key={u.id} onClick={() => setSelectedUser(u)}
+                          className="flex items-center gap-2 px-3 py-1.5 bg-purple-50 hover:bg-purple-100 border border-purple-100 rounded-xl transition-colors">
+                          <Crown className="w-3.5 h-3.5 text-purple-500" />
+                          <span className="text-sm font-bold text-purple-800">{u.surname || u.name ? `${u.surname || ''} ${u.name || ''}`.trim() : u.email}</span>
+                        </button>
+                      ))}
                     </div>
-                  </button>
-                );
-              })}
-              
-              {students.length === 0 && (
-                <div className="text-center py-12 text-gray-400">
-                  <GraduationCap className="w-16 h-16 mx-auto mb-3 opacity-20" />
-                  <p className="font-bold">Нет учеников</p>
+                  </div>
+                )}
+                {/* Преподаватели */}
+                {groupTeachers.length > 0 && (
+                  <div className="px-6 py-3">
+                    <p className="text-[10px] font-black text-sky-400 uppercase tracking-widest mb-2">Преподаватели</p>
+                    <div className="flex flex-wrap gap-2">
+                      {groupTeachers.map(u => (
+                        <button key={u.id} onClick={() => setSelectedUser(u)}
+                          className="flex items-center gap-2 px-3 py-1.5 bg-sky-50 hover:bg-sky-100 border border-sky-100 rounded-xl transition-colors">
+                          <BookOpen className="w-3.5 h-3.5 text-sky-500" />
+                          <span className="text-sm font-bold text-sky-800">{u.surname || u.name ? `${u.surname || ''} ${u.name || ''}`.trim() : u.email}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {/* Ученики */}
+                <div className="px-6 py-3">
+                  <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest mb-2">Ученики ({groupStudents.length})</p>
+                  {groupStudents.length > 0 ? (
+                    <div className="flex flex-wrap gap-2">
+                      {groupStudents.map(u => (
+                        <button key={u.id} onClick={() => setSelectedUser(u)}
+                          className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 border border-blue-100 rounded-xl transition-colors">
+                          <GraduationCap className="w-3.5 h-3.5 text-blue-500" />
+                          <span className="text-sm font-bold text-blue-800">{u.surname || u.name ? `${u.surname || ''} ${u.name || ''}`.trim() : u.email}</span>
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-gray-400 font-medium">Нет учеников в этой группе</p>
+                  )}
                 </div>
-              )}
-            </div>
-          </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
-          {/* КУРАТОРЫ И АДМИНЫ */}
-          <div className="bg-white rounded-[2rem] border border-gray-100 shadow-sm flex flex-col overflow-hidden">
-            <div className="p-6 border-b border-gray-100 shrink-0 bg-purple-50/30">
-              <h2 className="text-xl font-black text-purple-900 flex items-center gap-3">
-                <Crown className="w-6 h-6 text-purple-600" /> Преподаватели
-              </h2>
-              <p className="text-sm text-purple-600 mt-1 font-medium">Кураторов: {curators.length} • Админов: {admins.length}</p>
-            </div>
-            
-            <div className="flex-1 overflow-y-auto p-4 space-y-2 custom-scrollbar">
-              {[...curators, ...admins].map(user => {
-                const isActive = selectedUser?.id === user.id;
-                const badge = getRoleBadge(user.role);
-                
-                return (
-                  <button 
-                    key={user.id}
-                    onClick={() => setSelectedUser(user)}
-                    className={`w-full text-left p-4 rounded-xl transition-all border ${isActive ? 'bg-purple-50 border-purple-200 shadow-sm' : 'bg-gray-50 border-transparent hover:bg-white hover:border-gray-200 hover:shadow-sm'}`}
-                  >
-                    <div className="flex items-center gap-3 mb-2">
-                      {user.avatar ? (
-                        <img src={user.avatar} alt="" className="w-10 h-10 rounded-full object-cover" />
-                      ) : (
-                        <div className="w-10 h-10 rounded-full bg-purple-100 flex items-center justify-center">
-                          <Crown className="w-6 h-6 text-purple-500" />
-                        </div>
-                      )}
-                      <div className="flex-1 min-w-0">
-                        <h3 className="font-black text-gray-900 truncate text-sm">
-                          {user.surname || user.name ? `${user.surname || ''} ${user.name || ''}`.trim() : 'Без имени'}
-                        </h3>
-                        <p className="text-xs text-gray-500 truncate font-medium">{user.email}</p>
+        {/* ACCORDION CARDS */}
+        <div className="space-y-3 pb-8">
+          {accordionSections.map(section => {
+            const Icon = section.icon;
+            const isOpen = expandedCard === section.id;
+            return (
+              <div key={section.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                {/* Card Header */}
+                <button
+                  type="button"
+                  onClick={() => toggleCard(section.id)}
+                  className="w-full flex items-center gap-4 px-6 py-5 hover:bg-gray-50 transition-colors group"
+                >
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${section.iconBg}`}>
+                    <Icon className={`w-5 h-5 ${section.iconColor}`} />
+                  </div>
+                  <span className="font-black text-gray-900 text-lg">{section.label}</span>
+                  <span className={`ml-2 px-2.5 py-0.5 rounded-full text-xs font-black ${section.badgeBg}`}>
+                    {section.users.length}
+                  </span>
+                  <ChevronDown className={`w-5 h-5 text-gray-400 ml-auto transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
+                </button>
+
+                {/* Card Body */}
+                <AnimatePresence initial={false}>
+                  {isOpen && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: 'auto', opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      transition={{ duration: 0.22, ease: 'easeInOut' }}
+                      className="overflow-hidden"
+                    >
+                      <div className="border-t border-gray-100">
+                        {section.users.length === 0 ? (
+                          <div className="text-center py-12 text-gray-400">
+                            <Icon className="w-12 h-12 mx-auto mb-3 opacity-20" />
+                            <p className="font-bold">Нет пользователей</p>
+                          </div>
+                        ) : (
+                          <div className="overflow-x-auto">
+                            <table className="w-full">
+                              <thead>
+                                <tr className="bg-gray-50 border-b border-gray-100">
+                                  <th className="text-left px-6 py-3 text-[10px] font-black text-gray-400 uppercase tracking-widest">Имя</th>
+                                  <th className="text-left px-4 py-3 text-[10px] font-black text-gray-400 uppercase tracking-widest">Email</th>
+                                  <th className="text-left px-4 py-3 text-[10px] font-black text-gray-400 uppercase tracking-widest">Роль</th>
+                                  <th className="text-left px-4 py-3 text-[10px] font-black text-gray-400 uppercase tracking-widest">Группы / Курсы</th>
+                                  <th className="text-right px-6 py-3 text-[10px] font-black text-gray-400 uppercase tracking-widest">Действия</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-gray-50">
+                                {section.users.map(user => {
+                                  const badge = getRoleBadge(user.role);
+                                  const isActive = selectedUser?.id === user.id;
+                                  return (
+                                    <tr
+                                      key={user.id}
+                                      onClick={() => setSelectedUser(user)}
+                                      className={`cursor-pointer transition-colors ${isActive ? 'bg-indigo-50' : 'hover:bg-gray-50'}`}
+                                    >
+                                      {/* Имя */}
+                                      <td className="px-6 py-3.5">
+                                        <div className="flex items-center gap-3">
+                                          {user.avatar ? (
+                                            <img src={user.avatar} alt="" className="w-8 h-8 rounded-full object-cover shrink-0" />
+                                          ) : (
+                                            <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center shrink-0">
+                                              <UserCircle className="w-5 h-5 text-gray-400" />
+                                            </div>
+                                          )}
+                                          <span className="font-bold text-gray-900 text-sm whitespace-nowrap">
+                                            {user.surname || user.name ? `${user.surname || ''} ${user.name || ''}`.trim() : 'Без имени'}
+                                          </span>
+                                        </div>
+                                      </td>
+                                      {/* Email */}
+                                      <td className="px-4 py-3.5">
+                                        <span className="text-sm text-gray-500 font-medium">{user.email}</span>
+                                      </td>
+                                      {/* Роль */}
+                                      <td className="px-4 py-3.5">
+                                        <span className={`inline-flex items-center px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest border ${badge.class}`}>
+                                          {badge.text}
+                                        </span>
+                                      </td>
+                                      {/* Группы / Курсы */}
+                                      <td className="px-4 py-3.5 max-w-xs">
+                                        <div className="flex flex-wrap gap-1">
+                                          {user.groups?.slice(0, 3).map(g => (
+                                            <span key={g.id} className="px-2 py-0.5 bg-purple-50 text-purple-700 border border-purple-100 rounded-lg text-[10px] font-bold">
+                                              {g.title}
+                                            </span>
+                                          ))}
+                                          {user.enrollments?.slice(0, 2).map(e => (
+                                            <span key={e.course.id} className="px-2 py-0.5 bg-blue-50 text-blue-700 border border-blue-100 rounded-lg text-[10px] font-bold">
+                                              {e.course.title}
+                                            </span>
+                                          ))}
+                                          {((user.groups?.length ?? 0) > 3 || (user.enrollments?.length ?? 0) > 2) && (
+                                            <span className="px-2 py-0.5 bg-gray-100 text-gray-500 rounded-lg text-[10px] font-bold">…</span>
+                                          )}
+                                          {!user.groups?.length && !user.enrollments?.length && (
+                                            <span className="text-xs text-gray-300 font-medium">—</span>
+                                          )}
+                                        </div>
+                                      </td>
+                                      {/* Действия */}
+                                      <td className="px-6 py-3.5 text-right">
+                                        <button
+                                          onClick={e => { e.stopPropagation(); handleDeleteUser(user.id); }}
+                                          className="p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                                          title="Удалить"
+                                        >
+                                          <Trash2 className="w-4 h-4" />
+                                        </button>
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
                       </div>
-                    </div>
-                    <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest border ${badge.class}`}>
-                      {badge.text}
-                    </div>
-                  </button>
-                );
-              })}
-              
-              {curators.length === 0 && admins.length === 0 && (
-                <div className="text-center py-12 text-gray-400">
-                  <Crown className="w-16 h-16 mx-auto mb-3 opacity-20" />
-                  <p className="font-bold">Нет преподавателей</p>
-                </div>
-              )}
-            </div>
-          </div>
-
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            );
+          })}
         </div>
       </main>
 
@@ -550,8 +641,8 @@ export default function AdminUsers() {
                 </div>
               </div>
 
-              {/* ПРЕДМЕТЫ (только для кураторов) */}
-              {(selectedUser.role === 'CURATOR' || selectedUser.role === 'ADMIN') && (
+              {/* ПРЕДМЕТЫ (для преподавателей, кураторов, админов) */}
+              {(selectedUser.role === 'CURATOR' || selectedUser.role === 'ADMIN' || selectedUser.role === 'TEACHER') && (
                 <div>
                   <div className="flex justify-between items-center mb-3">
                     <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Преподаёт предметы</h4>
@@ -624,7 +715,7 @@ export default function AdminUsers() {
               <p className="text-gray-500 font-medium mb-6 text-sm">Выберите новую роль для пользователя</p>
               
               <div className="space-y-2 mb-6">
-                {(['STUDENT', 'CURATOR', 'ADMIN', 'PARENT'] as Role[]).map(role => (
+                {(['STUDENT', 'TEACHER', 'CURATOR', 'ADMIN', 'PARENT'] as Role[]).map(role => (
                   <label key={role} className={`flex items-center gap-3 p-4 rounded-xl border-2 cursor-pointer transition-all ${selectedRole === role ? 'border-indigo-500 bg-indigo-50' : 'border-gray-100 hover:border-gray-200'}`}>
                     <input type="radio" checked={selectedRole === role} onChange={() => setSelectedRole(role)} className="sr-only" />
                     <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${selectedRole === role ? 'border-indigo-500 bg-indigo-500' : 'border-gray-300'}`}>
@@ -764,6 +855,7 @@ export default function AdminUsers() {
                   <select value={createForm.role} onChange={e => setCreateForm({...createForm, role: e.target.value as Role})}
                     className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-[#5A4BFF] font-bold transition-all appearance-none cursor-pointer">
                     <option value="STUDENT">Ученик</option>
+                    <option value="TEACHER">Преподаватель</option>
                     <option value="CURATOR">Куратор</option>
                     <option value="ADMIN">Администратор</option>
                     <option value="PARENT">Родитель</option>
