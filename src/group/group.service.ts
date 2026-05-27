@@ -12,10 +12,9 @@ export class GroupService {
   async findAll() {
     return this.prisma.group.findMany({
       include: { 
-        _count: {
-          select: { students: true, courses: true }
-        },
-        curator: true 
+        _count: { select: { students: true, courses: true } },
+        curator: true,
+        teacher: true,
       }
     });
   }
@@ -23,19 +22,28 @@ export class GroupService {
   async findOne(id: string) {
     return this.prisma.group.findUnique({
       where: { id },
-      include: { courses: true, students: true, curator: true }
+      include: { courses: true, students: true, curator: true, teacher: true }
     });
   }
 
   async update(id: string, data: any) {
-    const { curator_id, ...rest } = data;
+    const { curator_id, curatorId, teacherId, ...rest } = data;
     const updateData: any = { ...rest };
 
-    if (curator_id !== undefined) {
-      if (curator_id === null || curator_id === '') {
-        updateData.curator = { disconnect: true }; 
+    const effectiveCuratorId = curatorId ?? curator_id;
+    if (effectiveCuratorId !== undefined) {
+      if (effectiveCuratorId === null || effectiveCuratorId === '') {
+        updateData.curator = { disconnect: true };
       } else {
-        updateData.curator = { connect: { id: curator_id } }; 
+        updateData.curator = { connect: { id: effectiveCuratorId } };
+      }
+    }
+
+    if (teacherId !== undefined) {
+      if (teacherId === null || teacherId === '') {
+        updateData.teacher = { disconnect: true };
+      } else {
+        updateData.teacher = { connect: { id: teacherId } };
       }
     }
 

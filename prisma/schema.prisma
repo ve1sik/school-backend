@@ -66,8 +66,9 @@ model User {
   enrollments   Enrollment[]
   submissions   Submission[]
 
-  groups         Group[] @relation("StudentGroups")
-  curated_groups Group[] @relation("CuratorGroups")
+  groups          Group[] @relation("StudentGroups")
+  curated_groups  Group[] @relation("CuratorGroups")
+  teaching_groups Group[] @relation("TeacherGroups")
 
   sent_messages     Message[] @relation("SentMessages")
   received_messages Message[] @relation("ReceivedMessages")
@@ -90,11 +91,13 @@ model Group {
   is_public   Boolean  @default(true) 
   cover_url   String?  
 
-  curator_id String?
-  curator    User?    @relation("CuratorGroups", fields: [curator_id], references: [id])
-  students   User[]   @relation("StudentGroups")
-  courses    Course[] @relation("GroupCourses")
-  events     Event[]  
+  curator_id  String?
+  curator     User?    @relation("CuratorGroups", fields: [curator_id], references: [id])
+  teacher_id  String?
+  teacher     User?    @relation("TeacherGroups", fields: [teacher_id], references: [id])
+  students    User[]   @relation("StudentGroups")
+  courses     Course[] @relation("GroupCourses")
+  events      Event[]  
 
   theme_access GroupThemeAccess[]
 
@@ -237,6 +240,8 @@ model Enrollment {
   user   User   @relation(fields: [user_id], references: [id], onDelete: Cascade)
   course Course @relation(fields: [course_id], references: [id], onDelete: Cascade)
 
+  @@index([user_id])
+  @@index([course_id])
   @@map("enrollments")
 }
 
@@ -257,6 +262,9 @@ model Submission {
   user   User   @relation(fields: [user_id], references: [id], onDelete: Cascade)
   lesson Lesson @relation(fields: [lesson_id], references: [id], onDelete: Cascade)
 
+  @@index([user_id])
+  @@index([lesson_id])
+  @@index([status])
   @@map("submissions")
 }
 
@@ -286,6 +294,9 @@ model Message {
   sender      User     @relation("SentMessages", fields: [sender_id], references: [id], onDelete: Cascade)
   receiver    User     @relation("ReceivedMessages", fields: [receiver_id], references: [id], onDelete: Cascade)
 
+  @@index([sender_id])
+  @@index([receiver_id])
+  @@index([is_read])
   @@map("messages")
 }
 

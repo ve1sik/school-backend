@@ -175,91 +175,117 @@ export default function FlashcardStudy() {
 
   // ── HOME SCREEN ──
   if (phase === 'home') return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-indigo-50 flex">
+    <div className="h-screen bg-[#F4F7FE] flex gap-6 p-4 md:p-6 overflow-hidden">
 
-      {/* Боковая панель «назад» */}
-      <aside className="hidden md:flex flex-col items-center py-8 px-3 gap-4 w-14 shrink-0">
-        <button onClick={() => navigate(-1)}
-          className="w-10 h-10 flex items-center justify-center rounded-xl bg-white border border-gray-200 text-gray-400 hover:text-indigo-600 hover:border-indigo-200 transition-all shadow-sm">
-          <ChevronLeft className="w-5 h-5" />
-        </button>
-      </aside>
-
-      <div className="flex-1 p-4 md:p-8 max-w-2xl">
-        {/* Мобильная кнопка назад */}
-        <button onClick={() => navigate(-1)} className="md:hidden flex items-center gap-2 text-gray-500 hover:text-gray-800 font-bold mb-6 transition-colors">
-          <ChevronLeft className="w-5 h-5" /> Назад
-        </button>
-
-        <div className="flex items-center gap-4 mb-8">
-          <div className="w-16 h-16 bg-indigo-600 rounded-2xl flex items-center justify-center shadow-lg shadow-indigo-200">
-            <Layers className="w-8 h-8 text-white" />
-          </div>
-          <div>
-            <h1 className="text-3xl font-black text-gray-900">Флеш-карточки</h1>
-            <p className="text-gray-500 font-medium">Активное запоминание</p>
+      {/* БОКОВАЯ ПАНЕЛЬ — как в CourseView */}
+      <aside className="w-[280px] lg:w-[320px] bg-white rounded-[2rem] border border-gray-100 flex flex-col h-full shrink-0 shadow-sm overflow-hidden">
+        <div className="p-6 border-b border-gray-100 shrink-0">
+          <button onClick={() => navigate(-1)}
+            className="flex items-center gap-2 text-gray-400 hover:text-indigo-600 font-black text-[11px] uppercase tracking-wider transition-colors mb-6">
+            <ChevronLeft className="w-4 h-4" /> Назад
+          </button>
+          <div className="flex items-center gap-3 mb-2">
+            <div className="w-12 h-12 bg-indigo-600 rounded-2xl flex items-center justify-center shadow-md shadow-indigo-200 shrink-0">
+              <Layers className="w-6 h-6 text-white" />
+            </div>
+            <div>
+              <h1 className="text-lg font-black text-gray-900 leading-tight">Флеш-карточки</h1>
+              <p className="text-xs text-gray-400 font-medium">Активное запоминание</p>
+            </div>
           </div>
         </div>
 
-        {/* STATS STRIP */}
+        {/* Статистика */}
         {stats && (
-          <div className="grid grid-cols-3 gap-4 mb-8">
-            <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
-              <div className="flex items-center gap-2 mb-1">
-                <Zap className="w-4 h-4 text-indigo-500" />
-                <span className="text-xs font-black text-gray-400 uppercase tracking-widest">Новых</span>
+          <div className="p-4 border-b border-gray-100 shrink-0">
+            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3">Сегодня</p>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between px-3 py-2.5 rounded-xl bg-indigo-50">
+                <span className="flex items-center gap-2 text-xs font-bold text-indigo-600"><Zap className="w-3.5 h-3.5" /> Новых</span>
+                <span className="font-black text-indigo-700 text-sm">{stats.newCount}</span>
               </div>
-              <div className="text-3xl font-black text-indigo-600">{stats.newCount}</div>
-            </div>
-            <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
-              <div className="flex items-center gap-2 mb-1">
-                <RotateCcw className="w-4 h-4 text-amber-500" />
-                <span className="text-xs font-black text-gray-400 uppercase tracking-widest">Повтор</span>
+              <div className="flex items-center justify-between px-3 py-2.5 rounded-xl bg-amber-50">
+                <span className="flex items-center gap-2 text-xs font-bold text-amber-600"><RotateCcw className="w-3.5 h-3.5" /> Повтор</span>
+                <span className="font-black text-amber-700 text-sm">{stats.dueTodayCount}</span>
               </div>
-              <div className="text-3xl font-black text-amber-600">{stats.dueTodayCount}</div>
-            </div>
-            <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
-              <div className="flex items-center gap-2 mb-1">
-                <Flame className="w-4 h-4 text-orange-500" />
-                <span className="text-xs font-black text-gray-400 uppercase tracking-widest">Стрик</span>
+              <div className="flex items-center justify-between px-3 py-2.5 rounded-xl bg-orange-50">
+                <span className="flex items-center gap-2 text-xs font-bold text-orange-600"><Flame className="w-3.5 h-3.5" /> Стрик</span>
+                <span className="font-black text-orange-700 text-sm">{stats.streak} 🔥</span>
               </div>
-              <div className="text-3xl font-black text-orange-600">{stats.streak} <span className="text-base">🔥</span></div>
             </div>
           </div>
         )}
 
-        {/* START ALL */}
-        <button onClick={() => startStudy(undefined)}
-          className="w-full py-5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black text-lg shadow-lg shadow-indigo-500/30 transition-all active:scale-[0.98] flex items-center justify-center gap-3 mb-6">
-          <Star className="w-6 h-6" />
-          Начать сессию ({(stats?.newCount ?? 0) + (stats?.dueTodayCount ?? 0)} карточек)
-        </button>
-
-        {/* DECK LIST */}
-        <div className="space-y-3">
-          <h2 className="text-sm font-black text-gray-400 uppercase tracking-widest px-1 mb-4">Или выберите колоду</h2>
-          {decks.map((deck) => (
-            <button key={deck.id} onClick={() => { setSelectedDeckId(deck.id); startStudy(deck.id); }}
-              className="w-full bg-white rounded-2xl p-5 shadow-sm border border-gray-100 hover:border-indigo-200 hover:shadow-md transition-all text-left flex items-center gap-4 group">
-              <div className="w-12 h-12 bg-indigo-50 rounded-xl flex items-center justify-center group-hover:bg-indigo-100 transition-colors">
-                <BookOpen className="w-6 h-6 text-indigo-500" />
-              </div>
-              <div className="flex-1">
-                <p className="font-black text-gray-900">{deck.title}</p>
-                <p className="text-sm text-gray-400 font-medium">{deck._count.cards} карточек</p>
-              </div>
-              <ChevronLeft className="w-5 h-5 text-gray-300 rotate-180 group-hover:text-indigo-400 transition-colors" />
-            </button>
-          ))}
+        {/* Список колод */}
+        <div className="flex-1 overflow-y-auto p-4">
+          <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3">Колоды</p>
+          <div className="space-y-2">
+            {decks.map((deck) => (
+              <button key={deck.id} onClick={() => { setSelectedDeckId(deck.id); startStudy(deck.id); }}
+                className="w-full bg-gray-50 hover:bg-indigo-50 border border-gray-100 hover:border-indigo-200 rounded-2xl p-4 transition-all text-left flex items-center gap-3 group">
+                <div className="w-9 h-9 bg-white rounded-xl flex items-center justify-center group-hover:bg-indigo-100 transition-colors shrink-0 border border-gray-100">
+                  <BookOpen className="w-4 h-4 text-indigo-500" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-black text-gray-900 text-sm truncate">{deck.title}</p>
+                  <p className="text-xs text-gray-400 font-medium">{deck._count.cards} карточек</p>
+                </div>
+                <ChevronLeft className="w-4 h-4 text-gray-300 rotate-180 group-hover:text-indigo-400 transition-colors shrink-0" />
+              </button>
+            ))}
+          </div>
         </div>
 
         {stats && stats.totalLearned > 0 && (
-          <div className="mt-6 flex items-center gap-3 px-5 py-4 bg-emerald-50 rounded-2xl border border-emerald-100">
-            <Trophy className="w-5 h-5 text-emerald-600" />
-            <span className="font-bold text-emerald-700 text-sm">Всего выучено: <strong>{stats.totalLearned}</strong> карточек</span>
+          <div className="p-4 border-t border-gray-100 shrink-0">
+            <div className="flex items-center gap-2 px-4 py-3 bg-emerald-50 rounded-2xl">
+              <Trophy className="w-4 h-4 text-emerald-600 shrink-0" />
+              <span className="font-bold text-emerald-700 text-xs">Выучено: <strong>{stats.totalLearned}</strong> карточек</span>
+            </div>
           </div>
         )}
-      </div>
+      </aside>
+
+      {/* ГЛАВНАЯ ОБЛАСТЬ */}
+      <main className="flex-1 bg-white rounded-[2rem] border border-gray-100 shadow-sm flex flex-col items-center justify-center p-8 overflow-auto">
+        <div className="max-w-lg w-full text-center">
+          <div className="w-24 h-24 bg-indigo-600 rounded-[2rem] flex items-center justify-center shadow-xl shadow-indigo-200 mx-auto mb-8">
+            <Layers className="w-12 h-12 text-white" />
+          </div>
+          <h2 className="text-4xl font-black text-gray-900 mb-3">Готов учиться?</h2>
+          <p className="text-gray-500 font-medium mb-4">
+            {(stats?.newCount ?? 0) + (stats?.dueTodayCount ?? 0) > 0
+              ? `Сегодня ${(stats?.newCount ?? 0) + (stats?.dueTodayCount ?? 0)} карточек на повтор`
+              : 'Все карточки на сегодня пройдены 🎉'}
+          </p>
+
+          {stats && (
+            <div className="grid grid-cols-3 gap-3 mb-8">
+              <div className="bg-indigo-50 rounded-2xl p-4">
+                <div className="text-3xl font-black text-indigo-600">{stats.newCount}</div>
+                <div className="text-xs font-bold text-indigo-400 mt-1">Новых</div>
+              </div>
+              <div className="bg-amber-50 rounded-2xl p-4">
+                <div className="text-3xl font-black text-amber-600">{stats.dueTodayCount}</div>
+                <div className="text-xs font-bold text-amber-400 mt-1">Повтор</div>
+              </div>
+              <div className="bg-orange-50 rounded-2xl p-4">
+                <div className="text-3xl font-black text-orange-600">{stats.streak} 🔥</div>
+                <div className="text-xs font-bold text-orange-400 mt-1">Стрик</div>
+              </div>
+            </div>
+          )}
+
+          <button onClick={() => startStudy(undefined)}
+            disabled={(stats?.newCount ?? 0) + (stats?.dueTodayCount ?? 0) === 0}
+            className="w-full py-5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-2xl font-black text-lg shadow-lg shadow-indigo-500/30 transition-all active:scale-[0.98] flex items-center justify-center gap-3">
+            <Star className="w-6 h-6" />
+            Начать сессию
+          </button>
+
+          <p className="text-xs text-gray-400 font-medium mt-4">или выберите колоду в боковой панели</p>
+        </div>
+      </main>
     </div>
   );
 

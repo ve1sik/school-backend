@@ -192,6 +192,26 @@ export default function AdminUsers() {
     }
   };
 
+  const handleAssignGroupCurator = async (groupId: string, userId: string) => {
+    try {
+      await axios.patch(`${API_URL}/groups/${groupId}`, { curatorId: userId }, getTokenConfig());
+      showToast('Куратор группы назначен!');
+      fetchData();
+    } catch (err) {
+      showToast('Ошибка назначения куратора', 'error');
+    }
+  };
+
+  const handleAssignGroupTeacher = async (groupId: string, userId: string) => {
+    try {
+      await axios.patch(`${API_URL}/groups/${groupId}`, { teacherId: userId }, getTokenConfig());
+      showToast('Преподаватель группы назначен!');
+      fetchData();
+    } catch (err) {
+      showToast('Ошибка назначения преподавателя', 'error');
+    }
+  };
+
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!createForm.email || !createForm.password) return;
@@ -628,11 +648,25 @@ export default function AdminUsers() {
                 </div>
                 <div className="space-y-2">
                   {selectedUser.groups?.map(g => (
-                    <div key={g.id} className="flex items-center justify-between p-3 bg-purple-50 rounded-xl border border-purple-100">
-                      <span className="text-sm font-bold text-purple-700">{g.title}</span>
-                      <button onClick={() => handleRemoveFromGroup(g.id)} className="p-1 text-purple-400 hover:text-red-500 transition-colors">
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                    <div key={g.id} className="p-3 bg-purple-50 rounded-xl border border-purple-100 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-bold text-purple-700">{g.title}</span>
+                        <button onClick={() => handleRemoveFromGroup(g.id)} className="p-1 text-purple-400 hover:text-red-500 transition-colors">
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                      {(selectedUser.role === 'CURATOR' || selectedUser.role === 'TEACHER' || selectedUser.role === 'ADMIN') && (
+                        <div className="flex gap-2 flex-wrap">
+                          <button onClick={() => handleAssignGroupCurator(g.id, selectedUser.id)}
+                            className="text-[10px] font-black px-2.5 py-1.5 rounded-lg bg-purple-100 hover:bg-purple-200 text-purple-700 transition-colors uppercase tracking-wider">
+                            👑 Куратор группы
+                          </button>
+                          <button onClick={() => handleAssignGroupTeacher(g.id, selectedUser.id)}
+                            className="text-[10px] font-black px-2.5 py-1.5 rounded-lg bg-sky-100 hover:bg-sky-200 text-sky-700 transition-colors uppercase tracking-wider">
+                            📚 Препод группы
+                          </button>
+                        </div>
+                      )}
                     </div>
                   ))}
                   {(!selectedUser.groups || selectedUser.groups.length === 0) && (

@@ -167,17 +167,38 @@ const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswer
   }
 
   return (
-    <div className="bg-white border border-gray-100 rounded-[2rem] p-6 md:p-8 relative shadow-lg shadow-indigo-100/40 mb-8">
-      <div className="flex justify-between items-center mb-6">
-        <h4 className="font-black text-xl text-gray-900 flex items-center gap-3">
-          <group.Icon className={`w-6 h-6 ${group.iconColor?.split(' ')[1] || ''}`} />
-          {group.title}
-        </h4>
-        <button onClick={() => setIsOpen(false)} className="p-2.5 text-gray-400 hover:text-gray-700 bg-gray-50 hover:bg-gray-100 rounded-xl transition-colors border border-gray-200/50 shadow-sm">
-          <X className="w-5 h-5" />
-        </button>
+    <div className="bg-white border border-gray-100 rounded-[2rem] relative shadow-lg shadow-indigo-100/40 mb-8 overflow-hidden">
+      {/* STICKY HEADER — кнопки всегда видны */}
+      <div className="sticky top-0 z-20 bg-white border-b border-gray-100 px-6 py-4 flex items-center justify-between gap-3 shadow-sm">
+        <div className="flex items-center gap-3 min-w-0">
+          <group.Icon className={`w-5 h-5 shrink-0 ${group.iconColor?.split(' ')[1] || ''}`} />
+          <span className="font-black text-gray-900 truncate">{group.title}</span>
+          <span className="text-xs font-bold text-gray-400 shrink-0">Вопрос {activeStep + 1} / {group.blocks.length}</span>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          {activeStep > 0 && (
+            <button onClick={() => setActiveStep(p => p - 1)} className="px-4 py-2 rounded-xl font-bold text-xs bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">← Назад</button>
+          )}
+          {activeStep < group.blocks.length - 1 && (
+            <button onClick={() => setActiveStep(p => p + 1)} className="px-4 py-2 rounded-xl font-bold text-xs bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors">
+              {isLocked || result === 'SUCCESS' || result === 'GRADED' ? 'Далее →' : 'Пропустить →'}
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={(e) => { e.preventDefault(); handleSubmitTest(block); }}
+            disabled={block.type === 'matching' ? (!isMatchingReady || isLocked) : (selected.length === 0 || selected[0] === '' || selected[0] === '<p><br></p>' || isLocked)}
+            className={`px-5 py-2 rounded-xl font-black text-xs transition-all active:scale-95 disabled:opacity-40 uppercase tracking-wide ${isExhausted && block.type !== 'written' ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : result === 'ERROR' ? 'bg-[#FF4A6B] text-white shadow-md' : result === 'GRADED' ? 'bg-emerald-500 text-white cursor-not-allowed' : 'bg-[#A855F7] text-white shadow-md shadow-purple-500/30'}`}
+          >
+            {result === 'PENDING' ? '⏳ Проверка' : result === 'GRADED' ? '✅ Оценено' : (isExhausted && block.type !== 'written' ? '🚫 Лимит' : result === 'ERROR' ? '↩ Ещё раз' : '✓ Ответить')}
+          </button>
+          <button onClick={() => setIsOpen(false)} className="p-2 text-gray-400 hover:text-gray-700 bg-gray-50 hover:bg-gray-100 rounded-xl transition-colors border border-gray-200/50">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
       </div>
 
+      <div className="p-6 md:p-8">
       <div className="flex flex-wrap gap-2.5 mb-8">
         {group.blocks.map((b: any, i: number) => {
           const sSub = submissions?.find((s: any) => s.blockId === b.id || s.block_id === b.id);
@@ -485,28 +506,6 @@ const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswer
         )}
       </div>
 
-      <div className="flex flex-col sm:flex-row items-center gap-4 pt-6 border-t border-gray-100">
-        <button 
-          type="button"
-          onClick={(e) => { e.preventDefault(); handleSubmitTest(block); }} 
-          disabled={block.type === 'matching' ? (!isMatchingReady || isLocked) : (selected.length === 0 || selected[0] === '' || selected[0] === '<p><br></p>' || isLocked)} 
-          className={`w-full sm:w-auto px-10 py-4 rounded-xl font-black text-sm transition-all active:scale-95 disabled:opacity-50 tracking-wide uppercase ${isExhausted && block.type !== 'written' ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : result === 'ERROR' ? 'bg-[#FF4A6B] hover:bg-red-500 text-white shadow-lg shadow-red-500/30' : result === 'GRADED' ? 'bg-emerald-500 text-white cursor-not-allowed' : 'bg-[#A855F7] hover:bg-[#9333EA] text-white shadow-lg shadow-purple-500/30'}`}
-        >
-          {result === 'PENDING' ? 'НА ПРОВЕРКЕ' : result === 'GRADED' ? 'ОЦЕНЕНО' : (isExhausted && block.type !== 'written' ? 'ЛИМИТ ИСЧЕРПАН' : result === 'ERROR' ? 'ЕЩЕ РАЗ' : 'ОТВЕТИТЬ')}
-        </button>
-        
-        <div className="flex-1 w-full flex justify-end gap-3">
-          {activeStep > 0 && (
-            <button onClick={() => setActiveStep(p => p - 1)} className="px-6 py-4 rounded-xl font-bold text-sm bg-gray-50 text-gray-500 hover:bg-gray-100 transition-colors">НАЗАД</button>
-          )}
-          {activeStep < group.blocks.length - 1 && (
-            <button onClick={() => setActiveStep(p => p + 1)} className="px-6 py-4 rounded-xl font-bold text-sm bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors">
-              {isLocked || result === 'SUCCESS' || result === 'GRADED' ? 'ДАЛЕЕ' : 'ПРОПУСТИТЬ'}
-            </button>
-          )}
-        </div>
-      </div>
-
       <AnimatePresence>
         {(isLocked || isExhausted) && block.explanation && (
           <motion.div initial={{ opacity: 0, height: 0, marginTop: 0 }} animate={{ opacity: 1, height: 'auto', marginTop: 24 }} exit={{ opacity: 0, height: 0, marginTop: 0 }} className="overflow-hidden">
@@ -514,6 +513,7 @@ const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswer
           </motion.div>
         )}
       </AnimatePresence>
+      </div>{/* end p-6 md:p-8 */}
     </div>
   );
 };

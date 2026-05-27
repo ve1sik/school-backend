@@ -1053,7 +1053,7 @@ export default function CourseView() {
                   </div>
                 )}
 
-                {/* 🔥 РЕНДЕР ДОМАШНЕГО ЗАДАНИЯ - ОТКРЫТИЕ В ОТДЕЛЬНОМ ОКНЕ */}
+                {/* ДОМАШНЕЕ ЗАДАНИЕ */}
                 {homeworkBlocks.length > 0 && (
                   <div className="mt-12 pt-10 border-t-4 border-dashed border-purple-200">
                     <div className="bg-purple-600 p-6 md:p-8 rounded-[2rem] shadow-sm overflow-hidden flex flex-col md:flex-row md:items-center justify-between gap-6 relative">
@@ -1071,13 +1071,12 @@ export default function CourseView() {
                       <button 
                         type="button"
                         onClick={(e) => { 
-                          e.preventDefault(); 
-                          window.open(`/homework/${activeLesson.id}`, '_blank');
+                          e.preventDefault();
+                          navigate(`/homework/${activeLesson.id}`);
                         }}
                         className="w-full md:w-auto shrink-0 px-8 py-4 bg-white text-purple-700 hover:bg-purple-50 rounded-xl font-black text-sm transition-all shadow-lg active:scale-95 flex items-center justify-center gap-2 relative z-10"
                       >
                         Приступить к выполнению ДЗ
-                        <ExternalLink className="w-4 h-4 ml-1" />
                       </button>
                     </div>
                   </div>

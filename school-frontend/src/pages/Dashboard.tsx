@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Activity, Loader2, PenTool, AlertCircle, CheckSquare, Mic,
-  Target, X, BookOpen, ChevronRight, TrendingDown, Layers,
+  Target, X, BookOpen, ChevronRight, TrendingDown, Layers, List,
   PanelRightOpen, GraduationCap, ChevronDown, ChevronUp, Star,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
