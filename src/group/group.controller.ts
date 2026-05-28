@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Query, Request } from '@nestjs/common';
 import { GroupService } from './group.service';
 import { AuthGuard } from '@nestjs/passport';
 import { RolesGuard } from '../auth/roles.guard';
@@ -26,6 +26,13 @@ export class GroupController {
   @Get('shop')
   findShopGroups() {
     return this.groupService.findShopGroups();
+  }
+
+  @Roles('ADMIN', 'CURATOR', 'TEACHER', 'STUDENT')
+  @Get('my-theme-access')
+  getMyThemeAccess(@Request() req) {
+    const userId = req.user.sub || req.user.id || req.user.userId;
+    return this.groupService.getMyThemeAccess(userId);
   }
 
   @Roles('ADMIN', 'CURATOR')
@@ -65,5 +72,21 @@ export class GroupController {
   @Delete(':id/students/:userId')
   removeStudent(@Param('id') id: string, @Param('userId') userId: string) {
     return this.groupService.removeStudent(id, userId);
+  }
+
+  @Roles('ADMIN', 'CURATOR', 'TEACHER')
+  @Get(':id/theme-access')
+  getThemeAccess(@Param('id') id: string) {
+    return this.groupService.getThemeAccess(id);
+  }
+
+  @Roles('ADMIN', 'CURATOR', 'TEACHER')
+  @Post(':id/theme-access')
+  upsertThemeAccess(
+    @Param('id') id: string,
+    @Body() body: { themeId: string; unlock_date?: string | null; deadline?: string | null; is_visible?: boolean },
+  ) {
+    const { themeId, ...data } = body;
+    return this.groupService.upsertThemeAccess(id, themeId, data);
   }
 }

@@ -128,6 +128,117 @@ export class GroupService {
     });
   }
 
+  async getMyThemeAccess(userId: string) {
+    const groups = await this.prisma.group.findMany({
+      where: { students: { some: { id: userId } } },
+      include: {
+        theme_access: {
+          include: { theme: { select: { id: true, title: true, order_index: true } } },
+        },
+      },
+    });
+    return groups.flatMap(g =>
+      g.theme_access.map(ta => ({
+        group_id: g.id,
+        group_title: g.title,
+        theme_id: ta.theme_id,
+        theme_title: ta.theme?.title,
+        theme_order: ta.theme?.order_index,
+        unlock_date: ta.unlock_date,
+        deadline: ta.deadline,
+        is_visible: ta.is_visible,
+      })),
+    );
+  }
+
+  async getThemeAccess(groupId: string) {
+    return this.prisma.groupThemeAccess.findMany({
+      where: { group_id: groupId },
+      include: { theme: { select: { id: true, title: true, order_index: true } } },
+      orderBy: { theme: { order_index: 'asc' } },
+    });
+  }
+
+  async upsertThemeAccess(
+    groupId: string,
+    themeId: string,
+    data: { unlock_date?: string | null; deadline?: string | null; is_visible?: boolean },
+  ) {
+    const unlockDate = data.unlock_date ? new Date(data.unlock_date) : null;
+    const deadline = data.deadline ? new Date(data.deadline) : null;
+
+    const record = await this.prisma.groupThemeAccess.upsert({
+      where: { group_id_theme_id: { group_id: groupId, theme_id: themeId } },
+      create: {
+        group_id: groupId,
+        theme_id: themeId,
+        unlock_date: unlockDate,
+        deadline,
+        is_visible: data.is_visible ?? true,
+      },
+      update: {
+        unlock_date: unlockDate,
+        deadline,
+        ...(data.is_visible !== undefined ? { is_visible: data.is_visible } : {}),
+      },
+      include: { theme: true, group: true },
+    });
+
+    // Auto-manage DEADLINE event in schedule
+    if (deadline) {
+      const title = `Дедлайн: ${record.theme.title} (${record.group.title})`;
+      const existing = await this.prisma.event.findFirst({
+        where: {
+          group_id: groupId,
+          type: 'DEADLINE',
+          title,
+        },
+      });
+      if (existing) {
+        await this.prisma.event.update({
+          where: { id: existing.id },
+          data: { date: deadline, title },
+        });
+      } else {
+        await this.prisma.event.create({
+          data: {
+            title,
+            date: deadline,
+            type: 'DEADLINE',
+            group_id: groupId,
+            description: `Срок сдачи заданий модуля «${record.theme.title}»`,
+          },
+        });
+      }
+    }
+
+    // Auto-manage unlock event when unlock_date set
+    if (unlockDate) {
+      const unlockTitle = `Открытие модуля: ${record.theme.title} (${record.group.title})`;
+      const existingUnlock = await this.prisma.event.findFirst({
+        where: { group_id: groupId, type: 'WEBINAR', title: unlockTitle },
+      });
+      if (!existingUnlock) {
+        await this.prisma.event.create({
+          data: {
+            title: unlockTitle,
+            date: unlockDate,
+            type: 'WEBINAR',
+            group_id: groupId,
+            description: `Открытие модуля «${record.theme.title}» для группы`,
+          },
+        });
+      } else {
+        await this.prisma.event.update({
+          where: { id: existingUnlock.id },
+          data: { date: unlockDate },
+        });
+      }
+    }
+
+    return record;
+  }
+
   async findShopGroups() {
     return this.prisma.group.findMany({
       where: { 

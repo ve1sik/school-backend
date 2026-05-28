@@ -32,6 +32,8 @@ interface Course {
 interface Group {
   id: string;
   title: string;
+  curator?: { id: string; name?: string; surname?: string; email: string } | null;
+  teacher?: { id: string; name?: string; surname?: string; email: string } | null;
 }
 
 interface Subject {
@@ -66,6 +68,8 @@ export default function AdminUsers() {
   const [toast, setToast] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
   const [expandedCard, setExpandedCard] = useState<string | null>('all');
   const [selectedGroupFilter, setSelectedGroupFilter] = useState('');
+  const [assignCuratorId, setAssignCuratorId] = useState('');
+  const [assignTeacherId, setAssignTeacherId] = useState('');
 
   const showToast = (text: string, type: 'success' | 'error' = 'success') => {
     setToast({ text, type });
@@ -194,8 +198,8 @@ export default function AdminUsers() {
 
   const handleAssignGroupCurator = async (groupId: string, userId: string) => {
     try {
-      await axios.patch(`${API_URL}/groups/${groupId}`, { curatorId: userId }, getTokenConfig());
-      showToast('Куратор группы назначен!');
+      await axios.patch(`${API_URL}/groups/${groupId}`, { curatorId: userId || null }, getTokenConfig());
+      showToast(userId ? 'Куратор группы назначен!' : 'Куратор снят');
       fetchData();
     } catch (err) {
       showToast('Ошибка назначения куратора', 'error');
@@ -204,8 +208,8 @@ export default function AdminUsers() {
 
   const handleAssignGroupTeacher = async (groupId: string, userId: string) => {
     try {
-      await axios.patch(`${API_URL}/groups/${groupId}`, { teacherId: userId }, getTokenConfig());
-      showToast('Преподаватель группы назначен!');
+      await axios.patch(`${API_URL}/groups/${groupId}`, { teacherId: userId || null }, getTokenConfig());
+      showToast(userId ? 'Преподаватель группы назначен!' : 'Преподаватель снят');
       fetchData();
     } catch (err) {
       showToast('Ошибка назначения преподавателя', 'error');
@@ -377,56 +381,120 @@ export default function AdminUsers() {
               <div className="px-6 py-4 border-b border-indigo-50 bg-indigo-50/40 flex items-center gap-3">
                 <Building2 className="w-5 h-5 text-indigo-600" />
                 <h3 className="font-black text-indigo-900">Группа: {activeGroupObj.title}</h3>
-                <span className="ml-auto text-xs font-bold text-indigo-500">{groupStudents.length + groupTeachers.length + groupCurators.length} участников</span>
+                <span className="ml-auto text-xs font-bold text-indigo-500">{groupStudents.length} учеников</span>
               </div>
-              <div className="divide-y divide-gray-50">
-                {/* Кураторы */}
-                {groupCurators.length > 0 && (
-                  <div className="px-6 py-3">
-                    <p className="text-[10px] font-black text-purple-400 uppercase tracking-widest mb-2">Кураторы</p>
-                    <div className="flex flex-wrap gap-2">
-                      {groupCurators.map(u => (
-                        <button key={u.id} onClick={() => setSelectedUser(u)}
-                          className="flex items-center gap-2 px-3 py-1.5 bg-purple-50 hover:bg-purple-100 border border-purple-100 rounded-xl transition-colors">
-                          <Crown className="w-3.5 h-3.5 text-purple-500" />
-                          <span className="text-sm font-bold text-purple-800">{u.surname || u.name ? `${u.surname || ''} ${u.name || ''}`.trim() : u.email}</span>
-                        </button>
-                      ))}
-                    </div>
+
+              {/* НАЗНАЧЕНИЕ КУРАТОРА И ПРЕПОДА */}
+              <div className="px-6 py-4 border-b border-gray-50 grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Куратор */}
+                <div className="bg-purple-50 rounded-2xl p-4 border border-purple-100">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Crown className="w-4 h-4 text-purple-500" />
+                    <p className="text-[10px] font-black text-purple-500 uppercase tracking-widest">Куратор группы</p>
                   </div>
-                )}
-                {/* Преподаватели */}
-                {groupTeachers.length > 0 && (
-                  <div className="px-6 py-3">
-                    <p className="text-[10px] font-black text-sky-400 uppercase tracking-widest mb-2">Преподаватели</p>
-                    <div className="flex flex-wrap gap-2">
-                      {groupTeachers.map(u => (
-                        <button key={u.id} onClick={() => setSelectedUser(u)}
-                          className="flex items-center gap-2 px-3 py-1.5 bg-sky-50 hover:bg-sky-100 border border-sky-100 rounded-xl transition-colors">
-                          <BookOpen className="w-3.5 h-3.5 text-sky-500" />
-                          <span className="text-sm font-bold text-sky-800">{u.surname || u.name ? `${u.surname || ''} ${u.name || ''}`.trim() : u.email}</span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                {/* Ученики */}
-                <div className="px-6 py-3">
-                  <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest mb-2">Ученики ({groupStudents.length})</p>
-                  {groupStudents.length > 0 ? (
-                    <div className="flex flex-wrap gap-2">
-                      {groupStudents.map(u => (
-                        <button key={u.id} onClick={() => setSelectedUser(u)}
-                          className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 border border-blue-100 rounded-xl transition-colors">
-                          <GraduationCap className="w-3.5 h-3.5 text-blue-500" />
-                          <span className="text-sm font-bold text-blue-800">{u.surname || u.name ? `${u.surname || ''} ${u.name || ''}`.trim() : u.email}</span>
-                        </button>
-                      ))}
+                  {activeGroupObj.curator ? (
+                    <div className="flex items-center justify-between mb-3">
+                      <span className="text-sm font-black text-purple-800">
+                        {activeGroupObj.curator.surname || activeGroupObj.curator.name
+                          ? `${activeGroupObj.curator.surname || ''} ${activeGroupObj.curator.name || ''}`.trim()
+                          : activeGroupObj.curator.email}
+                      </span>
+                      <button
+                        onClick={() => handleAssignGroupCurator(activeGroupObj.id, '')}
+                        className="text-xs text-red-400 hover:text-red-600 font-bold transition-colors"
+                      >
+                        Снять
+                      </button>
                     </div>
                   ) : (
-                    <p className="text-sm text-gray-400 font-medium">Нет учеников в этой группе</p>
+                    <p className="text-xs text-purple-400 font-medium mb-3">Не назначен</p>
                   )}
+                  <div className="flex gap-2">
+                    <select
+                      value={assignCuratorId}
+                      onChange={e => setAssignCuratorId(e.target.value)}
+                      className="flex-1 text-sm px-3 py-2 bg-white border border-purple-200 rounded-xl outline-none focus:border-purple-400 font-medium text-gray-700 cursor-pointer"
+                    >
+                      <option value="">Выбрать куратора...</option>
+                      {users.filter(u => u.role === 'CURATOR' || u.role === 'ADMIN').map(u => (
+                        <option key={u.id} value={u.id}>
+                          {u.surname || u.name ? `${u.surname || ''} ${u.name || ''}`.trim() : u.email}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      disabled={!assignCuratorId}
+                      onClick={() => { handleAssignGroupCurator(activeGroupObj.id, assignCuratorId); setAssignCuratorId(''); }}
+                      className="px-4 py-2 bg-purple-600 hover:bg-purple-700 disabled:opacity-40 text-white rounded-xl font-black text-xs transition-all"
+                    >
+                      <Check className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
+
+                {/* Преподаватель */}
+                <div className="bg-sky-50 rounded-2xl p-4 border border-sky-100">
+                  <div className="flex items-center gap-2 mb-3">
+                    <BookOpen className="w-4 h-4 text-sky-500" />
+                    <p className="text-[10px] font-black text-sky-500 uppercase tracking-widest">Преподаватель группы</p>
+                  </div>
+                  {activeGroupObj.teacher ? (
+                    <div className="flex items-center justify-between mb-3">
+                      <span className="text-sm font-black text-sky-800">
+                        {activeGroupObj.teacher.surname || activeGroupObj.teacher.name
+                          ? `${activeGroupObj.teacher.surname || ''} ${activeGroupObj.teacher.name || ''}`.trim()
+                          : activeGroupObj.teacher.email}
+                      </span>
+                      <button
+                        onClick={() => handleAssignGroupTeacher(activeGroupObj.id, '')}
+                        className="text-xs text-red-400 hover:text-red-600 font-bold transition-colors"
+                      >
+                        Снять
+                      </button>
+                    </div>
+                  ) : (
+                    <p className="text-xs text-sky-400 font-medium mb-3">Не назначен</p>
+                  )}
+                  <div className="flex gap-2">
+                    <select
+                      value={assignTeacherId}
+                      onChange={e => setAssignTeacherId(e.target.value)}
+                      className="flex-1 text-sm px-3 py-2 bg-white border border-sky-200 rounded-xl outline-none focus:border-sky-400 font-medium text-gray-700 cursor-pointer"
+                    >
+                      <option value="">Выбрать препода...</option>
+                      {users.filter(u => u.role === 'TEACHER' || u.role === 'ADMIN').map(u => (
+                        <option key={u.id} value={u.id}>
+                          {u.surname || u.name ? `${u.surname || ''} ${u.name || ''}`.trim() : u.email}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      disabled={!assignTeacherId}
+                      onClick={() => { handleAssignGroupTeacher(activeGroupObj.id, assignTeacherId); setAssignTeacherId(''); }}
+                      className="px-4 py-2 bg-sky-600 hover:bg-sky-700 disabled:opacity-40 text-white rounded-xl font-black text-xs transition-all"
+                    >
+                      <Check className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Ученики */}
+              <div className="px-6 py-4">
+                <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest mb-3">Ученики ({groupStudents.length})</p>
+                {groupStudents.length > 0 ? (
+                  <div className="flex flex-wrap gap-2">
+                    {groupStudents.map(u => (
+                      <button key={u.id} onClick={() => setSelectedUser(u)}
+                        className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 border border-blue-100 rounded-xl transition-colors">
+                        <GraduationCap className="w-3.5 h-3.5 text-blue-500" />
+                        <span className="text-sm font-bold text-blue-800">{u.surname || u.name ? `${u.surname || ''} ${u.name || ''}`.trim() : u.email}</span>
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-gray-400 font-medium">Нет учеников в этой группе</p>
+                )}
               </div>
             </motion.div>
           )}

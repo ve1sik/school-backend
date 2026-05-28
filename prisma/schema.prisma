@@ -110,6 +110,7 @@ model GroupThemeAccess {
   group_id    String
   theme_id    String
   unlock_date DateTime? 
+  deadline    DateTime?
   is_visible  Boolean   @default(true) 
 
   group Group @relation(fields: [group_id], references: [id], onDelete: Cascade)

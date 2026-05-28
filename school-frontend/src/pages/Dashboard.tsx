@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Activity, Loader2, PenTool, AlertCircle, CheckSquare, Mic,
-  Target, X, BookOpen, ChevronRight, TrendingDown, Layers, List,
+  Target, X, BookOpen, ChevronRight, TrendingDown, Layers, List, BarChart2,
   PanelRightOpen, GraduationCap, ChevronDown, ChevronUp, Star,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -120,7 +120,7 @@ function ScoreTable({ data }: { data: ScoreChartRow[] }) {
       {sorted.map((row) => {
         const color = scoreBarColor(row.score);
         const emoji = row.score >= 70 ? '✅' : row.score >= 50 ? '🟡' : '🔴';
-        return (
+    return (
           <div key={row.fullName} className="flex items-center gap-4 p-4 rounded-2xl bg-gray-50 border border-gray-100">
             <div className="text-lg font-black w-8 text-center shrink-0">{emoji}</div>
             <div className="flex-1 min-w-0">
@@ -139,9 +139,9 @@ function ScoreTable({ data }: { data: ScoreChartRow[] }) {
           </div>
         );
       })}
-    </div>
-  );
-}
+      </div>
+    );
+  }
 
 type WeakSpot = {
   id: string;
@@ -186,11 +186,11 @@ type CourseStats = {
 };
 
 function buildCourseStats(course: any, mySubs: any[]): CourseStats | null {
-  let totalThemesCount = 0;
-  let globalTotalScore = 0;
-  let g_tests = { e: 0, m: 0, count: 0 };
-  let g_written = { e: 0, m: 0, count: 0 };
-  let g_oral = { e: 0, m: 0, count: 0 };
+        let totalThemesCount = 0;
+        let globalTotalScore = 0;
+        let g_tests = { e: 0, m: 0, count: 0 };
+        let g_written = { e: 0, m: 0, count: 0 };
+        let g_oral = { e: 0, m: 0, count: 0 }; 
 
   const modulesList: ModuleStats[] = [];
   const globalProgressData: ScoreChartRow[] = [];
@@ -206,45 +206,45 @@ function buildCourseStats(course: any, mySubs: any[]): CourseStats | null {
   });
 
   course.themes?.forEach((theme: any, themeIdx: number) => {
-    let t_tests = { e: 0, m: 0 };
-    let t_written = { e: 0, m: 0 };
-    let t_oral = { e: 0, m: 10 };
+            let t_tests = { e: 0, m: 0 };
+            let t_written = { e: 0, m: 0 };
+    let t_oral = { e: 0, m: 0 };
 
-    let hasSubmissionsInTheme = false;
+            let hasSubmissionsInTheme = false;
     let themeEarned = 0;
     let themeMax = 0;
     const themeLessonsProgress: ScoreChartRow[] = [];
     const themeWeakSpots: WeakSpot[] = [];
 
-    theme.lessons?.forEach((lesson: any) => {
+            theme.lessons?.forEach((lesson: any) => {
       let blocks: any[] = [];
-      try {
-        const parsed = JSON.parse(lesson.content || '[]');
-        if (Array.isArray(parsed)) blocks = parsed;
+              try {
+                const parsed = JSON.parse(lesson.content || '[]');
+                if (Array.isArray(parsed)) blocks = parsed;
       } catch {
         /* ignore */
       }
 
-      let l_earned = 0;
-      let l_max = 0;
+              let l_earned = 0;
+              let l_max = 0;
       let l_taskCount = 0;
-      let hasSubmissionsInLesson = false;
+              let hasSubmissionsInLesson = false;
 
-      blocks.forEach((block: any) => {
+              blocks.forEach((block: any) => {
         const sub = mySubs.find(
           (s: any) => s.blockId === block.id || s.block_id === block.id,
         );
         if (!sub || sub.status !== 'GRADED') return;
 
-        hasSubmissionsInTheme = true;
-        hasSubmissionsInLesson = true;
-
-        const maxScore = Number(block.maxScore) || Number(sub.max_score) || 10;
-        const earnedScore = Number(sub.score) || 0;
+                  hasSubmissionsInTheme = true;
+                  hasSubmissionsInLesson = true;
+                  
+                  const maxScore = Number(block.maxScore) || Number(sub.max_score) || 10;
+                  const earnedScore = Number(sub.score) || 0;
         const percent = safePercent(earnedScore, maxScore);
 
-        l_earned += earnedScore;
-        l_max += maxScore;
+                  l_earned += earnedScore;
+                  l_max += maxScore;
         l_taskCount += 1;
         themeEarned += earnedScore;
         themeMax += maxScore;
@@ -255,12 +255,13 @@ function buildCourseStats(course: any, mySubs: any[]): CourseStats | null {
           t_tests.e += earnedScore;
           t_tests.m += maxScore;
           g_tests.count++;
-        } else if (block.type === 'written' || block.type === 'homework' || block.isHomework) {
+                  } else if (block.type === 'written' || block.type === 'homework' || block.isHomework) {
           t_written.e += earnedScore;
           t_written.m += maxScore;
           g_written.count++;
-        } else if (block.type === 'oral') {
+                  } else if (block.type === 'oral') {
           t_oral.e += earnedScore;
+          t_oral.m += maxScore;
           g_oral.count++;
         }
 
@@ -284,8 +285,8 @@ function buildCourseStats(course: any, mySubs: any[]): CourseStats | null {
         }
       });
 
-      if (hasSubmissionsInLesson) {
-        themeLessonsProgress.push({
+              if (hasSubmissionsInLesson) {
+                themeLessonsProgress.push({
           name: lesson.title.length > 22 ? `${lesson.title.slice(0, 22)}…` : lesson.title,
           fullName: lesson.title,
           score: safePercent(l_earned, l_max),
@@ -293,18 +294,18 @@ function buildCourseStats(course: any, mySubs: any[]): CourseStats | null {
           max: l_max,
           taskCount: l_taskCount,
           lessonId: lesson.id,
-        });
-      }
-    });
+                });
+              }
+            });
 
-    if (hasSubmissionsInTheme) {
-      const pTests = t_tests.m > 0 ? (t_tests.e / t_tests.m) * 100 : 0;
-      const pWritten = t_written.m > 0 ? (t_written.e / t_written.m) * 100 : 0;
-      const pOral = (t_oral.e / t_oral.m) * 100;
-      const themeTotalScore = Math.round((pTests + pWritten + pOral) / 3);
+            if (hasSubmissionsInTheme) {
+              const pTests = t_tests.m > 0 ? (t_tests.e / t_tests.m) * 100 : 0;
+              const pWritten = t_written.m > 0 ? (t_written.e / t_written.m) * 100 : 0;
+      const pOral = t_oral.m > 0 ? (t_oral.e / t_oral.m) * 100 : 0;
+              const themeTotalScore = Math.round((pTests + pWritten + pOral) / 3);
 
-      totalThemesCount++;
-      globalTotalScore += themeTotalScore;
+              totalThemesCount++;
+              globalTotalScore += themeTotalScore;
 
       g_tests.e += t_tests.e;
       g_tests.m += t_tests.m;
@@ -317,23 +318,23 @@ function buildCourseStats(course: any, mySubs: any[]): CourseStats | null {
 
       const orderIndex = theme.order_index ?? themeIdx + 1;
 
-      modulesList.push({
-        id: theme.id,
-        title: theme.title,
+              modulesList.push({
+                id: theme.id,
+                title: theme.title,
         orderIndex,
-        averageScore: themeTotalScore,
+                averageScore: themeTotalScore,
         earned: themeEarned,
         max: themeMax,
-        breakdown: {
-          tests: Math.round(pTests),
-          written: Math.round(pWritten),
+                breakdown: {
+                  tests: Math.round(pTests),
+                  written: Math.round(pWritten),
           oral: Math.round(pOral),
-        },
+                },
         progressData: themeLessonsProgress,
         weakSpots: themeWeakSpots,
-      });
+              });
 
-      globalProgressData.push({
+              globalProgressData.push({
         name: `М${orderIndex}`,
         fullName: `Модуль ${orderIndex}. ${theme.title}`,
         moduleTitle: theme.title,
@@ -342,16 +343,16 @@ function buildCourseStats(course: any, mySubs: any[]): CourseStats | null {
         earned: themeEarned,
         max: themeMax,
         taskCount: themeLessonsProgress.reduce((s, l) => s + l.taskCount, 0),
-      });
-    }
-  });
+              });
+            }
+          });
 
   if (totalThemesCount === 0) return null;
 
   const globalAvg = Math.round(globalTotalScore / totalThemesCount);
-  const globalPTests = g_tests.m > 0 ? Math.round((g_tests.e / g_tests.m) * 100) : 0;
-  const globalPWritten = g_written.m > 0 ? Math.round((g_written.e / g_written.m) * 100) : 0;
-  const globalPOral = g_oral.m > 0 ? Math.round((g_oral.e / g_oral.m) * 100) : 0;
+        const globalPTests = g_tests.m > 0 ? Math.round((g_tests.e / g_tests.m) * 100) : 0;
+        const globalPWritten = g_written.m > 0 ? Math.round((g_written.e / g_written.m) * 100) : 0;
+        const globalPOral = g_oral.m > 0 ? Math.round((g_oral.e / g_oral.m) * 100) : 0;
   const coursePercent = safePercent(courseEarned, courseMax);
 
   courseWeakSpots.sort((a, b) => a.percent - b.percent);
@@ -374,9 +375,9 @@ function buildCourseStats(course: any, mySubs: any[]): CourseStats | null {
     totalEarned: courseEarned,
     totalMax: courseMax,
     totalSubmissions: courseSubs.length,
-    counts: { tests: g_tests.count, written: g_written.count, oral: g_oral.count },
+          counts: { tests: g_tests.count, written: g_written.count, oral: g_oral.count },
     breakdown: { tests: globalPTests, written: globalPWritten, oral: globalPOral },
-    modules: modulesList,
+          modules: modulesList,
     progressData: globalProgressData,
     weakSpots: courseWeakSpots.slice(0, 12),
     aiReport,
@@ -443,6 +444,7 @@ export default function Dashboard() {
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [showCourseDrawer, setShowCourseDrawer] = useState(false);
   const [globalOverviewOpen, setGlobalOverviewOpen] = useState(false);
+  const [upcomingDeadlines, setUpcomingDeadlines] = useState<any[]>([]);
 
   useEffect(() => {
     const fetchRealStats = async () => {
@@ -454,10 +456,23 @@ export default function Dashboard() {
         }
 
         const headers = { Authorization: `Bearer ${token}` };
-        const [coursesRes, subsRes] = await Promise.all([
+        const [coursesRes, subsRes, accessRes] = await Promise.all([
           axios.get(`${API_URL}/courses`, { headers }).catch(() => ({ data: [] })),
           axios.get(`${API_URL}/submissions/my`, { headers }).catch(() => ({ data: [] })),
+          axios.get(`${API_URL}/groups/my-theme-access`, { headers }).catch(() => ({ data: [] })),
         ]);
+
+        const accessArr = Array.isArray(accessRes.data) ? accessRes.data : [];
+        const now = Date.now();
+        const deadlines = accessArr
+          .filter((item: any) => item.deadline)
+          .map((item: any) => ({
+            ...item,
+            daysLeft: Math.ceil((new Date(item.deadline).getTime() - now) / 86400000),
+          }))
+          .sort((a: any, b: any) => a.daysLeft - b.daysLeft)
+          .slice(0, 5);
+        setUpcomingDeadlines(deadlines);
 
         const rawCourses = Array.isArray(coursesRes.data) ? coursesRes.data : [];
         const mySubs = Array.isArray(subsRes.data) ? subsRes.data : [];
@@ -478,13 +493,13 @@ export default function Dashboard() {
         } else if (rawCourses.length > 0) {
           setSelectedCourseId(rawCourses[0].id);
         }
-      } catch (error) {
-        console.error('Ошибка загрузки дашборда', error);
-      } finally {
-        setIsLoading(false);
+      } catch (error) { 
+        console.error('Ошибка загрузки дашборда', error); 
+      } finally { 
+        setIsLoading(false); 
       }
     };
-
+    
     fetchRealStats();
   }, [navigate]);
 
@@ -543,7 +558,7 @@ export default function Dashboard() {
 
   if (courses.length === 0) {
     return (
-      <div className="h-screen flex flex-col items-center justify-center text-center p-8 bg-[#F4F7FE]">
+    <div className="h-screen flex flex-col items-center justify-center text-center p-8 bg-[#F4F7FE]">
         <BookOpen className="w-16 h-16 text-gray-300 mb-4" />
         <h2 className="text-2xl font-black text-gray-900 mb-2">У вас пока нет курсов</h2>
         <p className="text-gray-500 font-medium mb-6">Запишитесь на курс в магазине, чтобы открыть аналитику.</p>
@@ -589,20 +604,20 @@ export default function Dashboard() {
             </div>
           )}
         </div>
-      </div>
-    );
+    </div>
+  );
   }
 
   return (
     <div className="max-w-7xl mx-auto space-y-8 pb-20 pt-4 px-4 sm:px-6 lg:px-8 bg-[#F4F7FE] min-h-screen relative">
-
+      
       <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
           <div>
             <h1 className="text-4xl md:text-5xl font-black tracking-tight text-gray-900">Аналитика</h1>
             <p className="text-gray-500 font-medium mt-2">Сначала общая картина — затем детали по курсу</p>
           </div>
-          <button
+          <button 
             type="button"
             onClick={() => setShowDetailsModal(true)}
             className="px-6 py-3 bg-white text-[#5A4BFF] hover:bg-indigo-50 border border-indigo-100 rounded-2xl font-bold text-sm transition-all flex items-center gap-2 shadow-sm w-fit"
@@ -610,6 +625,37 @@ export default function Dashboard() {
             <List className="w-4 h-4" /> Подробная сводка
           </button>
         </div>
+
+        {/* БЛИЖАЙШИЕ ДЕДЛАЙНЫ */}
+        {upcomingDeadlines.length > 0 && (
+          <div className="rounded-[2rem] bg-white border border-gray-100 shadow-sm overflow-hidden">
+            <div className="p-5 md:p-6 border-b border-gray-100">
+              <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">Дедлайны</p>
+              <p className="font-black text-lg text-gray-900">Ближайшие сроки сдачи</p>
+            </div>
+            <div className="divide-y divide-gray-50">
+              {upcomingDeadlines.map((item: any) => {
+                const dlDate = new Date(item.deadline);
+                const overdue = item.daysLeft < 0;
+                const urgent = item.daysLeft >= 0 && item.daysLeft <= 3;
+                return (
+                  <div key={`${item.group_id}-${item.theme_id}`} className="px-5 md:px-6 py-4 flex items-center justify-between gap-4">
+                    <div className="min-w-0">
+                      <p className="font-black text-gray-900 truncate">{item.theme_title || 'Модуль'}</p>
+                      <p className="text-xs font-medium text-gray-400 truncate">{item.group_title || ''}</p>
+                      <p className="text-xs text-gray-400 mt-0.5">{dlDate.toLocaleDateString('ru', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })}</p>
+                    </div>
+                    <span className={`shrink-0 px-3 py-1.5 rounded-xl text-sm font-black whitespace-nowrap ${
+                      overdue ? 'bg-red-100 text-red-600' : urgent ? 'bg-orange-100 text-orange-600' : 'bg-emerald-50 text-emerald-700'
+                    }`}>
+                      {overdue ? '⚠ Просрочено' : item.daysLeft === 0 ? '🔥 Сегодня!' : `${item.daysLeft} дн.`}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {/* ОБЩАЯ СТАТИСТИКА — сворачиваемая */}
         {globalOverview && (
@@ -765,9 +811,9 @@ export default function Dashboard() {
         {/* МОДУЛИ КУРСА */}
         {availableModules.length > 0 && (
           <div className="flex flex-1 gap-3 overflow-x-auto pb-2 custom-scrollbar">
-            <button
+            <button 
               type="button"
-              onClick={() => setActiveTab('all')}
+              onClick={() => setActiveTab('all')} 
               className={`px-6 py-3.5 rounded-2xl font-bold text-sm whitespace-nowrap transition-all flex items-center gap-2 ${
                 activeTab === 'all'
                   ? 'bg-[#0B1120] text-white shadow-lg'
@@ -777,10 +823,10 @@ export default function Dashboard() {
               <BarChart2 className="w-4 h-4" /> Весь курс
             </button>
             {availableModules.map((m) => (
-              <button
-                key={m.id}
+              <button 
+                key={m.id} 
                 type="button"
-                onClick={() => setActiveTab(m.id)}
+                onClick={() => setActiveTab(m.id)} 
                 className={`px-6 py-3.5 rounded-2xl font-bold text-sm whitespace-nowrap transition-all max-w-[240px] truncate ${
                   activeTab === m.id
                     ? 'bg-[#5A4BFF] text-white shadow-lg shadow-indigo-500/20'
@@ -796,43 +842,43 @@ export default function Dashboard() {
       </motion.div>
 
       <AnimatePresence mode="wait">
-        <motion.div
+        <motion.div 
           key={`${selectedCourseId}-${activeTab}`}
-          initial={{ opacity: 0, scale: 0.98 }}
-          animate={{ opacity: 1, scale: 1 }}
-          exit={{ opacity: 0, scale: 0.98 }}
+          initial={{ opacity: 0, scale: 0.98 }} 
+          animate={{ opacity: 1, scale: 1 }} 
+          exit={{ opacity: 0, scale: 0.98 }} 
           transition={{ duration: 0.2 }}
           className="grid grid-cols-1 xl:grid-cols-3 gap-6"
         >
           {/* ── ИТОГ КУРСА / МОДУЛЯ ── */}
           <motion.div variants={itemVariants} initial="hidden" animate="show" className="xl:col-span-3">
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-              {/* Балл */}
-              <div className="bg-[#0F172A] rounded-[2rem] p-6 text-white relative overflow-hidden">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+              {/* Средний балл */}
+              <div className="bg-[#0F172A] rounded-[2rem] p-6 text-white relative overflow-hidden col-span-2 sm:col-span-1">
                 <div className="absolute -top-6 -right-6 w-32 h-32 bg-[#00FFCC]/15 rounded-full blur-2xl" />
                 <Target className="w-6 h-6 text-[#00FFCC] mb-3" />
                 <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">Средний балл</p>
                 <p className="text-4xl font-black text-[#00FFCC]">{currentData?.averageScore ?? 0}<span className="text-base text-gray-500">%</span></p>
-                <p className="text-xs text-gray-500 mt-1">{currentData?.averageScore >= 70 ? '✅ Отлично' : currentData?.averageScore >= 50 ? '🟡 Средне' : '🔴 Нужно подтянуть'}</p>
-              </div>
+                <p className="text-xs text-gray-500 mt-1">{(currentData?.averageScore ?? 0) >= 70 ? '✅ Отлично' : (currentData?.averageScore ?? 0) >= 50 ? '🟡 Средне' : '🔴 Нужно подтянуть'}</p>
+            </div>
 
               {/* Баллы */}
               <div className="bg-white rounded-[2rem] p-6 border border-gray-100 shadow-sm">
                 <Star className="w-6 h-6 text-indigo-400 mb-3" />
-                <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">Баллов набрано</p>
-                <p className="text-4xl font-black text-gray-900">
+                <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">Набрано</p>
+                <p className="text-3xl font-black text-gray-900">
                   {isCourseView ? selectedStats?.totalEarned : (currentData as ModuleStats)?.earned ?? 0}
                 </p>
                 <p className="text-xs text-gray-400 mt-1">
-                  из {isCourseView ? selectedStats?.totalMax : (currentData as ModuleStats)?.max ?? 0} возможных
-                </p>
-              </div>
+                  из {isCourseView ? selectedStats?.totalMax : (currentData as ModuleStats)?.max ?? 0} балл.
+              </p>
+            </div>
 
               {/* Тесты */}
               <div className="bg-indigo-50 rounded-[2rem] p-6 border border-indigo-100">
                 <CheckSquare className="w-6 h-6 text-indigo-500 mb-3" />
                 <p className="text-[10px] font-black uppercase tracking-widest text-indigo-400 mb-1">Тесты</p>
-                <p className="text-4xl font-black text-indigo-700">{currentData?.breakdown?.tests ?? 0}<span className="text-base font-bold text-indigo-300">%</span></p>
+                <p className="text-3xl font-black text-indigo-700">{currentData?.breakdown?.tests ?? 0}<span className="text-sm font-bold text-indigo-300">%</span></p>
                 <div className="mt-2 h-1.5 bg-indigo-200 rounded-full overflow-hidden">
                   <div className="h-full bg-indigo-500 rounded-full transition-all" style={{ width: `${currentData?.breakdown?.tests ?? 0}%` }} />
                 </div>
@@ -842,9 +888,19 @@ export default function Dashboard() {
               <div className="bg-orange-50 rounded-[2rem] p-6 border border-orange-100">
                 <PenTool className="w-6 h-6 text-orange-500 mb-3" />
                 <p className="text-[10px] font-black uppercase tracking-widest text-orange-400 mb-1">Письменные</p>
-                <p className="text-4xl font-black text-orange-700">{currentData?.breakdown?.written ?? 0}<span className="text-base font-bold text-orange-300">%</span></p>
+                <p className="text-3xl font-black text-orange-700">{currentData?.breakdown?.written ?? 0}<span className="text-sm font-bold text-orange-300">%</span></p>
                 <div className="mt-2 h-1.5 bg-orange-200 rounded-full overflow-hidden">
                   <div className="h-full bg-orange-500 rounded-full transition-all" style={{ width: `${currentData?.breakdown?.written ?? 0}%` }} />
+                </div>
+              </div>
+
+              {/* Устные */}
+              <div className="bg-teal-50 rounded-[2rem] p-6 border border-teal-100">
+                <Mic className="w-6 h-6 text-teal-500 mb-3" />
+                <p className="text-[10px] font-black uppercase tracking-widest text-teal-400 mb-1">Устные</p>
+                <p className="text-3xl font-black text-teal-700">{currentData?.breakdown?.oral ?? 0}<span className="text-sm font-bold text-teal-300">%</span></p>
+                <div className="mt-2 h-1.5 bg-teal-200 rounded-full overflow-hidden">
+                  <div className="h-full bg-teal-500 rounded-full transition-all" style={{ width: `${currentData?.breakdown?.oral ?? 0}%` }} />
                 </div>
               </div>
             </div>
@@ -1030,5 +1086,5 @@ export default function Dashboard() {
         )}
       </AnimatePresence>
     </div>
-  );
+  ); 
 }

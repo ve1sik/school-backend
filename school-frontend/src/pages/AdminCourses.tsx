@@ -110,6 +110,15 @@ export default function AdminCourses() {
   const [targetThemeIdForCopy, setTargetThemeIdForCopy] = useState<string>('');
   const [isCopying, setIsCopying] = useState(false);
 
+  // СТЕЙТЫ ДЛЯ НАСТРОЕК ДОСТУПА (даты открытия + дедлайны)
+  const [showAccessModal, setShowAccessModal] = useState(false);
+  const [accessModalCourse, setAccessModalCourse] = useState<any | null>(null);
+  const [allGroups, setAllGroups] = useState<any[]>([]);
+  const [accessGroupId, setAccessGroupId] = useState<string>('');
+  const [themeAccessMap, setThemeAccessMap] = useState<Record<string, { unlock_date: string; deadline: string }>>({});
+  const [isAccessLoading, setIsAccessLoading] = useState(false);
+  const [isSavingAccess, setIsSavingAccess] = useState(false);
+
   const [toast, setToast] = useState<{ text: string, type: 'success' | 'error' } | null>(null);
 
   const showToast = (text: string, type: 'success' | 'error' = 'success') => {
@@ -119,6 +128,75 @@ export default function AdminCourses() {
 
   const navigate = useNavigate();
   const getTokenConfig = () => ({ headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } });
+
+  const openAccessModal = async (course: any) => {
+    setAccessModalCourse(course);
+    setShowAccessModal(true);
+    setThemeAccessMap({});
+    setAccessGroupId('');
+    try {
+      const res = await axios.get(`${API_URL}/groups`, getTokenConfig());
+      setAllGroups(res.data);
+    } catch {
+      setAllGroups([]);
+    }
+  };
+
+  const loadGroupAccess = async (groupId: string) => {
+    if (!groupId) return;
+    setIsAccessLoading(true);
+    try {
+      const res = await axios.get(`${API_URL}/groups/${groupId}/theme-access`, getTokenConfig());
+      const map: Record<string, { unlock_date: string; deadline: string }> = {};
+      for (const item of res.data) {
+        map[item.theme_id] = {
+          unlock_date: item.unlock_date ? item.unlock_date.slice(0, 16) : '',
+          deadline: item.deadline ? item.deadline.slice(0, 16) : '',
+        };
+      }
+      setThemeAccessMap(map);
+    } catch {
+      setThemeAccessMap({});
+    }
+    setIsAccessLoading(false);
+  };
+
+  const handleSaveThemeAccess = async (themeId: string) => {
+    if (!accessGroupId || !accessModalCourse) return;
+    setIsSavingAccess(true);
+    const row = themeAccessMap[themeId] || { unlock_date: '', deadline: '' };
+    try {
+      await axios.post(`${API_URL}/groups/${accessGroupId}/theme-access`, {
+        themeId,
+        unlock_date: row.unlock_date || null,
+        deadline: row.deadline || null,
+      }, getTokenConfig());
+      showToast('Настройки доступа сохранены!');
+    } catch {
+      showToast('Ошибка сохранения', 'error');
+    }
+    setIsSavingAccess(false);
+  };
+
+  const handleSaveAllAccess = async () => {
+    if (!accessGroupId || !accessModalCourse) return;
+    setIsSavingAccess(true);
+    const themes = accessModalCourse.themes || [];
+    try {
+      for (const theme of themes) {
+        const row = themeAccessMap[theme.id] || { unlock_date: '', deadline: '' };
+        await axios.post(`${API_URL}/groups/${accessGroupId}/theme-access`, {
+          themeId: theme.id,
+          unlock_date: row.unlock_date || null,
+          deadline: row.deadline || null,
+        }, getTokenConfig());
+      }
+      showToast('Все настройки сохранены!');
+    } catch {
+      showToast('Ошибка сохранения', 'error');
+    }
+    setIsSavingAccess(false);
+  };
 
   useEffect(() => {
     fetchCategories();
@@ -1193,6 +1271,7 @@ export default function AdminCourses() {
                       )}
                     </div>
                     <div className="flex items-center gap-3 shrink-0">
+                      <button type="button" onClick={(e) => { e.stopPropagation(); openAccessModal(item); }} className="p-3 text-gray-400 hover:bg-amber-50 hover:text-amber-600 rounded-xl transition-colors z-10" title="Настройки доступа и дедлайны"><BookOpen className="w-5 h-5" /></button>
                       <button type="button" className="w-full sm:w-auto px-6 py-3 bg-gray-50 group-hover:bg-[#5A4BFF] group-hover:text-white group-hover:shadow-lg group-hover:shadow-indigo-500/20 text-gray-600 rounded-xl font-bold text-sm transition-all flex items-center justify-center gap-2">
                         Модули и Уроки <ArrowRight className="w-4 h-4" />
                       </button>
@@ -1534,6 +1613,104 @@ export default function AdminCourses() {
                 </div>
 
               </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* МОДАЛКА НАСТРОЕК ДОСТУПА И ДЕДЛАЙНОВ */}
+      <AnimatePresence>
+        {showAccessModal && accessModalCourse && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[80] bg-gray-900/60 backdrop-blur-sm flex justify-center items-center p-4">
+            <motion.div initial={{ scale: 0.93, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.93, y: 20 }} className="bg-white rounded-3xl w-full max-w-2xl max-h-[90vh] flex flex-col shadow-2xl">
+              <div className="p-6 border-b border-gray-100 flex items-center justify-between shrink-0">
+                <div>
+                  <h3 className="text-xl font-black text-gray-900">Расписание доступа</h3>
+                  <p className="text-sm text-gray-500 font-medium mt-0.5">{accessModalCourse.title}</p>
+                </div>
+                <button onClick={() => setShowAccessModal(false)} className="p-2 bg-gray-100 hover:bg-gray-200 rounded-full text-gray-500 transition-colors"><X className="w-5 h-5" /></button>
+              </div>
+
+              <div className="p-6 shrink-0 border-b border-gray-100">
+                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 block">Выберите группу</label>
+                <select
+                  value={accessGroupId}
+                  onChange={e => { setAccessGroupId(e.target.value); loadGroupAccess(e.target.value); }}
+                  className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl font-bold text-gray-700 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 transition-all cursor-pointer"
+                >
+                  <option value="">-- Выберите группу --</option>
+                  {allGroups.map((g: any) => <option key={g.id} value={g.id}>{g.title}</option>)}
+                </select>
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-6">
+                {!accessGroupId && (
+                  <div className="text-center text-gray-400 font-bold py-12">Выберите группу, чтобы настроить доступ к модулям</div>
+                )}
+                {accessGroupId && isAccessLoading && (
+                  <div className="flex items-center justify-center py-12 gap-3 text-gray-400">
+                    <Loader2 className="w-6 h-6 animate-spin" /> Загружаем настройки...
+                  </div>
+                )}
+                {accessGroupId && !isAccessLoading && (
+                  <div className="space-y-3">
+                    {(accessModalCourse.themes || []).map((theme: any) => {
+                      const row = themeAccessMap[theme.id] || { unlock_date: '', deadline: '' };
+                      return (
+                        <div key={theme.id} className="bg-gray-50 rounded-2xl p-4 border border-gray-100">
+                          <div className="font-black text-gray-800 mb-3">Модуль {theme.order_index}. {theme.title}</div>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div>
+                              <label className="text-[10px] font-black text-amber-600 uppercase tracking-widest mb-1 block flex items-center gap-1">
+                                📅 Открыть с
+                              </label>
+                              <input
+                                type="datetime-local"
+                                value={row.unlock_date}
+                                onChange={e => setThemeAccessMap(m => ({ ...m, [theme.id]: { ...row, unlock_date: e.target.value } }))}
+                                className="w-full px-3 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-bold text-gray-700 outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-100 transition-all"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-[10px] font-black text-rose-600 uppercase tracking-widest mb-1 block flex items-center gap-1">
+                                ⏰ Срок сдачи
+                              </label>
+                              <input
+                                type="datetime-local"
+                                value={row.deadline}
+                                onChange={e => setThemeAccessMap(m => ({ ...m, [theme.id]: { ...row, deadline: e.target.value } }))}
+                                className="w-full px-3 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-bold text-gray-700 outline-none focus:border-rose-400 focus:ring-2 focus:ring-rose-100 transition-all"
+                              />
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => handleSaveThemeAccess(theme.id)}
+                            disabled={isSavingAccess}
+                            className="mt-3 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black transition-colors disabled:opacity-50 flex items-center gap-1.5"
+                          >
+                            {isSavingAccess ? <Loader2 className="w-3 h-3 animate-spin" /> : <CheckCircle2 className="w-3 h-3" />}
+                            Сохранить
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {accessGroupId && !isAccessLoading && (
+                <div className="p-6 border-t border-gray-100 shrink-0">
+                  <button
+                    onClick={handleSaveAllAccess}
+                    disabled={isSavingAccess}
+                    className="w-full py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-black transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                  >
+                    {isSavingAccess ? <Loader2 className="w-5 h-5 animate-spin" /> : <CheckCircle2 className="w-5 h-5" />}
+                    Сохранить все модули
+                  </button>
+                  <p className="text-xs text-gray-400 font-medium text-center mt-2">Дедлайны автоматически создадут события в расписании</p>
+                </div>
+              )}
             </motion.div>
           </motion.div>
         )}

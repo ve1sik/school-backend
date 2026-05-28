@@ -528,6 +528,7 @@ export default function CourseView() {
   const [attemptsUsed, setAttemptsUsed] = useState<Record<string, number>>(() => getSafeLocal('demo_attempts', {}));
 
   const [submissions, setSubmissions] = useState<any[]>([]);
+  const [themeDeadlines, setThemeDeadlines] = useState<Record<string, { unlock_date?: string; deadline?: string }>>({});
 
   useEffect(() => {
     const fetchCourseData = async () => {
@@ -535,12 +536,21 @@ export default function CourseView() {
         const token = localStorage.getItem('token');
         const headers = { Authorization: `Bearer ${token}` };
 
-        const [coursesRes, subsRes] = await Promise.all([
+        const [coursesRes, subsRes, accessRes] = await Promise.all([
           axios.get(`${API_URL}/courses/${courseId}`, { headers }),
-          axios.get(`${API_URL}/submissions/my`, { headers }).catch(() => ({ data: [] }))
+          axios.get(`${API_URL}/submissions/my`, { headers }).catch(() => ({ data: [] })),
+          axios.get(`${API_URL}/groups/my-theme-access`, { headers }).catch(() => ({ data: [] })),
         ]);
 
         setSubmissions(Array.isArray(subsRes.data) ? subsRes.data : []);
+
+        const accessArr = Array.isArray(accessRes.data) ? accessRes.data : [];
+        const deadlineMap: Record<string, { unlock_date?: string; deadline?: string }> = {};
+        for (const item of accessArr) {
+          deadlineMap[item.theme_id] = { unlock_date: item.unlock_date, deadline: item.deadline };
+        }
+        setThemeDeadlines(deadlineMap);
+
         let courseData = coursesRes.data;
         
         if (courseData && (!courseData.themes || courseData.themes.length === 0)) {
@@ -957,11 +967,33 @@ export default function CourseView() {
                   onClick={(e) => { e.preventDefault(); toggleTheme(theme.id); }}
                   className="w-full flex items-center justify-between p-3.5 hover:bg-gray-100 transition-colors"
                 >
-                  <div className="text-left pr-4">
+                  <div className="text-left pr-4 w-full min-w-0">
                     <span className="text-[10px] font-black uppercase tracking-widest text-[#5A4BFF] block mb-0.5">
                       Модуль {theme.order_index || tIdx + 1}
                     </span>
                     <span className="text-sm font-bold text-gray-800 line-clamp-1 break-words">{theme.title}</span>
+                    {(() => {
+                      const access = themeDeadlines[theme.id];
+                      if (!access) return null;
+                      const now = Date.now();
+                      const dlDate = access.deadline ? new Date(access.deadline) : null;
+                      const ulDate = access.unlock_date ? new Date(access.unlock_date) : null;
+                      const daysLeft = dlDate ? Math.ceil((dlDate.getTime() - now) / 86400000) : null;
+                      return (
+                        <div className="mt-1 space-y-0.5">
+                          {ulDate && ulDate.getTime() > now && (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">
+                              📅 Открытие {ulDate.toLocaleDateString('ru', { day:'numeric', month:'short' })}
+                            </span>
+                          )}
+                          {dlDate && daysLeft !== null && (
+                            <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full ${daysLeft < 0 ? 'bg-red-50 text-red-600' : daysLeft <= 3 ? 'bg-orange-50 text-orange-600' : 'bg-rose-50 text-rose-500'}`}>
+                              ⏰ {daysLeft < 0 ? 'Просрочено' : daysLeft === 0 ? 'Сегодня!' : `${daysLeft} дн.`}
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </div>
                   {isExpanded ? <ChevronDownIcon className="w-5 h-5 text-gray-400 shrink-0" /> : <ChevronRightIcon className="w-5 h-5 text-gray-400 shrink-0" />}
                 </button>
