@@ -15,11 +15,15 @@ export class ThemeService {
     });
   }
 
-  // 🔥 Точная копия из курсов: берем весь dto и шьем прямо в базу!
   async update(id: string, dto: any) {
+    const { unlock_date, deadline, ...rest } = dto;
     return this.prisma.theme.update({
       where: { id },
-      data: dto,
+      data: {
+        ...rest,
+        ...(unlock_date !== undefined ? { unlock_date: unlock_date ? new Date(unlock_date) : null } : {}),
+        ...(deadline !== undefined ? { deadline: deadline ? new Date(deadline) : null } : {}),
+      },
     });
   }
 
