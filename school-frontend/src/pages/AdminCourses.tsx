@@ -110,7 +110,7 @@ export default function AdminCourses() {
   const [targetThemeIdForCopy, setTargetThemeIdForCopy] = useState<string>('');
   const [isCopying, setIsCopying] = useState(false);
 
-  // СТЕЙТЫ ДЛЯ НАСТРОЕК ДОСТУПА (даты открытия + дедлайны)
+  // СТЕЙТЫ ДЛЯ НАСТРОЕК ДОСТУПА (старый модал по группам)
   const [showAccessModal, setShowAccessModal] = useState(false);
   const [accessModalCourse, setAccessModalCourse] = useState<any | null>(null);
   const [allGroups, setAllGroups] = useState<any[]>([]);
@@ -118,6 +118,14 @@ export default function AdminCourses() {
   const [themeAccessMap, setThemeAccessMap] = useState<Record<string, { unlock_date: string; deadline: string }>>({});
   const [isAccessLoading, setIsAccessLoading] = useState(false);
   const [isSavingAccess, setIsSavingAccess] = useState(false);
+
+  // СТЕЙТЫ ДЛЯ ИНЛАЙН-ДАТ МОДУЛЕЙ
+  const [expandedThemeDates, setExpandedThemeDates] = useState<Record<string, boolean>>({});
+  const [themeDatesMap, setThemeDatesMap] = useState<Record<string, { unlock_date: string; deadline: string }>>({});
+
+  // СТЕЙТЫ ДЛЯ ДАТ УРОКА (в форме создания/редактирования)
+  const [lessonUnlockDate, setLessonUnlockDate] = useState('');
+  const [lessonDeadline, setLessonDeadline] = useState('');
 
   const [toast, setToast] = useState<{ text: string, type: 'success' | 'error' } | null>(null);
 
@@ -128,6 +136,42 @@ export default function AdminCourses() {
 
   const navigate = useNavigate();
   const getTokenConfig = () => ({ headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } });
+
+  const handleSaveThemeDates = async (themeId: string, themeTitle: string) => {
+    const row = themeDatesMap[themeId] || { unlock_date: '', deadline: '' };
+    try {
+      await axios.patch(`${API_URL}/themes/${themeId}`, {
+        unlock_date: row.unlock_date || null,
+        deadline: row.deadline || null,
+      }, getTokenConfig());
+
+      if (row.deadline) {
+        try {
+          await axios.post(`${API_URL}/schedule`, {
+            title: `Дедлайн: ${themeTitle}`,
+            date: row.deadline,
+            type: 'DEADLINE',
+            description: `Срок сдачи заданий модуля «${themeTitle}»`,
+          }, getTokenConfig());
+        } catch { /* не критично если расписание не создалось */ }
+      }
+      if (row.unlock_date) {
+        try {
+          await axios.post(`${API_URL}/schedule`, {
+            title: `Открытие модуля: ${themeTitle}`,
+            date: row.unlock_date,
+            type: 'WEBINAR',
+            description: `Открытие модуля «${themeTitle}»`,
+          }, getTokenConfig());
+        } catch { /* не критично */ }
+      }
+
+      showToast('Даты модуля сохранены!');
+      fetchItems();
+    } catch {
+      showToast('Ошибка сохранения дат', 'error');
+    }
+  };
 
   const openAccessModal = async (course: any) => {
     setAccessModalCourse(course);
@@ -641,6 +685,8 @@ export default function AdminCourses() {
     setBlocks(initialBlocks);
     setHwBlocks(initialHwBlocks);
     setHasHomeworkSection(initialHwBlocks.length > 0);
+    setLessonUnlockDate(lesson.unlock_date ? lesson.unlock_date.slice(0, 16) : '');
+    setLessonDeadline(lesson.deadline ? lesson.deadline.slice(0, 16) : '');
     setTimeout(() => document.getElementById('lesson-form')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
   };
 
@@ -725,24 +771,47 @@ export default function AdminCourses() {
       title: newLessonTitle, 
       type: 'TEXT', 
       content: JSON.stringify([...cleanedBlocks, ...cleanedHwBlocks]), 
-      is_homework: false 
+      is_homework: false,
+      unlock_date: lessonUnlockDate || null,
+      deadline: lessonDeadline || null,
     };
 
     try {
       if (editingLessonId) {
         await axios.patch(`${API_URL}/lessons/${editingLessonId}`, payload, getTokenConfig());
-        showToast('Изменения сохранены!');
       } else {
         await axios.post(`${API_URL}/lessons`, { ...payload, order_index: ((theme.lessons || []).length) + 1 }, getTokenConfig());
-        showToast('Успешно создано!');
       }
+
+      if (lessonDeadline) {
+        try {
+          await axios.post(`${API_URL}/schedule`, {
+            title: `Дедлайн: ${newLessonTitle}`,
+            date: lessonDeadline,
+            type: 'DEADLINE',
+            description: `Срок сдачи: ${newLessonTitle}`,
+          }, getTokenConfig());
+        } catch { /* не критично */ }
+      }
+      if (lessonUnlockDate) {
+        try {
+          await axios.post(`${API_URL}/schedule`, {
+            title: `Открытие урока: ${newLessonTitle}`,
+            date: lessonUnlockDate,
+            type: 'WEBINAR',
+            description: `Открытие урока «${newLessonTitle}»`,
+          }, getTokenConfig());
+        } catch { /* не критично */ }
+      }
+
+      showToast(editingLessonId ? 'Изменения сохранены!' : 'Урок создан!');
       localStorage.removeItem('lesson_draft');
       setHasDraft(false);
       resetLessonForm(); fetchItems();
     } catch (err) { showToast('Ошибка сохранения', 'error'); }
   };
 
-  const resetLessonForm = () => { setSelectedThemeForLesson(null); setEditingLessonId(null); setNewLessonTitle(''); setBlocks([]); setHwBlocks([]); setHasHomeworkSection(false); setErrors({}); };
+  const resetLessonForm = () => { setSelectedThemeForLesson(null); setEditingLessonId(null); setNewLessonTitle(''); setBlocks([]); setHwBlocks([]); setHasHomeworkSection(false); setErrors({}); setLessonUnlockDate(''); setLessonDeadline(''); };
 
   const handleDeleteItem = async (id: string) => {
     setItems(prev => prev.filter(c => c.id !== id));
@@ -1443,11 +1512,39 @@ export default function AdminCourses() {
                             </div>
                           </div>
                           <div className="flex gap-2 shrink-0 bg-gray-50 p-1.5 rounded-2xl">
+                            <button type="button" title="Даты открытия и дедлайн модуля" onClick={() => { const isOpen = expandedThemeDates[theme.id]; setExpandedThemeDates(p => ({...p, [theme.id]: !isOpen})); if (!isOpen) { setThemeDatesMap(p => ({...p, [theme.id]: { unlock_date: theme.unlock_date ? theme.unlock_date.slice(0,16) : '', deadline: theme.deadline ? theme.deadline.slice(0,16) : '' }})); }}} className={`p-2.5 bg-white rounded-xl shadow-sm transition-colors ${expandedThemeDates[theme.id] ? 'text-amber-600 bg-amber-50' : 'text-gray-400 hover:text-amber-600'}`}><BookOpen className="w-5 h-5" /></button>
                             <button type="button" onClick={() => handleToggleThemeVisibility(theme.id, theme.is_visible)} className="p-2.5 bg-white rounded-xl shadow-sm text-gray-400 hover:text-gray-900 transition-colors">{theme.is_visible === false ? (<EyeOff className="w-5 h-5" />) : (<Eye className="w-5 h-5" />)}</button>
                             <button type="button" onClick={() => handleDeleteTheme(theme.id)} className="p-2.5 bg-white rounded-xl shadow-sm text-gray-400 hover:text-red-500 transition-colors"><Trash2 className="w-5 h-5" /></button>
                             <button type="button" onClick={() => { resetLessonForm(); setSelectedThemeForLesson(theme); setTimeout(() => document.getElementById('lesson-form')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100); }} className="px-5 py-2.5 ml-2 bg-[#5A4BFF] text-white rounded-xl text-sm font-black shadow-md transition-colors">+ Новый урок</button>
                           </div>
                         </div>
+
+                        {/* ИНЛАЙН-ДАТЫ МОДУЛЯ */}
+                        <AnimatePresence>
+                          {expandedThemeDates[theme.id] && (
+                            <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
+                              <div className="mb-5 p-4 bg-amber-50/60 border border-amber-100 rounded-2xl flex flex-wrap gap-4 items-end">
+                                <div className="flex-1 min-w-[160px]">
+                                  <label className="text-[10px] font-black text-amber-700 uppercase tracking-widest mb-1 block">📅 Открыть с</label>
+                                  <input type="datetime-local" value={themeDatesMap[theme.id]?.unlock_date || ''} onChange={e => setThemeDatesMap(p => ({...p, [theme.id]: {...(p[theme.id]||{unlock_date:'',deadline:''}), unlock_date: e.target.value}}))} className="w-full px-3 py-2 bg-white border border-amber-200 rounded-xl text-sm font-bold text-gray-700 outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-100" />
+                                </div>
+                                <div className="flex-1 min-w-[160px]">
+                                  <label className="text-[10px] font-black text-rose-700 uppercase tracking-widest mb-1 block">⏰ Срок сдачи</label>
+                                  <input type="datetime-local" value={themeDatesMap[theme.id]?.deadline || ''} onChange={e => setThemeDatesMap(p => ({...p, [theme.id]: {...(p[theme.id]||{unlock_date:'',deadline:''}), deadline: e.target.value}}))} className="w-full px-3 py-2 bg-white border border-rose-200 rounded-xl text-sm font-bold text-gray-700 outline-none focus:border-rose-400 focus:ring-2 focus:ring-rose-100" />
+                                </div>
+                                <button onClick={() => handleSaveThemeDates(theme.id, theme.title)} className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-black transition-colors flex items-center gap-2 shrink-0">
+                                  <CheckCircle2 className="w-4 h-4" /> Сохранить
+                                </button>
+                                {(theme.unlock_date || theme.deadline) && (
+                                  <div className="w-full flex flex-wrap gap-2 text-xs text-gray-500 font-medium">
+                                    {theme.unlock_date && <span className="bg-amber-100 text-amber-700 px-2 py-1 rounded-lg">Сохранено: откр. {new Date(theme.unlock_date).toLocaleString('ru', {day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}</span>}
+                                    {theme.deadline && <span className="bg-rose-100 text-rose-700 px-2 py-1 rounded-lg">Сохранено: дедл. {new Date(theme.deadline).toLocaleString('ru', {day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}</span>}
+                                  </div>
+                                )}
+                              </div>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
 
                         <div className="space-y-3 min-h-[50px]">
                           {visibleLessons.map((lesson: any, lIdx: number) => {
@@ -1508,9 +1605,15 @@ export default function AdminCourses() {
                                       <button onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); setEditingLessonTitleId(null); }} className="p-1.5 bg-rose-500 text-white rounded-lg hover:bg-rose-600 transition-colors shrink-0"><X className="w-5 h-5" /></button>
                                     </div>
                                   ) : (
-                                    <span className="cursor-pointer hover:text-indigo-600 transition-colors flex items-center gap-2 group/title min-w-0" onClick={(e) => { e.stopPropagation(); setEditingLessonTitleId(lesson.id); setEditTitleValue(lesson.title); }}>
-                                      <span className="truncate">{lesson.title}</span> <Pencil className="w-3 h-3 text-gray-300 opacity-0 group-hover/title:opacity-100 transition-opacity shrink-0" />
-                                    </span>
+                                    <div className="flex-1 min-w-0">
+                                      <span className="cursor-pointer hover:text-indigo-600 transition-colors flex items-center gap-2 group/title" onClick={(e) => { e.stopPropagation(); setEditingLessonTitleId(lesson.id); setEditTitleValue(lesson.title); }}>
+                                        <span className="truncate">{lesson.title}</span> <Pencil className="w-3 h-3 text-gray-300 opacity-0 group-hover/title:opacity-100 transition-opacity shrink-0" />
+                                      </span>
+                                      <div className="flex gap-2 mt-1 flex-wrap">
+                                        {lesson.deadline && (() => { const d = new Date(lesson.deadline); const days = Math.ceil((d.getTime() - Date.now()) / 86400000); return <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${days < 0 ? 'bg-red-50 text-red-500' : days <= 3 ? 'bg-orange-50 text-orange-600' : 'bg-rose-50 text-rose-500'}`}>⏰ {days < 0 ? 'Просрочено' : days === 0 ? 'Сегодня!' : `${days} дн.`} · {d.toLocaleDateString('ru',{day:'numeric',month:'short'})}</span>; })()}
+                                        {lesson.unlock_date && new Date(lesson.unlock_date).getTime() > Date.now() && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-600">📅 {new Date(lesson.unlock_date).toLocaleDateString('ru',{day:'numeric',month:'short'})}</span>}
+                                      </div>
+                                    </div>
                                   )}
                                 </div>
 
@@ -1540,8 +1643,20 @@ export default function AdminCourses() {
                               value={newLessonTitle} 
                               onChange={(e) => { setNewLessonTitle(e.target.value); if(errors['lessonTitle']) setErrors({...errors, lessonTitle: false}); }} 
                               placeholder="Например: Введение в историю..." 
-                              className={`w-full px-6 py-5 bg-gray-50 rounded-2xl font-black text-lg outline-none mb-6 border-2 transition-all ${errors['lessonTitle'] ? 'border-red-400 bg-red-50' : 'border-transparent focus:bg-white focus:border-[#5A4BFF]'}`} 
+                              className={`w-full px-6 py-5 bg-gray-50 rounded-2xl font-black text-lg outline-none mb-4 border-2 transition-all ${errors['lessonTitle'] ? 'border-red-400 bg-red-50' : 'border-transparent focus:bg-white focus:border-[#5A4BFF]'}`} 
                             />
+
+                            {/* ДАТЫ УРОКА */}
+                            <div className="flex flex-wrap gap-4 mb-6 p-4 bg-gray-50 rounded-2xl border border-gray-100">
+                              <div className="flex-1 min-w-[150px]">
+                                <label className="text-[10px] font-black text-amber-600 uppercase tracking-widest mb-1 block">📅 Открыть с</label>
+                                <input type="datetime-local" value={lessonUnlockDate} onChange={e => setLessonUnlockDate(e.target.value)} className="w-full px-3 py-2 bg-white border border-amber-200 rounded-xl text-sm font-bold text-gray-700 outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-100 transition-all" />
+                              </div>
+                              <div className="flex-1 min-w-[150px]">
+                                <label className="text-[10px] font-black text-rose-600 uppercase tracking-widest mb-1 block">⏰ Срок сдачи</label>
+                                <input type="datetime-local" value={lessonDeadline} onChange={e => setLessonDeadline(e.target.value)} className="w-full px-3 py-2 bg-white border border-rose-200 rounded-xl text-sm font-bold text-gray-700 outline-none focus:border-rose-400 focus:ring-2 focus:ring-rose-100 transition-all" />
+                              </div>
+                            </div>
 
                             {/* РЕНДЕР ОСНОВНЫХ БЛОКОВ */}
                             {renderBlocksList(blocks, false)}

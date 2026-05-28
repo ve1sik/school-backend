@@ -16,6 +16,8 @@ export class LessonService {
         content: dto.content || null,
         test_data: dto.test_data || null,
         is_homework: dto.is_homework || false,
+        unlock_date: dto.unlock_date ? new Date(dto.unlock_date) : null,
+        deadline: dto.deadline ? new Date(dto.deadline) : null,
       },
     });
   }
@@ -30,6 +32,8 @@ export class LessonService {
         content: dto.content,
         test_data: dto.test_data,
         is_homework: dto.is_homework,
+        ...(dto.unlock_date !== undefined ? { unlock_date: dto.unlock_date ? new Date(dto.unlock_date) : null } : {}),
+        ...(dto.deadline !== undefined ? { deadline: dto.deadline ? new Date(dto.deadline) : null } : {}),
       },
     });
   }

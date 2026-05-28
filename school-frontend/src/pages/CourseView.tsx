@@ -528,7 +528,6 @@ export default function CourseView() {
   const [attemptsUsed, setAttemptsUsed] = useState<Record<string, number>>(() => getSafeLocal('demo_attempts', {}));
 
   const [submissions, setSubmissions] = useState<any[]>([]);
-  const [themeDeadlines, setThemeDeadlines] = useState<Record<string, { unlock_date?: string; deadline?: string }>>({});
 
   useEffect(() => {
     const fetchCourseData = async () => {
@@ -536,20 +535,12 @@ export default function CourseView() {
         const token = localStorage.getItem('token');
         const headers = { Authorization: `Bearer ${token}` };
 
-        const [coursesRes, subsRes, accessRes] = await Promise.all([
+        const [coursesRes, subsRes] = await Promise.all([
           axios.get(`${API_URL}/courses/${courseId}`, { headers }),
           axios.get(`${API_URL}/submissions/my`, { headers }).catch(() => ({ data: [] })),
-          axios.get(`${API_URL}/groups/my-theme-access`, { headers }).catch(() => ({ data: [] })),
         ]);
 
         setSubmissions(Array.isArray(subsRes.data) ? subsRes.data : []);
-
-        const accessArr = Array.isArray(accessRes.data) ? accessRes.data : [];
-        const deadlineMap: Record<string, { unlock_date?: string; deadline?: string }> = {};
-        for (const item of accessArr) {
-          deadlineMap[item.theme_id] = { unlock_date: item.unlock_date, deadline: item.deadline };
-        }
-        setThemeDeadlines(deadlineMap);
 
         let courseData = coursesRes.data;
         
@@ -973,17 +964,16 @@ export default function CourseView() {
                     </span>
                     <span className="text-sm font-bold text-gray-800 line-clamp-1 break-words">{theme.title}</span>
                     {(() => {
-                      const access = themeDeadlines[theme.id];
-                      if (!access) return null;
                       const now = Date.now();
-                      const dlDate = access.deadline ? new Date(access.deadline) : null;
-                      const ulDate = access.unlock_date ? new Date(access.unlock_date) : null;
+                      const dlDate = theme.deadline ? new Date(theme.deadline) : null;
+                      const ulDate = theme.unlock_date ? new Date(theme.unlock_date) : null;
                       const daysLeft = dlDate ? Math.ceil((dlDate.getTime() - now) / 86400000) : null;
+                      if (!dlDate && !ulDate) return null;
                       return (
-                        <div className="mt-1 space-y-0.5">
+                        <div className="mt-1 flex flex-wrap gap-1">
                           {ulDate && ulDate.getTime() > now && (
                             <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">
-                              📅 Открытие {ulDate.toLocaleDateString('ru', { day:'numeric', month:'short' })}
+                              📅 {ulDate.toLocaleDateString('ru', { day:'numeric', month:'short' })}
                             </span>
                           )}
                           {dlDate && daysLeft !== null && (
@@ -1011,14 +1001,24 @@ export default function CourseView() {
                             type="button"
                             key={lesson.id} 
                             onClick={(e) => { e.preventDefault(); setActiveLesson(lesson); }} 
-                            className={`w-full text-left px-3 py-2.5 rounded-lg text-sm font-bold flex gap-3 transition-all items-center ${isActive ? (isHw ? 'bg-purple-600 text-white shadow-md shadow-purple-500/20' : 'bg-[#5A4BFF] text-white shadow-md shadow-[#5A4BFF]/20') : 'text-gray-600 hover:bg-white hover:shadow-sm border border-transparent hover:border-gray-200'}`}
+                            className={`w-full text-left px-3 py-2.5 rounded-lg text-sm font-bold flex gap-3 transition-all items-start ${isActive ? (isHw ? 'bg-purple-600 text-white shadow-md shadow-purple-500/20' : 'bg-[#5A4BFF] text-white shadow-md shadow-[#5A4BFF]/20') : 'text-gray-600 hover:bg-white hover:shadow-sm border border-transparent hover:border-gray-200'}`}
                           >
                             {isHw ? (
-                              <FileSignature className={`w-4 h-4 shrink-0 ${isActive ? 'text-white' : 'text-purple-400'}`} />
+                              <FileSignature className={`w-4 h-4 shrink-0 mt-0.5 ${isActive ? 'text-white' : 'text-purple-400'}`} />
                             ) : (
-                              <PlayCircle className={`w-4 h-4 shrink-0 ${isActive ? 'text-white' : 'text-gray-400'}`} />
+                              <PlayCircle className={`w-4 h-4 shrink-0 mt-0.5 ${isActive ? 'text-white' : 'text-gray-400'}`} />
                             )}
-                            <span className="leading-snug line-clamp-2 break-words w-full overflow-hidden">{lesson.title}</span>
+                            <div className="flex-1 min-w-0">
+                              <span className="leading-snug line-clamp-2 break-words w-full overflow-hidden block">{lesson.title}</span>
+                              {lesson.deadline && (() => {
+                                const days = Math.ceil((new Date(lesson.deadline).getTime() - Date.now()) / 86400000);
+                                return (
+                                  <span className={`text-[10px] font-bold mt-0.5 inline-block px-1.5 py-0.5 rounded ${isActive ? 'bg-white/20 text-white' : days < 0 ? 'bg-red-50 text-red-500' : days <= 3 ? 'bg-orange-50 text-orange-600' : 'bg-rose-50 text-rose-500'}`}>
+                                    ⏰ {days < 0 ? 'Просрочено' : days === 0 ? 'Сегодня!' : `${days} дн.`}
+                                  </span>
+                                );
+                              })()}
+                            </div>
                           </button>
                         );
                       })}

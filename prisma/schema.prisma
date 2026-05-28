@@ -139,11 +139,13 @@ model Course {
 }
 
 model Theme {
-  id          String  @id @default(uuid())
+  id          String    @id @default(uuid())
   course_id   String
   title       String
   order_index Int
-  is_visible  Boolean @default(true)
+  is_visible  Boolean   @default(true)
+  unlock_date DateTime?
+  deadline    DateTime?
 
   course Course   @relation(fields: [course_id], references: [id], onDelete: Cascade)
   lessons Lesson[]
@@ -164,6 +166,8 @@ model Lesson {
   is_visible  Boolean    @default(true)
   order_index Int
   theme_id    String
+  unlock_date DateTime?
+  deadline    DateTime?
 
   theme      Theme    @relation(fields: [theme_id], references: [id], onDelete: Cascade)
   created_at DateTime @default(now())

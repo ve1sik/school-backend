@@ -456,22 +456,26 @@ export default function Dashboard() {
         }
 
         const headers = { Authorization: `Bearer ${token}` };
-        const [coursesRes, subsRes, accessRes] = await Promise.all([
+        const [coursesRes, subsRes] = await Promise.all([
           axios.get(`${API_URL}/courses`, { headers }).catch(() => ({ data: [] })),
           axios.get(`${API_URL}/submissions/my`, { headers }).catch(() => ({ data: [] })),
-          axios.get(`${API_URL}/groups/my-theme-access`, { headers }).catch(() => ({ data: [] })),
         ]);
 
-        const accessArr = Array.isArray(accessRes.data) ? accessRes.data : [];
+        const rawCoursesForDl = Array.isArray(coursesRes.data) ? coursesRes.data : [];
         const now = Date.now();
-        const deadlines = accessArr
-          .filter((item: any) => item.deadline)
-          .map((item: any) => ({
-            ...item,
-            daysLeft: Math.ceil((new Date(item.deadline).getTime() - now) / 86400000),
-          }))
-          .sort((a: any, b: any) => a.daysLeft - b.daysLeft)
-          .slice(0, 5);
+        const allDeadlines: any[] = [];
+        rawCoursesForDl.forEach((c: any) => {
+          (c.themes || []).forEach((t: any) => {
+            if (t.deadline) allDeadlines.push({ label: `Модуль: ${t.title}`, course: c.title, deadline: t.deadline, courseId: c.id, themeId: t.id });
+            (t.lessons || []).forEach((l: any) => {
+              if (l.deadline) allDeadlines.push({ label: l.title, course: c.title, deadline: l.deadline, courseId: c.id, themeId: t.id, lessonId: l.id });
+            });
+          });
+        });
+        const deadlines = allDeadlines
+          .map(item => ({ ...item, daysLeft: Math.ceil((new Date(item.deadline).getTime() - now) / 86400000) }))
+          .sort((a, b) => a.daysLeft - b.daysLeft)
+          .slice(0, 6);
         setUpcomingDeadlines(deadlines);
 
         const rawCourses = Array.isArray(coursesRes.data) ? coursesRes.data : [];
@@ -634,23 +638,28 @@ export default function Dashboard() {
               <p className="font-black text-lg text-gray-900">Ближайшие сроки сдачи</p>
             </div>
             <div className="divide-y divide-gray-50">
-              {upcomingDeadlines.map((item: any) => {
+              {upcomingDeadlines.map((item: any, i: number) => {
                 const dlDate = new Date(item.deadline);
                 const overdue = item.daysLeft < 0;
                 const urgent = item.daysLeft >= 0 && item.daysLeft <= 3;
                 return (
-                  <div key={`${item.group_id}-${item.theme_id}`} className="px-5 md:px-6 py-4 flex items-center justify-between gap-4">
+                  <button
+                    key={i}
+                    type="button"
+                    onClick={() => item.lessonId ? navigate(`/homework/${item.lessonId}`) : navigate(`/course/${item.courseId}/theme/${item.themeId}`)}
+                    className="w-full px-5 md:px-6 py-4 flex items-center justify-between gap-4 hover:bg-gray-50 transition-colors text-left"
+                  >
                     <div className="min-w-0">
-                      <p className="font-black text-gray-900 truncate">{item.theme_title || 'Модуль'}</p>
-                      <p className="text-xs font-medium text-gray-400 truncate">{item.group_title || ''}</p>
-                      <p className="text-xs text-gray-400 mt-0.5">{dlDate.toLocaleDateString('ru', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })}</p>
+                      <p className="font-black text-gray-900 truncate">{item.label}</p>
+                      <p className="text-xs font-medium text-gray-400 truncate">{item.course}</p>
+                      <p className="text-xs text-gray-400 mt-0.5">{dlDate.toLocaleDateString('ru', { day: 'numeric', month: 'long' })} · {dlDate.toLocaleTimeString('ru', { hour: '2-digit', minute: '2-digit' })}</p>
                     </div>
                     <span className={`shrink-0 px-3 py-1.5 rounded-xl text-sm font-black whitespace-nowrap ${
                       overdue ? 'bg-red-100 text-red-600' : urgent ? 'bg-orange-100 text-orange-600' : 'bg-emerald-50 text-emerald-700'
                     }`}>
                       {overdue ? '⚠ Просрочено' : item.daysLeft === 0 ? '🔥 Сегодня!' : `${item.daysLeft} дн.`}
                     </span>
-                  </div>
+                  </button>
                 );
               })}
             </div>
