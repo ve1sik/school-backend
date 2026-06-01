@@ -99,10 +99,10 @@ export default function CuratorMessages() {
   if (isLoadingContacts) return <div className="h-full w-full flex items-center justify-center"><Loader2 className="w-12 h-12 animate-spin text-[#5A4BFF]" /></div>;
 
   return (
-    <div className="flex h-[calc(100vh-40px)] bg-[#F4F7FE] font-sans text-gray-900 overflow-hidden rounded-[3rem] shadow-2xl border border-white/50">
+    <div className="flex flex-col md:flex-row h-[100dvh] md:h-[calc(100vh-40px)] bg-[#F4F7FE] font-sans text-gray-900 overflow-hidden rounded-none md:rounded-[3rem] shadow-2xl border border-white/50">
       
       {/* ЛЕВАЯ ПАНЕЛЬ: СПИСОК УЧЕНИКОВ */}
-      <aside className="w-full max-w-[380px] bg-white border-r border-gray-100 flex flex-col h-full shrink-0 z-20">
+      <aside className={`w-full md:max-w-[380px] bg-white border-r border-gray-100 flex-col h-full shrink-0 z-20 ${activeChatId ? 'hidden md:flex' : 'flex'}`}>
         <div className="p-8 border-b border-gray-50">
           <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-gray-400 hover:text-purple-600 text-[10px] font-black uppercase tracking-widest transition-colors mb-6">
             <ArrowLeft className="w-4 h-4" /> Назад
@@ -162,7 +162,7 @@ export default function CuratorMessages() {
       </aside>
 
       {/* ПРАВАЯ ПАНЕЛЬ: ЧАТ */}
-      <main className="flex-1 overflow-hidden relative bg-white flex flex-col">
+      <main className={`flex-1 overflow-hidden relative bg-white flex-col ${activeChatId ? 'flex' : 'hidden md:flex'}`}>
         {activeStudent && activeChatId ? (
           <>
             <div className="p-6 md:p-8 border-b border-gray-50 flex items-center justify-between bg-white z-10">

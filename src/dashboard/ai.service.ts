@@ -3,14 +3,9 @@ import { Injectable } from '@nestjs/common';
 @Injectable()
 export class AiService {
   
-  // Метод оставляем с тем же названием и параметрами, чтобы не сломать dashboard.service.ts
-  async generateStrictReport(studentName: string, testsScore: number, writtenScore: number, oralScore: number, weakestTheme: string | null) {
+  // Шаблонный аналитический отчёт (без внешнего ИИ и без искусственных задержек)
+  generateStrictReport(studentName: string, testsScore: number, writtenScore: number, oralScore: number, weakestTheme: string | null) {
     const totalScore = Math.round((testsScore + writtenScore + oralScore) / 3);
-
-    // 🔥 Имитируем небольшую задержку (800мс), чтобы на фронтенде крутился лоадер
-    // и у пользователя было полное ощущение, что нейросеть "генерирует" ответ
-    await new Promise(resolve => setTimeout(resolve, 800));
-
     return this.generateSmartAnalytics(totalScore, testsScore, writtenScore, weakestTheme);
   }
 

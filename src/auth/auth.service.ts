@@ -13,8 +13,39 @@ export class AuthService {
   private async issueTokens(userId: string, email: string, role: string) {
     const payload = { sub: userId, email, role };
     const access_token = this.jwt.sign(payload, { expiresIn: '1d' });
-    const refresh_token = this.jwt.sign(payload, { expiresIn: '7d' });
+    const refresh_token = this.jwt.sign(payload, {
+      expiresIn: '7d',
+      secret: process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET,
+    });
     return { access_token, refresh_token };
+  }
+
+  // Обновление пары токенов по refresh-токену
+  async refresh(refreshToken: string) {
+    if (!refreshToken) throw new UnauthorizedException('Нет refresh-токена');
+
+    let payload: any;
+    try {
+      payload = this.jwt.verify(refreshToken, {
+        secret: process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET,
+      });
+    } catch {
+      throw new UnauthorizedException('Невалидный refresh-токен');
+    }
+
+    const user = await this.prisma.user.findUnique({ where: { id: payload.sub } });
+    // Токен должен совпадать с тем, что лежит в БД (сбрасывается при смене пароля/перелогине)
+    if (!user || user.refresh_token !== refreshToken) {
+      throw new UnauthorizedException('Сессия недействительна');
+    }
+
+    const tokens = await this.issueTokens(user.id, user.email, user.role);
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: { refresh_token: tokens.refresh_token },
+    });
+
+    return { user: { id: user.id, email: user.email, role: user.role }, ...tokens };
   }
 
   // 1. РЕГИСТРАЦИЯ СТУДЕНТА
@@ -112,7 +143,11 @@ export class AuthService {
     if (!isValid) throw new BadRequestException('Неверный текущий пароль');
 
     const newHash = await bcrypt.hash(newPassword, 10);
-    await this.prisma.user.update({ where: { id: userId }, data: { password_hash: newHash } });
+    // Сбрасываем refresh-токен: все старые сессии становятся недействительными
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { password_hash: newHash, refresh_token: null },
+    });
     return { success: true };
   }
 

@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useMemo } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -21,7 +21,9 @@ import {
   CheckCircle2,
   AlertCircle,
   Clock,
-  X
+  X,
+  Menu,
+  Trophy
 } from 'lucide-react';
 
 const API_URL = 'https://prepodmgy.ru/api';
@@ -35,10 +37,43 @@ export default function Layout() {
   
   const [unreadCount, setUnreadCount] = useState(0);
 
+  // Мобильное выдвижное меню
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+
   // Уведомления
   const [showNotifPanel, setShowNotifPanel] = useState(false);
   const [notifications, setNotifications] = useState<{id: string; type: 'message'|'graded'|'deadline'|'cards'; text: string; sub?: string; link?: string}[]>([]);
   const notifRef = useRef<HTMLDivElement>(null);
+
+  // Прочитанные уведомления (по сигнатуре id+text — чтобы при изменении содержимого снова загорались)
+  const [seenSignatures, setSeenSignatures] = useState<Set<string>>(() => {
+    try { return new Set(JSON.parse(localStorage.getItem('notif_seen') || '[]')); }
+    catch { return new Set(); }
+  });
+  const sigOf = (n: { id: string; text: string }) => `${n.id}::${n.text}`;
+
+  // Кол-во НОВЫХ (непрочитанных) — только они зажигают значок
+  const newNotifCount = useMemo(
+    () => notifications.filter(n => !seenSignatures.has(sigOf(n))).length,
+    [notifications, seenSignatures]
+  );
+
+  // Список с сортировкой: новые сверху, прочитанные — серые внизу
+  const sortedNotifications = useMemo(() => {
+    const isNew = (n: typeof notifications[number]) => !seenSignatures.has(sigOf(n));
+    return [...notifications].sort((a, b) => Number(isNew(b)) - Number(isNew(a)));
+  }, [notifications, seenSignatures]);
+
+  const openNotifPanel = () => {
+    setShowNotifPanel(true);
+    // помечаем всё текущее как прочитанное
+    setSeenSignatures(prev => {
+      const next = new Set(prev);
+      notifications.forEach(n => next.add(sigOf(n)));
+      localStorage.setItem('notif_seen', JSON.stringify([...next]));
+      return next;
+    });
+  };
 
   // Закрытие панели кликом вне
   useEffect(() => {
@@ -92,7 +127,7 @@ export default function Layout() {
         const token = localStorage.getItem('token');
         if (!token) return;
         const headers = { Authorization: `Bearer ${token}` };
-        const lastSeen = localStorage.getItem('notif_last_seen') || '0';
+        const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
 
         const [unreadRes, schedRes, subsRes, cardsRes] = await Promise.all([
           axios.get(`${API_URL}/messages/unread`, { headers }).catch(() => ({ data: { count: 0 } })),
@@ -110,9 +145,9 @@ export default function Layout() {
           notifs.push({ id: 'msg', type: 'message', text: `${unreadRes.data.count} новых сообщений`, sub: 'от куратора', link: '/messages' });
         }
 
-        // 2. Проверенные домашки (с момента lastSeen)
+        // 2. Проверенные домашки (за последние 7 дней)
         const graded = (subsRes.data as any[]).filter(
-          s => s.status === 'GRADED' && new Date(s.updated_at || s.created_at).getTime() > parseInt(lastSeen)
+          s => s.status === 'GRADED' && new Date(s.updated_at || s.created_at).getTime() > weekAgo
         );
         if (graded.length > 0) {
           notifs.push({ id: 'graded', type: 'graded', text: `${graded.length} домашних работ проверено`, sub: 'Посмотреть оценку', link: '/homework' });
@@ -144,6 +179,18 @@ export default function Layout() {
         }
 
         setNotifications(notifs);
+
+        // Чистим прочитанные сигнатуры, которых больше нет среди актуальных уведомлений
+        setSeenSignatures(prev => {
+          if (prev.size === 0) return prev;
+          const liveSigs = new Set(notifs.map(n => `${n.id}::${n.text}`));
+          const next = new Set([...prev].filter(s => liveSigs.has(s)));
+          if (next.size !== prev.size) {
+            localStorage.setItem('notif_seen', JSON.stringify([...next]));
+            return next;
+          }
+          return prev;
+        });
       } catch { /* silent */ }
     };
 
@@ -151,6 +198,17 @@ export default function Layout() {
     const interval = setInterval(fetchNotifs, 15000);
     return () => clearInterval(interval);
   }, []);
+
+  // Закрываем мобильное меню при переходе на другую страницу
+  useEffect(() => {
+    setMobileNavOpen(false);
+  }, [location.pathname]);
+
+  // Блокируем скролл фона, пока открыт мобильный drawer
+  useEffect(() => {
+    document.body.style.overflow = mobileNavOpen ? 'hidden' : '';
+    return () => { document.body.style.overflow = ''; };
+  }, [mobileNavOpen]);
 
   const handleLogout = () => {
     localStorage.removeItem('token');
@@ -183,10 +241,28 @@ export default function Layout() {
     { path: '/schedule', icon: Calendar, label: 'Расписание' },
     { path: '/homework', icon: FileText, label: 'Домашнее задание' },
     { path: '/flashcards', icon: Layers, label: 'Флеш-карточки' },
+    { path: '/achievements', icon: Trophy, label: 'Достижения' },
     { path: '/messages', icon: MessageSquare, label: 'Сообщения' },
     { path: '/shop', icon: ShoppingCart, label: 'Магазин курсов' },
     { path: '/profile', icon: User, label: 'Мой профиль' },
     { path: '/settings', icon: Settings, label: 'Настройки' },
+  ];
+
+  // Админ/куратор-разделы (для мобильного меню)
+  const adminItems = [
+    { path: '/admin', icon: BookOpen, label: 'Управление курсами' },
+    { path: '/admin/users', icon: Users, label: 'Управление пользователями' },
+    { path: '/admin/groups', icon: ShieldCheck, label: 'Управление потоками' },
+    { path: '/admin/decks', icon: Layers, label: 'Карточки (колоды)' },
+    { path: '/curator', icon: Users, label: 'Кабинет куратора' },
+  ];
+
+  // Быстрая навигация снизу на телефоне (самое частое)
+  const bottomNavItems = [
+    { path: '/', icon: Home, label: 'Главная' },
+    { path: '/courses', icon: BookOpen, label: 'Курсы' },
+    { path: '/homework', icon: FileText, label: 'ДЗ' },
+    { path: '/messages', icon: MessageSquare, label: 'Чат' },
   ];
 
   const getPageTitle = () => {
@@ -207,7 +283,7 @@ export default function Layout() {
       
       {/* АВТОМАТИЧЕСКАЯ ВЫДВИЖНАЯ ПАНЕЛЬ */}
       {/* 🔥 ИЗМЕНЕНО: Ширина при наведении стала w-[320px] вместо w-72 */}
-      <aside className="group w-[92px] hover:w-[320px] bg-white border-r border-gray-100 flex flex-col shadow-sm shrink-0 transition-all duration-300 ease-in-out overflow-hidden z-20">
+      <aside className="group w-[92px] hover:w-[320px] bg-white border-r border-gray-100 hidden md:flex flex-col shadow-sm shrink-0 transition-all duration-300 ease-in-out overflow-hidden z-20">
         {/* 🔥 ИЗМЕНЕНО: Внутренний контейнер тоже стал w-[320px] */}
         <div className="p-5 flex flex-col h-full w-[320px]">
           
@@ -353,20 +429,29 @@ export default function Layout() {
       {/* ГЛАВНАЯ ЧАСТЬ С ШАПКОЙ */}
       <div className="flex-1 flex flex-col overflow-hidden">
         
-        <header className="h-24 bg-[#F4F7FE] flex items-center justify-between px-10 shrink-0">
-          <h1 className="text-2xl font-black text-gray-900">{getPageTitle()}</h1>
+        <header className="h-16 md:h-24 bg-[#F4F7FE] flex items-center justify-between px-4 md:px-10 shrink-0 gap-3">
+          <div className="flex items-center gap-2 min-w-0">
+            <button
+              onClick={() => setMobileNavOpen(true)}
+              className="md:hidden p-2 -ml-1 text-gray-700 hover:bg-gray-100 rounded-xl transition-colors shrink-0"
+              aria-label="Открыть меню"
+            >
+              <Menu className="w-6 h-6" />
+            </button>
+            <h1 className="text-lg md:text-2xl font-black text-gray-900 truncate">{getPageTitle()}</h1>
+          </div>
           
-          <div className="flex items-center gap-6">
+          <div className="flex items-center gap-3 md:gap-6 shrink-0">
             {/* КОЛОКОЛЬЧИК */}
             <div className="relative" ref={notifRef}>
               <button
-                onClick={() => { setShowNotifPanel(v => !v); localStorage.setItem('notif_last_seen', Date.now().toString()); }}
+                onClick={() => { showNotifPanel ? setShowNotifPanel(false) : openNotifPanel(); }}
                 className="text-gray-400 hover:text-gray-700 transition-colors relative p-1"
               >
-                <Bell className="w-6 h-6" />
-                {notifications.length > 0 && (
+                <Bell className={`w-6 h-6 ${newNotifCount > 0 ? 'text-[#5A4BFF]' : ''}`} />
+                {newNotifCount > 0 && (
                   <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] bg-red-500 text-white text-[10px] font-black flex items-center justify-center rounded-full px-1 border-2 border-[#F4F7FE]">
-                    {notifications.length}
+                    {newNotifCount}
                   </span>
                 )}
               </button>
@@ -394,26 +479,30 @@ export default function Layout() {
                       </div>
                     ) : (
                       <div className="max-h-80 overflow-y-auto divide-y divide-gray-50">
-                        {notifications.map(n => {
+                        {sortedNotifications.map(n => {
+                          const isNew = !seenSignatures.has(sigOf(n));
                           const iconMap = {
-                            message: <MessageCircle className="w-4 h-4 text-indigo-500" />,
-                            graded: <CheckCircle2 className="w-4 h-4 text-emerald-500" />,
-                            deadline: <AlertCircle className="w-4 h-4 text-rose-500" />,
-                            cards: <Clock className="w-4 h-4 text-amber-500" />,
+                            message: <MessageCircle className={`w-4 h-4 ${isNew ? 'text-indigo-500' : 'text-gray-400'}`} />,
+                            graded: <CheckCircle2 className={`w-4 h-4 ${isNew ? 'text-emerald-500' : 'text-gray-400'}`} />,
+                            deadline: <AlertCircle className={`w-4 h-4 ${isNew ? 'text-rose-500' : 'text-gray-400'}`} />,
+                            cards: <Clock className={`w-4 h-4 ${isNew ? 'text-amber-500' : 'text-gray-400'}`} />,
                           };
                           const bgMap = { message: 'bg-indigo-50', graded: 'bg-emerald-50', deadline: 'bg-rose-50', cards: 'bg-amber-50' };
+                          const iconBg = isNew ? bgMap[n.type] : 'bg-gray-100';
+                          const rowBg = isNew ? 'bg-[#5A4BFF]/5 hover:bg-[#5A4BFF]/10' : 'hover:bg-gray-50';
                           const isExternal = n.link?.startsWith('http');
                           const Wrapper = isExternal
-                            ? ({ children }: any) => <a href={n.link} target="_blank" rel="noreferrer" className="flex items-start gap-3 px-5 py-4 hover:bg-gray-50 transition-colors cursor-pointer">{children}</a>
-                            : ({ children }: any) => <div onClick={() => { navigate(n.link!); setShowNotifPanel(false); }} className="flex items-start gap-3 px-5 py-4 hover:bg-gray-50 transition-colors cursor-pointer">{children}</div>;
+                            ? ({ children }: any) => <a href={n.link} target="_blank" rel="noreferrer" className={`flex items-start gap-3 px-5 py-4 transition-colors cursor-pointer relative ${rowBg}`}>{children}</a>
+                            : ({ children }: any) => <div onClick={() => { navigate(n.link!); setShowNotifPanel(false); }} className={`flex items-start gap-3 px-5 py-4 transition-colors cursor-pointer relative ${rowBg}`}>{children}</div>;
                           return (
                             <Wrapper key={n.id}>
-                              <div className={`w-8 h-8 ${bgMap[n.type]} rounded-xl flex items-center justify-center shrink-0 mt-0.5`}>
+                              {isNew && <span className="absolute left-1.5 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-[#5A4BFF]" />}
+                              <div className={`w-8 h-8 ${iconBg} rounded-xl flex items-center justify-center shrink-0 mt-0.5`}>
                                 {iconMap[n.type]}
                               </div>
                               <div className="flex-1 min-w-0">
-                                <p className="font-bold text-gray-900 text-sm leading-snug">{n.text}</p>
-                                {n.sub && <p className="text-xs text-gray-400 font-medium mt-0.5">{n.sub}</p>}
+                                <p className={`text-sm leading-snug ${isNew ? 'font-bold text-gray-900' : 'font-medium text-gray-400'}`}>{n.text}</p>
+                                {n.sub && <p className={`text-xs font-medium mt-0.5 ${isNew ? 'text-gray-400' : 'text-gray-300'}`}>{n.sub}</p>}
                               </div>
                             </Wrapper>
                           );
@@ -426,7 +515,7 @@ export default function Layout() {
             </div>
             
             <Link to="/profile" className="flex items-center gap-3 cursor-pointer group hover:opacity-80 transition-opacity">
-              <div className="text-right">
+              <div className="text-right hidden sm:block">
                 <p className="text-sm font-bold text-gray-900 leading-tight">
                   {getDisplayName()}
                 </p>
@@ -446,10 +535,140 @@ export default function Layout() {
           </div>
         </header>
 
-        <main className="flex-1 overflow-y-auto px-10 pb-10">
+        <main className="flex-1 overflow-y-auto px-4 md:px-10 pb-24 md:pb-10">
           <Outlet />
         </main>
       </div>
+
+      {/* ───────── МОБИЛЬНОЕ ВЫДВИЖНОЕ МЕНЮ ───────── */}
+      <AnimatePresence>
+        {mobileNavOpen && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setMobileNavOpen(false)}
+              className="fixed inset-0 bg-black/40 z-40 md:hidden"
+            />
+            <motion.aside
+              initial={{ x: '-100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '-100%' }}
+              transition={{ type: 'tween', duration: 0.25, ease: 'easeOut' }}
+              className="fixed inset-y-0 left-0 w-[280px] max-w-[82vw] bg-white z-50 md:hidden flex flex-col shadow-2xl"
+            >
+              <div className="flex items-center justify-between p-5 border-b border-gray-50">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 bg-[#5A4BFF] rounded-xl flex items-center justify-center shrink-0">
+                    <GraduationCap className="w-5 h-5 text-white" />
+                  </div>
+                  <span className="text-lg font-black text-gray-900 tracking-tight">
+                    Препод из <span className="text-[#5A4BFF]">МГУ</span>
+                  </span>
+                </div>
+                <button onClick={() => setMobileNavOpen(false)} className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <nav className="flex-1 overflow-y-auto p-3 space-y-1">
+                {menuItems.map((item) => {
+                  const isActive = location.pathname === item.path;
+                  const isMessages = item.path === '/messages';
+                  return (
+                    <Link
+                      key={item.path}
+                      to={item.path}
+                      className={`flex items-center gap-3 p-3 rounded-xl transition-all ${
+                        isActive ? 'bg-[#EEF2FF] text-[#5A4BFF]' : 'text-gray-600 hover:bg-gray-50'
+                      }`}
+                    >
+                      <div className="relative shrink-0">
+                        <item.icon className={`w-5 h-5 ${isActive ? 'text-[#5A4BFF]' : 'text-gray-400'}`} />
+                        {isMessages && unreadCount > 0 && (
+                          <span className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-red-500 text-white text-[9px] font-black flex items-center justify-center rounded-full border-2 border-white">
+                            {unreadCount > 9 ? '9+' : unreadCount}
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-sm font-bold">{item.label}</span>
+                    </Link>
+                  );
+                })}
+
+                {isAdmin && (
+                  <div className="pt-2 mt-2 border-t border-gray-50 space-y-1">
+                    <p className="px-3 py-1 text-[10px] font-black text-gray-300 uppercase tracking-wider">Управление</p>
+                    {adminItems.map((item) => {
+                      const isActive =
+                        item.path === '/curator'
+                          ? location.pathname.startsWith('/curator')
+                          : location.pathname === item.path;
+                      return (
+                        <Link
+                          key={item.path}
+                          to={item.path}
+                          className={`flex items-center gap-3 p-3 rounded-xl transition-all ${
+                            isActive ? 'bg-[#EEF2FF] text-[#5A4BFF]' : 'text-gray-600 hover:bg-gray-50'
+                          }`}
+                        >
+                          <item.icon className={`w-5 h-5 shrink-0 ${isActive ? 'text-[#5A4BFF]' : 'text-gray-400'}`} />
+                          <span className="text-sm font-bold">{item.label}</span>
+                        </Link>
+                      );
+                    })}
+                  </div>
+                )}
+              </nav>
+
+              <div className="p-3 border-t border-gray-50">
+                <button
+                  onClick={handleLogout}
+                  className="flex items-center gap-3 p-3 w-full rounded-xl text-red-500 hover:bg-red-50 transition-all"
+                >
+                  <LogOut className="w-5 h-5 shrink-0" />
+                  <span className="text-sm font-bold">Выйти</span>
+                </button>
+              </div>
+            </motion.aside>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* ───────── МОБИЛЬНАЯ НИЖНЯЯ НАВИГАЦИЯ ───────── */}
+      <nav className="fixed bottom-0 inset-x-0 z-30 md:hidden bg-white/95 backdrop-blur border-t border-gray-100 flex items-stretch justify-around pb-[env(safe-area-inset-bottom)]">
+        {bottomNavItems.map((item) => {
+          const isActive = location.pathname === item.path;
+          const isMessages = item.path === '/messages';
+          return (
+            <Link
+              key={item.path}
+              to={item.path}
+              className={`flex-1 flex flex-col items-center justify-center gap-0.5 py-2.5 transition-colors ${
+                isActive ? 'text-[#5A4BFF]' : 'text-gray-400'
+              }`}
+            >
+              <div className="relative">
+                <item.icon className="w-5 h-5" />
+                {isMessages && unreadCount > 0 && (
+                  <span className="absolute -top-1.5 -right-2 min-w-[15px] h-[15px] bg-red-500 text-white text-[9px] font-black flex items-center justify-center rounded-full px-1 border border-white">
+                    {unreadCount > 9 ? '9+' : unreadCount}
+                  </span>
+                )}
+              </div>
+              <span className="text-[10px] font-bold leading-none">{item.label}</span>
+            </Link>
+          );
+        })}
+        <button
+          onClick={() => setMobileNavOpen(true)}
+          className="flex-1 flex flex-col items-center justify-center gap-0.5 py-2.5 text-gray-400"
+        >
+          <Menu className="w-5 h-5" />
+          <span className="text-[10px] font-bold leading-none">Меню</span>
+        </button>
+      </nav>
 
     </div>
   );

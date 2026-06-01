@@ -63,7 +63,7 @@ export class SubmissionsService {
       ? `${AUTO_GRADE_COMMENT_PREFIX}: Верно!`
       : `${AUTO_GRADE_COMMENT_PREFIX}: Неверно. Попытки исчерпаны.`;
 
-    return this.prisma.submission.create({
+    const submission = await this.prisma.submission.create({
       data: {
         user_id: userId,
         lesson_id: body.lessonId,
@@ -76,6 +76,26 @@ export class SubmissionsService {
         status: 'GRADED',
       },
     });
+
+    // 🎮 Очки за верный авто-ответ
+    if (isSuccess) {
+      await this.awardPoints(userId, 15);
+    }
+
+    return submission;
+  }
+
+  // 🎮 Безопасное начисление очков (не валит основную операцию при сбое)
+  private async awardPoints(userId: string, amount: number) {
+    if (!amount || amount <= 0) return;
+    try {
+      await this.prisma.user.update({
+        where: { id: userId },
+        data: { points: { increment: amount } } as any,
+      });
+    } catch {
+      /* очки не критичны */
+    }
   }
 
   async getSubmissionsByStatus(status: 'PENDING' | 'GRADED') {
@@ -106,16 +126,32 @@ export class SubmissionsService {
     return subs.map((sub) => this.mapSubmissionForCurator(sub));
   }
 
-  // Куратор ставит оценку
-  async gradeSubmission(id: string, score: number, comment: string) {
-    return this.prisma.submission.update({
+  // Куратор ставит оценку или возвращает на доработку
+  async gradeSubmission(id: string, score: number, comment: string, status?: string) {
+    const finalStatus = status === 'REVISION' ? 'REVISION' : 'GRADED';
+    const existing = await this.prisma.submission.findUnique({ where: { id } });
+
+    const updated = await this.prisma.submission.update({
       where: { id },
       data: {
-        score,
+        score: finalStatus === 'REVISION' ? null : score,
         comment,
-        status: 'GRADED'
-      }
+        status: finalStatus as any,
+      },
     });
+
+    // 🎮 Очки за проверенную работу — только при первом переходе в GRADED
+    if (
+      finalStatus === 'GRADED' &&
+      existing?.status !== 'GRADED' &&
+      typeof score === 'number' &&
+      score > 0
+    ) {
+      const pts = Math.round((score / (updated.max_score || 1)) * 30);
+      await this.awardPoints(updated.user_id, pts);
+    }
+
+    return updated;
   }
 
   // Поиск работы конкретного ученика

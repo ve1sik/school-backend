@@ -2,11 +2,9 @@ import { useState, useEffect } from 'react';
 import { FileText, AlertCircle, Clock, CheckCircle2, Loader2, FolderOpen, ChevronRight, Search, Book, Calendar, XCircle } from 'lucide-react';
 import { motion, AnimatePresence, type Variants } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import { cachedGet } from '../lib/api';
 
-const API_URL = 'https://prepodmgy.ru/api';
-
-type TabType = 'TODO' | 'OVERDUE' | 'REVIEW' | 'GRADED';
+type TabType = 'TODO' | 'OVERDUE' | 'REVISION' | 'REVIEW' | 'GRADED';
 
 export default function Homework() {
   const navigate = useNavigate();
@@ -18,13 +16,15 @@ export default function Homework() {
   useEffect(() => {
     const fetchRealHomeworks = async () => {
       try {
-        const token = localStorage.getItem('token');
-        
-        const [coursesRes, subsRes, schedRes] = await Promise.all([
-          axios.get(`${API_URL}/courses`, { headers: { Authorization: `Bearer ${token}` } }),
-          axios.get(`${API_URL}/submissions/my`, { headers: { Authorization: `Bearer ${token}` } }).catch(() => ({ data: [] })),
-          axios.get(`${API_URL}/schedule`, { headers: { Authorization: `Bearer ${token}` } }).catch(() => ({ data: [] })),
+        // 🚀 Общий кеш: переходы между ДЗ/курсами/дашбордом не дёргают бэкенд заново
+        const [coursesData, subsData, schedData] = await Promise.all([
+          cachedGet('/courses').catch(() => []),
+          cachedGet('/submissions/my').catch(() => []),
+          cachedGet('/schedule').catch(() => []),
         ]);
+        const coursesRes = { data: Array.isArray(coursesData) ? coursesData : [] };
+        const subsRes = { data: Array.isArray(subsData) ? subsData : [] };
+        const schedRes = { data: Array.isArray(schedData) ? schedData : [] };
 
         // Собираем дедлайны из расписания — матчим по названию урока
         const deadlineEvents: any[] = schedRes.data.filter((e: any) => e.type === 'DEADLINE');
@@ -70,10 +70,14 @@ export default function Homework() {
                 const deadline = findDeadline(lesson.title);
                 const isOverdue = status === 'TODO' && deadline && new Date(deadline) < new Date();
 
+                let comment: string | null = null;
                 if (submission) {
-                  status = submission.status === 'GRADED' ? 'GRADED' : 'REVIEW';
+                  if (submission.status === 'GRADED') status = 'GRADED';
+                  else if (submission.status === 'REVISION') status = 'REVISION';
+                  else status = 'REVIEW';
                   score = submission.score;
                   maxScore = submission.max_score || maxScore;
+                  comment = submission.comment || null;
                 } else if (isOverdue) {
                   status = 'OVERDUE';
                 }
@@ -87,6 +91,7 @@ export default function Homework() {
                   score,
                   maxScore,
                   deadline,
+                  comment,
                 });
               }
             });
@@ -116,6 +121,7 @@ export default function Homework() {
   const counts = {
     TODO: homeworks.filter(h => h.status === 'TODO').length,
     OVERDUE: homeworks.filter(h => h.status === 'OVERDUE').length,
+    REVISION: homeworks.filter(h => h.status === 'REVISION').length,
     REVIEW: homeworks.filter(h => h.status === 'REVIEW').length,
     GRADED: homeworks.filter(h => h.status === 'GRADED').length,
   };
@@ -153,6 +159,7 @@ export default function Homework() {
             {([
               { key: 'TODO', label: 'К выполнению', activeClass: 'bg-[#5A4BFF] text-white shadow-lg shadow-indigo-500/20' },
               { key: 'OVERDUE', label: '🚨 Просрочено', activeClass: 'bg-rose-500 text-white shadow-lg shadow-rose-500/20' },
+              { key: 'REVISION', label: '📝 На доработку', activeClass: 'bg-orange-500 text-white shadow-lg shadow-orange-500/20' },
               { key: 'REVIEW', label: '⏳ На проверке', activeClass: 'bg-amber-500 text-white shadow-lg shadow-amber-500/20' },
               { key: 'GRADED', label: '✅ Оценено', activeClass: 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20' },
             ] as const).map(({ key, label, activeClass }) => (
@@ -212,6 +219,9 @@ export default function Homework() {
                       } else if (hw.status === 'OVERDUE') {
                         badgeBg = 'bg-rose-100'; badgeText = 'text-rose-600'; Icon = XCircle; iconColor = 'text-rose-500'; statusText = 'ПРОСРОЧЕНО';
                         buttonStyle = 'bg-rose-500 hover:bg-rose-600 text-white shadow-xl shadow-rose-500/20'; buttonText = 'СДАТЬ СЕЙЧАС';
+                      } else if (hw.status === 'REVISION') {
+                        badgeBg = 'bg-orange-100'; badgeText = 'text-orange-600'; Icon = AlertCircle; iconColor = 'text-orange-500'; statusText = 'НА ДОРАБОТКУ';
+                        buttonStyle = 'bg-orange-500 hover:bg-orange-600 text-white shadow-xl shadow-orange-500/20'; buttonText = 'ДОРАБОТАТЬ';
                       } else if (hw.status === 'REVIEW') {
                         badgeBg = 'bg-indigo-100'; badgeText = 'text-[#5A4BFF]'; Icon = Clock; iconColor = 'text-[#5A4BFF]'; statusText = 'НА ПРОВЕРКЕ';
                         buttonStyle = 'bg-gray-50 text-gray-400 hover:bg-gray-100 hover:text-gray-600'; buttonText = 'СМОТРЕТЬ ДЕТАЛИ';

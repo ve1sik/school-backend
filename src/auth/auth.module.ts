@@ -10,8 +10,7 @@ import { PrismaService } from '../prisma/prisma.service';
   imports: [
     PassportModule,
     JwtModule.register({
-      // 🔥 ИСПРАВЛЕНО: Теперь ключ точно такой же, как в стратегии
-      secret: process.env.JWT_SECRET || 'super_secret_jwt_key_2026_top_school',
+      secret: process.env.JWT_SECRET as string,
       signOptions: { expiresIn: '1d' },
     }),
   ],

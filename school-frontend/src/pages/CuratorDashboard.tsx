@@ -155,6 +155,27 @@ export default function CuratorDashboard() {
     }
   };
 
+  const handleReturnForRevision = async (subId: string) => {
+    if (!comments[subId] || !comments[subId].trim()) {
+      showToast('Напишите, что нужно доработать', 'error');
+      return;
+    }
+    try {
+      const token = localStorage.getItem('token');
+      if (!String(subId).startsWith('demo-')) {
+        await axios.patch(`${API_URL}/submissions/${subId}/grade`, {
+          comment: comments[subId],
+          status: 'REVISION',
+        }, { headers: { Authorization: `Bearer ${token}` } });
+      }
+      showToast('Работа отправлена на доработку 📝');
+      // Уходит из текущего списка — мяч на стороне ученика
+      setSubmissions(submissions.filter(s => s.id !== subId));
+    } catch (err) {
+      showToast('Ошибка при отправке на доработку', 'error');
+    }
+  };
+
   const handleOralGrade = async (lessonId: string) => {
     const currentScore = oralScores[lessonId];
     if (currentScore === '') {
@@ -503,11 +524,18 @@ export default function CuratorDashboard() {
                               />
                             </div>
                           </div>
-                          <div className="mt-6 flex justify-end">
+                          <div className="mt-6 flex flex-col sm:flex-row justify-end gap-3">
+                            <button
+                              onClick={() => handleReturnForRevision(sub.id)}
+                              className="px-6 py-4 bg-amber-500/90 hover:bg-amber-500 text-white rounded-xl font-black text-sm transition-all active:scale-95 flex items-center justify-center gap-2"
+                              title="Вернуть ученику с комментарием на доработку"
+                            >
+                              <AlertCircle className="w-4 h-4"/> НА ДОРАБОТКУ
+                            </button>
                             <button 
                               onClick={() => handleGradeSingle(sub.id, sub.maxScore)} 
                               disabled={scores[sub.id] === ''}
-                              className="px-8 py-4 bg-purple-600 hover:bg-purple-500 text-white rounded-xl font-black text-sm transition-all active:scale-95 disabled:opacity-50 flex items-center gap-2"
+                              className="px-8 py-4 bg-purple-600 hover:bg-purple-500 text-white rounded-xl font-black text-sm transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2"
                             >
                               {activeTab === 'GRADED' ? <><Edit3 className="w-4 h-4"/> ИЗМЕНИТЬ ОЦЕНКУ</> : <><Send className="w-4 h-4"/> СОХРАНИТЬ</>}
                             </button>

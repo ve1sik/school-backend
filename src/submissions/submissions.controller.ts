@@ -1,17 +1,18 @@
-import { Controller, Post, Get, Patch, Body, Param, Headers, Query, UnauthorizedException } from '@nestjs/common';
+import { Controller, Post, Get, Patch, Body, Param, Query, Request, UseGuards } from '@nestjs/common';
+import { AuthGuard } from '@nestjs/passport';
+import { RolesGuard } from '../auth/roles.guard';
+import { Roles } from '../auth/roles.decorator';
+import { Role } from '@prisma/client';
 import { SubmissionsService } from './submissions.service';
 
+@UseGuards(AuthGuard('jwt'), RolesGuard)
 @Controller('submissions')
 export class SubmissionsController {
   constructor(private readonly submissionsService: SubmissionsService) {}
 
   @Post()
-  createSubmission(@Headers('authorization') auth: string, @Body() body: any) {
-    if (!auth) throw new UnauthorizedException('Нет токена');
-
-    const token = auth.split(' ')[1];
-    const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString());
-    const userId = payload.sub || payload.id;
+  createSubmission(@Request() req, @Body() body: any) {
+    const userId = req.user.sub;
 
     if (body.autoGraded === true) {
       const score = Number(body.score) || 0;
@@ -26,47 +27,36 @@ export class SubmissionsController {
     return this.submissionsService.createSubmission(userId, body);
   }
 
-  // 🔥 2. НОВЫЙ ЭНДПОИНТ ДЛЯ КУРАТОРА: Запрос работ по статусу (PENDING или GRADED)
+  // Очередь работ для куратора (PENDING / GRADED)
+  @Roles(Role.ADMIN, Role.CURATOR, Role.TEACHER)
   @Get()
-  getSubmissionsByStatus(@Headers('authorization') auth: string, @Query('status') status: string) {
-    if (!auth) throw new UnauthorizedException('Нет токена');
+  getSubmissionsByStatus(@Query('status') status: string) {
     const finalStatus = status === 'GRADED' ? 'GRADED' : 'PENDING';
     return this.submissionsService.getSubmissionsByStatus(finalStatus);
   }
 
-  // (Оставили на всякий случай, если фронт где-то еще использует старый путь)
+  @Roles(Role.ADMIN, Role.CURATOR, Role.TEACHER)
   @Get('pending')
   getPending() {
     return this.submissionsService.getSubmissionsByStatus('PENDING');
   }
 
-  // 3. Куратор оценивает работу
+  // Куратор оценивает работу (или возвращает на доработку)
+  @Roles(Role.ADMIN, Role.CURATOR, Role.TEACHER)
   @Patch(':id/grade')
-  gradeSubmission(@Headers('authorization') auth: string, @Param('id') id: string, @Body() body: any) {
-    if (!auth) throw new UnauthorizedException('Нет токена');
-    return this.submissionsService.gradeSubmission(id, body.score, body.comment);
+  gradeSubmission(@Param('id') id: string, @Body() body: any) {
+    return this.submissionsService.gradeSubmission(id, body.score, body.comment, body.status);
   }
 
-  // 4. Студент запрашивает свою сданную работу (в конкретном уроке)
+  // Студент запрашивает свою сданную работу (в конкретном уроке)
   @Get('lesson/:lessonId')
-  getMySubmission(@Headers('authorization') auth: string, @Param('lessonId') lessonId: string) {
-    if (!auth) throw new UnauthorizedException('Нет токена');
-
-    const token = auth.split(' ')[1];
-    const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString());
-    const userId = payload.sub || payload.id;
-
-    return this.submissionsService.getSubmissionForStudent(lessonId, userId);
+  getMySubmission(@Request() req, @Param('lessonId') lessonId: string) {
+    return this.submissionsService.getSubmissionForStudent(lessonId, req.user.sub);
   }
 
-  // 5. Студент запрашивает все свои работы
+  // Студент запрашивает все свои работы
   @Get('my')
-  getMySubmissions(@Headers('authorization') auth: string) {
-    if (!auth) throw new UnauthorizedException('Нет токена');
-    const token = auth.split(' ')[1];
-    const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString());
-    const userId = payload.sub || payload.id;
-    
-    return this.submissionsService.getMySubmissions(userId);
+  getMySubmissions(@Request() req) {
+    return this.submissionsService.getMySubmissions(req.user.sub);
   }
 }

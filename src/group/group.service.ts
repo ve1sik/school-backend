@@ -67,20 +67,12 @@ export class GroupService {
       include: { students: true } // Получаем список учеников в группе
     });
 
-    // Если в группе уже есть ученики, выдаем им этот новый курс в Enrollment
-    if (group.students.length > 0) {
-      for (const student of group.students) {
-        for (const courseId of courseIds) {
-          const existing = await this.prisma.enrollment.findFirst({
-            where: { user_id: student.id, course_id: courseId }
-          });
-          if (!existing) {
-            await this.prisma.enrollment.create({
-              data: { user_id: student.id, course_id: courseId }
-            });
-          }
-        }
-      }
+    // Выдаём всем ученикам группы доступ к курсам одним запросом (без N+1)
+    if (group.students.length > 0 && courseIds.length > 0) {
+      const data = group.students.flatMap((student) =>
+        courseIds.map((courseId) => ({ user_id: student.id, course_id: courseId })),
+      );
+      await this.prisma.enrollment.createMany({ data, skipDuplicates: true });
     }
     return group;
   }
@@ -95,20 +87,12 @@ export class GroupService {
       include: { courses: true } // Получаем список курсов группы
     });
 
-    // Если в группе есть курсы, выдаем их добавленным ученикам в Enrollment
-    if (group.courses.length > 0) {
-      for (const studentId of studentIds) {
-        for (const course of group.courses) {
-          const existing = await this.prisma.enrollment.findFirst({
-            where: { user_id: studentId, course_id: course.id }
-          });
-          if (!existing) {
-            await this.prisma.enrollment.create({
-              data: { user_id: studentId, course_id: course.id }
-            });
-          }
-        }
-      }
+    // Выдаём добавленным ученикам курсы группы одним запросом (без N+1)
+    if (group.courses.length > 0 && studentIds.length > 0) {
+      const data = studentIds.flatMap((studentId) =>
+        group.courses.map((course) => ({ user_id: studentId, course_id: course.id })),
+      );
+      await this.prisma.enrollment.createMany({ data, skipDuplicates: true });
     }
     return group;
   }
@@ -261,20 +245,12 @@ export class GroupService {
       include: { courses: true } // Сразу вытягиваем все курсы этой группы
     });
 
-    // 2. Выдаем ученику доступы (Enrollments) ко всем курсам этой группы
+    // 2. Выдаем ученику доступы (Enrollments) ко всем курсам этой группы одним запросом
     if (group.courses.length > 0) {
-      for (const course of group.courses) {
-        const existing = await this.prisma.enrollment.findFirst({
-          where: { user_id: studentId, course_id: course.id }
-        });
-        
-        // Защита от дубликатов (если курс уже был)
-        if (!existing) {
-          await this.prisma.enrollment.create({
-            data: { user_id: studentId, course_id: course.id }
-          });
-        }
-      }
+      await this.prisma.enrollment.createMany({
+        data: group.courses.map((course) => ({ user_id: studentId, course_id: course.id })),
+        skipDuplicates: true,
+      });
     }
 
     return { success: true, message: 'Студент успешно добавлен в группу и получил курсы' };

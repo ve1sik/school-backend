@@ -6,12 +6,10 @@ import {
   PanelRightOpen, GraduationCap, ChevronDown, ChevronUp, Star,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import { cachedGet } from '../lib/api';
 
 const COURSE_INLINE_LIMIT = 3;
 const PASS_SCORE = 70;
-
-const API_URL = 'https://prepodmgy.ru/api';
 
 const safePercent = (earned: number, max: number) =>
   max > 0 ? Math.min(100, Math.round((earned / max) * 100)) : 0;
@@ -455,11 +453,13 @@ export default function Dashboard() {
           return;
         }
 
-        const headers = { Authorization: `Bearer ${token}` };
-        const [coursesRes, subsRes] = await Promise.all([
-          axios.get(`${API_URL}/courses`, { headers }).catch(() => ({ data: [] })),
-          axios.get(`${API_URL}/submissions/my`, { headers }).catch(() => ({ data: [] })),
+        // 🚀 Общий кеш курсов/работ — навигация между страницами не дёргает бэкенд заново
+        const [coursesData, subsData] = await Promise.all([
+          cachedGet('/courses').catch(() => []),
+          cachedGet('/submissions/my').catch(() => []),
         ]);
+        const coursesRes = { data: coursesData };
+        const subsRes = { data: subsData };
 
         const rawCoursesForDl = Array.isArray(coursesRes.data) ? coursesRes.data : [];
         const now = Date.now();

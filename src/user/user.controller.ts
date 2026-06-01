@@ -1,19 +1,22 @@
-import { Controller, Get, Post, Patch, Delete, Param, Body, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Param, Body, Query, UseGuards } from '@nestjs/common';
 import { UserService } from './user.service';
 import { AuthGuard } from '@nestjs/passport';
 import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
-import { UpdateUserDto } from './dto/update-user.dto';
 
 @UseGuards(AuthGuard('jwt'), RolesGuard)
 @Controller('users')
 export class UserController {
   constructor(private readonly userService: UserService) {}
 
+  // Пагинация опциональна: без ?skip/?take возвращаем всех (обратная совместимость)
   @Roles('ADMIN')
   @Get()
-  findAll() {
-    return this.userService.findAll();
+  findAll(@Query('skip') skip?: string, @Query('take') take?: string) {
+    return this.userService.findAll(
+      skip !== undefined ? Number(skip) : undefined,
+      take !== undefined ? Number(take) : undefined,
+    );
   }
 
   @Roles('ADMIN', 'CURATOR')

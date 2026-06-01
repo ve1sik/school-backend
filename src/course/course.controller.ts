@@ -1,10 +1,11 @@
-import { Body, Controller, Get, Post, Patch, Delete, Param, UseGuards, Headers, UnauthorizedException } from '@nestjs/common';
+import { Body, Controller, Get, Post, Patch, Delete, Param, UseGuards, Request } from '@nestjs/common';
 import { CourseService } from './course.service';
 import { AuthGuard } from '@nestjs/passport'; 
 import { RolesGuard } from '../auth/roles.guard'; 
 import { Roles } from '../auth/roles.decorator';
 import { Role } from '@prisma/client';
 
+@UseGuards(AuthGuard('jwt'), RolesGuard)
 @Controller('courses')
 export class CourseController {
   constructor(private readonly courseService: CourseService) {}
@@ -14,47 +15,24 @@ export class CourseController {
     return this.courseService.findOne(id);
   }
 
-  // 🔥 ИСПРАВЛЕНО: Теперь этот метод учитывает, КТО запрашивает курсы
-  @UseGuards(AuthGuard('jwt'))
+  // Учитывает, КТО запрашивает курсы (студент видит только свои)
   @Get()
-  async getAll(@Headers('authorization') auth: string) {
-    if (!auth) throw new UnauthorizedException('Нет токена');
-    
-    // Достаем инфу о пользователе из токена
-    const token = auth.split(' ')[1];
-    const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString());
-    const userId = payload.sub || payload.id;
-    const userRole = payload.role;
-
-    // Передаем роль и ID в сервис
-    return this.courseService.getAllCourses(userId, userRole);
+  async getAll(@Request() req: any) {
+    return this.courseService.getAllCourses(req.user.sub, req.user.role);
   }
 
-  @UseGuards(AuthGuard('jwt'), RolesGuard)
   @Roles(Role.ADMIN, Role.CURATOR, Role.TEACHER)
   @Post()
   async createCourse(@Body() dto: any) {
     return this.courseService.create(dto);
   }
 
-  @UseGuards(AuthGuard('jwt'), RolesGuard)
-  @Roles(Role.ADMIN, Role.CURATOR, Role.TEACHER)
-  @Post(':courseId/themes')
-  async createTheme(
-    @Param('courseId') courseId: string,
-    @Body() body: any 
-  ) {
-    return { message: 'Тема создана (заглушка)', courseId, body };
-  }
-
-  @UseGuards(AuthGuard('jwt'), RolesGuard)
   @Roles(Role.ADMIN, Role.CURATOR, Role.TEACHER)
   @Patch(':id')
   async update(@Param('id') id: string, @Body() dto: any) {
     return this.courseService.updateCourse(id, dto);
   }
 
-  @UseGuards(AuthGuard('jwt'), RolesGuard)
   @Roles(Role.ADMIN, Role.CURATOR, Role.TEACHER)
   @Delete(':id')
   async deleteCourse(@Param('id') id: string) {

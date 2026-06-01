@@ -1,19 +1,26 @@
-import { Controller, Post, Body, Patch, Get, UseGuards, Request, BadRequestException } from '@nestjs/common';
+import { Controller, Post, Body, Patch, Get, UseGuards, Request } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { AuthGuard } from '@nestjs/passport';
+import { RegisterDto } from './dto/register.dto';
+import { LoginDto } from './dto/login.dto';
 
 @Controller('auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @Post('register')
-  async register(@Body() dto: any) {
+  async register(@Body() dto: RegisterDto) {
     return this.authService.register(dto);
   }
 
   @Post('login')
-  async login(@Body() dto: any) {
+  async login(@Body() dto: LoginDto) {
     return this.authService.login(dto);
+  }
+
+  @Post('refresh')
+  async refresh(@Body() body: { refresh_token: string }) {
+    return this.authService.refresh(body?.refresh_token);
   }
 
   @UseGuards(AuthGuard('jwt'))

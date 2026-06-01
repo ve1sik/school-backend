@@ -871,7 +871,7 @@ export default function HomeworkView() {
 
   // 🔥 ИДЕАЛЬНАЯ СЕТКА: Выровнено с боковой панелью
   return (
-    <div className="flex h-screen bg-[#F4F7FE] font-sans text-gray-900 p-4 md:p-6 lg:p-8 gap-4 lg:gap-8 overflow-hidden">
+    <div className="flex flex-col lg:flex-row h-auto lg:h-screen bg-[#F4F7FE] font-sans text-gray-900 p-3 md:p-6 lg:p-8 gap-3 lg:gap-8 overflow-visible lg:overflow-hidden">
       <style>{`
   .theory-read-only .ql-container.ql-snow {
     border: none !important;
@@ -925,7 +925,7 @@ export default function HomeworkView() {
 `}</style>
 
       {/* ЛЕВЫЙ САЙДБАР: Формат плашки, как в CourseView */}
-      <aside className="w-[300px] lg:w-[340px] bg-white rounded-[2rem] border border-gray-100 flex flex-col h-full shrink-0 z-20 shadow-sm overflow-hidden">
+      <aside className="w-full lg:w-[300px] xl:w-[340px] bg-white rounded-3xl lg:rounded-[2rem] border border-gray-100 flex flex-col h-auto max-h-[55vh] lg:max-h-none lg:h-full shrink-0 z-20 shadow-sm overflow-hidden">
         <div className="p-6 md:p-8 border-b border-gray-100 bg-white shrink-0">
           <button 
             onClick={() => {
@@ -950,7 +950,7 @@ export default function HomeworkView() {
       </aside>
 
       {/* ПРАВАЯ ЧАСТЬ (КОНТЕНТ): Выровнено с боковой панелью */}
-      <main className="flex-1 bg-white rounded-[2rem] border border-gray-100 shadow-sm overflow-y-auto relative scroll-smooth h-full custom-scrollbar p-6 md:p-8 lg:p-10">
+      <main className="flex-1 w-full bg-white rounded-3xl lg:rounded-[2rem] border border-gray-100 shadow-sm overflow-visible lg:overflow-y-auto relative scroll-smooth h-auto lg:h-full custom-scrollbar p-4 md:p-8 lg:p-10">
         <div className="max-w-[1100px] mx-auto pb-32">
           
           <div className="pb-6 border-b border-gray-50 mb-8 lg:mb-10">

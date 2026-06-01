@@ -18,6 +18,7 @@ import { EnrollmentModule } from './enrollment/enrollment.module';
 import { SubjectModule } from './subject/subject.module';
 import { DeckModule } from './deck/deck.module';
 import { FlashcardModule } from './flashcard/flashcard.module';
+import { GamificationModule } from './gamification/gamification.module';
 
 // Контроллер загрузки
 import { UploadController } from './upload/upload.controller';
@@ -45,6 +46,7 @@ import { UploadController } from './upload/upload.controller';
     SubjectModule,
     DeckModule,
     FlashcardModule,
+    GamificationModule,
   ],
   controllers: [
     UploadController,

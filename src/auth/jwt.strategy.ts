@@ -8,8 +8,8 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
-      // Тот самый ключ. Теперь они с модулем работают в паре!
-      secretOrKey: process.env.JWT_SECRET || 'super_secret_jwt_key_2026_top_school',
+      // Секрет берётся только из окружения (.env загружается в main.ts)
+      secretOrKey: process.env.JWT_SECRET as string,
     });
   }
 

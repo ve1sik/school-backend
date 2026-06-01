@@ -24,18 +24,52 @@ import AdminGroups from './pages/AdminGroups';
 import AdminUsers from './pages/AdminUsers';
 import AdminDecks from './pages/AdminDecks';
 import FlashcardStudy from './pages/FlashcardStudy';
+import Achievements from './pages/Achievements';
+
+import ProtectedRoute from './components/ProtectedRoute';
+
+const STAFF: any = ['ADMIN', 'CURATOR', 'TEACHER'];
 
 export default function App() {
   return (
     <Routes>
       <Route path="/login" element={<Login />} />
-      <Route path="/parent-dashboard" element={<ParentDashboard />} />
 
-      <Route path="/curator" element={<CuratorDashboard />} />
-      <Route path="/curator/messages" element={<CuratorMessages />} />
+      <Route
+        path="/parent-dashboard"
+        element={
+          <ProtectedRoute roles={['PARENT', 'ADMIN']}>
+            <ParentDashboard />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/curator"
+        element={
+          <ProtectedRoute roles={STAFF}>
+            <CuratorDashboard />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/curator/messages"
+        element={
+          <ProtectedRoute roles={STAFF}>
+            <CuratorMessages />
+          </ProtectedRoute>
+        }
+      />
 
       {/* ВСЁ, ЧТО ВНУТРИ ЭТОГО БЛОКА, БУДЕТ С ПАНЕЛЬЮ (LAYOUT) */}
-      <Route path="/" element={<Layout />}>
+      <Route
+        path="/"
+        element={
+          <ProtectedRoute>
+            <Layout />
+          </ProtectedRoute>
+        }
+      >
         <Route index element={<Dashboard />} />
         <Route path="courses" element={<StudentCourses />} />
         <Route path="course/:courseId" element={<CourseThemes />} />
@@ -47,10 +81,10 @@ export default function App() {
         <Route path="profile" element={<Profile />} />
         
         {/* 🔥 АДМИНКА */}
-        <Route path="admin" element={<AdminCourses />} />
-        <Route path="admin/groups" element={<AdminGroups />} /> 
-        <Route path="admin/users" element={<AdminUsers />} />
-        <Route path="admin/decks" element={<AdminDecks />} />
+        <Route path="admin" element={<ProtectedRoute roles={STAFF}><AdminCourses /></ProtectedRoute>} />
+        <Route path="admin/groups" element={<ProtectedRoute roles={['ADMIN', 'CURATOR']}><AdminGroups /></ProtectedRoute>} />
+        <Route path="admin/users" element={<ProtectedRoute roles={['ADMIN']}><AdminUsers /></ProtectedRoute>} />
+        <Route path="admin/decks" element={<ProtectedRoute roles={STAFF}><AdminDecks /></ProtectedRoute>} />
         
         <Route path="schedule" element={<Schedule />} />
         
@@ -60,6 +94,7 @@ export default function App() {
         <Route path="homework/:courseId/theme/:themeId/lesson/:lessonId" element={<HomeworkView />} />
         
         <Route path="cards" element={<Cards />} />
+        <Route path="achievements" element={<Achievements />} />
         <Route path="messages" element={<Messages />} />
         <Route path="settings" element={<Settings />} />
 
@@ -67,8 +102,22 @@ export default function App() {
         <Route path="shop" element={<Shop />} />
       </Route>
 
-      <Route path="homework/:id" element={<HomeworkView />} />
-      <Route path="flashcards" element={<FlashcardStudy />} />
+      <Route
+        path="homework/:id"
+        element={
+          <ProtectedRoute>
+            <HomeworkView />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="flashcards"
+        element={
+          <ProtectedRoute>
+            <FlashcardStudy />
+          </ProtectedRoute>
+        }
+      />
 
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

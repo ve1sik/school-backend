@@ -27,10 +27,12 @@ const userListSelect = {
 export class UserService {
   constructor(private prisma: PrismaService) {}
 
-  async findAll() {
+  async findAll(skip?: number, take?: number) {
     return this.prisma.user.findMany({
       select: userListSelect,
       orderBy: { created_at: 'desc' },
+      ...(skip !== undefined && !Number.isNaN(skip) ? { skip } : {}),
+      ...(take !== undefined && !Number.isNaN(take) ? { take } : {}),
     });
   }
 

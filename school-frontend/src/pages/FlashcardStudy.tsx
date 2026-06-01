@@ -175,10 +175,10 @@ export default function FlashcardStudy() {
 
   // ── HOME SCREEN ──
   if (phase === 'home') return (
-    <div className="h-screen bg-[#F4F7FE] flex gap-6 p-4 md:p-6 overflow-hidden">
+    <div className="min-h-screen lg:h-screen bg-[#F4F7FE] flex flex-col lg:flex-row gap-3 lg:gap-6 p-3 md:p-6 overflow-visible lg:overflow-hidden">
 
       {/* БОКОВАЯ ПАНЕЛЬ — как в CourseView */}
-      <aside className="w-[280px] lg:w-[320px] bg-white rounded-[2rem] border border-gray-100 flex flex-col h-full shrink-0 shadow-sm overflow-hidden">
+      <aside className="w-full lg:w-[280px] xl:w-[320px] bg-white rounded-3xl lg:rounded-[2rem] border border-gray-100 flex flex-col h-auto max-h-[50vh] lg:max-h-none lg:h-full shrink-0 shadow-sm overflow-hidden">
         <div className="p-6 border-b border-gray-100 shrink-0">
           <button onClick={() => navigate(-1)}
             className="flex items-center gap-2 text-gray-400 hover:text-indigo-600 font-black text-[11px] uppercase tracking-wider transition-colors mb-6">
@@ -247,7 +247,7 @@ export default function FlashcardStudy() {
       </aside>
 
       {/* ГЛАВНАЯ ОБЛАСТЬ */}
-      <main className="flex-1 bg-white rounded-[2rem] border border-gray-100 shadow-sm flex flex-col items-center justify-center p-8 overflow-auto">
+      <main className="flex-1 w-full bg-white rounded-3xl lg:rounded-[2rem] border border-gray-100 shadow-sm flex flex-col items-center justify-center p-6 md:p-8 overflow-visible lg:overflow-auto min-h-[50vh] lg:min-h-0">
         <div className="max-w-lg w-full text-center">
           <div className="w-24 h-24 bg-indigo-600 rounded-[2rem] flex items-center justify-center shadow-xl shadow-indigo-200 mx-auto mb-8">
             <Layers className="w-12 h-12 text-white" />

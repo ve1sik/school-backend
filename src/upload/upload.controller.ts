@@ -1,5 +1,6 @@
-import { Controller, Post, Get, Param, Res, UseInterceptors, UploadedFile, HttpException, HttpStatus } from '@nestjs/common';
+import { Controller, Post, Get, Param, Res, UseInterceptors, UploadedFile, HttpException, HttpStatus, UseGuards } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { AuthGuard } from '@nestjs/passport';
 import { diskStorage } from 'multer';
 import { extname, join } from 'path';
 import * as fs from 'fs';
@@ -14,7 +15,8 @@ if (!fs.existsSync(uploadDir)) {
 @Controller('upload')
 export class UploadController {
 
-  // 1. ЗАГРУЗКА (POST) - Сюда летит файл с компа
+  // 1. ЗАГРУЗКА (POST) - Сюда летит файл с компа (только авторизованные)
+  @UseGuards(AuthGuard('jwt'))
   @Post()
   @UseInterceptors(FileInterceptor('file', {
     storage: diskStorage({

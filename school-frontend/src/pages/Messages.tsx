@@ -125,17 +125,17 @@ export default function Messages() {
   if (isLoadingContacts) return <div className="h-full w-full flex items-center justify-center"><Loader2 className="w-12 h-12 animate-spin text-[#5A4BFF]" /></div>;
 
   return (
-    <div className="max-w-7xl mx-auto h-[calc(100vh-100px)] flex flex-col pb-6 pt-4">
-      <div className="mb-6">
-        <h1 className="text-4xl font-black tracking-tight text-gray-900">Сообщения</h1>
+    <div className="max-w-7xl mx-auto h-[calc(100dvh-150px)] md:h-[calc(100vh-100px)] flex flex-col pb-6 pt-2 md:pt-4">
+      <div className="mb-4 md:mb-6">
+        <h1 className="text-2xl md:text-4xl font-black tracking-tight text-gray-900">Сообщения</h1>
       </div>
 
-      <div className="flex-1 flex gap-6 overflow-hidden">
+      <div className="flex-1 flex gap-4 md:gap-6 overflow-hidden">
         
         {/* ЛЕВАЯ ПАНЕЛЬ: СПИСОК ЧАТОВ */}
         <motion.div 
           initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} 
-          className="w-full max-w-[320px] bg-white rounded-[2.5rem] shadow-sm border border-gray-100 flex flex-col overflow-hidden shrink-0"
+          className={`w-full md:max-w-[320px] bg-white rounded-3xl md:rounded-[2.5rem] shadow-sm border border-gray-100 flex-col overflow-hidden shrink-0 ${activeChatId ? 'hidden md:flex' : 'flex'}`}
         >
           <div className="p-6 border-b border-gray-50">
             <button 
@@ -209,26 +209,29 @@ export default function Messages() {
         {/* ПРАВАЯ ПАНЕЛЬ: ОКНО ПЕРЕПИСКИ */}
         <motion.div 
           initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} 
-          className="flex-1 bg-white rounded-[2.5rem] shadow-sm border border-gray-100 flex flex-col overflow-hidden"
+          className={`flex-1 bg-white rounded-3xl md:rounded-[2.5rem] shadow-sm border border-gray-100 flex-col overflow-hidden ${activeChatId ? 'flex' : 'hidden md:flex'}`}
         >
           {activeUser && activeChatId ? (
             <>
-              <div className="p-6 border-b border-gray-50 bg-white flex items-center justify-between z-10 shadow-sm">
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 bg-[#5A4BFF] rounded-full flex items-center justify-center text-white overflow-hidden">
+              <div className="p-4 md:p-6 border-b border-gray-50 bg-white flex items-center justify-between z-10 shadow-sm">
+                <div className="flex items-center gap-3 md:gap-4 min-w-0">
+                  <button onClick={() => setActiveChatId(null)} className="md:hidden p-1.5 -ml-1 text-gray-400 hover:text-gray-900 shrink-0">
+                    <ArrowLeft className="w-5 h-5" />
+                  </button>
+                  <div className="w-10 h-10 md:w-12 md:h-12 bg-[#5A4BFF] rounded-full flex items-center justify-center text-white overflow-hidden shrink-0">
                     {activeUser.avatar ? <img src={getFullUrl(activeUser.avatar)} className="w-full h-full object-cover" alt="ava"/> : <User className="w-5 h-5" />}
                   </div>
-                  <div>
-                    <h3 className="font-black text-lg text-gray-900">{activeUser.name ? `${activeUser.name} ${activeUser.surname || ''}` : activeUser.email}</h3>
+                  <div className="min-w-0">
+                    <h3 className="font-black text-base md:text-lg text-gray-900 truncate">{activeUser.name ? `${activeUser.name} ${activeUser.surname || ''}` : activeUser.email}</h3>
                     <div className="flex items-center gap-1.5 mt-0.5">
                       <span className="text-xs font-bold text-gray-400">{activeUser.role === 'CURATOR' ? 'Куратор' : activeUser.role === 'ADMIN' ? 'Администратор' : 'Студент'}</span>
                     </div>
                   </div>
                 </div>
-                <button onClick={() => setActiveChatId(null)} className="p-3 bg-gray-50 rounded-2xl text-gray-400 hover:text-gray-900 transition-colors"><X className="w-5 h-5" /></button>
+                <button onClick={() => setActiveChatId(null)} className="hidden md:block p-3 bg-gray-50 rounded-2xl text-gray-400 hover:text-gray-900 transition-colors"><X className="w-5 h-5" /></button>
               </div>
 
-              <div className="flex-1 overflow-y-auto p-6 space-y-6 bg-[#F8FAFC] custom-scrollbar flex flex-col">
+              <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-4 md:space-y-6 bg-[#F8FAFC] custom-scrollbar flex flex-col">
                 <AnimatePresence initial={false}>
                   {messages.length === 0 ? (
                      <div className="m-auto text-center text-gray-400 font-medium">Здесь пока нет сообщений.<br/>Напишите первым!</div>
@@ -251,7 +254,7 @@ export default function Messages() {
                 <div ref={messagesEndRef} />
               </div>
 
-              <div className="p-6 bg-white border-t border-gray-50">
+              <div className="p-4 md:p-6 bg-white border-t border-gray-50">
                 <form onSubmit={handleSendMessage} className="relative flex items-center">
                   <input 
                     type="text" value={newMessage} onChange={(e) => setNewMessage(e.target.value)}

@@ -1,10 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import { cachedGet } from '../lib/api';
 import { BookOpen, Loader2, FolderOpen, GraduationCap } from 'lucide-react';
 import { motion, AnimatePresence, type Variants } from 'framer-motion';
-
-const API_URL = 'https://prepodmgy.ru/api';
 
 export default function StudentCourses() {
   const navigate = useNavigate();
@@ -14,19 +12,15 @@ export default function StudentCourses() {
   useEffect(() => {
     const fetchCoursesAndProgress = async () => {
       try {
-        const token = localStorage.getItem('token');
-        
-        // 🔥 СТАВИМ БРОНЮ: Теперь если бэкенд ругнется (например, токен протух), 
-        // код не упадет, а просто вернет пустой массив { data: [] }
-        const [coursesRes, subsRes] = await Promise.all([
-          axios.get(`${API_URL}/courses`, { headers: { Authorization: `Bearer ${token}` } }).catch(() => ({ data: [] })),
-          axios.get(`${API_URL}/submissions/my`, { headers: { Authorization: `Bearer ${token}` } }).catch(() => ({ data: [] }))
+        // 🚀 Общий кеш: повторная навигация не дёргает бэкенд заново
+        const [coursesData, subsData] = await Promise.all([
+          cachedGet('/courses').catch(() => []),
+          cachedGet('/submissions/my').catch(() => []),
         ]);
 
         // 🔥 ЖЕЛЕЗОБЕТОННАЯ ПРОВЕРКА ДАННЫХ
-        // Проверяем, точно ли пришел массив. Если бэкенд завернул ответ в { data: [...] }, достаем оттуда.
-        const rawCourses = Array.isArray(coursesRes.data) ? coursesRes.data : (Array.isArray(coursesRes.data?.data) ? coursesRes.data.data : []);
-        const mySubs = Array.isArray(subsRes.data) ? subsRes.data : (Array.isArray(subsRes.data?.data) ? subsRes.data.data : []);
+        const rawCourses = Array.isArray(coursesData) ? coursesData : (Array.isArray((coursesData as any)?.data) ? (coursesData as any).data : []);
+        const mySubs = Array.isArray(subsData) ? subsData : (Array.isArray((subsData as any)?.data) ? (subsData as any).data : []);
 
         // УМНЫЙ СЧЕТЧИК ПРАКТИКИ
         const coursesWithRealProgress = rawCourses.map((course: any) => {
