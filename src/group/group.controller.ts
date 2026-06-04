@@ -21,11 +21,17 @@ export class GroupController {
     return this.groupService.findAll();
   }
 
-  // 🔥 МАРШРУТ МАГАЗИНА ЗДЕСЬ
-  @Roles('ADMIN', 'CURATOR', 'STUDENT')
+  @Roles('ADMIN', 'CURATOR', 'STUDENT', 'TEACHER')
   @Get('shop')
   findShopGroups() {
     return this.groupService.findShopGroups();
+  }
+
+  @Roles('STUDENT', 'ADMIN', 'CURATOR')
+  @Get('my-applications')
+  getMyApplications(@Request() req) {
+    const userId = req.user.sub || req.user.id;
+    return this.groupService.getMyApplications(userId);
   }
 
   @Roles('ADMIN', 'CURATOR', 'TEACHER', 'STUDENT')
@@ -66,6 +72,37 @@ export class GroupController {
       return this.groupService.enrollStudent(id, body.userId);
     }
     return this.groupService.updateStudents(id, body.studentIds || []);
+  }
+
+  @Roles('STUDENT', 'ADMIN', 'CURATOR')
+  @Post(':id/apply')
+  applyForGroup(
+    @Param('id') id: string,
+    @Request() req,
+    @Body() body: { comment?: string; proof_image?: string },
+  ) {
+    const userId = req.user.sub || req.user.id;
+    return this.groupService.applyForGroup(id, userId, body);
+  }
+
+  @Roles('ADMIN', 'CURATOR')
+  @Get(':id/applications')
+  getApplications(@Param('id') id: string) {
+    return this.groupService.getApplications(id);
+  }
+
+  @Roles('ADMIN', 'CURATOR')
+  @Patch('applications/:appId/approve')
+  approveApplication(@Param('appId') appId: string, @Request() req) {
+    const reviewerId = req.user.sub || req.user.id;
+    return this.groupService.approveApplication(appId, reviewerId);
+  }
+
+  @Roles('ADMIN', 'CURATOR')
+  @Patch('applications/:appId/reject')
+  rejectApplication(@Param('appId') appId: string, @Request() req) {
+    const reviewerId = req.user.sub || req.user.id;
+    return this.groupService.rejectApplication(appId, reviewerId);
   }
 
   @Roles('ADMIN')

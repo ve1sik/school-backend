@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Users, Plus, Trash2, BookOpen, Loader2, Save, X, Edit3, ShieldCheck, UserCircle, Search, UserCheck, CreditCard, Image as ImageIcon, UploadCloud, Tag, Calendar, ListChecks, Percent } from 'lucide-react';
+import { Users, Plus, Trash2, BookOpen, Loader2, Save, X, Edit3, ShieldCheck, UserCircle, Search, UserCheck, CreditCard, Image as ImageIcon, UploadCloud, Tag, Calendar, ListChecks, Percent, CheckCircle2, AlertCircle, Clock, ChevronDown, ChevronUp } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 import Cropper from 'react-easy-crop';
@@ -77,6 +77,12 @@ export default function AdminGroups() {
 
   const [courseSearch, setCourseSearch] = useState('');
   const [studentSearch, setStudentSearch] = useState('');
+  const [selectedPaymentInfo, setSelectedPaymentInfo] = useState('');
+
+  // Заявки на вступление
+  const [applications, setApplications] = useState<any[]>([]);
+  const [applicationsLoading, setApplicationsLoading] = useState(false);
+  const [showApplications, setShowApplications] = useState(false);
 
   const getTokenConfig = () => ({ headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } });
 
@@ -156,10 +162,20 @@ export default function AdminGroups() {
         setSelectedFeatures(["Доступ ко всем урокам", "Проверка ДЗ", "Авторские конспекты"]);
       }
       
-      setSelectedCoverUrl(res.data.cover_url || ''); 
+      setSelectedCoverUrl(res.data.cover_url || '');
+      setSelectedPaymentInfo(res.data.payment_info || '');
       setCourseSearch('');
       setStudentSearch('');
       setShowModal(true);
+      setShowApplications(false);
+      setApplications([]);
+
+      // Загружаем заявки
+      setApplicationsLoading(true);
+      axios.get(`${API_URL}/groups/${groupId}/applications`, getTokenConfig())
+        .then(r => setApplications(r.data || []))
+        .catch(() => {})
+        .finally(() => setApplicationsLoading(false));
     } catch (error) {
       console.error("Ошибка загрузки группы", error);
     }
@@ -230,7 +246,8 @@ export default function AdminGroups() {
           badge: selectedBadge,
           start_date: selectedStartDate,
           features: selectedFeatures.filter(f => f.trim() !== ''),
-          cover_url: selectedCoverUrl
+          cover_url: selectedCoverUrl,
+          payment_info: selectedPaymentInfo || null,
         }, getTokenConfig())
       ]);
       setShowModal(false);
@@ -239,6 +256,26 @@ export default function AdminGroups() {
       console.error("Ошибка сохранения настроек", error);
       alert("Ошибка сохранения.");
     }
+  };
+
+  const handleApproveApp = async (appId: string) => {
+    try {
+      await axios.patch(`${API_URL}/groups/applications/${appId}/approve`, {}, getTokenConfig());
+      setApplications(prev => prev.map(a => a.id === appId ? { ...a, status: 'APPROVED' } : a));
+    } catch { alert('Ошибка одобрения'); }
+  };
+
+  const handleRejectApp = async (appId: string) => {
+    try {
+      await axios.patch(`${API_URL}/groups/applications/${appId}/reject`, {}, getTokenConfig());
+      setApplications(prev => prev.map(a => a.id === appId ? { ...a, status: 'REJECTED' } : a));
+    } catch { alert('Ошибка отклонения'); }
+  };
+
+  const getFullUrl = (url: string) => {
+    if (!url) return '';
+    if (url.startsWith('http')) return url;
+    return `${API_URL.replace('/api', '')}/${url.startsWith('/') ? url.slice(1) : url}`;
   };
 
   const filteredCourses = courses.filter(course => course.title.toLowerCase().includes(courseSearch.toLowerCase()));
@@ -435,6 +472,18 @@ export default function AdminGroups() {
                     </select>
                   </div>
 
+                  <div className="bg-amber-50/50 p-5 rounded-2xl border border-amber-100">
+                    <h4 className="text-[11px] font-black text-amber-600 uppercase tracking-widest mb-3 flex items-center gap-2"><CreditCard className="w-4 h-4" /> Реквизиты для оплаты</h4>
+                    <textarea
+                      value={selectedPaymentInfo}
+                      onChange={e => setSelectedPaymentInfo(e.target.value)}
+                      rows={4}
+                      placeholder={"Например:\nСбербанк: 4276 1234 5678 9012\nПолучатель: Иванов Иван Иванович\nКомментарий: ОГЭ История"}
+                      className="w-full px-4 py-3 bg-white border border-amber-200 rounded-xl font-mono text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-amber-400 resize-none"
+                    />
+                    <p className="text-[10px] text-amber-500 font-bold mt-1.5">Эта информация будет видна ученику при оформлении заявки</p>
+                  </div>
+
                   <button onClick={handleSaveGroupSettings} className="mt-auto w-full py-5 bg-gray-900 hover:bg-[#5A4BFF] text-white rounded-2xl font-black text-lg transition-all active:scale-95 shadow-xl flex items-center justify-center gap-3">
                     <Save className="w-5 h-5" /> ОПУБЛИКОВАТЬ НА ВИТРИНУ
                   </button>
@@ -504,6 +553,88 @@ export default function AdminGroups() {
                   </div>
 
                 </div>
+              </div>
+
+              {/* Заявки на вступление */}
+              <div className="pt-8 border-t border-gray-100">
+                <button
+                  onClick={() => setShowApplications(v => !v)}
+                  className="flex items-center gap-3 w-full text-left mb-4 group"
+                >
+                  <div className="flex items-center gap-2 flex-1">
+                    <h4 className="text-lg font-black text-gray-900">Заявки на вступление</h4>
+                    {applications.filter(a => a.status === 'PENDING').length > 0 && (
+                      <span className="px-2.5 py-0.5 bg-amber-500 text-white rounded-full text-xs font-black">
+                        {applications.filter(a => a.status === 'PENDING').length} новых
+                      </span>
+                    )}
+                  </div>
+                  {applicationsLoading ? (
+                    <Loader2 className="w-4 h-4 animate-spin text-gray-400" />
+                  ) : showApplications ? (
+                    <ChevronUp className="w-5 h-5 text-gray-400" />
+                  ) : (
+                    <ChevronDown className="w-5 h-5 text-gray-400" />
+                  )}
+                </button>
+
+                <AnimatePresence>
+                  {showApplications && (
+                    <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
+                      {applications.length === 0 ? (
+                        <div className="text-center py-8 text-gray-400 font-bold text-sm">Заявок пока нет</div>
+                      ) : (
+                        <div className="space-y-3">
+                          {applications.map(app => (
+                            <div key={app.id} className={`p-4 rounded-2xl border-2 flex flex-col sm:flex-row sm:items-center gap-4 ${
+                              app.status === 'PENDING' ? 'border-amber-200 bg-amber-50/40' :
+                              app.status === 'APPROVED' ? 'border-emerald-200 bg-emerald-50/40' :
+                              'border-gray-200 bg-gray-50/40'
+                            }`}>
+                              <div className="flex items-center gap-3 flex-1 min-w-0">
+                                <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center overflow-hidden shrink-0">
+                                  {app.user?.avatar ? <img src={getFullUrl(app.user.avatar)} alt="" className="w-full h-full object-cover" /> : <UserCircle className="w-6 h-6 text-gray-400" />}
+                                </div>
+                                <div className="min-w-0">
+                                  <p className="font-black text-gray-900 text-sm truncate">{app.user?.name} {app.user?.surname}</p>
+                                  <p className="text-xs text-gray-400 truncate">{app.user?.email}</p>
+                                  {app.comment && <p className="text-xs text-gray-600 mt-1 italic">"{app.comment}"</p>}
+                                </div>
+                              </div>
+
+                              {app.proof_image && (
+                                <a href={getFullUrl(app.proof_image)} target="_blank" rel="noreferrer" className="shrink-0 w-16 h-16 rounded-xl overflow-hidden border border-gray-200 hover:border-indigo-400 transition-colors">
+                                  <img src={getFullUrl(app.proof_image)} alt="Чек" className="w-full h-full object-cover" />
+                                </a>
+                              )}
+
+                              <div className="flex items-center gap-2 shrink-0">
+                                {app.status === 'PENDING' ? (
+                                  <>
+                                    <button onClick={() => handleApproveApp(app.id)} className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl font-black text-xs transition-colors flex items-center gap-1.5">
+                                      <CheckCircle2 className="w-3.5 h-3.5" /> Принять
+                                    </button>
+                                    <button onClick={() => handleRejectApp(app.id)} className="px-4 py-2 bg-rose-500 hover:bg-rose-600 text-white rounded-xl font-black text-xs transition-colors flex items-center gap-1.5">
+                                      <X className="w-3.5 h-3.5" /> Отклонить
+                                    </button>
+                                  </>
+                                ) : app.status === 'APPROVED' ? (
+                                  <span className="flex items-center gap-1.5 text-emerald-600 font-black text-xs px-3 py-2 bg-emerald-50 rounded-xl border border-emerald-200">
+                                    <CheckCircle2 className="w-3.5 h-3.5" /> Принят
+                                  </span>
+                                ) : (
+                                  <span className="flex items-center gap-1.5 text-gray-400 font-black text-xs px-3 py-2 bg-gray-50 rounded-xl border border-gray-200">
+                                    <AlertCircle className="w-3.5 h-3.5" /> Отклонён
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </div>
 
             </motion.div>

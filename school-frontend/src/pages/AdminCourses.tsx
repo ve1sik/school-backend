@@ -1458,9 +1458,9 @@ export default function AdminCourses() {
                   )}
                 </div>
 
-                <div className="w-full xl:w-auto max-w-full shrink-0 bg-gray-50 p-2.5 rounded-2xl border border-gray-100 flex items-center gap-3 xl:ml-auto mr-14 sm:mr-16">
+                <div className="w-full xl:w-auto max-w-full shrink-0 bg-gray-50 p-2.5 rounded-2xl border border-gray-100 flex flex-wrap items-center gap-3 xl:ml-auto mr-14 sm:mr-16">
                    <label className="text-[10px] font-black text-indigo-500 uppercase tracking-widest flex items-center gap-1.5 ml-2 shrink-0">
-                     <Folder className="w-3.5 h-3.5 shrink-0" /> Относится к разделу:
+                     <Folder className="w-3.5 h-3.5 shrink-0" /> Раздел:
                    </label>
                    <select
                      value={selectedCourseForThemes.categoryId || ''}
@@ -1470,6 +1470,19 @@ export default function AdminCourses() {
                      <option value="">Без раздела</option>
                      {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                    </select>
+                   {/* Чекбокс проверки правописания */}
+                   <label className="flex items-center gap-2 cursor-pointer ml-1 select-none group shrink-0" title="Система будет проверять ответы учеников на правописание">
+                     <div className={`w-9 h-5 rounded-full transition-colors relative ${selectedCourseForThemes.spell_check ? 'bg-[#5A4BFF]' : 'bg-gray-200'}`}
+                       onClick={async () => {
+                         const newVal = !selectedCourseForThemes.spell_check;
+                         setSelectedCourseForThemes((prev: any) => ({ ...prev, spell_check: newVal }));
+                         setItems(prev => prev.map(c => c.id === selectedCourseForThemes.id ? { ...c, spell_check: newVal } : c));
+                         try { await axios.patch(`${API_URL}/courses/${selectedCourseForThemes.id}`, { spell_check: newVal }, getTokenConfig()); } catch {}
+                       }}>
+                       <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-all ${selectedCourseForThemes.spell_check ? 'left-4' : 'left-0.5'}`} />
+                     </div>
+                     <span className="text-[11px] font-black text-gray-500 group-hover:text-gray-700 transition-colors uppercase tracking-widest">Орфография</span>
+                   </label>
                 </div>
               </div>
 

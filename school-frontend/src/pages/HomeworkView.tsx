@@ -90,7 +90,7 @@ function ExpandableImage({ src, alt, className = '' }: { src: string, alt?: stri
   );
 }
 
-const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswerToggle, handleTextAnswerChange, handleMatchingChange, handleSubmitTest, submissions }: any) => {
+const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswerToggle, handleTextAnswerChange, handleMatchingChange, handleSubmitTest, submissions, spellErrors, courseSpellCheck }: any) => {
   const [isOpen, setIsOpen] = useState(false);
   const [activeStep, setActiveStep] = useState(0);
 
@@ -502,6 +502,20 @@ const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswer
               placeholder="Введите развернутый ответ..." 
               className={`bg-white rounded-2xl overflow-hidden border transition-all ${isLocked ? 'border-gray-100 opacity-80' : 'border-gray-200 focus-within:border-[#A855F7] focus-within:ring-2 focus-within:ring-[#A855F7]/20'}`}
             />
+            {courseSpellCheck && spellErrors?.[block.id]?.length > 0 && !isLocked && (
+              <div className="mt-2 bg-rose-50 border border-rose-200 rounded-2xl p-4">
+                <p className="text-xs font-black text-rose-600 uppercase tracking-widest mb-2">⚠️ Возможные ошибки правописания</p>
+                <div className="flex flex-wrap gap-2">
+                  {spellErrors[block.id].map((err: any, i: number) => (
+                    <div key={i} className="bg-white border border-rose-200 rounded-xl px-3 py-1.5 text-xs">
+                      <span className="font-black text-rose-600 line-through mr-1">{err.word}</span>
+                      <span className="text-emerald-600 font-black">→ {err.suggestion}</span>
+                      {err.rule && <span className="block text-gray-400 text-[10px] mt-0.5">{err.rule}</span>}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -540,6 +554,8 @@ export default function HomeworkView() {
   const [attemptsUsed, setAttemptsUsed] = useState<Record<string, number>>(() => getSafeLocal(attemptsKey, {}));
   
   const [submissions, setSubmissions] = useState<any[]>([]);
+  const [courseSpellCheck, setCourseSpellCheck] = useState(false);
+  const [spellErrors, setSpellErrors] = useState<Record<string, import('../utils/spellCheck').SpellError[]>>({});
 
   useEffect(() => {
     const fetchHomework = async () => {
@@ -562,6 +578,7 @@ export default function HomeworkView() {
                 foundLesson = lesson;
                 foundLesson.themeTitle = theme.title;
                 setSourceCourseId(course.id);
+                setCourseSpellCheck(!!course.spell_check);
               }
             });
           });
@@ -635,6 +652,15 @@ export default function HomeworkView() {
       delete newResults[blockId];
       setTestResults(newResults);
       localStorage.setItem(resultsKey, JSON.stringify(newResults));
+    }
+
+    if (courseSpellCheck && text.length > 5) {
+      import('../utils/spellCheck').then(({ checkSpelling }) => {
+        const errs = checkSpelling(text);
+        setSpellErrors(prev => ({ ...prev, [blockId]: errs }));
+      });
+    } else {
+      setSpellErrors(prev => { const n = { ...prev }; delete n[blockId]; return n; });
     }
   };
 
@@ -984,6 +1010,8 @@ export default function HomeworkView() {
                   handleAnswerToggle={handleAnswerToggle} handleTextAnswerChange={handleTextAnswerChange}
                   handleMatchingChange={handleMatchingChange} handleSubmitTest={handleSubmitTest} 
                   submissions={submissions}
+                  spellErrors={spellErrors}
+                  courseSpellCheck={courseSpellCheck}
                 />
               ))}
             </div>

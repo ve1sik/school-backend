@@ -41,6 +41,12 @@ enum EventType {
   OFFLINE
 }
 
+enum ApplicationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
 // --- ТАБЛИЦЫ ---
 model User {
   id            String  @id @default(uuid())
@@ -77,6 +83,7 @@ model User {
   sent_messages     Message[] @relation("SentMessages")
   received_messages Message[] @relation("ReceivedMessages")
   flashcard_progress FlashcardProgress[]
+  applications       GroupApplication[]
 
   subjects          Subject[] @relation("TeacherSubjects")
 
@@ -85,15 +92,18 @@ model User {
 
 
 model Group {
-  id          String   @id @default(uuid())
-  title       String
-  price       Int      @default(0) 
-  old_price   Int?     @default(0)    // 🔥 Новое: Старая цена для скидок
-  start_date  String?                 // 🔥 Новое: Дата старта (напр: "15 сентября")
-  badge       String?                 // 🔥 Новое: Бейдж (напр: "🔥 ХИТ")
-  features    String[] @default(["Доступ ко всем урокам", "Проверка ДЗ", "Авторские конспекты"]) // 🔥 Новое: Кастомные буллиты
-  is_public   Boolean  @default(true) 
-  cover_url   String?  
+  id           String   @id @default(uuid())
+  title        String
+  price        Int      @default(0) 
+  old_price    Int?     @default(0)
+  start_date   String?
+  badge        String?
+  features     String[] @default(["Доступ ко всем урокам", "Проверка ДЗ", "Авторские конспекты"])
+  is_public    Boolean  @default(true) 
+  cover_url    String?
+
+  // Реквизиты для оплаты (номер счёта, карты, комментарий)
+  payment_info String?  @db.Text
 
   curator_id  String?
   curator     User?    @relation("CuratorGroups", fields: [curator_id], references: [id])
@@ -104,6 +114,7 @@ model Group {
   events      Event[]  
 
   theme_access GroupThemeAccess[]
+  applications GroupApplication[]
 
   @@map("groups")
 }
@@ -125,12 +136,12 @@ model GroupThemeAccess {
 }
 
 model Course {
-  id          String  @id @default(uuid())
-  title       String
-  description String? @db.Text
-  cover_url   String?
+  id              String   @id @default(uuid())
+  title           String
+  description     String?  @db.Text
+  cover_url       String?
+  spell_check     Boolean  @default(false)
 
-  // 🔥 НОВОЕ: Привязка курса к предмету (Русский, История и тд)
   subject_id  String?
   subject     Subject? @relation(fields: [subject_id], references: [id], onDelete: Cascade)
 
@@ -256,6 +267,25 @@ model Enrollment {
   @@index([user_id])
   @@index([course_id])
   @@map("enrollments")
+}
+
+model GroupApplication {
+  id          String            @id @default(uuid())
+  group_id    String
+  user_id     String
+  status      ApplicationStatus @default(PENDING)
+  comment     String?           @db.Text
+  proof_image String?           @db.Text
+  reviewed_by String?
+  created_at  DateTime          @default(now())
+  reviewed_at DateTime?
+
+  group Group @relation(fields: [group_id], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@unique([group_id, user_id])
+  @@index([group_id, status])
+  @@map("group_applications")
 }
 
 model Submission {

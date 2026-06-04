@@ -225,16 +225,61 @@ export class GroupService {
 
   async findShopGroups() {
     return this.prisma.group.findMany({
-      where: { 
-        is_public: true,
-        price: { gt: 0 }
-      },
+      where: { is_public: true },
       include: {
-        curator: { select: { name: true, surname: true, avatar: true } }
-      }
+        curator: { select: { name: true, surname: true, avatar: true } },
+        courses: { select: { id: true, title: true, cover_url: true, description: true } },
+        _count: { select: { students: true } },
+      },
     });
   }
-  // 🔥 ЛОГИКА ЗАЧИСЛЕНИЯ ПОСЛЕ ПОКУПКИ
+
+  async applyForGroup(groupId: string, userId: string, data: { comment?: string; proof_image?: string }) {
+    const group = await this.prisma.group.findFirst({
+      where: { id: groupId, students: { some: { id: userId } } },
+    });
+    if (group) throw new Error('Вы уже являетесь участником этой группы');
+
+    return this.prisma.groupApplication.upsert({
+      where: { group_id_user_id: { group_id: groupId, user_id: userId } },
+      create: { group_id: groupId, user_id: userId, comment: data.comment, proof_image: data.proof_image },
+      update: { comment: data.comment, proof_image: data.proof_image, status: 'PENDING', reviewed_at: null },
+    });
+  }
+
+  async getApplications(groupId: string) {
+    return this.prisma.groupApplication.findMany({
+      where: { group_id: groupId },
+      include: {
+        user: { select: { id: true, name: true, surname: true, email: true, avatar: true } },
+      },
+      orderBy: { created_at: 'desc' },
+    });
+  }
+
+  async getMyApplications(userId: string) {
+    return this.prisma.groupApplication.findMany({
+      where: { user_id: userId },
+      select: { group_id: true, status: true },
+    });
+  }
+
+  async approveApplication(appId: string, reviewerId: string) {
+    const app = await this.prisma.groupApplication.update({
+      where: { id: appId },
+      data: { status: 'APPROVED', reviewed_by: reviewerId, reviewed_at: new Date() },
+    });
+    await this.enrollStudent(app.group_id, app.user_id);
+    return app;
+  }
+
+  async rejectApplication(appId: string, reviewerId: string) {
+    return this.prisma.groupApplication.update({
+      where: { id: appId },
+      data: { status: 'REJECTED', reviewed_by: reviewerId, reviewed_at: new Date() },
+    });
+  }
+
   async enrollStudent(groupId: string, studentId: string) {
     // 1. Привязываем ученика к группе
     const group = await this.prisma.group.update({
