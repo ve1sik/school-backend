@@ -1649,13 +1649,22 @@ export default function AdminCourses() {
                             {/* ДАТЫ УРОКА */}
                             <div className="flex flex-wrap gap-4 mb-6 p-4 bg-gray-50 rounded-2xl border border-gray-100">
                               <div className="flex-1 min-w-[150px]">
-                                <label className="text-[10px] font-black text-amber-600 uppercase tracking-widest mb-1 block">📅 Открыть с</label>
+                                <label className="text-[10px] font-black text-amber-600 uppercase tracking-widest mb-1 block">📅 Открыть с (дата открытия)</label>
                                 <input type="datetime-local" value={lessonUnlockDate} onChange={e => setLessonUnlockDate(e.target.value)} className="w-full px-3 py-2 bg-white border border-amber-200 rounded-xl text-sm font-bold text-gray-700 outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-100 transition-all" />
+                                <p className="text-[10px] text-gray-400 mt-1">Урок откроется для учеников с этой даты</p>
                               </div>
-                              <div className="flex-1 min-w-[150px]">
-                                <label className="text-[10px] font-black text-rose-600 uppercase tracking-widest mb-1 block">⏰ Срок сдачи</label>
-                                <input type="datetime-local" value={lessonDeadline} onChange={e => setLessonDeadline(e.target.value)} className="w-full px-3 py-2 bg-white border border-rose-200 rounded-xl text-sm font-bold text-gray-700 outline-none focus:border-rose-400 focus:ring-2 focus:ring-rose-100 transition-all" />
-                              </div>
+                              {hasHomeworkSection && (
+                                <div className="flex-1 min-w-[150px]">
+                                  <label className="text-[10px] font-black text-rose-600 uppercase tracking-widest mb-1 block">⏰ Срок сдачи ДЗ</label>
+                                  <input type="datetime-local" value={lessonDeadline} onChange={e => setLessonDeadline(e.target.value)} className="w-full px-3 py-2 bg-white border border-rose-200 rounded-xl text-sm font-bold text-gray-700 outline-none focus:border-rose-400 focus:ring-2 focus:ring-rose-100 transition-all" />
+                                  <p className="text-[10px] text-gray-400 mt-1">Дедлайн для домашнего задания</p>
+                                </div>
+                              )}
+                              {!hasHomeworkSection && (
+                                <div className="flex-1 min-w-[150px] flex items-center justify-center">
+                                  <p className="text-[11px] font-bold text-gray-400 text-center">Дедлайн появится после добавления ДЗ</p>
+                                </div>
+                              )}
                             </div>
 
                             {/* РЕНДЕР ОСНОВНЫХ БЛОКОВ */}

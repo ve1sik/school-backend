@@ -47,7 +47,7 @@ export class DeckService {
     return { success: true };
   }
 
-  async addCard(deckId: string, data: { front: string; back: string; order_index?: number }) {
+  async addCard(deckId: string, data: { front: string; back: string; front_image?: string; back_image?: string; order_index?: number }) {
     const deck = await this.prisma.deck.findUnique({ where: { id: deckId } });
     if (!deck) throw new NotFoundException('Колода не найдена');
 
@@ -57,12 +57,14 @@ export class DeckService {
         deck_id: deckId,
         front: data.front,
         back: data.back,
+        front_image: data.front_image ?? null,
+        back_image: data.back_image ?? null,
         order_index: data.order_index ?? count,
       },
     });
   }
 
-  async updateCard(cardId: string, data: { front?: string; back?: string }) {
+  async updateCard(cardId: string, data: { front?: string; back?: string; front_image?: string | null; back_image?: string | null }) {
     const card = await this.prisma.flashcard.findUnique({ where: { id: cardId } });
     if (!card) throw new NotFoundException('Карточка не найдена');
     return this.prisma.flashcard.update({ where: { id: cardId }, data });
@@ -75,7 +77,7 @@ export class DeckService {
     return { success: true };
   }
 
-  async bulkSaveCards(deckId: string, cards: { front: string; back: string }[]) {
+  async bulkSaveCards(deckId: string, cards: { front: string; back: string; front_image?: string; back_image?: string }[]) {
     const deck = await this.prisma.deck.findUnique({ where: { id: deckId } });
     if (!deck) throw new NotFoundException('Колода не найдена');
 
@@ -86,6 +88,8 @@ export class DeckService {
         deck_id: deckId,
         front: c.front,
         back: c.back,
+        front_image: c.front_image ?? null,
+        back_image: c.back_image ?? null,
         order_index: i,
       })),
     });

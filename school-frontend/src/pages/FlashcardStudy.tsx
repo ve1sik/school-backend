@@ -322,17 +322,33 @@ export default function FlashcardStudy() {
               >
                 {/* FRONT */}
                 <div style={{ backfaceVisibility: 'hidden', position: 'absolute', inset: 0 }}
-                  className="bg-white rounded-[2rem] flex flex-col items-center justify-center p-8 shadow-2xl shadow-black/30">
-                  <div className="absolute top-4 left-4 px-3 py-1 bg-indigo-50 rounded-full text-indigo-500 text-xs font-black">Вопрос</div>
-                  <p className="text-2xl md:text-3xl font-black text-gray-900 text-center leading-tight">{current.front}</p>
-                  <p className="mt-6 text-sm text-gray-400 font-medium">Нажми, чтобы увидеть ответ</p>
+                  className="bg-white rounded-[2rem] flex flex-col items-center justify-center p-8 shadow-2xl shadow-black/30 overflow-hidden">
+                  <div className="absolute top-4 left-4 px-3 py-1 bg-indigo-50 rounded-full text-indigo-500 text-xs font-black z-10">Вопрос</div>
+                  {current.front_image && (
+                    <img
+                      src={current.front_image.startsWith('http') ? current.front_image : `https://prepodmgy.ru/${current.front_image}`}
+                      alt="front"
+                      className="max-h-36 max-w-full object-contain rounded-xl mb-3"
+                    />
+                  )}
+                  {current.front && <p className="text-2xl md:text-3xl font-black text-gray-900 text-center leading-tight">{current.front}</p>}
+                  {!current.front && !current.front_image && <p className="text-gray-300 font-bold">—</p>}
+                  <p className="mt-4 text-sm text-gray-400 font-medium">Нажми, чтобы увидеть ответ</p>
                 </div>
 
                 {/* BACK */}
                 <div style={{ backfaceVisibility: 'hidden', transform: 'rotateY(180deg)', position: 'absolute', inset: 0 }}
-                  className="bg-gradient-to-br from-indigo-600 to-violet-600 rounded-[2rem] flex flex-col items-center justify-center p-8 shadow-2xl shadow-black/30">
-                  <div className="absolute top-4 left-4 px-3 py-1 bg-white/20 rounded-full text-white text-xs font-black">Ответ</div>
-                  <p className="text-2xl md:text-3xl font-black text-white text-center leading-tight">{current.back}</p>
+                  className="bg-gradient-to-br from-indigo-600 to-violet-600 rounded-[2rem] flex flex-col items-center justify-center p-8 shadow-2xl shadow-black/30 overflow-hidden">
+                  <div className="absolute top-4 left-4 px-3 py-1 bg-white/20 rounded-full text-white text-xs font-black z-10">Ответ</div>
+                  {current.back_image && (
+                    <img
+                      src={current.back_image.startsWith('http') ? current.back_image : `https://prepodmgy.ru/${current.back_image}`}
+                      alt="back"
+                      className="max-h-36 max-w-full object-contain rounded-xl mb-3"
+                    />
+                  )}
+                  {current.back && <p className="text-2xl md:text-3xl font-black text-white text-center leading-tight">{current.back}</p>}
+                  {!current.back && !current.back_image && <p className="text-white/50 font-bold">—</p>}
                 </div>
               </motion.div>
             </div>

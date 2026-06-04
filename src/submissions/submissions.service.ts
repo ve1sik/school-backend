@@ -21,6 +21,7 @@ export class SubmissionsService {
         : sub.user.email || 'Ученик',
       courseName: sub.lesson?.theme?.course?.title || 'Неизвестный курс',
       lessonTitle: sub.lesson?.title || 'Неизвестный урок',
+      lessonId: sub.lesson_id || sub.lesson?.id || null,
       question: sub.question,
       answer: sub.answer,
       maxScore: sub.max_score,
@@ -98,8 +99,24 @@ export class SubmissionsService {
     }
   }
 
-  async getSubmissionsByStatus(status: 'PENDING' | 'GRADED') {
-    const where =
+  async getSubmissionsByStatus(
+    status: 'PENDING' | 'GRADED',
+    requesterId?: string,
+    requesterRole?: string,
+  ) {
+    // Если куратор — ограничиваем только студентами его групп
+    let studentIdsFilter: string[] | undefined;
+    if (requesterRole === 'CURATOR' && requesterId) {
+      const groups = await this.prisma.group.findMany({
+        where: { curator_id: requesterId },
+        select: { students: { select: { id: true } } },
+      });
+      studentIdsFilter = groups.flatMap((g) => g.students.map((s) => s.id));
+      // Нет групп — нет работ
+      if (studentIdsFilter.length === 0) return [];
+    }
+
+    const statusClause =
       status === 'PENDING'
         ? {
             OR: [
@@ -111,6 +128,10 @@ export class SubmissionsService {
             ],
           }
         : { status: 'GRADED' as const };
+
+    const where = studentIdsFilter
+      ? { ...statusClause, user_id: { in: studentIdsFilter } }
+      : statusClause;
 
     const subs = await this.prisma.submission.findMany({
       where,

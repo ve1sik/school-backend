@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { BookOpen, Plus, Trash2, Edit3, ChevronRight, Layers, X, Check, GripVertical, Loader2, Save } from 'lucide-react';
+import { BookOpen, Plus, Trash2, Edit3, ChevronRight, Layers, X, Check, GripVertical, Loader2, Save, Image as ImageIcon, UploadCloud } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
@@ -10,6 +10,8 @@ interface Flashcard {
   id?: string;
   front: string;
   back: string;
+  front_image?: string;
+  back_image?: string;
 }
 
 interface Deck {
@@ -76,8 +78,22 @@ export default function AdminDecks() {
     }
   };
 
-  const handleCardChange = (idx: number, field: 'front' | 'back', value: string) => {
+  const handleCardChange = (idx: number, field: 'front' | 'back' | 'front_image' | 'back_image', value: string) => {
     setCards((prev) => prev.map((c, i) => (i === idx ? { ...c, [field]: value } : c)));
+  };
+
+  const handleCardImageUpload = async (idx: number, field: 'front_image' | 'back_image', file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    try {
+      const res = await axios.post(`${API_URL}/upload`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data', Authorization: `Bearer ${localStorage.getItem('token')}` },
+      });
+      const url = res.data.url;
+      handleCardChange(idx, field, url);
+    } catch {
+      showToast('Ошибка загрузки изображения', 'error');
+    }
   };
 
   const addCard = () => setCards((prev) => [...prev, { front: '', back: '' }]);
@@ -89,7 +105,7 @@ export default function AdminDecks() {
 
   const saveCards = async () => {
     if (!selectedDeck) return;
-    const valid = cards.filter((c) => c.front.trim() && c.back.trim());
+    const valid = cards.filter((c) => c.front.trim() || c.front_image);
     if (!valid.length) { showToast('Заполните хотя бы одну карточку', 'error'); return; }
 
     setIsSaving(true);
@@ -241,39 +257,74 @@ export default function AdminDecks() {
               </button>
             </div>
 
-            {/* HEADER */}
-            <div className="grid grid-cols-[1fr_1fr_40px] gap-4 px-4 mb-3">
-              <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Вопрос (лицевая)</span>
-              <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Ответ (оборотная)</span>
-              <span />
-            </div>
-
             {/* CARDS LIST */}
-            <div className="space-y-3">
+            <div className="space-y-4">
               {cards.map((card, idx) => (
                 <motion.div key={idx} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
-                  className="grid grid-cols-[1fr_1fr_40px] gap-4 bg-white rounded-2xl p-4 border border-gray-100 shadow-sm items-start">
-                  <div className="relative">
-                    <span className="absolute top-2 left-3 text-xs font-black text-gray-300">{idx + 1}</span>
-                    <textarea
-                      value={card.front}
-                      onChange={(e) => handleCardChange(idx, 'front', e.target.value)}
-                      placeholder="Вопрос / термин / дата..."
-                      rows={2}
-                      className="w-full pt-6 px-3 pb-2 bg-gray-50 rounded-xl resize-none outline-none focus:bg-white focus:ring-2 focus:ring-indigo-200 transition-all text-sm font-medium text-gray-800 placeholder:text-gray-300 border border-transparent focus:border-indigo-400"
-                    />
+                  className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
+                  <div className="flex items-center justify-between mb-4">
+                    <span className="text-xs font-black text-gray-400">Карточка {idx + 1}</span>
+                    <button onClick={() => removeCard(idx)} disabled={cards.length === 1}
+                      className="p-1.5 text-gray-300 hover:text-red-400 transition-colors disabled:opacity-30">
+                      <Trash2 className="w-4 h-4" />
+                    </button>
                   </div>
-                  <textarea
-                    value={card.back}
-                    onChange={(e) => handleCardChange(idx, 'back', e.target.value)}
-                    placeholder="Ответ..."
-                    rows={2}
-                    className="w-full p-3 bg-gray-50 rounded-xl resize-none outline-none focus:bg-white focus:ring-2 focus:ring-emerald-200 transition-all text-sm font-medium text-gray-800 placeholder:text-gray-300 border border-transparent focus:border-emerald-400"
-                  />
-                  <button onClick={() => removeCard(idx)} disabled={cards.length === 1}
-                    className="mt-1 p-2 text-gray-300 hover:text-red-400 transition-colors disabled:opacity-30">
-                    <Trash2 className="w-4 h-4" />
-                  </button>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* ЛИЦЕВАЯ СТОРОНА */}
+                    <div className="space-y-2">
+                      <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest">Лицевая сторона</p>
+                      {card.front_image && (
+                        <div className="relative group">
+                          <img src={card.front_image.startsWith('http') ? card.front_image : `${API_URL.replace('/api','')}/${card.front_image}`}
+                            alt="front" className="w-full h-32 object-cover rounded-xl border border-gray-200" />
+                          <button type="button" onClick={() => handleCardChange(idx, 'front_image', '')}
+                            className="absolute top-2 right-2 p-1 bg-white/90 rounded-full text-red-500 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      )}
+                      <textarea
+                        value={card.front}
+                        onChange={(e) => handleCardChange(idx, 'front', e.target.value)}
+                        placeholder="Вопрос / термин / дата…"
+                        rows={2}
+                        className="w-full p-3 bg-gray-50 rounded-xl resize-none outline-none focus:bg-white focus:ring-2 focus:ring-indigo-200 transition-all text-sm font-medium text-gray-800 placeholder:text-gray-300 border border-transparent focus:border-indigo-400"
+                      />
+                      <label className="flex items-center gap-2 px-3 py-2 bg-indigo-50 border border-indigo-100 rounded-xl text-xs font-bold text-indigo-500 cursor-pointer hover:bg-indigo-100 transition-colors w-fit">
+                        <ImageIcon className="w-3.5 h-3.5" />
+                        {card.front_image ? 'Заменить картинку' : 'Добавить картинку'}
+                        <input type="file" accept="image/*" className="hidden"
+                          onChange={e => { if (e.target.files?.[0]) handleCardImageUpload(idx, 'front_image', e.target.files[0]); }} />
+                      </label>
+                    </div>
+                    {/* ОБОРОТНАЯ СТОРОНА */}
+                    <div className="space-y-2">
+                      <p className="text-[10px] font-black text-emerald-400 uppercase tracking-widest">Оборотная сторона (ответ)</p>
+                      {card.back_image && (
+                        <div className="relative group">
+                          <img src={card.back_image.startsWith('http') ? card.back_image : `${API_URL.replace('/api','')}/${card.back_image}`}
+                            alt="back" className="w-full h-32 object-cover rounded-xl border border-gray-200" />
+                          <button type="button" onClick={() => handleCardChange(idx, 'back_image', '')}
+                            className="absolute top-2 right-2 p-1 bg-white/90 rounded-full text-red-500 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      )}
+                      <textarea
+                        value={card.back}
+                        onChange={(e) => handleCardChange(idx, 'back', e.target.value)}
+                        placeholder="Ответ…"
+                        rows={2}
+                        className="w-full p-3 bg-gray-50 rounded-xl resize-none outline-none focus:bg-white focus:ring-2 focus:ring-emerald-200 transition-all text-sm font-medium text-gray-800 placeholder:text-gray-300 border border-transparent focus:border-emerald-400"
+                      />
+                      <label className="flex items-center gap-2 px-3 py-2 bg-emerald-50 border border-emerald-100 rounded-xl text-xs font-bold text-emerald-500 cursor-pointer hover:bg-emerald-100 transition-colors w-fit">
+                        <ImageIcon className="w-3.5 h-3.5" />
+                        {card.back_image ? 'Заменить картинку' : 'Добавить картинку'}
+                        <input type="file" accept="image/*" className="hidden"
+                          onChange={e => { if (e.target.files?.[0]) handleCardImageUpload(idx, 'back_image', e.target.files[0]); }} />
+                      </label>
+                    </div>
+                  </div>
                 </motion.div>
               ))}
             </div>

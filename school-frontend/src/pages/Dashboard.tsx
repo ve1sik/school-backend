@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Activity, Loader2, PenTool, AlertCircle, CheckSquare, Mic,
   Target, X, BookOpen, ChevronRight, TrendingDown, Layers, List, BarChart2,
-  PanelRightOpen, GraduationCap, ChevronDown, ChevronUp, Star,
+  PanelRightOpen, Star,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { cachedGet } from '../lib/api';
@@ -45,66 +45,6 @@ type ScoreChartRow = {
   taskCount: number;
 };
 
-type GlobalOverview = {
-  averageScore: number;
-  coursesWithStats: number;
-  totalCourses: number;
-  totalModules: number;
-  totalSubmissions: number;
-  weakSpotsCount: number;
-  totalEarned: number;
-  totalMax: number;
-  breakdown: { tests: number; written: number; oral: number };
-};
-
-function buildGlobalOverview(
-  map: Record<string, CourseStats>,
-  courses: any[],
-): GlobalOverview | null {
-  const list = Object.values(map);
-  if (list.length === 0) return null;
-
-  let weightedSum = 0;
-  let moduleCount = 0;
-  let totalSubs = 0;
-  let weakCount = 0;
-  let totalEarned = 0;
-  let totalMax = 0;
-  let bTests = 0;
-  let bWritten = 0;
-  let bOral = 0;
-
-  list.forEach((s) => {
-    const n = s.modules.length || 1;
-    weightedSum += s.averageScore * n;
-    moduleCount += s.modules.length;
-    totalSubs += s.totalSubmissions;
-    weakCount += s.weakSpots.length;
-    totalEarned += s.totalEarned;
-    totalMax += s.totalMax;
-    bTests += s.breakdown.tests * n;
-    bWritten += s.breakdown.written * n;
-    bOral += s.breakdown.oral * n;
-  });
-
-  const denom = moduleCount || list.length;
-
-  return {
-    averageScore: totalMax > 0 ? safePercent(totalEarned, totalMax) : Math.round(weightedSum / denom),
-    coursesWithStats: list.length,
-    totalCourses: courses.length,
-    totalModules: moduleCount,
-    totalSubmissions: totalSubs,
-    weakSpotsCount: weakCount,
-    totalEarned,
-    totalMax,
-    breakdown: {
-      tests: Math.round(bTests / denom),
-      written: Math.round(bWritten / denom),
-      oral: Math.round(bOral / denom),
-    },
-  };
-}
 
 function ScoreTable({ data }: { data: ScoreChartRow[] }) {
   const sorted = [...data].sort((a, b) => a.orderIndex - b.orderIndex);
@@ -164,6 +104,8 @@ type ModuleStats = {
   earned: number;
   max: number;
   breakdown: { tests: number; written: number; oral: number };
+  earnedByType: { tests: number; written: number; oral: number };
+  maxByType: { tests: number; written: number; oral: number };
   progressData: ScoreChartRow[];
   weakSpots: WeakSpot[];
 };
@@ -175,6 +117,8 @@ type CourseStats = {
   totalEarned: number;
   totalMax: number;
   breakdown: { tests: number; written: number; oral: number };
+  earnedByType: { tests: number; written: number; oral: number };
+  maxByType: { tests: number; written: number; oral: number };
   modules: ModuleStats[];
   progressData: ScoreChartRow[];
   weakSpots: WeakSpot[];
@@ -328,6 +272,8 @@ function buildCourseStats(course: any, mySubs: any[]): CourseStats | null {
                   written: Math.round(pWritten),
           oral: Math.round(pOral),
                 },
+        earnedByType: { tests: t_tests.e, written: t_written.e, oral: t_oral.e },
+        maxByType: { tests: t_tests.m, written: t_written.m, oral: t_oral.m },
         progressData: themeLessonsProgress,
         weakSpots: themeWeakSpots,
               });
@@ -373,9 +319,11 @@ function buildCourseStats(course: any, mySubs: any[]): CourseStats | null {
     totalEarned: courseEarned,
     totalMax: courseMax,
     totalSubmissions: courseSubs.length,
-          counts: { tests: g_tests.count, written: g_written.count, oral: g_oral.count },
+    counts: { tests: g_tests.count, written: g_written.count, oral: g_oral.count },
     breakdown: { tests: globalPTests, written: globalPWritten, oral: globalPOral },
-          modules: modulesList,
+    earnedByType: { tests: g_tests.e, written: g_written.e, oral: g_oral.e },
+    maxByType: { tests: g_tests.m, written: g_written.m, oral: g_oral.m },
+    modules: modulesList,
     progressData: globalProgressData,
     weakSpots: courseWeakSpots.slice(0, 12),
     aiReport,
@@ -441,8 +389,8 @@ export default function Dashboard() {
   const [activeTab, setActiveTab] = useState<string>('all');
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [showCourseDrawer, setShowCourseDrawer] = useState(false);
-  const [globalOverviewOpen, setGlobalOverviewOpen] = useState(false);
-  const [upcomingDeadlines, setUpcomingDeadlines] = useState<any[]>([]);
+  // drill-down: выбранный урок внутри модуля
+  const [selectedLessonRow, setSelectedLessonRow] = useState<ScoreChartRow | null>(null);
 
   useEffect(() => {
     const fetchRealStats = async () => {
@@ -460,23 +408,6 @@ export default function Dashboard() {
         ]);
         const coursesRes = { data: coursesData };
         const subsRes = { data: subsData };
-
-        const rawCoursesForDl = Array.isArray(coursesRes.data) ? coursesRes.data : [];
-        const now = Date.now();
-        const allDeadlines: any[] = [];
-        rawCoursesForDl.forEach((c: any) => {
-          (c.themes || []).forEach((t: any) => {
-            if (t.deadline) allDeadlines.push({ label: `Модуль: ${t.title}`, course: c.title, deadline: t.deadline, courseId: c.id, themeId: t.id });
-            (t.lessons || []).forEach((l: any) => {
-              if (l.deadline) allDeadlines.push({ label: l.title, course: c.title, deadline: l.deadline, courseId: c.id, themeId: t.id, lessonId: l.id });
-            });
-          });
-        });
-        const deadlines = allDeadlines
-          .map(item => ({ ...item, daysLeft: Math.ceil((new Date(item.deadline).getTime() - now) / 86400000) }))
-          .sort((a, b) => a.daysLeft - b.daysLeft)
-          .slice(0, 6);
-        setUpcomingDeadlines(deadlines);
 
         const rawCourses = Array.isArray(coursesRes.data) ? coursesRes.data : [];
         const mySubs = Array.isArray(subsRes.data) ? subsRes.data : [];
@@ -509,15 +440,29 @@ export default function Dashboard() {
 
   const selectedStats = courseStatsMap[selectedCourseId];
   const availableModules = selectedStats?.modules ?? [];
-  const currentData =
-    activeTab === 'all'
-      ? selectedStats
-      : availableModules.find((m) => m.id === activeTab) ?? selectedStats;
+  const activeModule = activeTab !== 'all' ? availableModules.find((m) => m.id === activeTab) ?? null : null;
+
+  // Если выбран конкретный урок в модуле, формируем синтетические данные для него
+  const currentData = (() => {
+    if (selectedLessonRow && activeModule) {
+      return {
+        averageScore: selectedLessonRow.score,
+        totalEarned: selectedLessonRow.earned,
+        totalMax: selectedLessonRow.max,
+        breakdown: { tests: selectedLessonRow.score, written: selectedLessonRow.score, oral: 0 },
+        earnedByType: { tests: selectedLessonRow.earned, written: 0, oral: 0 },
+        maxByType: { tests: selectedLessonRow.max, written: 0, oral: 0 },
+        progressData: [],
+      } as any;
+    }
+    if (activeTab === 'all') return selectedStats;
+    return activeModule ?? selectedStats;
+  })();
 
   const currentWeakSpots =
     activeTab === 'all'
       ? selectedStats?.weakSpots ?? []
-      : availableModules.find((m) => m.id === activeTab)?.weakSpots ?? [];
+      : activeModule?.weakSpots ?? [];
 
   const handleOpenWeakSpot = (spot: WeakSpot) => {
     if (spot.isHomework) {
@@ -530,6 +475,7 @@ export default function Dashboard() {
   const handleCourseChange = (courseId: string) => {
     setSelectedCourseId(courseId);
     setActiveTab('all');
+    setSelectedLessonRow(null);
     setShowCourseDrawer(false);
   };
 
@@ -538,10 +484,18 @@ export default function Dashboard() {
     [courses, courseStatsMap],
   );
 
-  const globalOverview = useMemo(
-    () => buildGlobalOverview(courseStatsMap, courses),
-    [courseStatsMap, courses],
-  );
+  // Модули для повторения (<50% по всем курсам)
+  const weakModules = useMemo(() => {
+    const result: { courseTitle: string; courseId: string; module: ModuleStats }[] = [];
+    Object.values(courseStatsMap).forEach(cs => {
+      cs.modules.forEach(m => {
+        if (m.averageScore < 50) {
+          result.push({ courseTitle: cs.title, courseId: cs.id, module: m });
+        }
+      });
+    });
+    return result.sort((a, b) => a.module.averageScore - b.module.averageScore);
+  }, [courseStatsMap]);
 
   const isCourseView = activeTab === 'all';
   const selectedCourse = courses.find((c) => c.id === selectedCourseId);
@@ -580,13 +534,6 @@ export default function Dashboard() {
   if (!selectedStats) {
     return (
       <div className="max-w-7xl mx-auto p-8 bg-[#F4F7FE] min-h-screen">
-        {globalOverview && (
-          <div className="mb-8 p-6 rounded-[2rem] bg-white border border-gray-100 shadow-sm">
-            <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-4">Общая статистика</p>
-            <p className="text-5xl font-black text-[#5A4BFF]">{globalOverview.averageScore}<span className="text-xl text-gray-400">/100</span></p>
-            <p className="text-sm text-gray-500 mt-2">{globalOverview.coursesWithStats} курсов с оценками</p>
-          </div>
-        )}
         <div className="text-center py-12">
           <AlertCircle className="w-16 h-16 text-gray-300 mb-4 mx-auto" />
           <h2 className="text-2xl font-black text-gray-900 mb-2">Аналитика по курсу формируется…</h2>
@@ -608,8 +555,8 @@ export default function Dashboard() {
             </div>
           )}
         </div>
-    </div>
-  );
+      </div>
+    );
   }
 
   return (
@@ -629,124 +576,6 @@ export default function Dashboard() {
             <List className="w-4 h-4" /> Подробная сводка
           </button>
         </div>
-
-        {/* БЛИЖАЙШИЕ ДЕДЛАЙНЫ */}
-        {upcomingDeadlines.length > 0 && (
-          <div className="rounded-[2rem] bg-white border border-gray-100 shadow-sm overflow-hidden">
-            <div className="p-5 md:p-6 border-b border-gray-100">
-              <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">Дедлайны</p>
-              <p className="font-black text-lg text-gray-900">Ближайшие сроки сдачи</p>
-            </div>
-            <div className="divide-y divide-gray-50">
-              {upcomingDeadlines.map((item: any, i: number) => {
-                const dlDate = new Date(item.deadline);
-                const overdue = item.daysLeft < 0;
-                const urgent = item.daysLeft >= 0 && item.daysLeft <= 3;
-                return (
-                  <button
-                    key={i}
-                    type="button"
-                    onClick={() => item.lessonId ? navigate(`/homework/${item.lessonId}`) : navigate(`/course/${item.courseId}/theme/${item.themeId}`)}
-                    className="w-full px-5 md:px-6 py-4 flex items-center justify-between gap-4 hover:bg-gray-50 transition-colors text-left"
-                  >
-                    <div className="min-w-0">
-                      <p className="font-black text-gray-900 truncate">{item.label}</p>
-                      <p className="text-xs font-medium text-gray-400 truncate">{item.course}</p>
-                      <p className="text-xs text-gray-400 mt-0.5">{dlDate.toLocaleDateString('ru', { day: 'numeric', month: 'long' })} · {dlDate.toLocaleTimeString('ru', { hour: '2-digit', minute: '2-digit' })}</p>
-                    </div>
-                    <span className={`shrink-0 px-3 py-1.5 rounded-xl text-sm font-black whitespace-nowrap ${
-                      overdue ? 'bg-red-100 text-red-600' : urgent ? 'bg-orange-100 text-orange-600' : 'bg-emerald-50 text-emerald-700'
-                    }`}>
-                      {overdue ? '⚠ Просрочено' : item.daysLeft === 0 ? '🔥 Сегодня!' : `${item.daysLeft} дн.`}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        {/* ОБЩАЯ СТАТИСТИКА — сворачиваемая */}
-        {globalOverview && (
-          <div className="rounded-[2rem] border border-gray-200 bg-white shadow-sm overflow-hidden">
-            <button
-              type="button"
-              onClick={() => setGlobalOverviewOpen((v) => !v)}
-              className="w-full p-5 md:p-6 flex items-center justify-between gap-4 text-left hover:bg-gray-50/80 transition-colors"
-            >
-              <div className="flex items-center gap-4 min-w-0">
-                <div className="w-12 h-12 rounded-2xl bg-[#0F172A] flex items-center justify-center shrink-0">
-                  <GraduationCap className="w-6 h-6 text-[#00FFCC]" />
-                </div>
-                <div className="min-w-0">
-                  <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Общая статистика</p>
-                  <p className="font-black text-lg text-gray-900 truncate">По всем вашим курсам</p>
-                  {!globalOverviewOpen && (
-                    <p className="text-sm font-bold text-[#5A4BFF] mt-1">
-                      {globalOverview.totalEarned} / {globalOverview.totalMax} баллов · {globalOverview.averageScore}%
-                    </p>
-                  )}
-                </div>
-              </div>
-              <div className="flex items-center gap-3 shrink-0">
-                {!globalOverviewOpen && (
-                  <span className="hidden sm:inline text-xs font-bold text-gray-400">{globalOverview.coursesWithStats} курсов</span>
-                )}
-                {globalOverviewOpen ? <ChevronUp className="w-5 h-5 text-gray-400" /> : <ChevronDown className="w-5 h-5 text-gray-400" />}
-              </div>
-            </button>
-            <AnimatePresence initial={false}>
-              {globalOverviewOpen && (
-                <motion.div
-                  initial={{ height: 0, opacity: 0 }}
-                  animate={{ height: 'auto', opacity: 1 }}
-                  exit={{ height: 0, opacity: 0 }}
-                  className="overflow-hidden border-t border-gray-100"
-                >
-                  <div className="p-5 md:p-6 pt-4 bg-gradient-to-b from-indigo-50/40 to-white space-y-4">
-                    <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-                      <div className="bg-[#0F172A] text-white p-4 rounded-2xl shadow-lg col-span-2 lg:col-span-1">
-                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1">Всего баллов</p>
-                        <p className="text-3xl font-black text-[#00FFCC]">{globalOverview.totalEarned}<span className="text-base text-gray-500">/{globalOverview.totalMax}</span></p>
-                        <p className="text-xs text-gray-400 mt-1">{globalOverview.averageScore}% в среднем</p>
-                      </div>
-                      <div className="bg-white p-4 rounded-2xl border border-gray-100">
-                        <p className="text-[10px] font-bold text-gray-400 uppercase mb-1">Курсы</p>
-                        <p className="text-2xl font-black">{globalOverview.coursesWithStats}<span className="text-sm text-gray-400">/{globalOverview.totalCourses}</span></p>
-                      </div>
-                      <div className="bg-white p-4 rounded-2xl border border-gray-100">
-                        <p className="text-[10px] font-bold text-gray-400 uppercase mb-1">Модулей</p>
-                        <p className="text-2xl font-black text-[#5A4BFF]">{globalOverview.totalModules}</p>
-                      </div>
-                      <div className="bg-white p-4 rounded-2xl border border-gray-100">
-                        <p className="text-[10px] font-bold text-gray-400 uppercase mb-1">Работ</p>
-                        <p className="text-2xl font-black">{globalOverview.totalSubmissions}</p>
-                      </div>
-                      <div className="bg-white p-4 rounded-2xl border border-gray-100">
-                        <p className="text-[10px] font-bold text-gray-400 uppercase mb-1">Слабых мест</p>
-                        <p className="text-2xl font-black text-rose-500">{globalOverview.weakSpotsCount}</p>
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-3 gap-2">
-                      <div className="bg-indigo-50 px-3 py-3 rounded-xl border border-indigo-100 text-center">
-                        <p className="text-[9px] font-black uppercase text-indigo-400">Тесты (авто)</p>
-                        <p className="font-black text-indigo-700 text-lg">{globalOverview.breakdown.tests}%</p>
-                      </div>
-                      <div className="bg-orange-50 px-3 py-3 rounded-xl border border-orange-100 text-center">
-                        <p className="text-[9px] font-black uppercase text-orange-400">Письменные</p>
-                        <p className="font-black text-orange-700 text-lg">{globalOverview.breakdown.written}%</p>
-                      </div>
-                      <div className="bg-teal-50 px-3 py-3 rounded-xl border border-teal-100 text-center">
-                        <p className="text-[9px] font-black uppercase text-teal-400">Устные</p>
-                        <p className="font-black text-teal-700 text-lg">{globalOverview.breakdown.oral}%</p>
-                      </div>
-                    </div>
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
-        )}
 
         {/* ВЫБОР КУРСА */}
         <div className="pt-2">
@@ -819,33 +648,86 @@ export default function Dashboard() {
 
         {/* МОДУЛИ КУРСА */}
         {availableModules.length > 0 && (
-          <div className="flex flex-1 gap-3 overflow-x-auto pb-2 custom-scrollbar">
-            <button 
-              type="button"
-              onClick={() => setActiveTab('all')} 
-              className={`px-6 py-3.5 rounded-2xl font-bold text-sm whitespace-nowrap transition-all flex items-center gap-2 ${
-                activeTab === 'all'
-                  ? 'bg-[#0B1120] text-white shadow-lg'
-                  : 'bg-white text-gray-500 hover:bg-gray-50 border border-gray-200'
-              }`}
-            >
-              <BarChart2 className="w-4 h-4" /> Весь курс
-            </button>
-            {availableModules.map((m) => (
+          <div className="space-y-3">
+            <div className="flex flex-1 gap-3 overflow-x-auto pb-2 custom-scrollbar">
               <button 
-                key={m.id} 
                 type="button"
-                onClick={() => setActiveTab(m.id)} 
-                className={`px-6 py-3.5 rounded-2xl font-bold text-sm whitespace-nowrap transition-all max-w-[240px] truncate ${
-                  activeTab === m.id
-                    ? 'bg-[#5A4BFF] text-white shadow-lg shadow-indigo-500/20'
+                onClick={() => { setActiveTab('all'); setSelectedLessonRow(null); }} 
+                className={`px-6 py-3.5 rounded-2xl font-bold text-sm whitespace-nowrap transition-all flex items-center gap-2 ${
+                  activeTab === 'all'
+                    ? 'bg-[#0B1120] text-white shadow-lg'
                     : 'bg-white text-gray-500 hover:bg-gray-50 border border-gray-200'
                 }`}
-                title={`Модуль ${m.orderIndex}. ${m.title}`}
               >
-                Модуль {m.orderIndex}. {m.title}
+                <BarChart2 className="w-4 h-4" /> Весь курс
               </button>
-            ))}
+              {availableModules.map((m) => (
+                <button 
+                  key={m.id} 
+                  type="button"
+                  onClick={() => { setActiveTab(m.id); setSelectedLessonRow(null); }} 
+                  className={`px-6 py-3.5 rounded-2xl font-bold text-sm whitespace-nowrap transition-all max-w-[240px] truncate ${
+                    activeTab === m.id
+                      ? 'bg-[#5A4BFF] text-white shadow-lg shadow-indigo-500/20'
+                      : 'bg-white text-gray-500 hover:bg-gray-50 border border-gray-200'
+                  }`}
+                  title={`Модуль ${m.orderIndex}. ${m.title}`}
+                >
+                  Модуль {m.orderIndex}. {m.title}
+                </button>
+              ))}
+            </div>
+
+            {/* SLIDE-DOWN УРОКИ ВНУТРИ МОДУЛЯ */}
+            <AnimatePresence>
+              {activeModule && activeModule.progressData.length > 0 && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: 'auto', opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  className="overflow-hidden"
+                >
+                  <div className="bg-white rounded-2xl border border-indigo-100 shadow-sm p-4">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-indigo-400 mb-3">
+                      Уроки модуля «{activeModule.title}» — выберите для детального просмотра
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedLessonRow(null)}
+                        className={`px-4 py-2 rounded-xl font-bold text-xs transition-all ${
+                          !selectedLessonRow
+                            ? 'bg-[#5A4BFF] text-white shadow-md'
+                            : 'bg-gray-50 text-gray-500 hover:bg-gray-100 border border-gray-200'
+                        }`}
+                      >
+                        Весь модуль
+                      </button>
+                      {activeModule.progressData.map((row) => {
+                        const isActive = selectedLessonRow?.lessonId === row.lessonId;
+                        const emoji = row.score >= 70 ? '✅' : row.score >= 50 ? '🟡' : '🔴';
+                        return (
+                          <button
+                            key={row.lessonId || row.fullName}
+                            type="button"
+                            onClick={() => setSelectedLessonRow(isActive ? null : row)}
+                            className={`px-4 py-2 rounded-xl font-bold text-xs transition-all flex items-center gap-1.5 max-w-[200px] truncate ${
+                              isActive
+                                ? 'bg-[#5A4BFF] text-white shadow-md'
+                                : 'bg-gray-50 text-gray-600 hover:bg-indigo-50 hover:text-indigo-600 border border-gray-200'
+                            }`}
+                            title={row.fullName}
+                          >
+                            <span>{emoji}</span>
+                            <span className="truncate">{row.name}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
         )}
       </motion.div>
@@ -859,35 +741,52 @@ export default function Dashboard() {
           transition={{ duration: 0.2 }}
           className="grid grid-cols-1 xl:grid-cols-3 gap-6"
         >
-          {/* ── ИТОГ КУРСА / МОДУЛЯ ── */}
+          {/* ── ИТОГ КУРСА / МОДУЛЯ / УРОКА ── */}
           <motion.div variants={itemVariants} initial="hidden" animate="show" className="xl:col-span-3">
+            {/* Breadcrumb когда выбран урок */}
+            {selectedLessonRow && activeModule && (
+              <div className="mb-3 flex items-center gap-2 text-sm font-bold text-gray-500">
+                <button type="button" onClick={() => setSelectedLessonRow(null)} className="text-[#5A4BFF] hover:underline">{activeModule.title}</button>
+                <ChevronRight className="w-4 h-4 text-gray-400" />
+                <span className="text-gray-800">{selectedLessonRow.fullName}</span>
+              </div>
+            )}
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
               {/* Средний балл */}
               <div className="bg-[#0F172A] rounded-[2rem] p-6 text-white relative overflow-hidden col-span-2 sm:col-span-1">
                 <div className="absolute -top-6 -right-6 w-32 h-32 bg-[#00FFCC]/15 rounded-full blur-2xl" />
                 <Target className="w-6 h-6 text-[#00FFCC] mb-3" />
-                <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">Средний балл</p>
-                <p className="text-4xl font-black text-[#00FFCC]">{currentData?.averageScore ?? 0}<span className="text-base text-gray-500">%</span></p>
+                <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">Результат</p>
+                <p className="text-4xl font-black text-[#00FFCC]">
+                  {currentData?.earnedByType ? (
+                    <>{(currentData.earnedByType.tests + currentData.earnedByType.written + currentData.earnedByType.oral)}<span className="text-lg text-gray-500">/{(currentData.maxByType?.tests ?? 0) + (currentData.maxByType?.written ?? 0) + (currentData.maxByType?.oral ?? 0)}</span></>
+                  ) : (
+                    <>{currentData?.totalEarned ?? 0}<span className="text-lg text-gray-500">/{currentData?.totalMax ?? 0}</span></>
+                  )}
+                </p>
                 <p className="text-xs text-gray-500 mt-1">{(currentData?.averageScore ?? 0) >= 70 ? '✅ Отлично' : (currentData?.averageScore ?? 0) >= 50 ? '🟡 Средне' : '🔴 Нужно подтянуть'}</p>
-            </div>
+              </div>
 
-              {/* Баллы */}
+              {/* Всего набрано */}
               <div className="bg-white rounded-[2rem] p-6 border border-gray-100 shadow-sm">
                 <Star className="w-6 h-6 text-indigo-400 mb-3" />
                 <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">Набрано</p>
                 <p className="text-3xl font-black text-gray-900">
-                  {isCourseView ? selectedStats?.totalEarned : (currentData as ModuleStats)?.earned ?? 0}
+                  {selectedLessonRow ? selectedLessonRow.earned : (isCourseView ? selectedStats?.totalEarned : (currentData as ModuleStats)?.earned ?? 0)}
                 </p>
                 <p className="text-xs text-gray-400 mt-1">
-                  из {isCourseView ? selectedStats?.totalMax : (currentData as ModuleStats)?.max ?? 0} балл.
-              </p>
-            </div>
+                  из {selectedLessonRow ? selectedLessonRow.max : (isCourseView ? selectedStats?.totalMax : (currentData as ModuleStats)?.max ?? 0)} балл.
+                </p>
+              </div>
 
-              {/* Тесты */}
+              {/* Тесты — earned/max */}
               <div className="bg-indigo-50 rounded-[2rem] p-6 border border-indigo-100">
                 <CheckSquare className="w-6 h-6 text-indigo-500 mb-3" />
                 <p className="text-[10px] font-black uppercase tracking-widest text-indigo-400 mb-1">Тесты</p>
-                <p className="text-3xl font-black text-indigo-700">{currentData?.breakdown?.tests ?? 0}<span className="text-sm font-bold text-indigo-300">%</span></p>
+                <p className="text-2xl font-black text-indigo-700">
+                  {currentData?.earnedByType?.tests ?? 0}
+                  <span className="text-sm font-bold text-indigo-300">/{currentData?.maxByType?.tests ?? 0}</span>
+                </p>
                 <div className="mt-2 h-1.5 bg-indigo-200 rounded-full overflow-hidden">
                   <div className="h-full bg-indigo-500 rounded-full transition-all" style={{ width: `${currentData?.breakdown?.tests ?? 0}%` }} />
                 </div>
@@ -897,7 +796,10 @@ export default function Dashboard() {
               <div className="bg-orange-50 rounded-[2rem] p-6 border border-orange-100">
                 <PenTool className="w-6 h-6 text-orange-500 mb-3" />
                 <p className="text-[10px] font-black uppercase tracking-widest text-orange-400 mb-1">Письменные</p>
-                <p className="text-3xl font-black text-orange-700">{currentData?.breakdown?.written ?? 0}<span className="text-sm font-bold text-orange-300">%</span></p>
+                <p className="text-2xl font-black text-orange-700">
+                  {currentData?.earnedByType?.written ?? 0}
+                  <span className="text-sm font-bold text-orange-300">/{currentData?.maxByType?.written ?? 0}</span>
+                </p>
                 <div className="mt-2 h-1.5 bg-orange-200 rounded-full overflow-hidden">
                   <div className="h-full bg-orange-500 rounded-full transition-all" style={{ width: `${currentData?.breakdown?.written ?? 0}%` }} />
                 </div>
@@ -907,7 +809,10 @@ export default function Dashboard() {
               <div className="bg-teal-50 rounded-[2rem] p-6 border border-teal-100">
                 <Mic className="w-6 h-6 text-teal-500 mb-3" />
                 <p className="text-[10px] font-black uppercase tracking-widest text-teal-400 mb-1">Устные</p>
-                <p className="text-3xl font-black text-teal-700">{currentData?.breakdown?.oral ?? 0}<span className="text-sm font-bold text-teal-300">%</span></p>
+                <p className="text-2xl font-black text-teal-700">
+                  {currentData?.earnedByType?.oral ?? 0}
+                  <span className="text-sm font-bold text-teal-300">/{currentData?.maxByType?.oral ?? 0}</span>
+                </p>
                 <div className="mt-2 h-1.5 bg-teal-200 rounded-full overflow-hidden">
                   <div className="h-full bg-teal-500 rounded-full transition-all" style={{ width: `${currentData?.breakdown?.oral ?? 0}%` }} />
                 </div>
@@ -915,17 +820,19 @@ export default function Dashboard() {
             </div>
           </motion.div>
 
-          {/* ── ТАБЛИЦА МОДУЛЕЙ / УРОКОВ ── */}
-          <motion.div variants={itemVariants} initial="hidden" animate="show"
-            className="bg-white p-6 md:p-8 rounded-[2.5rem] shadow-sm border border-gray-100 xl:col-span-3">
-            <h3 className="text-xl font-black text-gray-900 mb-2">
-              {isCourseView ? '📚 Баллы по модулям' : '📖 Баллы по урокам'}
-            </h3>
-            <p className="text-sm text-gray-400 font-medium mb-6">
-              ✅ ≥70% · 🟡 50–69% · 🔴 &lt;50%
-            </p>
-            <ScoreTable data={(currentData?.progressData ?? []) as ScoreChartRow[]} />
-          </motion.div>
+          {/* ── ТАБЛИЦА МОДУЛЕЙ / УРОКОВ (скрывается при drill-down на урок) ── */}
+          {!selectedLessonRow && (
+            <motion.div variants={itemVariants} initial="hidden" animate="show"
+              className="bg-white p-6 md:p-8 rounded-[2.5rem] shadow-sm border border-gray-100 xl:col-span-3">
+              <h3 className="text-xl font-black text-gray-900 mb-2">
+                {isCourseView ? '📚 Баллы по модулям' : '📖 Баллы по урокам'}
+              </h3>
+              <p className="text-sm text-gray-400 font-medium mb-6">
+                ✅ ≥70% · 🟡 50–69% · 🔴 &lt;50%
+              </p>
+              <ScoreTable data={(currentData?.progressData ?? []) as ScoreChartRow[]} />
+            </motion.div>
+          )}
 
           {/* ГДЕ ОШИБСЯ */}
           <motion.div
@@ -947,6 +854,48 @@ export default function Dashboard() {
             </div>
             <WeakSpotsList spots={currentWeakSpots} onOpen={handleOpenWeakSpot} />
           </motion.div>
+
+          {/* НУЖНО ПОВТОРИТЬ — модули <50% по всем курсам */}
+          {isCourseView && weakModules.length > 0 && (
+            <motion.div
+              variants={itemVariants}
+              initial="hidden"
+              animate="show"
+              className="bg-amber-50 border-2 border-amber-200 p-8 md:p-10 rounded-[2.5rem] shadow-sm xl:col-span-3"
+            >
+              <div className="flex items-start gap-4 mb-6">
+                <div className="w-12 h-12 rounded-2xl bg-amber-100 flex items-center justify-center shrink-0">
+                  <TrendingDown className="w-6 h-6 text-amber-600" />
+                </div>
+                <div>
+                  <h3 className="text-2xl font-black text-amber-900">Нужно повторить</h3>
+                  <p className="text-sm font-medium text-amber-700 mt-1">
+                    Модули, где набрано менее 50% — вернись и подтяни результат.
+                  </p>
+                </div>
+              </div>
+              <div className="space-y-3">
+                {weakModules.map(({ courseTitle, courseId, module }) => (
+                  <button
+                    key={`${courseId}-${module.id}`}
+                    type="button"
+                    onClick={() => { handleCourseChange(courseId); setActiveTab(module.id); }}
+                    className="w-full text-left p-4 bg-white rounded-2xl border-2 border-amber-100 hover:border-amber-300 hover:shadow-md transition-all flex items-center gap-4"
+                  >
+                    <div className="text-2xl font-black text-rose-500 w-14 text-center shrink-0">
+                      {module.averageScore}%
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 truncate">{courseTitle}</p>
+                      <p className="font-black text-gray-900 truncate">{module.title}</p>
+                      <p className="text-xs text-gray-500 mt-0.5">{module.earned} / {module.max} баллов</p>
+                    </div>
+                    <ChevronRight className="w-5 h-5 text-amber-400 shrink-0" />
+                  </button>
+                ))}
+              </div>
+            </motion.div>
+          )}
 
           {/* ЗАКЛЮЧЕНИЕ */}
           {isCourseView && (

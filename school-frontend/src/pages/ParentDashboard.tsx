@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ShieldCheck, LogOut, Lock, ArrowRight, Loader2, User,
-  TrendingUp, Flame, BookOpen, CheckSquare, BrainCircuit,
+  TrendingUp, Flame, BookOpen, CheckSquare,
   AlertTriangle, Star, RefreshCw, PenTool, Mic
 } from 'lucide-react';
 import axios from 'axios';
@@ -171,14 +171,14 @@ export default function ParentDashboard() {
               {/* ── ЦИФРЫ ── */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                 {[
-                  { icon: TrendingUp, label: 'Средний балл', val: `${data?.averageScore ?? 0}%`, iconColor: 'text-[#00FFCC]', bg: 'bg-gray-900', textColor: 'text-white', subColor: 'text-gray-400' },
+                  { icon: TrendingUp, label: 'Средний балл', val: `${data?.averageScore ?? 0} / 100`, iconColor: 'text-[#00FFCC]', bg: 'bg-gray-900', textColor: 'text-white', subColor: 'text-gray-400' },
                   { icon: Flame, label: 'Стрик', val: `${data?.streakDays ?? 0} дн.`, iconColor: 'text-orange-500', bg: 'bg-orange-50', textColor: 'text-orange-700', subColor: 'text-orange-400' },
                   { icon: BookOpen, label: 'Всего заданий', val: `${data?.totalTests ?? 0}`, iconColor: 'text-indigo-500', bg: 'bg-indigo-50', textColor: 'text-indigo-700', subColor: 'text-indigo-400' },
                   { icon: Star, label: 'Оценено работ', val: `${data?.breakdown ? Object.values(data.breakdown).reduce((a: any, b: any) => a + (b > 0 ? 1 : 0), 0) : 0}`, iconColor: 'text-emerald-500', bg: 'bg-emerald-50', textColor: 'text-emerald-700', subColor: 'text-emerald-400' },
                 ].map(({ icon: Icon, label, val, iconColor, bg, textColor, subColor }) => (
                   <div key={label} className={`${bg} rounded-[2rem] p-6`}>
                     <Icon className={`w-6 h-6 ${iconColor} mb-3`} />
-                    <p className={`text-3xl font-black ${textColor}`}>{val}</p>
+                    <p className={`text-2xl font-black ${textColor} leading-tight`}>{val}</p>
                     <p className={`text-xs font-bold ${subColor} uppercase tracking-widest mt-1`}>{label}</p>
                   </div>
                 ))}
@@ -196,7 +196,7 @@ export default function ParentDashboard() {
                     <div key={label} className={`${bg} rounded-2xl p-5 flex items-center gap-4`}>
                       <Icon className="w-8 h-8 shrink-0" style={{ color }} />
                       <div className="flex-1">
-                        <p className={`text-3xl font-black ${textColor}`}>{val}<span className="text-base font-bold opacity-50">%</span></p>
+                        <p className={`text-2xl font-black ${textColor}`}>{val}<span className="text-sm font-bold opacity-50"> / 100</span></p>
                         <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mt-0.5">{label}</p>
                         <div className="mt-2 h-1.5 bg-white/60 rounded-full overflow-hidden">
                           <div className="h-full rounded-full" style={{ width: `${val}%`, backgroundColor: color }} />
@@ -249,7 +249,7 @@ export default function ParentDashboard() {
                             </div>
                           </div>
                           <div className="text-right shrink-0">
-                            <p className="font-black text-base" style={{ color: c }}>{m.averageScore}%</p>
+                            <p className="font-black text-base" style={{ color: c }}>{m.averageScore} / 100</p>
                             <p className="text-xs text-gray-400">{m.totalTests} зад.</p>
                           </div>
                         </div>
@@ -275,20 +275,6 @@ export default function ParentDashboard() {
                 </div>
               )}
 
-              {/* AI ОТЧЁТ */}
-              {data?.aiReport && (
-                <div className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-gray-100 flex flex-col md:flex-row gap-6">
-                  <div className="w-16 h-16 bg-gray-50 rounded-2xl flex items-center justify-center shrink-0 border border-gray-200">
-                    <BrainCircuit className="w-8 h-8 text-gray-900" />
-                  </div>
-                  <div className="flex-1">
-                    <h3 className="text-xl font-black text-gray-900 mb-4">Аналитическое заключение нейросети</h3>
-                    <div className="p-6 bg-gray-50 rounded-2xl border border-gray-100">
-                      <p className="text-gray-700 font-medium leading-relaxed">{data.aiReport}</p>
-                    </div>
-                  </div>
-                </div>
-              )}
 
             </motion.div>
           )}

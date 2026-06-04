@@ -29,6 +29,7 @@ import Achievements from './pages/Achievements';
 import ProtectedRoute from './components/ProtectedRoute';
 
 const STAFF: any = ['ADMIN', 'CURATOR', 'TEACHER'];
+const NON_PARENT: any = ['ADMIN', 'CURATOR', 'TEACHER', 'STUDENT'];
 
 export default function App() {
   return (
@@ -61,11 +62,11 @@ export default function App() {
         }
       />
 
-      {/* ВСЁ, ЧТО ВНУТРИ ЭТОГО БЛОКА, БУДЕТ С ПАНЕЛЬЮ (LAYOUT) */}
+      {/* ВСЁ, ЧТО ВНУТРИ ЭТОГО БЛОКА, БУДЕТ С ПАНЕЛЬЮ (LAYOUT) — ТОЛЬКО НЕ PARENT */}
       <Route
         path="/"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute roles={NON_PARENT}>
             <Layout />
           </ProtectedRoute>
         }
@@ -105,7 +106,7 @@ export default function App() {
       <Route
         path="homework/:id"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute roles={NON_PARENT}>
             <HomeworkView />
           </ProtectedRoute>
         }
@@ -113,7 +114,7 @@ export default function App() {
       <Route
         path="flashcards"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute roles={NON_PARENT}>
             <FlashcardStudy />
           </ProtectedRoute>
         }

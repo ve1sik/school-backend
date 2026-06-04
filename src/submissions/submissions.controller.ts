@@ -27,18 +27,26 @@ export class SubmissionsController {
     return this.submissionsService.createSubmission(userId, body);
   }
 
-  // Очередь работ для куратора (PENDING / GRADED)
+  // Очередь работ для куратора (PENDING / GRADED) — с фильтром по группам если CURATOR
   @Roles(Role.ADMIN, Role.CURATOR, Role.TEACHER)
   @Get()
-  getSubmissionsByStatus(@Query('status') status: string) {
+  getSubmissionsByStatus(@Query('status') status: string, @Request() req) {
     const finalStatus = status === 'GRADED' ? 'GRADED' : 'PENDING';
-    return this.submissionsService.getSubmissionsByStatus(finalStatus);
+    return this.submissionsService.getSubmissionsByStatus(
+      finalStatus,
+      req.user.sub,
+      req.user.role,
+    );
   }
 
   @Roles(Role.ADMIN, Role.CURATOR, Role.TEACHER)
   @Get('pending')
-  getPending() {
-    return this.submissionsService.getSubmissionsByStatus('PENDING');
+  getPending(@Request() req) {
+    return this.submissionsService.getSubmissionsByStatus(
+      'PENDING',
+      req.user.sub,
+      req.user.role,
+    );
   }
 
   // Куратор оценивает работу (или возвращает на доработку)

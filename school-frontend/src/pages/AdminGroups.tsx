@@ -50,6 +50,10 @@ export default function AdminGroups() {
   const [curators, setCurators] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [newGroupTitle, setNewGroupTitle] = useState('');
+
+  // Переименование группы
+  const [renamingGroupId, setRenamingGroupId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState('');
   
   const [selectedGroup, setSelectedGroup] = useState<any | null>(null);
   const [showModal, setShowModal] = useState(false);
@@ -109,6 +113,17 @@ export default function AdminGroups() {
       fetchData();
     } catch (error) {
       console.error("Ошибка создания группы", error);
+    }
+  };
+
+  const handleRenameGroup = async (id: string) => {
+    if (!renameValue.trim()) return;
+    try {
+      await axios.patch(`${API_URL}/groups/${id}`, { title: renameValue.trim() }, getTokenConfig());
+      setRenamingGroupId(null);
+      fetchData();
+    } catch {
+      alert('Ошибка переименования');
     }
   };
 
@@ -276,7 +291,34 @@ export default function AdminGroups() {
                     </div>
                   )}
                   <div>
-                    <h3 className="text-2xl font-black text-gray-900 mb-2">{group.title}</h3>
+                    {renamingGroupId === group.id ? (
+                      <div className="flex items-center gap-2 mb-2">
+                        <input
+                          autoFocus
+                          value={renameValue}
+                          onChange={e => setRenameValue(e.target.value)}
+                          onKeyDown={e => { if (e.key === 'Enter') handleRenameGroup(group.id); if (e.key === 'Escape') setRenamingGroupId(null); }}
+                          className="px-3 py-2 bg-gray-50 border-2 border-[#5A4BFF] rounded-xl font-black text-lg text-gray-900 outline-none focus:bg-white"
+                        />
+                        <button onClick={() => handleRenameGroup(group.id)} className="p-2 bg-[#5A4BFF] text-white rounded-xl hover:bg-[#4a3dec] transition-colors">
+                          <Save className="w-4 h-4" />
+                        </button>
+                        <button onClick={() => setRenamingGroupId(null)} className="p-2 bg-gray-100 text-gray-500 rounded-xl hover:bg-gray-200 transition-colors">
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2 mb-2">
+                        <h3 className="text-2xl font-black text-gray-900">{group.title}</h3>
+                        <button
+                          onClick={() => { setRenamingGroupId(group.id); setRenameValue(group.title); }}
+                          className="p-1.5 text-gray-300 hover:text-[#5A4BFF] hover:bg-indigo-50 rounded-lg transition-colors"
+                          title="Переименовать группу"
+                        >
+                          <Edit3 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    )}
                     <div className="flex flex-wrap items-center gap-3">
                       <span className="px-4 py-1.5 bg-indigo-50 text-indigo-700 rounded-lg text-sm font-bold flex items-center gap-2">
                         <Users className="w-4 h-4" /> Учеников: {group._count?.students || 0}

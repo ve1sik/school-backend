@@ -346,14 +346,16 @@ model Deck {
 }
 
 model Flashcard {
-  id          String              @id @default(uuid())
-  deck_id     String
-  deck        Deck                @relation(fields: [deck_id], references: [id], onDelete: Cascade)
-  front       String              @db.Text
-  back        String              @db.Text
-  order_index Int                 @default(0)
-  progress    FlashcardProgress[]
-  created_at  DateTime            @default(now())
+  id           String              @id @default(uuid())
+  deck_id      String
+  deck         Deck                @relation(fields: [deck_id], references: [id], onDelete: Cascade)
+  front        String              @db.Text
+  back         String              @db.Text
+  front_image  String?             @db.Text
+  back_image   String?             @db.Text
+  order_index  Int                 @default(0)
+  progress     FlashcardProgress[]
+  created_at   DateTime            @default(now())
 
   @@map("flashcards")
 }

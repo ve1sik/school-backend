@@ -127,6 +127,9 @@ export default function CuratorDashboard() {
       setScores(initialScores);
       setComments(initialComments);
     }
+    // Сбрасываем устные ответы при смене ученика или урока — данные не должны «перетекать»
+    setOralScores({});
+    setOralComments({});
   }, [selectedCourse, activeStudentId, activeLessonTitle, groupedData]);
 
   const handleGradeSingle = async (subId: string, maxScore: number) => {
