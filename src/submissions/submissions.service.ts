@@ -86,6 +86,45 @@ export class SubmissionsService {
     return submission;
   }
 
+  async createOralSubmission(body: any) {
+    const studentId = body.studentId || body.userId;
+    const lessonId = body.lessonId;
+    if (!studentId || !lessonId) {
+      throw new Error('studentId и lessonId обязательны');
+    }
+
+    const blockId = body.blockId || `oral-${lessonId}`;
+    const existing = await this.prisma.submission.findFirst({
+      where: {
+        user_id: studentId,
+        lesson_id: lessonId,
+        block_id: blockId,
+      },
+      orderBy: { created_at: 'desc' },
+    });
+
+    const data = {
+      user_id: studentId,
+      lesson_id: lessonId,
+      block_id: blockId,
+      question: body.question || 'Устный ответ',
+      answer: body.answer || body.comment || 'Устный ответ',
+      max_score: body.maxScore || 10,
+      score: Number(body.score) || 0,
+      comment: body.comment || 'Устный ответ',
+      status: 'GRADED' as const,
+    };
+
+    if (existing) {
+      return this.prisma.submission.update({
+        where: { id: existing.id },
+        data,
+      });
+    }
+
+    return this.prisma.submission.create({ data });
+  }
+
   // 🎮 Безопасное начисление очков (не валит основную операцию при сбое)
   private async awardPoints(userId: string, amount: number) {
     if (!amount || amount <= 0) return;

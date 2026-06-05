@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Activity, Loader2, PenTool, AlertCircle, CheckSquare, Mic,
   Target, X, BookOpen, ChevronRight, TrendingDown, Layers, List, BarChart2,
-  PanelRightOpen, Star,
+  PanelRightOpen, Star, ChevronDown,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { cachedGet } from '../lib/api';
@@ -13,6 +13,8 @@ const PASS_SCORE = 70;
 
 const safePercent = (earned: number, max: number) =>
   max > 0 ? Math.min(100, Math.round((earned / max) * 100)) : 0;
+
+const scoreOutOf100 = (earned: number, max: number) => safePercent(earned, max);
 
 const stripHtml = (html: string) =>
   (html || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
@@ -173,9 +175,13 @@ function buildCourseStats(course: any, mySubs: any[]): CourseStats | null {
               let hasSubmissionsInLesson = false;
 
               blocks.forEach((block: any) => {
-        const sub = mySubs.find(
-          (s: any) => s.blockId === block.id || s.block_id === block.id,
-        );
+        const sub = mySubs.find((s: any) => {
+          const subBlockId = s.blockId || s.block_id;
+          const subLessonId = s.lessonId || s.lesson_id;
+          if (subBlockId === block.id) return true;
+          // Устные оценки куратор ставит на урок целиком, поэтому связываем их с oral-блоком урока.
+          return block.type === 'oral' && subLessonId === lesson.id && String(subBlockId || '').startsWith('oral-');
+        });
         if (!sub || sub.status !== 'GRADED') return;
 
                   hasSubmissionsInTheme = true;
@@ -389,6 +395,7 @@ export default function Dashboard() {
   const [activeTab, setActiveTab] = useState<string>('all');
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [showCourseDrawer, setShowCourseDrawer] = useState(false);
+  const [modulesExpanded, setModulesExpanded] = useState(false);
   // drill-down: выбранный урок внутри модуля
   const [selectedLessonRow, setSelectedLessonRow] = useState<ScoreChartRow | null>(null);
 
@@ -476,6 +483,7 @@ export default function Dashboard() {
     setSelectedCourseId(courseId);
     setActiveTab('all');
     setSelectedLessonRow(null);
+    setModulesExpanded(false);
     setShowCourseDrawer(false);
   };
 
@@ -505,6 +513,21 @@ export default function Dashboard() {
     hidden: { opacity: 0, y: 20 },
     show: { opacity: 1, y: 0, transition: { type: 'spring' as const, stiffness: 300, damping: 24 } },
   };
+
+  const currentEarned = selectedLessonRow
+    ? selectedLessonRow.earned
+    : isCourseView
+      ? selectedStats?.totalEarned ?? 0
+      : (currentData as any)?.earned ?? (currentData as any)?.totalEarned ?? 0;
+  const currentMax = selectedLessonRow
+    ? selectedLessonRow.max
+    : isCourseView
+      ? selectedStats?.totalMax ?? 0
+      : (currentData as any)?.max ?? (currentData as any)?.totalMax ?? 0;
+  const currentTotalOutOf100 = scoreOutOf100(currentEarned, currentMax);
+  const testsOutOf100 = scoreOutOf100(currentData?.earnedByType?.tests ?? 0, currentData?.maxByType?.tests ?? 0);
+  const writtenOutOf100 = scoreOutOf100(currentData?.earnedByType?.written ?? 0, currentData?.maxByType?.written ?? 0);
+  const oralOutOf100 = scoreOutOf100(currentData?.earnedByType?.oral ?? 0, currentData?.maxByType?.oral ?? 0);
 
   if (isLoading) {
     return (
@@ -649,33 +672,62 @@ export default function Dashboard() {
         {/* МОДУЛИ КУРСА */}
         {availableModules.length > 0 && (
           <div className="space-y-3">
-            <div className="flex flex-1 gap-3 overflow-x-auto pb-2 custom-scrollbar">
-              <button 
-                type="button"
-                onClick={() => { setActiveTab('all'); setSelectedLessonRow(null); }} 
-                className={`px-6 py-3.5 rounded-2xl font-bold text-sm whitespace-nowrap transition-all flex items-center gap-2 ${
-                  activeTab === 'all'
-                    ? 'bg-[#0B1120] text-white shadow-lg'
-                    : 'bg-white text-gray-500 hover:bg-gray-50 border border-gray-200'
-                }`}
-              >
-                <BarChart2 className="w-4 h-4" /> Весь курс
-              </button>
-              {availableModules.map((m) => (
-                <button 
-                  key={m.id} 
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+              <div className="p-3 flex flex-col sm:flex-row gap-3">
+                <button
                   type="button"
-                  onClick={() => { setActiveTab(m.id); setSelectedLessonRow(null); }} 
-                  className={`px-6 py-3.5 rounded-2xl font-bold text-sm whitespace-nowrap transition-all max-w-[240px] truncate ${
-                    activeTab === m.id
-                      ? 'bg-[#5A4BFF] text-white shadow-lg shadow-indigo-500/20'
-                      : 'bg-white text-gray-500 hover:bg-gray-50 border border-gray-200'
+                  onClick={() => { setActiveTab('all'); setSelectedLessonRow(null); }}
+                  className={`flex-1 px-5 py-4 rounded-2xl font-black text-sm transition-all flex items-center justify-between gap-3 ${
+                    activeTab === 'all'
+                      ? 'bg-[#0B1120] text-white shadow-lg'
+                      : 'bg-gray-50 text-gray-700 hover:bg-gray-100'
                   }`}
-                  title={`Модуль ${m.orderIndex}. ${m.title}`}
                 >
-                  Модуль {m.orderIndex}. {m.title}
+                  <span className="flex items-center gap-2"><BarChart2 className="w-4 h-4" /> Весь курс</span>
+                  <span className="text-xs opacity-70">{selectedStats.averageScore}/100</span>
                 </button>
-              ))}
+                <button
+                  type="button"
+                  onClick={() => setModulesExpanded(v => !v)}
+                  className="px-5 py-4 rounded-2xl font-black text-sm bg-indigo-50 text-[#5A4BFF] hover:bg-indigo-100 transition-all flex items-center justify-center gap-2"
+                >
+                  Все модули ({availableModules.length})
+                  <ChevronDown className={`w-4 h-4 transition-transform ${modulesExpanded ? 'rotate-180' : ''}`} />
+                </button>
+              </div>
+
+              <AnimatePresence initial={false}>
+                {modulesExpanded && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: 'auto', opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    className="overflow-hidden"
+                  >
+                    <div className="px-3 pb-3 grid grid-cols-1 md:grid-cols-2 gap-2">
+                      {availableModules.map((m) => (
+                        <button
+                          key={m.id}
+                          type="button"
+                          onClick={() => { setActiveTab(m.id); setSelectedLessonRow(null); setModulesExpanded(true); }}
+                          className={`p-4 rounded-2xl border-2 text-left transition-all ${
+                            activeTab === m.id
+                              ? 'border-[#5A4BFF] bg-indigo-50 shadow-md'
+                              : 'border-gray-100 bg-white hover:border-indigo-200 hover:bg-indigo-50/40'
+                          }`}
+                          title={`Модуль ${m.orderIndex}. ${m.title}`}
+                        >
+                          <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Модуль {m.orderIndex}</p>
+                          <div className="flex items-center justify-between gap-3">
+                            <p className="font-black text-gray-900 truncate">{m.title}</p>
+                            <span className="text-sm font-black text-[#5A4BFF] shrink-0">{m.averageScore}/100</span>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
 
             {/* SLIDE-DOWN УРОКИ ВНУТРИ МОДУЛЯ */}
@@ -758,11 +810,7 @@ export default function Dashboard() {
                 <Target className="w-6 h-6 text-[#00FFCC] mb-3" />
                 <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">Результат</p>
                 <p className="text-4xl font-black text-[#00FFCC]">
-                  {currentData?.earnedByType ? (
-                    <>{(currentData.earnedByType.tests + currentData.earnedByType.written + currentData.earnedByType.oral)}<span className="text-lg text-gray-500">/{(currentData.maxByType?.tests ?? 0) + (currentData.maxByType?.written ?? 0) + (currentData.maxByType?.oral ?? 0)}</span></>
-                  ) : (
-                    <>{currentData?.totalEarned ?? 0}<span className="text-lg text-gray-500">/{currentData?.totalMax ?? 0}</span></>
-                  )}
+                  {currentTotalOutOf100}<span className="text-lg text-gray-500">/100</span>
                 </p>
                 <p className="text-xs text-gray-500 mt-1">{(currentData?.averageScore ?? 0) >= 70 ? '✅ Отлично' : (currentData?.averageScore ?? 0) >= 50 ? '🟡 Средне' : '🔴 Нужно подтянуть'}</p>
               </div>
@@ -770,12 +818,12 @@ export default function Dashboard() {
               {/* Всего набрано */}
               <div className="bg-white rounded-[2rem] p-6 border border-gray-100 shadow-sm">
                 <Star className="w-6 h-6 text-indigo-400 mb-3" />
-                <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">Набрано</p>
+                <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">Всего</p>
                 <p className="text-3xl font-black text-gray-900">
-                  {selectedLessonRow ? selectedLessonRow.earned : (isCourseView ? selectedStats?.totalEarned : (currentData as ModuleStats)?.earned ?? 0)}
+                  {currentTotalOutOf100}<span className="text-base text-gray-400">/100</span>
                 </p>
                 <p className="text-xs text-gray-400 mt-1">
-                  из {selectedLessonRow ? selectedLessonRow.max : (isCourseView ? selectedStats?.totalMax : (currentData as ModuleStats)?.max ?? 0)} балл.
+                  реально: {currentEarned} из {currentMax} балл.
                 </p>
               </div>
 
@@ -784,11 +832,11 @@ export default function Dashboard() {
                 <CheckSquare className="w-6 h-6 text-indigo-500 mb-3" />
                 <p className="text-[10px] font-black uppercase tracking-widest text-indigo-400 mb-1">Тесты</p>
                 <p className="text-2xl font-black text-indigo-700">
-                  {currentData?.earnedByType?.tests ?? 0}
-                  <span className="text-sm font-bold text-indigo-300">/{currentData?.maxByType?.tests ?? 0}</span>
+                  {testsOutOf100}
+                  <span className="text-sm font-bold text-indigo-300">/100</span>
                 </p>
                 <div className="mt-2 h-1.5 bg-indigo-200 rounded-full overflow-hidden">
-                  <div className="h-full bg-indigo-500 rounded-full transition-all" style={{ width: `${currentData?.breakdown?.tests ?? 0}%` }} />
+                  <div className="h-full bg-indigo-500 rounded-full transition-all" style={{ width: `${testsOutOf100}%` }} />
                 </div>
               </div>
 
@@ -797,11 +845,11 @@ export default function Dashboard() {
                 <PenTool className="w-6 h-6 text-orange-500 mb-3" />
                 <p className="text-[10px] font-black uppercase tracking-widest text-orange-400 mb-1">Письменные</p>
                 <p className="text-2xl font-black text-orange-700">
-                  {currentData?.earnedByType?.written ?? 0}
-                  <span className="text-sm font-bold text-orange-300">/{currentData?.maxByType?.written ?? 0}</span>
+                  {writtenOutOf100}
+                  <span className="text-sm font-bold text-orange-300">/100</span>
                 </p>
                 <div className="mt-2 h-1.5 bg-orange-200 rounded-full overflow-hidden">
-                  <div className="h-full bg-orange-500 rounded-full transition-all" style={{ width: `${currentData?.breakdown?.written ?? 0}%` }} />
+                  <div className="h-full bg-orange-500 rounded-full transition-all" style={{ width: `${writtenOutOf100}%` }} />
                 </div>
               </div>
 
@@ -810,11 +858,11 @@ export default function Dashboard() {
                 <Mic className="w-6 h-6 text-teal-500 mb-3" />
                 <p className="text-[10px] font-black uppercase tracking-widest text-teal-400 mb-1">Устные</p>
                 <p className="text-2xl font-black text-teal-700">
-                  {currentData?.earnedByType?.oral ?? 0}
-                  <span className="text-sm font-bold text-teal-300">/{currentData?.maxByType?.oral ?? 0}</span>
+                  {oralOutOf100}
+                  <span className="text-sm font-bold text-teal-300">/100</span>
                 </p>
                 <div className="mt-2 h-1.5 bg-teal-200 rounded-full overflow-hidden">
-                  <div className="h-full bg-teal-500 rounded-full transition-all" style={{ width: `${currentData?.breakdown?.oral ?? 0}%` }} />
+                  <div className="h-full bg-teal-500 rounded-full transition-all" style={{ width: `${oralOutOf100}%` }} />
                 </div>
               </div>
             </div>
@@ -834,29 +882,31 @@ export default function Dashboard() {
             </motion.div>
           )}
 
-          {/* ГДЕ ОШИБСЯ */}
-          <motion.div
-            variants={itemVariants}
-            initial="hidden"
-            animate="show"
-            className="bg-white p-8 md:p-10 rounded-[2.5rem] shadow-sm border border-gray-100 xl:col-span-3"
-          >
-            <div className="flex items-start gap-4 mb-6">
-              <div className="w-12 h-12 rounded-2xl bg-rose-50 flex items-center justify-center shrink-0">
-                <TrendingDown className="w-6 h-6 text-rose-500" />
+          {/* ГДЕ ОШИБСЯ — показываем только если на курсе включена проверка орфографии */}
+          {selectedCourse?.spell_check && currentWeakSpots.length > 0 && (
+            <motion.div
+              variants={itemVariants}
+              initial="hidden"
+              animate="show"
+              className="bg-white p-8 md:p-10 rounded-[2.5rem] shadow-sm border border-gray-100 xl:col-span-3"
+            >
+              <div className="flex items-start gap-4 mb-6">
+                <div className="w-12 h-12 rounded-2xl bg-rose-50 flex items-center justify-center shrink-0">
+                  <TrendingDown className="w-6 h-6 text-rose-500" />
+                </div>
+                <div>
+                  <h3 className="text-2xl font-black text-gray-900">Где стоит подтянуть</h3>
+                  <p className="text-sm font-medium text-gray-500 mt-1">
+                    Показываем этот блок только для курсов, где включена проверка орфографии.
+                  </p>
+                </div>
               </div>
-              <div>
-                <h3 className="text-2xl font-black text-gray-900">Где стоит подтянуть</h3>
-                <p className="text-sm font-medium text-gray-500 mt-1">
-                  Задания с результатом ниже 70%. Нажми на карточку — откроется урок, чтобы исправить ошибки.
-                </p>
-              </div>
-            </div>
-            <WeakSpotsList spots={currentWeakSpots} onOpen={handleOpenWeakSpot} />
-          </motion.div>
+              <WeakSpotsList spots={currentWeakSpots} onOpen={handleOpenWeakSpot} />
+            </motion.div>
+          )}
 
           {/* НУЖНО ПОВТОРИТЬ — модули <50% по всем курсам */}
-          {isCourseView && weakModules.length > 0 && (
+          {weakModules.length > 0 && (
             <motion.div
               variants={itemVariants}
               initial="hidden"

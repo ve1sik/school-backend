@@ -32,6 +32,7 @@ export default function Layout() {
   const location = useLocation();
   const navigate = useNavigate();
   const [isAdmin, setIsAdmin] = useState(false);
+  const [userRole, setUserRole] = useState<string>('');
   
   const [userData, setUserData] = useState<any>(null);
   
@@ -95,6 +96,7 @@ export default function Layout() {
 
     try {
       const payload = JSON.parse(window.atob(token.split('.')[1]));
+      setUserRole(payload.role || '');
       if (payload.role === 'ADMIN' || payload.role === 'CURATOR') {
         setIsAdmin(true);
       }
@@ -235,6 +237,9 @@ export default function Layout() {
     return 'СТ';
   };
 
+  const isAdminRole = userRole === 'ADMIN' || userData?.role === 'ADMIN';
+  const isCuratorRole = userRole === 'CURATOR' || userData?.role === 'CURATOR';
+
   const menuItems = [
     { path: '/', icon: Home, label: 'Главная' },
     { path: '/courses', icon: BookOpen, label: 'Курсы' },
@@ -250,12 +255,12 @@ export default function Layout() {
 
   // Админ/куратор-разделы (для мобильного меню)
   const adminItems = [
-    { path: '/admin', icon: BookOpen, label: 'Управление курсами' },
-    { path: '/admin/users', icon: Users, label: 'Управление пользователями' },
-    { path: '/admin/groups', icon: ShieldCheck, label: 'Управление потоками' },
-    { path: '/admin/decks', icon: Layers, label: 'Карточки (колоды)' },
-    { path: '/curator', icon: Users, label: 'Кабинет куратора' },
-  ];
+    { path: '/admin', icon: BookOpen, label: 'Управление курсами', show: isAdminRole || isCuratorRole },
+    { path: '/admin/users', icon: Users, label: 'Управление пользователями', show: isAdminRole || isCuratorRole },
+    { path: '/admin/groups', icon: ShieldCheck, label: 'Управление потоками', show: isAdminRole },
+    { path: '/admin/decks', icon: Layers, label: 'Карточки (колоды)', show: isAdminRole },
+    { path: '/curator', icon: Users, label: 'Кабинет куратора', show: isAdminRole || isCuratorRole },
+  ].filter(item => item.show);
 
   // Быстрая навигация снизу на телефоне (самое частое)
   const bottomNavItems = [
@@ -338,76 +343,27 @@ export default function Layout() {
 
             {isAdmin && (
               <div className="pt-2 mt-2 border-t border-gray-50 space-y-1.5">
-                {/* 🔥 ИЗМЕНЕНО: Стили активных админских кнопок теперь такие же, как у обычных */}
-                <Link
-                  to="/admin"
-                  className={`flex items-center gap-4 p-3 rounded-xl transition-all ${
-                    location.pathname === '/admin'
-                      ? 'bg-[#EEF2FF] text-[#5A4BFF] shadow-sm' 
-                      : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'
-                  }`}
-                >
-                  <BookOpen className={`w-6 h-6 shrink-0 ${location.pathname === '/admin' ? 'text-[#5A4BFF]' : 'text-gray-400'}`} />
-                  <span className="text-sm font-bold whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                    Управление курсами
-                  </span>
-                </Link>
-
-                <Link
-                  to="/admin/users"
-                  className={`flex items-center gap-4 p-3 rounded-xl transition-all ${
-                    location.pathname === '/admin/users'
-                      ? 'bg-[#EEF2FF] text-[#5A4BFF] shadow-sm' 
-                      : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'
-                  }`}
-                >
-                  <Users className={`w-6 h-6 shrink-0 ${location.pathname === '/admin/users' ? 'text-[#5A4BFF]' : 'text-gray-400'}`} />
-                  <span className="text-sm font-bold whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                    Управление пользователями
-                  </span>
-                </Link>
-
-                <Link
-                  to="/admin/groups"
-                  className={`flex items-center gap-4 p-3 rounded-xl transition-all ${
-                    location.pathname === '/admin/groups'
-                      ? 'bg-[#EEF2FF] text-[#5A4BFF] shadow-sm' 
-                      : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'
-                  }`}
-                >
-                  <ShieldCheck className={`w-6 h-6 shrink-0 ${location.pathname === '/admin/groups' ? 'text-[#5A4BFF]' : 'text-gray-400'}`} />
-                  <span className="text-sm font-bold whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                    Управление потоками
-                  </span>
-                </Link>
-
-                <Link
-                  to="/admin/decks"
-                  className={`flex items-center gap-4 p-3 rounded-xl transition-all ${
-                    location.pathname === '/admin/decks'
-                      ? 'bg-[#EEF2FF] text-[#5A4BFF] shadow-sm' 
-                      : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'
-                  }`}
-                >
-                  <Layers className={`w-6 h-6 shrink-0 ${location.pathname === '/admin/decks' ? 'text-[#5A4BFF]' : 'text-gray-400'}`} />
-                  <span className="text-sm font-bold whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                    Карточки (колоды)
-                  </span>
-                </Link>
-
-                <Link
-                  to="/curator"
-                  className={`flex items-center gap-4 p-3 rounded-xl transition-all ${
-                    location.pathname.startsWith('/curator')
-                      ? 'bg-[#EEF2FF] text-[#5A4BFF] shadow-sm' 
-                      : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'
-                  }`}
-                >
-                  <Users className={`w-6 h-6 shrink-0 ${location.pathname.startsWith('/curator') ? 'text-[#5A4BFF]' : 'text-gray-400'}`} />
-                  <span className="text-sm font-bold whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                    Кабинет куратора
-                  </span>
-                </Link>
+                {adminItems.map((item) => {
+                  const isActive = item.path === '/curator'
+                    ? location.pathname.startsWith('/curator')
+                    : location.pathname === item.path;
+                  return (
+                    <Link
+                      key={item.path}
+                      to={item.path}
+                      className={`flex items-center gap-4 p-3 rounded-xl transition-all ${
+                        isActive
+                          ? 'bg-[#EEF2FF] text-[#5A4BFF] shadow-sm'
+                          : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'
+                      }`}
+                    >
+                      <item.icon className={`w-6 h-6 shrink-0 ${isActive ? 'text-[#5A4BFF]' : 'text-gray-400'}`} />
+                      <span className="text-sm font-bold whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                        {item.label}
+                      </span>
+                    </Link>
+                  );
+                })}
               </div>
             )}
           </nav>

@@ -17,8 +17,8 @@ export class GroupController {
 
   @Roles('ADMIN', 'CURATOR')
   @Get()
-  findAll() {
-    return this.groupService.findAll();
+  findAll(@Request() req) {
+    return this.groupService.findAll(req.user.sub, req.user.role);
   }
 
   @Roles('ADMIN', 'CURATOR', 'STUDENT', 'TEACHER')
@@ -43,14 +43,14 @@ export class GroupController {
 
   @Roles('ADMIN', 'CURATOR')
   @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.groupService.findOne(id);
+  findOne(@Param('id') id: string, @Request() req) {
+    return this.groupService.findOne(id, req.user.sub, req.user.role);
   }
 
-  @Roles('ADMIN')
+  @Roles('ADMIN', 'CURATOR')
   @Patch(':id')
-  update(@Param('id') id: string, @Body() updateGroupDto: any) {
-    return this.groupService.update(id, updateGroupDto);
+  update(@Param('id') id: string, @Body() updateGroupDto: any, @Request() req) {
+    return this.groupService.update(id, updateGroupDto, req.user.sub, req.user.role);
   }
 
   @Roles('ADMIN')

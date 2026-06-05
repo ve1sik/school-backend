@@ -10,6 +10,12 @@ import { SubmissionsService } from './submissions.service';
 export class SubmissionsController {
   constructor(private readonly submissionsService: SubmissionsService) {}
 
+  @Roles(Role.ADMIN, Role.CURATOR, Role.TEACHER)
+  @Post('oral')
+  createOralSubmission(@Body() body: any) {
+    return this.submissionsService.createOralSubmission(body);
+  }
+
   @Post()
   createSubmission(@Request() req, @Body() body: any) {
     const userId = req.user.sub;

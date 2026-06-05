@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
@@ -9,8 +9,19 @@ export class GroupService {
     return this.prisma.group.create({ data });
   }
 
-  async findAll() {
+  async findAll(requesterId?: string, requesterRole?: string) {
+    const where =
+      requesterRole === 'CURATOR' && requesterId
+        ? {
+            OR: [
+              { curator_id: requesterId },
+              { teacher_id: requesterId },
+            ],
+          }
+        : {};
+
     return this.prisma.group.findMany({
+      where,
       include: { 
         _count: { select: { students: true, courses: true } },
         curator: true,
@@ -19,19 +30,40 @@ export class GroupService {
     });
   }
 
-  async findOne(id: string) {
-    return this.prisma.group.findUnique({
-      where: { id },
+  async findOne(id: string, requesterId?: string, requesterRole?: string) {
+    const where =
+      requesterRole === 'CURATOR' && requesterId
+        ? {
+            id,
+            OR: [
+              { curator_id: requesterId },
+              { teacher_id: requesterId },
+            ],
+          }
+        : { id };
+
+    return this.prisma.group.findFirst({
+      where,
       include: { courses: true, students: true, curator: true, teacher: true }
     });
   }
 
-  async update(id: string, data: any) {
+  async update(id: string, data: any, requesterId?: string, requesterRole?: string) {
     const { curator_id, curatorId, teacherId, ...rest } = data;
     const updateData: any = { ...rest };
 
+    if (requesterRole === 'CURATOR') {
+      const group = await this.prisma.group.findUnique({ where: { id }, select: { curator_id: true } });
+      if (!group || group.curator_id !== requesterId) {
+        throw new ForbiddenException('Можно менять только свою группу');
+      }
+
+      // Куратор может назначить/снять преподавателя своей группы, но не менять всё как админ.
+      Object.keys(updateData).forEach((key) => delete updateData[key]);
+    }
+
     const effectiveCuratorId = curatorId ?? curator_id;
-    if (effectiveCuratorId !== undefined) {
+    if (requesterRole !== 'CURATOR' && effectiveCuratorId !== undefined) {
       if (effectiveCuratorId === null || effectiveCuratorId === '') {
         updateData.curator = { disconnect: true };
       } else {

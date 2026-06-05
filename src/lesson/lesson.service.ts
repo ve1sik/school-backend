@@ -1,11 +1,40 @@
-import { Injectable } from '@nestjs/common';
+import { ForbiddenException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
 export class LessonService {
   constructor(private prisma: PrismaService) {}
 
-  async create(dto: any) {
+  private async ensureCanManageTheme(themeId: string, userId?: string, userRole?: string) {
+    if (userRole === 'ADMIN') return;
+    const theme = await this.prisma.theme.findFirst({
+      where: {
+        id: themeId,
+        course: {
+          groups: {
+            some: {
+              OR: [
+                { curator_id: userId },
+                { teacher_id: userId },
+              ],
+            },
+          },
+        },
+      },
+      select: { id: true },
+    });
+    if (!theme) throw new ForbiddenException('Можно менять только назначенный курс');
+  }
+
+  private async ensureCanManageLesson(lessonId: string, userId?: string, userRole?: string) {
+    if (userRole === 'ADMIN') return;
+    const lesson = await this.prisma.lesson.findUnique({ where: { id: lessonId }, select: { theme_id: true } });
+    if (!lesson) throw new Error('Lesson not found');
+    await this.ensureCanManageTheme(lesson.theme_id, userId, userRole);
+  }
+
+  async create(dto: any, userId?: string, userRole?: string) {
+    await this.ensureCanManageTheme(dto.themeId, userId, userRole);
     return this.prisma.lesson.create({
       data: {
         title: dto.title,
@@ -22,7 +51,8 @@ export class LessonService {
     });
   }
 
-  async update(id: string, dto: any) {
+  async update(id: string, dto: any, userId?: string, userRole?: string) {
+    await this.ensureCanManageLesson(id, userId, userRole);
     return this.prisma.lesson.update({
       where: { id },
       data: {
@@ -39,7 +69,9 @@ export class LessonService {
   }
 
   // 🔥 ФИЧА: Умное перетаскивание со сдвигом остальных уроков
-  async reorder(id: string, newThemeId: string, newOrderIndex: number) {
+  async reorder(id: string, newThemeId: string, newOrderIndex: number, userId?: string, userRole?: string) {
+    await this.ensureCanManageLesson(id, userId, userRole);
+    await this.ensureCanManageTheme(newThemeId, userId, userRole);
     const lesson = await this.prisma.lesson.findUnique({ where: { id } });
     if (!lesson) throw new Error('Lesson not found');
 
@@ -94,13 +126,15 @@ export class LessonService {
     });
   }
 
-  async delete(id: string) {
+  async delete(id: string, userId?: string, userRole?: string) {
+    await this.ensureCanManageLesson(id, userId, userRole);
     return this.prisma.lesson.delete({
       where: { id },
     });
   }
 
-  async updateVisibility(id: string, is_visible: boolean) {
+  async updateVisibility(id: string, is_visible: boolean, userId?: string, userRole?: string) {
+    await this.ensureCanManageLesson(id, userId, userRole);
     return this.prisma.lesson.update({
       where: { id },
       data: { is_visible },

@@ -70,6 +70,7 @@ export default function AdminUsers() {
   const [selectedGroupFilter, setSelectedGroupFilter] = useState('');
   const [assignCuratorId, setAssignCuratorId] = useState('');
   const [assignTeacherId, setAssignTeacherId] = useState('');
+  const [currentRole, setCurrentRole] = useState<Role>('STUDENT');
 
   const showToast = (text: string, type: 'success' | 'error' = 'success') => {
     setToast({ text, type });
@@ -85,17 +86,19 @@ export default function AdminUsers() {
   const fetchData = async () => {
     setIsLoading(true);
     try {
-      const [usersRes, coursesRes, groupsRes, subjectsRes] = await Promise.all([
+      const [usersRes, coursesRes, groupsRes, subjectsRes, meRes] = await Promise.all([
         axios.get(`${API_URL}/users`, getTokenConfig()),
         axios.get(`${API_URL}/courses`, getTokenConfig()),
         axios.get(`${API_URL}/groups`, getTokenConfig()),
-        axios.get(`${API_URL}/subjects`, getTokenConfig()).catch(() => ({ data: [] }))
+        axios.get(`${API_URL}/subjects`, getTokenConfig()).catch(() => ({ data: [] })),
+        axios.get(`${API_URL}/auth/me`, getTokenConfig()).catch(() => ({ data: null })),
       ]);
       
       setUsers(usersRes.data);
       setCourses(coursesRes.data);
       setGroups(groupsRes.data);
       setSubjects(subjectsRes.data);
+      setCurrentRole(meRes.data?.role || 'STUDENT');
     } catch (err) {
       showToast('Ошибка загрузки данных', 'error');
     } finally {
@@ -314,9 +317,11 @@ export default function AdminUsers() {
           <button type="button" className="w-full flex items-center gap-4 px-5 py-4 rounded-2xl font-bold transition-all bg-[#5A4BFF] text-white shadow-lg shadow-indigo-500/20">
             <Users className="w-5 h-5" /> Пользователи
           </button>
-          <button type="button" onClick={() => navigate('/admin/groups')} className="w-full flex items-center gap-4 px-5 py-4 rounded-2xl font-bold transition-all text-gray-600 hover:bg-gray-50">
-            <Building2 className="w-5 h-5" /> Группы
-          </button>
+          {currentRole === 'ADMIN' && (
+            <button type="button" onClick={() => navigate('/admin/groups')} className="w-full flex items-center gap-4 px-5 py-4 rounded-2xl font-bold transition-all text-gray-600 hover:bg-gray-50">
+              <Building2 className="w-5 h-5" /> Группы
+            </button>
+          )}
         </div>
         
         <div className="p-4 border-t border-gray-100 shrink-0">
@@ -343,10 +348,12 @@ export default function AdminUsers() {
                 className="w-full bg-white border border-gray-200 text-sm font-bold text-gray-700 rounded-xl pl-11 pr-4 py-3 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 transition-all placeholder:font-medium shadow-sm"
               />
             </div>
-            <button onClick={() => setShowCreateModal(true)}
-              className="flex items-center gap-2 px-5 py-3 bg-[#5A4BFF] text-white rounded-xl font-black text-sm hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-500/20 shrink-0">
-              <Plus className="w-4 h-4" /> Создать аккаунт
-            </button>
+            {currentRole === 'ADMIN' && (
+              <button onClick={() => setShowCreateModal(true)}
+                className="flex items-center gap-2 px-5 py-3 bg-[#5A4BFF] text-white rounded-xl font-black text-sm hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-500/20 shrink-0">
+                <Plus className="w-4 h-4" /> Создать аккаунт
+              </button>
+            )}
           </div>
         </div>
 
@@ -387,6 +394,7 @@ export default function AdminUsers() {
               {/* НАЗНАЧЕНИЕ КУРАТОРА И ПРЕПОДА */}
               <div className="px-6 py-4 border-b border-gray-50 grid grid-cols-1 md:grid-cols-2 gap-4">
                 {/* Куратор */}
+                {currentRole === 'ADMIN' && (
                 <div className="bg-purple-50 rounded-2xl p-4 border border-purple-100">
                   <div className="flex items-center gap-2 mb-3">
                     <Crown className="w-4 h-4 text-purple-500" />
@@ -431,6 +439,7 @@ export default function AdminUsers() {
                     </button>
                   </div>
                 </div>
+                )}
 
                 {/* Преподаватель */}
                 <div className="bg-sky-50 rounded-2xl p-4 border border-sky-100">
@@ -609,13 +618,15 @@ export default function AdminUsers() {
                                       </td>
                                       {/* Действия */}
                                       <td className="px-6 py-3.5 text-right">
-                                        <button
-                                          onClick={e => { e.stopPropagation(); handleDeleteUser(user.id); }}
-                                          className="p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                                          title="Удалить"
-                                        >
-                                          <Trash2 className="w-4 h-4" />
-                                        </button>
+                                        {currentRole === 'ADMIN' && (
+                                          <button
+                                            onClick={e => { e.stopPropagation(); handleDeleteUser(user.id); }}
+                                            className="p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                                            title="Удалить"
+                                          >
+                                            <Trash2 className="w-4 h-4" />
+                                          </button>
+                                        )}
                                       </td>
                                     </tr>
                                   );
@@ -674,9 +685,11 @@ export default function AdminUsers() {
               <div>
                 <div className="flex justify-between items-center mb-3">
                   <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Роль</h4>
-                  <button onClick={() => { setSelectedRole(selectedUser.role); setShowRoleModal(true); }} className="text-xs font-bold text-indigo-600 hover:text-indigo-700">
-                    Изменить
-                  </button>
+                  {currentRole === 'ADMIN' && (
+                    <button onClick={() => { setSelectedRole(selectedUser.role); setShowRoleModal(true); }} className="text-xs font-bold text-indigo-600 hover:text-indigo-700">
+                      Изменить
+                    </button>
+                  )}
                 </div>
                 <div className={`inline-flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-black border ${getRoleBadge(selectedUser.role).class}`}>
                   <Shield className="w-4 h-4" /> {getRoleBadge(selectedUser.role).text}
@@ -687,17 +700,21 @@ export default function AdminUsers() {
               <div>
                 <div className="flex justify-between items-center mb-3">
                   <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Курсы</h4>
-                  <button onClick={() => setShowCourseModal(true)} className="p-1.5 bg-indigo-50 rounded-lg hover:bg-indigo-100 transition-colors">
-                    <Plus className="w-4 h-4 text-indigo-600" />
-                  </button>
+                  {currentRole === 'ADMIN' && (
+                    <button onClick={() => setShowCourseModal(true)} className="p-1.5 bg-indigo-50 rounded-lg hover:bg-indigo-100 transition-colors">
+                      <Plus className="w-4 h-4 text-indigo-600" />
+                    </button>
+                  )}
                 </div>
                 <div className="space-y-2">
                   {selectedUser.enrollments?.map(e => (
                     <div key={e.course.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-xl border border-gray-100">
                       <span className="text-sm font-bold text-gray-700">{e.course.title}</span>
-                      <button onClick={() => handleRemoveCourse(e.course.id)} className="p-1 text-gray-400 hover:text-red-500 transition-colors">
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                      {currentRole === 'ADMIN' && (
+                        <button onClick={() => handleRemoveCourse(e.course.id)} className="p-1 text-gray-400 hover:text-red-500 transition-colors">
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
                     </div>
                   ))}
                   {(!selectedUser.enrollments || selectedUser.enrollments.length === 0) && (
@@ -710,20 +727,24 @@ export default function AdminUsers() {
               <div>
                 <div className="flex justify-between items-center mb-3">
                   <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Группы</h4>
-                  <button onClick={() => setShowGroupModal(true)} className="p-1.5 bg-purple-50 rounded-lg hover:bg-purple-100 transition-colors">
-                    <Plus className="w-4 h-4 text-purple-600" />
-                  </button>
+                  {currentRole === 'ADMIN' && (
+                    <button onClick={() => setShowGroupModal(true)} className="p-1.5 bg-purple-50 rounded-lg hover:bg-purple-100 transition-colors">
+                      <Plus className="w-4 h-4 text-purple-600" />
+                    </button>
+                  )}
                 </div>
                 <div className="space-y-2">
                   {selectedUser.groups?.map(g => (
                     <div key={g.id} className="p-3 bg-purple-50 rounded-xl border border-purple-100 space-y-2">
                       <div className="flex items-center justify-between">
                         <span className="text-sm font-bold text-purple-700">{g.title}</span>
-                        <button onClick={() => handleRemoveFromGroup(g.id)} className="p-1 text-purple-400 hover:text-red-500 transition-colors">
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                        {currentRole === 'ADMIN' && (
+                          <button onClick={() => handleRemoveFromGroup(g.id)} className="p-1 text-purple-400 hover:text-red-500 transition-colors">
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
                       </div>
-                      {(selectedUser.role === 'CURATOR' || selectedUser.role === 'TEACHER' || selectedUser.role === 'ADMIN') && (
+                      {currentRole === 'ADMIN' && (selectedUser.role === 'CURATOR' || selectedUser.role === 'TEACHER' || selectedUser.role === 'ADMIN') && (
                         <div className="flex gap-2 flex-wrap">
                           <button onClick={() => handleAssignGroupCurator(g.id, selectedUser.id)}
                             className="text-[10px] font-black px-2.5 py-1.5 rounded-lg bg-purple-100 hover:bg-purple-200 text-purple-700 transition-colors uppercase tracking-wider">
@@ -748,17 +769,21 @@ export default function AdminUsers() {
                 <div>
                   <div className="flex justify-between items-center mb-3">
                     <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Преподаёт предметы</h4>
-                    <button onClick={() => setShowSubjectModal(true)} className="p-1.5 bg-emerald-50 rounded-lg hover:bg-emerald-100 transition-colors">
-                      <Plus className="w-4 h-4 text-emerald-600" />
-                    </button>
+                    {currentRole === 'ADMIN' && (
+                      <button onClick={() => setShowSubjectModal(true)} className="p-1.5 bg-emerald-50 rounded-lg hover:bg-emerald-100 transition-colors">
+                        <Plus className="w-4 h-4 text-emerald-600" />
+                      </button>
+                    )}
                   </div>
                   <div className="space-y-2">
                     {selectedUser.subjects?.map(s => (
                       <div key={s.id} className="flex items-center justify-between p-3 bg-emerald-50 rounded-xl border border-emerald-100">
                         <span className="text-sm font-bold text-emerald-700">{s.title}</span>
-                        <button onClick={() => handleRemoveSubject(s.id)} className="p-1 text-emerald-400 hover:text-red-500 transition-colors">
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                        {currentRole === 'ADMIN' && (
+                          <button onClick={() => handleRemoveSubject(s.id)} className="p-1 text-emerald-400 hover:text-red-500 transition-colors">
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
                       </div>
                     ))}
                     {(!selectedUser.subjects || selectedUser.subjects.length === 0) && (
@@ -792,11 +817,13 @@ export default function AdminUsers() {
               </div>
 
               {/* УДАЛЕНИЕ */}
-              <div className="pt-6 border-t border-gray-100">
-                <button onClick={() => handleDeleteUser(selectedUser.id)} className="w-full py-3 bg-red-50 text-red-600 hover:bg-red-100 rounded-xl font-bold flex items-center justify-center gap-2 transition-colors">
-                  <Trash2 className="w-5 h-5" /> Удалить пользователя
-                </button>
-              </div>
+              {currentRole === 'ADMIN' && (
+                <div className="pt-6 border-t border-gray-100">
+                  <button onClick={() => handleDeleteUser(selectedUser.id)} className="w-full py-3 bg-red-50 text-red-600 hover:bg-red-100 rounded-xl font-bold flex items-center justify-center gap-2 transition-colors">
+                    <Trash2 className="w-5 h-5" /> Удалить пользователя
+                  </button>
+                </div>
+              )}
             </div>
           </motion.aside>
         )}

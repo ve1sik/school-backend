@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Delete, Param, Patch, UseGuards } from '@nestjs/common';
+import { Controller, Post, Body, Delete, Param, Patch, UseGuards, Request } from '@nestjs/common';
 import { ThemeService } from './theme.service';
 import { AuthGuard } from '@nestjs/passport'; 
 import { RolesGuard } from '../auth/roles.guard'; 
@@ -12,29 +12,29 @@ export class ThemeController {
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   @Roles(Role.ADMIN, Role.CURATOR)
   @Post()
-  async createTheme(@Body() dto: any) {
-    return this.themeService.create(dto);
+  async createTheme(@Body() dto: any, @Request() req) {
+    return this.themeService.create(dto, req.user.sub, req.user.role);
   }
 
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   @Roles(Role.ADMIN, Role.CURATOR)
   @Patch(':id/reorder')
-  async reorder(@Param('id') id: string, @Body() dto: { newOrderIndex: number }) {
-    return this.themeService.reorder(id, dto.newOrderIndex);
+  async reorder(@Param('id') id: string, @Body() dto: { newOrderIndex: number }, @Request() req) {
+    return this.themeService.reorder(id, dto.newOrderIndex, req.user.sub, req.user.role);
   }
 
   // 🔥 Точная копия логики из курсов! Принимаем любой dto (включая title)
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   @Roles(Role.ADMIN, Role.CURATOR)
   @Patch(':id')
-  async update(@Param('id') id: string, @Body() dto: any) {
-    return this.themeService.update(id, dto);
+  async update(@Param('id') id: string, @Body() dto: any, @Request() req) {
+    return this.themeService.update(id, dto, req.user.sub, req.user.role);
   }
 
   @UseGuards(AuthGuard('jwt'), RolesGuard)
   @Roles(Role.ADMIN, Role.CURATOR)
   @Delete(':id')
-  async deleteTheme(@Param('id') id: string) {
-    return this.themeService.delete(id);
+  async deleteTheme(@Param('id') id: string, @Request() req) {
+    return this.themeService.delete(id, req.user.sub, req.user.role);
   }
 }

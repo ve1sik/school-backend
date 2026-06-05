@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Delete, Param, Body, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Param, Body, Query, UseGuards, Request } from '@nestjs/common';
 import { UserService } from './user.service';
 import { AuthGuard } from '@nestjs/passport';
 import { RolesGuard } from '../auth/roles.guard';
@@ -10,28 +10,30 @@ export class UserController {
   constructor(private readonly userService: UserService) {}
 
   // Пагинация опциональна: без ?skip/?take возвращаем всех (обратная совместимость)
-  @Roles('ADMIN')
+  @Roles('ADMIN', 'CURATOR')
   @Get()
-  findAll(@Query('skip') skip?: string, @Query('take') take?: string) {
+  findAll(@Request() req, @Query('skip') skip?: string, @Query('take') take?: string) {
     return this.userService.findAll(
       skip !== undefined ? Number(skip) : undefined,
       take !== undefined ? Number(take) : undefined,
+      req.user.sub,
+      req.user.role,
     );
   }
 
   @Roles('ADMIN', 'CURATOR')
   @Get('students')
-  findAllStudents() {
-    return this.userService.findAllStudents();
+  findAllStudents(@Request() req) {
+    return this.userService.findAllStudents(req.user.sub, req.user.role);
   }
 
-  @Roles('ADMIN')
+  @Roles('ADMIN', 'CURATOR')
   @Get('curators')
-  findAllCurators() {
-    return this.userService.findAllCurators();
+  findAllCurators(@Request() req) {
+    return this.userService.findAllCurators(req.user.sub, req.user.role);
   }
 
-  @Roles('ADMIN')
+  @Roles('ADMIN', 'CURATOR')
   @Get('teachers')
   findAllTeachers() {
     return this.userService.findAllTeachers();

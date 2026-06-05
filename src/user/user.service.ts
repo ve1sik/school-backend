@@ -27,7 +27,37 @@ const userListSelect = {
 export class UserService {
   constructor(private prisma: PrismaService) {}
 
-  async findAll(skip?: number, take?: number) {
+  async findAll(skip?: number, take?: number, requesterId?: string, requesterRole?: string) {
+    if (requesterRole === 'CURATOR' && requesterId) {
+      const groups = await this.prisma.group.findMany({
+        where: {
+          OR: [
+            { curator_id: requesterId },
+            { teacher_id: requesterId },
+          ],
+        },
+        select: {
+          curator_id: true,
+          teacher_id: true,
+          students: { select: { id: true } },
+        },
+      });
+
+      const scopedIds = new Set<string>([requesterId]);
+      groups.forEach((group) => {
+        if (group.curator_id) scopedIds.add(group.curator_id);
+        if (group.teacher_id) scopedIds.add(group.teacher_id);
+        group.students.forEach((student) => scopedIds.add(student.id));
+      });
+
+      if (scopedIds.size === 0) return [];
+      return this.prisma.user.findMany({
+        where: { id: { in: [...scopedIds] } },
+        select: userListSelect,
+        orderBy: { created_at: 'desc' },
+      });
+    }
+
     return this.prisma.user.findMany({
       select: userListSelect,
       orderBy: { created_at: 'desc' },
@@ -36,7 +66,26 @@ export class UserService {
     });
   }
 
-  async findAllStudents() {
+  async findAllStudents(requesterId?: string, requesterRole?: string) {
+    if (requesterRole === 'CURATOR' && requesterId) {
+      const groups = await this.prisma.group.findMany({
+        where: {
+          OR: [
+            { curator_id: requesterId },
+            { teacher_id: requesterId },
+          ],
+        },
+        select: { students: { select: { id: true } } },
+      });
+      const studentIds = [...new Set(groups.flatMap((g) => g.students.map((s) => s.id)))];
+      if (studentIds.length === 0) return [];
+      return this.prisma.user.findMany({
+        where: { id: { in: studentIds }, role: 'STUDENT' },
+        select: { id: true, name: true, surname: true, email: true, avatar: true },
+        orderBy: { created_at: 'desc' },
+      });
+    }
+
     return this.prisma.user.findMany({
       where: { role: 'STUDENT' },
       select: { id: true, name: true, surname: true, email: true, avatar: true },
@@ -44,7 +93,14 @@ export class UserService {
     });
   }
 
-  async findAllCurators() {
+  async findAllCurators(requesterId?: string, requesterRole?: string) {
+    if (requesterRole === 'CURATOR' && requesterId) {
+      return this.prisma.user.findMany({
+        where: { id: requesterId },
+        select: { id: true, name: true, surname: true, email: true, avatar: true },
+      });
+    }
+
     return this.prisma.user.findMany({
       where: { role: 'CURATOR' },
       select: { id: true, name: true, surname: true, email: true, avatar: true },

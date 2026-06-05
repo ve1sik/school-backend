@@ -1,11 +1,38 @@
-import { Injectable } from '@nestjs/common';
+import { ForbiddenException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
 export class ThemeService {
   constructor(private prisma: PrismaService) {}
 
-  async create(dto: any) {
+  private async ensureCanManageCourse(courseId: string, userId?: string, userRole?: string) {
+    if (userRole === 'ADMIN') return;
+    const course = await this.prisma.course.findFirst({
+      where: {
+        id: courseId,
+        groups: {
+          some: {
+            OR: [
+              { curator_id: userId },
+              { teacher_id: userId },
+            ],
+          },
+        },
+      },
+      select: { id: true },
+    });
+    if (!course) throw new ForbiddenException('Можно менять только назначенный курс');
+  }
+
+  private async ensureCanManageTheme(themeId: string, userId?: string, userRole?: string) {
+    if (userRole === 'ADMIN') return;
+    const theme = await this.prisma.theme.findUnique({ where: { id: themeId }, select: { course_id: true } });
+    if (!theme) throw new Error('Theme not found');
+    await this.ensureCanManageCourse(theme.course_id, userId, userRole);
+  }
+
+  async create(dto: any, userId?: string, userRole?: string) {
+    await this.ensureCanManageCourse(dto.courseId, userId, userRole);
     return this.prisma.theme.create({
       data: {
         course_id: dto.courseId,
@@ -15,7 +42,8 @@ export class ThemeService {
     });
   }
 
-  async update(id: string, dto: any) {
+  async update(id: string, dto: any, userId?: string, userRole?: string) {
+    await this.ensureCanManageTheme(id, userId, userRole);
     const { unlock_date, deadline, ...rest } = dto;
     return this.prisma.theme.update({
       where: { id },
@@ -27,13 +55,15 @@ export class ThemeService {
     });
   }
 
-  async delete(id: string) {
+  async delete(id: string, userId?: string, userRole?: string) {
+    await this.ensureCanManageTheme(id, userId, userRole);
     return this.prisma.theme.delete({
       where: { id },
     });
   }
 
-  async reorder(id: string, newOrderIndex: number) {
+  async reorder(id: string, newOrderIndex: number, userId?: string, userRole?: string) {
+    await this.ensureCanManageTheme(id, userId, userRole);
     const theme = await this.prisma.theme.findUnique({ where: { id } });
     if (!theme) throw new Error('Theme not found');
 

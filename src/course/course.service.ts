@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service'; 
 
 @Injectable()
@@ -24,10 +24,8 @@ export class CourseService {
     return course;
   }
 
-  // 🔥 ИСПРАВЛЕНО: Умная логика выдачи курсов
   async getAllCourses(userId?: string, userRole?: string) {
-    // 1. Если это Админ или Куратор — отдаем ВСЕ курсы (для админки)
-    if (userRole === 'ADMIN' || userRole === 'CURATOR') {
+    if (userRole === 'ADMIN') {
       return this.prisma.course.findMany({
         include: {
           themes: {
@@ -41,22 +39,42 @@ export class CourseService {
       });
     }
 
-    // 2. Если это Студент (или кто-то еще) — ищем, какие курсы он купил
-    // Достаем записи из таблицы Enrollment (Зачисления)
+    // Куратор/преподаватель видит только курсы из групп, где он назначен.
+    if ((userRole === 'CURATOR' || userRole === 'TEACHER') && userId) {
+      return this.prisma.course.findMany({
+        where: {
+          groups: {
+            some: {
+              OR: [
+                { curator_id: userId },
+                { teacher_id: userId },
+              ],
+            },
+          },
+        },
+        include: {
+          themes: {
+            orderBy: { order_index: 'asc' },
+            include: {
+              lessons: { orderBy: { order_index: 'asc' } },
+            },
+          },
+        },
+        orderBy: { title: 'asc' },
+      });
+    }
+
     const enrollments = await this.prisma.enrollment.findMany({
       where: { user_id: userId },
       select: { course_id: true }
     });
 
-    // Собираем массив ID купленных курсов
     const purchasedCourseIds = enrollments.map(e => e.course_id);
 
-    // Если студент еще ничего не купил, отдаем пустой массив
     if (purchasedCourseIds.length === 0) {
       return [];
     }
 
-    // Возвращаем ТОЛЬКО купленные курсы
     return this.prisma.course.findMany({
       where: {
         id: { in: purchasedCourseIds } // Фильтр IN
@@ -77,7 +95,32 @@ export class CourseService {
     return this.prisma.course.create({ data: dto });
   }
 
-  async updateCourse(id: string, dto: any) {
+  private async ensureCanManageCourse(id: string, userId?: string, userRole?: string) {
+    if (userRole === 'ADMIN') return;
+    if (!userId || !['CURATOR', 'TEACHER'].includes(userRole || '')) {
+      throw new ForbiddenException('Нет доступа к курсу');
+    }
+
+    const course = await this.prisma.course.findFirst({
+      where: {
+        id,
+        groups: {
+          some: {
+            OR: [
+              { curator_id: userId },
+              { teacher_id: userId },
+            ],
+          },
+        },
+      },
+      select: { id: true },
+    });
+
+    if (!course) throw new ForbiddenException('Можно менять только назначенный курс');
+  }
+
+  async updateCourse(id: string, dto: any, userId?: string, userRole?: string) {
+    await this.ensureCanManageCourse(id, userId, userRole);
     return this.prisma.course.update({
       where: { id },
       data: dto,

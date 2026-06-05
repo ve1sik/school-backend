@@ -21,7 +21,7 @@ export class CourseController {
     return this.courseService.getAllCourses(req.user.sub, req.user.role);
   }
 
-  @Roles(Role.ADMIN, Role.CURATOR, Role.TEACHER)
+  @Roles(Role.ADMIN)
   @Post()
   async createCourse(@Body() dto: any) {
     return this.courseService.create(dto);
@@ -29,11 +29,11 @@ export class CourseController {
 
   @Roles(Role.ADMIN, Role.CURATOR, Role.TEACHER)
   @Patch(':id')
-  async update(@Param('id') id: string, @Body() dto: any) {
-    return this.courseService.updateCourse(id, dto);
+  async update(@Param('id') id: string, @Body() dto: any, @Request() req: any) {
+    return this.courseService.updateCourse(id, dto, req.user.sub, req.user.role);
   }
 
-  @Roles(Role.ADMIN, Role.CURATOR, Role.TEACHER)
+  @Roles(Role.ADMIN)
   @Delete(':id')
   async deleteCourse(@Param('id') id: string) {
     return this.courseService.delete(id); 

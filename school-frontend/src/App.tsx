@@ -84,8 +84,8 @@ export default function App() {
         {/* 🔥 АДМИНКА */}
         <Route path="admin" element={<ProtectedRoute roles={STAFF}><AdminCourses /></ProtectedRoute>} />
         <Route path="admin/groups" element={<ProtectedRoute roles={['ADMIN', 'CURATOR']}><AdminGroups /></ProtectedRoute>} />
-        <Route path="admin/users" element={<ProtectedRoute roles={['ADMIN']}><AdminUsers /></ProtectedRoute>} />
-        <Route path="admin/decks" element={<ProtectedRoute roles={STAFF}><AdminDecks /></ProtectedRoute>} />
+        <Route path="admin/users" element={<ProtectedRoute roles={['ADMIN', 'CURATOR']}><AdminUsers /></ProtectedRoute>} />
+        <Route path="admin/decks" element={<ProtectedRoute roles={['ADMIN', 'TEACHER']}><AdminDecks /></ProtectedRoute>} />
         
         <Route path="schedule" element={<Schedule />} />
         
