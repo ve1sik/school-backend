@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { ForbiddenException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 
 export const AUTO_GRADE_COMMENT_PREFIX = '🤖 Автоматическая проверка';
@@ -6,6 +6,30 @@ export const AUTO_GRADE_COMMENT_PREFIX = '🤖 Автоматическая пр
 @Injectable()
 export class SubmissionsService {
   constructor(private prisma: PrismaService) {}
+
+  private async canGradeStudentLesson(studentId: string, lessonId: string, requesterId?: string, requesterRole?: string) {
+    if (requesterRole === 'ADMIN') return true;
+    if (!requesterId || !['CURATOR', 'TEACHER'].includes(requesterRole || '')) return false;
+
+    const group = await this.prisma.group.findFirst({
+      where: {
+        students: { some: { id: studentId } },
+        ...(requesterRole === 'CURATOR' ? { curator_id: requesterId } : { teacher_id: requesterId }),
+        courses: {
+          some: {
+            themes: {
+              some: {
+                lessons: { some: { id: lessonId } },
+              },
+            },
+          },
+        },
+      },
+      select: { id: true },
+    });
+
+    return !!group;
+  }
 
   private mapSubmissionForCurator(sub: any) {
     const isAutoGraded =
@@ -86,12 +110,15 @@ export class SubmissionsService {
     return submission;
   }
 
-  async createOralSubmission(body: any) {
+  async createOralSubmission(body: any, requesterId?: string, requesterRole?: string) {
     const studentId = body.studentId || body.userId;
     const lessonId = body.lessonId;
     if (!studentId || !lessonId) {
       throw new Error('studentId и lessonId обязательны');
     }
+
+    const canGrade = await this.canGradeStudentLesson(studentId, lessonId, requesterId, requesterRole);
+    if (!canGrade) throw new ForbiddenException('Нет доступа к этому ученику или уроку');
 
     const blockId = body.blockId || `oral-${lessonId}`;
     const existing = await this.prisma.submission.findFirst({
@@ -109,7 +136,7 @@ export class SubmissionsService {
       block_id: blockId,
       question: body.question || 'Устный ответ',
       answer: body.answer || body.comment || 'Устный ответ',
-      max_score: body.maxScore || 10,
+      max_score: body.maxScore || 100,
       score: Number(body.score) || 0,
       comment: body.comment || 'Устный ответ',
       status: 'GRADED' as const,
@@ -123,6 +150,20 @@ export class SubmissionsService {
     }
 
     return this.prisma.submission.create({ data });
+  }
+
+  async getOralSubmission(studentId: string, lessonId: string, requesterId?: string, requesterRole?: string) {
+    const canGrade = await this.canGradeStudentLesson(studentId, lessonId, requesterId, requesterRole);
+    if (!canGrade) return null;
+
+    return this.prisma.submission.findFirst({
+      where: {
+        user_id: studentId,
+        lesson_id: lessonId,
+        block_id: `oral-${lessonId}`,
+      },
+      orderBy: { updated_at: 'desc' },
+    });
   }
 
   // 🎮 Безопасное начисление очков (не валит основную операцию при сбое)
@@ -231,6 +272,7 @@ export class SubmissionsService {
   async getMySubmissions(userId: string) {
     return this.prisma.submission.findMany({
       where: { user_id: userId },
+      orderBy: { updated_at: 'desc' },
     });
   }
 }

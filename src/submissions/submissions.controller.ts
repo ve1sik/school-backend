@@ -12,8 +12,18 @@ export class SubmissionsController {
 
   @Roles(Role.ADMIN, Role.CURATOR, Role.TEACHER)
   @Post('oral')
-  createOralSubmission(@Body() body: any) {
-    return this.submissionsService.createOralSubmission(body);
+  createOralSubmission(@Body() body: any, @Request() req) {
+    return this.submissionsService.createOralSubmission(body, req.user.sub, req.user.role);
+  }
+
+  @Roles(Role.ADMIN, Role.CURATOR, Role.TEACHER)
+  @Get('oral/:studentId/:lessonId')
+  getOralSubmission(
+    @Param('studentId') studentId: string,
+    @Param('lessonId') lessonId: string,
+    @Request() req,
+  ) {
+    return this.submissionsService.getOralSubmission(studentId, lessonId, req.user.sub, req.user.role);
   }
 
   @Post()

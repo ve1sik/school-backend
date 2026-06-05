@@ -115,6 +115,10 @@ export default function CuratorDashboard() {
 
   // Подтягивание старых оценок при переключении урока
   useEffect(() => {
+    const currentLesson = selectedCourse && activeStudentId && activeLessonTitle
+      ? groupedData[selectedCourse]?.[activeStudentId]?.lessons[activeLessonTitle]
+      : null;
+
     if (selectedCourse && activeStudentId && activeLessonTitle && groupedData[selectedCourse]?.[activeStudentId]?.lessons[activeLessonTitle]) {
       const initialScores: Record<string, number | ''> = {};
       const initialComments: Record<string, string> = {};
@@ -127,9 +131,30 @@ export default function CuratorDashboard() {
       setScores(initialScores);
       setComments(initialComments);
     }
-    // Сбрасываем устные ответы при смене ученика или урока — данные не должны «перетекать»
+
+    // Сначала сбрасываем, затем подтягиваем сохранённый устный балл именно для этого ученика и урока.
     setOralScores({});
     setOralComments({});
+
+    if (!activeStudentId || !currentLesson?.lessonId) return;
+
+    const fetchExistingOralScore = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        const res = await axios.get(`${API_URL}/submissions/oral/${activeStudentId}/${currentLesson.lessonId}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+
+        if (res.data) {
+          setOralScores({ [currentLesson.lessonId]: res.data.score ?? '' });
+          setOralComments({ [currentLesson.lessonId]: res.data.comment || '' });
+        }
+      } catch {
+        // Если оценки ещё нет — поле остаётся пустым.
+      }
+    };
+
+    fetchExistingOralScore();
   }, [selectedCourse, activeStudentId, activeLessonTitle, groupedData]);
 
   const handleGradeSingle = async (subId: string, maxScore: number) => {
@@ -192,14 +217,15 @@ export default function CuratorDashboard() {
         studentId: activeStudentId,
         lessonId: lessonId,
         score: Number(currentScore),
+        maxScore: 100,
         comment: oralComments[lessonId] || 'Устный ответ'
       }, { headers: { Authorization: `Bearer ${token}` } });
 
-      showToast('Балл за устный ответ выставлен!', 'success');
-      setOralScores(prev => ({...prev, [lessonId]: ''}));
-      setOralComments(prev => ({...prev, [lessonId]: ''}));
+      showToast('Балл за устный ответ сохранён и обновит статистику!', 'success');
+      setOralScores(prev => ({...prev, [lessonId]: Number(currentScore)}));
+      setOralComments(prev => ({...prev, [lessonId]: oralComments[lessonId] || 'Устный ответ'}));
     } catch (err) {
-      showToast('Балл выставлен локально', 'success');
+      showToast('Ошибка сохранения устного балла', 'error');
     }
   };
 
@@ -560,11 +586,19 @@ export default function CuratorDashboard() {
                             <Mic className="w-7 h-7 text-purple-600" />
                             Оценить устный ответ
                           </h4>
-                          <p className="text-purple-700 font-medium mb-8 text-sm">Здесь вы можете поставить дополнительный балл за работу на уроке или устный ответ.</p>
+                          <p className="text-purple-700 font-medium mb-3 text-sm">
+                            Здесь можно поставить или обновить балл за устный ответ. Новое значение заменит старое в статистике.
+                          </p>
+                          {oralScores[currentLessonData.lessonId] !== undefined && oralScores[currentLessonData.lessonId] !== '' && (
+                            <div className="inline-flex items-center gap-2 px-4 py-2 bg-white/80 border border-purple-200 rounded-2xl text-xs font-black text-purple-700 mb-6">
+                              <CheckCircle2 className="w-4 h-4" />
+                              Сейчас сохранено: {oralScores[currentLessonData.lessonId]}/100
+                            </div>
+                          )}
                           
                           <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
                             <div className="md:col-span-1">
-                              <label className="block text-[10px] font-black text-purple-500 uppercase tracking-widest mb-3">Доп. балл</label>
+                              <label className="block text-[10px] font-black text-purple-500 uppercase tracking-widest mb-3">Балл из 100</label>
                               <input 
                                 type="number" min="0" max="100"
                                 value={oralScores[currentLessonData.lessonId] !== undefined ? oralScores[currentLessonData.lessonId] : ''}
@@ -589,7 +623,7 @@ export default function CuratorDashboard() {
                               disabled={oralScores[currentLessonData.lessonId] === '' || oralScores[currentLessonData.lessonId] === undefined}
                               className="px-8 py-4 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-black text-sm transition-all active:scale-95 disabled:opacity-50 flex items-center gap-2 shadow-lg shadow-purple-500/30"
                             >
-                              <CheckCircle2 className="w-5 h-5"/> ВЫСТАВИТЬ БАЛЛ
+                              <CheckCircle2 className="w-5 h-5"/> СОХРАНИТЬ БАЛЛ
                             </button>
                           </div>
                         </div>
