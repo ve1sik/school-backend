@@ -276,7 +276,7 @@ export default function AdminDecks() {
                       {card.front_image && (
                         <div className="relative group">
                           <img src={card.front_image.startsWith('http') ? card.front_image : `${API_URL.replace('/api','')}/${card.front_image}`}
-                            alt="front" className="w-full h-32 object-cover rounded-xl border border-gray-200" />
+                            alt="front" className="w-full h-56 object-contain rounded-2xl border border-gray-200 bg-gray-50" />
                           <button type="button" onClick={() => handleCardChange(idx, 'front_image', '')}
                             className="absolute top-2 right-2 p-1 bg-white/90 rounded-full text-red-500 opacity-0 group-hover:opacity-100 transition-opacity">
                             <X className="w-3.5 h-3.5" />
@@ -303,7 +303,7 @@ export default function AdminDecks() {
                       {card.back_image && (
                         <div className="relative group">
                           <img src={card.back_image.startsWith('http') ? card.back_image : `${API_URL.replace('/api','')}/${card.back_image}`}
-                            alt="back" className="w-full h-32 object-cover rounded-xl border border-gray-200" />
+                            alt="back" className="w-full h-56 object-contain rounded-2xl border border-gray-200 bg-gray-50" />
                           <button type="button" onClick={() => handleCardChange(idx, 'back_image', '')}
                             className="absolute top-2 right-2 p-1 bg-white/90 rounded-full text-red-500 opacity-0 group-hover:opacity-100 transition-opacity">
                             <X className="w-3.5 h-3.5" />

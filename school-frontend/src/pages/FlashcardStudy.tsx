@@ -10,6 +10,8 @@ interface Card {
   id: string;
   front: string;
   back: string;
+  front_image?: string;
+  back_image?: string;
   isNew: boolean;
   deck: { title: string };
 }
@@ -313,7 +315,7 @@ export default function FlashcardStudy() {
             <p className="text-white/40 font-bold text-xs uppercase tracking-widest">{current.deck.title}</p>
 
             {/* 3D FLIP CARD */}
-            <div className="w-full max-w-lg h-72 cursor-pointer" style={{ perspective: '1000px' }}
+            <div className="w-full max-w-4xl h-[62vh] min-h-[420px] cursor-pointer" style={{ perspective: '1000px' }}
               onClick={() => !isFlipped && setIsFlipped(true)}>
               <motion.div
                 animate={{ rotateY: isFlipped ? 180 : 0 }}
@@ -322,13 +324,13 @@ export default function FlashcardStudy() {
               >
                 {/* FRONT */}
                 <div style={{ backfaceVisibility: 'hidden', position: 'absolute', inset: 0 }}
-                  className="bg-white rounded-[2rem] flex flex-col items-center justify-center p-8 shadow-2xl shadow-black/30 overflow-hidden">
+                  className="bg-white rounded-[2rem] flex flex-col items-center justify-center p-5 md:p-8 shadow-2xl shadow-black/30 overflow-hidden">
                   <div className="absolute top-4 left-4 px-3 py-1 bg-indigo-50 rounded-full text-indigo-500 text-xs font-black z-10">Вопрос</div>
                   {current.front_image && (
                     <img
                       src={current.front_image.startsWith('http') ? current.front_image : `https://prepodmgy.ru/${current.front_image}`}
                       alt="front"
-                      className="max-h-36 max-w-full object-contain rounded-xl mb-3"
+                      className={`w-full max-w-full ${current.front ? 'max-h-[42vh] md:max-h-[48vh]' : 'max-h-[52vh] md:max-h-[56vh]'} object-contain rounded-2xl mb-4 bg-gray-50 border border-gray-100`}
                     />
                   )}
                   {current.front && <p className="text-2xl md:text-3xl font-black text-gray-900 text-center leading-tight">{current.front}</p>}
@@ -338,13 +340,13 @@ export default function FlashcardStudy() {
 
                 {/* BACK */}
                 <div style={{ backfaceVisibility: 'hidden', transform: 'rotateY(180deg)', position: 'absolute', inset: 0 }}
-                  className="bg-gradient-to-br from-indigo-600 to-violet-600 rounded-[2rem] flex flex-col items-center justify-center p-8 shadow-2xl shadow-black/30 overflow-hidden">
+                  className="bg-gradient-to-br from-indigo-600 to-violet-600 rounded-[2rem] flex flex-col items-center justify-center p-5 md:p-8 shadow-2xl shadow-black/30 overflow-hidden">
                   <div className="absolute top-4 left-4 px-3 py-1 bg-white/20 rounded-full text-white text-xs font-black z-10">Ответ</div>
                   {current.back_image && (
                     <img
                       src={current.back_image.startsWith('http') ? current.back_image : `https://prepodmgy.ru/${current.back_image}`}
                       alt="back"
-                      className="max-h-36 max-w-full object-contain rounded-xl mb-3"
+                      className={`w-full max-w-full ${current.back ? 'max-h-[42vh] md:max-h-[48vh]' : 'max-h-[52vh] md:max-h-[56vh]'} object-contain rounded-2xl mb-4 bg-white/10 border border-white/20`}
                     />
                   )}
                   {current.back && <p className="text-2xl md:text-3xl font-black text-white text-center leading-tight">{current.back}</p>}
