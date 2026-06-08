@@ -599,12 +599,27 @@ export default function Dashboard() {
     show: { opacity: 1, y: 0, transition: { type: 'spring' as const, stiffness: 300, damping: 24 } },
   };
 
-  const testsScore = Math.round(currentData?.earnedByType?.tests ?? 0);
-  const writtenScore = Math.round(currentData?.earnedByType?.written ?? 0);
-  const oralScore = Math.round(currentData?.earnedByType?.oral ?? 0);
-  const totalSectionScore = testsScore + writtenScore + oralScore;
-  const totalSectionMax = 300;
-  const totalSectionProgress = safePercent(totalSectionScore, totalSectionMax);
+  const currentEarned = selectedLessonRow
+    ? selectedLessonRow.earned
+    : isCourseView
+      ? selectedStats?.totalEarned ?? 0
+      : (currentData as any)?.earned ?? (currentData as any)?.totalEarned ?? 0;
+  const currentMax = selectedLessonRow
+    ? selectedLessonRow.max
+    : isCourseView
+      ? selectedStats?.totalMax ?? 0
+      : (currentData as any)?.max ?? (currentData as any)?.totalMax ?? 0;
+  const totalScore = safePercent(currentEarned, currentMax);
+
+  const testsEarned = Math.round(currentData?.earnedByType?.tests ?? 0);
+  const testsMax = Math.round(currentData?.maxByType?.tests ?? 0);
+  const testsScore = safePercent(testsEarned, testsMax);
+  const writtenEarned = Math.round(currentData?.earnedByType?.written ?? 0);
+  const writtenMax = Math.round(currentData?.maxByType?.written ?? 0);
+  const writtenScore = safePercent(writtenEarned, writtenMax);
+  const oralEarned = Math.round(currentData?.earnedByType?.oral ?? 0);
+  const oralMax = Math.round(currentData?.maxByType?.oral ?? 0);
+  const oralScore = safePercent(oralEarned, oralMax);
   const currentTaskCount = selectedLessonRow
     ? selectedLessonRow.taskCount
     : isCourseView
@@ -901,23 +916,23 @@ export default function Dashboard() {
                   </div>
                   <p className="text-[11px] font-black uppercase tracking-[0.25em] text-white/40 mb-3">Общая аналитика</p>
                   <div className="flex items-end gap-3">
-                    <p className="text-7xl md:text-8xl font-black tracking-tight text-[#00FFCC] leading-none">{totalSectionScore}</p>
-                    <span className="text-3xl md:text-4xl font-black text-white/30 mb-2">/{totalSectionMax}</span>
+                    <p className="text-7xl md:text-8xl font-black tracking-tight text-[#00FFCC] leading-none">{totalScore}</p>
+                    <span className="text-3xl md:text-4xl font-black text-white/30 mb-2">/100</span>
                   </div>
                   <p className="mt-4 text-sm md:text-base font-bold text-white/60">
-                    Сумма трёх разделов: тесты + письменные + устные
+                    Реально набрано: <span className="text-white">{currentEarned}</span> из <span className="text-white">{currentMax}</span> баллов
                   </p>
                 </div>
                 <div className="relative z-10 mt-8">
                   <div className="h-3 bg-white/10 rounded-full overflow-hidden border border-white/10">
                     <motion.div
                       initial={{ width: 0 }}
-                      animate={{ width: `${Math.min(100, totalSectionProgress)}%` }}
+                      animate={{ width: `${totalScore}%` }}
                       className="h-full bg-[#00FFCC] rounded-full"
                     />
                   </div>
                   <p className="text-xs font-bold text-white/40 mt-3">
-                    {totalSectionProgress >= 70 ? 'Отлично держим темп' : totalSectionProgress >= 50 ? 'Есть база, надо дожать' : 'Нужно подтянуть этот раздел'}
+                    {totalScore >= 70 ? 'Отлично держим темп' : totalScore >= 50 ? 'Есть база, надо дожать' : 'Нужно подтянуть этот раздел'}
                   </p>
                 </div>
               </div>
@@ -928,19 +943,19 @@ export default function Dashboard() {
                   <CheckSquare className="w-6 h-6 text-indigo-500 mb-3" />
                   <p className="text-[10px] font-black uppercase tracking-widest text-indigo-400 mb-1">Тесты</p>
                   <p className="text-3xl font-black text-indigo-700">{testsScore}<span className="text-sm text-indigo-300">/100</span></p>
-                  <p className="text-[11px] text-indigo-300 font-bold mt-1">заработано баллов</p>
+                  <p className="text-[11px] text-indigo-300 font-bold mt-1">реально: {testsEarned} из {testsMax}</p>
                 </div>
                 <div className="bg-orange-50 rounded-[2rem] p-5 border border-orange-100 min-h-[122px]">
                   <PenTool className="w-6 h-6 text-orange-500 mb-3" />
                   <p className="text-[10px] font-black uppercase tracking-widest text-orange-400 mb-1">Письменные</p>
                   <p className="text-3xl font-black text-orange-700">{writtenScore}<span className="text-sm text-orange-300">/100</span></p>
-                  <p className="text-[11px] text-orange-300 font-bold mt-1">заработано баллов</p>
+                  <p className="text-[11px] text-orange-300 font-bold mt-1">реально: {writtenEarned} из {writtenMax}</p>
                 </div>
                 <div className="bg-teal-50 rounded-[2rem] p-5 border border-teal-100 min-h-[122px]">
                   <Mic className="w-6 h-6 text-teal-500 mb-3" />
                   <p className="text-[10px] font-black uppercase tracking-widest text-teal-400 mb-1">Устные</p>
                   <p className="text-3xl font-black text-teal-700">{oralScore}<span className="text-sm text-teal-300">/100</span></p>
-                  <p className="text-[11px] text-teal-300 font-bold mt-1">заработано баллов</p>
+                  <p className="text-[11px] text-teal-300 font-bold mt-1">реально: {oralEarned} из {oralMax}</p>
                 </div>
                 <div className="bg-white rounded-[2rem] p-5 border border-gray-100 min-h-[122px] shadow-sm">
                   <Star className="w-6 h-6 text-amber-400 mb-3" />
