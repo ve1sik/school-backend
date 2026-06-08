@@ -896,9 +896,9 @@ export default function Dashboard() {
                 <span className="text-gray-800">{selectedLessonRow.fullName}</span>
               </div>
             )}
-            <div className="grid grid-cols-1 lg:grid-cols-[1.45fr_1fr] gap-5 items-start">
+            <div className="grid grid-cols-1 lg:grid-cols-[1.12fr_1fr] gap-4 lg:gap-5 items-stretch min-h-[272px]">
               {/* Общий результат — главный большой прямоугольник */}
-              <div className="bg-[#0F172A] rounded-[1.8rem] p-7 md:p-9 text-white relative overflow-hidden min-h-[240px] flex flex-col justify-between shadow-xl shadow-slate-900/10 lg:mt-3">
+              <div className="bg-[#0F172A] rounded-[1.8rem] p-6 md:p-8 text-white relative overflow-hidden h-full min-h-[272px] flex flex-col justify-between shadow-xl shadow-slate-900/10">
                 <div className="absolute -top-16 -right-12 w-56 h-56 bg-[#00FFCC]/15 rounded-full blur-3xl" />
                 <div className="absolute bottom-0 left-0 w-72 h-32 bg-indigo-500/20 rounded-full blur-3xl" />
                 <div className="relative z-10">
@@ -930,28 +930,36 @@ export default function Dashboard() {
                 </div>
               </div>
 
-              {/* Маленькие квадраты 2×2 */}
-              <div className="grid grid-cols-2 gap-4">
-                <div className="bg-indigo-50 rounded-[1.35rem] p-5 border border-indigo-100 min-h-[108px]">
-                  <CheckSquare className="w-6 h-6 text-indigo-500 mb-3" />
-                  <p className="text-[10px] font-black uppercase tracking-widest text-indigo-400 mb-1">Тесты</p>
-                  <p className="text-3xl font-black text-indigo-700">{testsScore}<span className="text-sm text-indigo-300">/100</span></p>
+              {/* Маленькие плашки 2×2 — та же высота, что и общая аналитика */}
+              <div className="grid grid-cols-2 grid-rows-2 gap-4 h-full min-h-[272px]">
+                <div className="bg-indigo-50 rounded-[1.35rem] p-5 border border-indigo-100 h-full min-h-0 flex flex-col justify-between">
+                  <CheckSquare className="w-6 h-6 text-indigo-500" />
+                  <div>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-indigo-400 mb-1">Тесты</p>
+                    <p className="text-3xl font-black text-indigo-700">{testsScore}<span className="text-sm text-indigo-300">/100</span></p>
+                  </div>
                 </div>
-                <div className="bg-orange-50 rounded-[1.35rem] p-5 border border-orange-100 min-h-[108px]">
-                  <PenTool className="w-6 h-6 text-orange-500 mb-3" />
-                  <p className="text-[10px] font-black uppercase tracking-widest text-orange-400 mb-1">Письменные</p>
-                  <p className="text-3xl font-black text-orange-700">{writtenScore}<span className="text-sm text-orange-300">/100</span></p>
+                <div className="bg-orange-50 rounded-[1.35rem] p-5 border border-orange-100 h-full min-h-0 flex flex-col justify-between">
+                  <PenTool className="w-6 h-6 text-orange-500" />
+                  <div>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-orange-400 mb-1">Письменные</p>
+                    <p className="text-3xl font-black text-orange-700">{writtenScore}<span className="text-sm text-orange-300">/100</span></p>
+                  </div>
                 </div>
-                <div className="bg-teal-50 rounded-[1.35rem] p-5 border border-teal-100 min-h-[108px]">
-                  <Mic className="w-6 h-6 text-teal-500 mb-3" />
-                  <p className="text-[10px] font-black uppercase tracking-widest text-teal-400 mb-1">Устные</p>
-                  <p className="text-3xl font-black text-teal-700">{oralScore}<span className="text-sm text-teal-300">/100</span></p>
+                <div className="bg-teal-50 rounded-[1.35rem] p-5 border border-teal-100 h-full min-h-0 flex flex-col justify-between">
+                  <Mic className="w-6 h-6 text-teal-500" />
+                  <div>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-teal-400 mb-1">Устные</p>
+                    <p className="text-3xl font-black text-teal-700">{oralScore}<span className="text-sm text-teal-300">/100</span></p>
+                  </div>
                 </div>
-                <div className="bg-white rounded-[1.35rem] p-5 border border-gray-100 min-h-[108px] shadow-sm">
-                  <Star className="w-6 h-6 text-amber-400 mb-3" />
-                  <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">Оценено</p>
-                  <p className="text-3xl font-black text-gray-900">{currentTaskCount}</p>
-                  <p className="text-[11px] text-gray-400 font-bold mt-1">заданий учтено</p>
+                <div className="bg-white rounded-[1.35rem] p-5 border border-gray-100 h-full min-h-0 flex flex-col justify-between shadow-sm">
+                  <Star className="w-6 h-6 text-amber-400" />
+                  <div>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">Оценено</p>
+                    <p className="text-3xl font-black text-gray-900">{currentTaskCount}</p>
+                    <p className="text-[11px] text-gray-400 font-bold mt-1">заданий учтено</p>
+                  </div>
                 </div>
               </div>
             </div>
