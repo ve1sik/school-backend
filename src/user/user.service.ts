@@ -29,14 +29,9 @@ export class UserService {
   constructor(private prisma: PrismaService) {}
 
   async findAll(skip?: number, take?: number, requesterId?: string, requesterRole?: string, requesterPermissions: string[] = []) {
-    if (requesterRole === 'CURATOR' && requesterId && !requesterPermissions.includes('MANAGE_USERS')) {
+    if (requesterRole === 'CURATOR' && requesterId) {
       const groups = await this.prisma.group.findMany({
-        where: {
-          OR: [
-            { curator_id: requesterId },
-            { teacher_id: requesterId },
-          ],
-        },
+        where: { curator_id: requesterId },
         select: {
           curator_id: true,
           teacher_id: true,
@@ -68,14 +63,9 @@ export class UserService {
   }
 
   async findAllStudents(requesterId?: string, requesterRole?: string, requesterPermissions: string[] = []) {
-    if (requesterRole === 'CURATOR' && requesterId && !requesterPermissions.includes('MANAGE_USERS')) {
+    if (requesterRole === 'CURATOR' && requesterId) {
       const groups = await this.prisma.group.findMany({
-        where: {
-          OR: [
-            { curator_id: requesterId },
-            { teacher_id: requesterId },
-          ],
-        },
+        where: { curator_id: requesterId },
         select: { students: { select: { id: true } } },
       });
       const studentIds = [...new Set(groups.flatMap((g) => g.students.map((s) => s.id)))];
@@ -95,7 +85,7 @@ export class UserService {
   }
 
   async findAllCurators(requesterId?: string, requesterRole?: string, requesterPermissions: string[] = []) {
-    if (requesterRole === 'CURATOR' && requesterId && !requesterPermissions.includes('MANAGE_USERS')) {
+    if (requesterRole === 'CURATOR' && requesterId) {
       return this.prisma.user.findMany({
         where: { id: requesterId },
         select: { id: true, name: true, surname: true, email: true, avatar: true },

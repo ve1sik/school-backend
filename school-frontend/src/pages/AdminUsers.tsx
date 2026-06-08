@@ -71,8 +71,8 @@ export default function AdminUsers() {
   const [isCreating, setIsCreating] = useState(false);
   
   const [selectedRole, setSelectedRole] = useState<Role>('STUDENT');
-  const [selectedCourseId, setSelectedCourseId] = useState('');
-  const [selectedGroupId, setSelectedGroupId] = useState('');
+  const [selectedCourseIds, setSelectedCourseIds] = useState<string[]>([]);
+  const [selectedGroupIds, setSelectedGroupIds] = useState<string[]>([]);
   const [selectedSubjectId, setSelectedSubjectId] = useState('');
   
   const [toast, setToast] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
@@ -151,16 +151,26 @@ export default function AdminUsers() {
     }
   };
 
+  const handleToggleCourseForModal = (courseId: string) => {
+    setSelectedCourseIds(prev => prev.includes(courseId) ? prev.filter(id => id !== courseId) : [...prev, courseId]);
+  };
+
+  const handleToggleGroupForModal = (groupId: string) => {
+    setSelectedGroupIds(prev => prev.includes(groupId) ? prev.filter(id => id !== groupId) : [...prev, groupId]);
+  };
+
   const handleAddCourse = async () => {
-    if (!selectedUser || !selectedCourseId) return;
+    if (!selectedUser || selectedCourseIds.length === 0) return;
     try {
-      await axios.post(`${API_URL}/enrollments`, { 
-        userId: selectedUser.id, 
-        courseId: selectedCourseId 
-      }, getTokenConfig());
-      showToast('Курс добавлен!');
+      await Promise.all(selectedCourseIds.map(courseId =>
+        axios.post(`${API_URL}/enrollments`, { 
+          userId: selectedUser.id, 
+          courseId,
+        }, getTokenConfig())
+      ));
+      showToast(selectedCourseIds.length === 1 ? 'Курс добавлен!' : 'Курсы добавлены!');
       setShowCourseModal(false);
-      setSelectedCourseId('');
+      setSelectedCourseIds([]);
       fetchData();
     } catch (err) {
       showToast('Ошибка добавления курса', 'error');
@@ -179,14 +189,16 @@ export default function AdminUsers() {
   };
 
   const handleAddToGroup = async () => {
-    if (!selectedUser || !selectedGroupId) return;
+    if (!selectedUser || selectedGroupIds.length === 0) return;
     try {
-      await axios.post(`${API_URL}/groups/${selectedGroupId}/students`, { 
-        userId: selectedUser.id 
-      }, getTokenConfig());
-      showToast('Добавлен в группу!');
+      await Promise.all(selectedGroupIds.map(groupId =>
+        axios.post(`${API_URL}/groups/${groupId}/students`, { 
+          userId: selectedUser.id 
+        }, getTokenConfig())
+      ));
+      showToast(selectedGroupIds.length === 1 ? 'Добавлен в группу!' : 'Добавлен в группы!');
       setShowGroupModal(false);
-      setSelectedGroupId('');
+      setSelectedGroupIds([]);
       fetchData();
     } catch (err) {
       showToast('Ошибка добавления в группу', 'error');
@@ -780,7 +792,7 @@ export default function AdminUsers() {
                 <div className="flex justify-between items-center mb-3">
                   <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Курсы</h4>
                   {currentRole === 'ADMIN' && (
-                    <button onClick={() => setShowCourseModal(true)} className="p-1.5 bg-indigo-50 rounded-lg hover:bg-indigo-100 transition-colors">
+                    <button onClick={() => { setSelectedCourseIds([]); setShowCourseModal(true); }} className="p-1.5 bg-indigo-50 rounded-lg hover:bg-indigo-100 transition-colors">
                       <Plus className="w-4 h-4 text-indigo-600" />
                     </button>
                   )}
@@ -807,7 +819,7 @@ export default function AdminUsers() {
                 <div className="flex justify-between items-center mb-3">
                   <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Группы</h4>
                   {currentRole === 'ADMIN' && (
-                    <button onClick={() => setShowGroupModal(true)} className="p-1.5 bg-purple-50 rounded-lg hover:bg-purple-100 transition-colors">
+                    <button onClick={() => { setSelectedGroupIds([]); setShowGroupModal(true); }} className="p-1.5 bg-purple-50 rounded-lg hover:bg-purple-100 transition-colors">
                       <Plus className="w-4 h-4 text-purple-600" />
                     </button>
                   )}
@@ -823,7 +835,7 @@ export default function AdminUsers() {
                           </button>
                         )}
                       </div>
-                      {currentRole === 'ADMIN' && (selectedUser.role === 'CURATOR' || selectedUser.role === 'TEACHER' || selectedUser.role === 'ADMIN') && (
+                      {currentRole === 'ADMIN' && (
                         <div className="flex gap-2 flex-wrap">
                           <button onClick={() => handleAssignGroupCurator(g.id, selectedUser.id)}
                             className="text-[10px] font-black px-2.5 py-1.5 rounded-lg bg-purple-100 hover:bg-purple-200 text-purple-700 transition-colors uppercase tracking-wider">
@@ -956,13 +968,38 @@ export default function AdminUsers() {
               <h3 className="text-2xl font-black mb-2 text-gray-900">Добавить курс</h3>
               <p className="text-gray-500 font-medium mb-6 text-sm">Выберите курс для добавления</p>
               
-              <select value={selectedCourseId} onChange={e => setSelectedCourseId(e.target.value)} className="w-full px-5 py-4 bg-gray-50 rounded-xl outline-none focus:bg-white focus:ring-2 focus:ring-blue-200 transition-all font-bold text-gray-700 border border-transparent focus:border-blue-500 cursor-pointer mb-6">
-                <option value="">-- Выберите курс --</option>
-                {courses.map(c => <option key={c.id} value={c.id}>{c.title}</option>)}
-              </select>
+              <div className="max-h-80 overflow-y-auto custom-scrollbar space-y-2 mb-6 pr-1">
+                {courses.map(c => {
+                  const alreadyAdded = selectedUser?.enrollments?.some(e => e.course.id === c.id);
+                  const checked = selectedCourseIds.includes(c.id);
+                  return (
+                    <button
+                      key={c.id}
+                      type="button"
+                      disabled={alreadyAdded}
+                      onClick={() => handleToggleCourseForModal(c.id)}
+                      className={`w-full text-left p-4 rounded-2xl border-2 transition-all flex items-center gap-3 ${
+                        alreadyAdded
+                          ? 'bg-gray-50 border-gray-100 opacity-60 cursor-not-allowed'
+                          : checked
+                            ? 'bg-blue-50 border-blue-400'
+                            : 'bg-white border-gray-100 hover:border-blue-200'
+                      }`}
+                    >
+                      <div className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center shrink-0 ${checked || alreadyAdded ? 'bg-blue-600 border-blue-600 text-white' : 'border-gray-200'}`}>
+                        {(checked || alreadyAdded) && <Check className="w-4 h-4" />}
+                      </div>
+                      <div>
+                        <p className="font-black text-gray-900">{c.title}</p>
+                        {alreadyAdded && <p className="text-xs font-bold text-gray-400">Уже выдан</p>}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
               
-              <button onClick={handleAddCourse} disabled={!selectedCourseId} className="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-black shadow-lg shadow-blue-500/30 transition-all active:scale-95 text-lg disabled:opacity-50">
-                Добавить
+              <button onClick={handleAddCourse} disabled={selectedCourseIds.length === 0} className="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-black shadow-lg shadow-blue-500/30 transition-all active:scale-95 text-lg disabled:opacity-50">
+                Добавить выбранные ({selectedCourseIds.length})
               </button>
             </motion.div>
           </motion.div>
@@ -983,13 +1020,38 @@ export default function AdminUsers() {
               <h3 className="text-2xl font-black mb-2 text-gray-900">Добавить в группу</h3>
               <p className="text-gray-500 font-medium mb-6 text-sm">Выберите группу для добавления</p>
               
-              <select value={selectedGroupId} onChange={e => setSelectedGroupId(e.target.value)} className="w-full px-5 py-4 bg-gray-50 rounded-xl outline-none focus:bg-white focus:ring-2 focus:ring-purple-200 transition-all font-bold text-gray-700 border border-transparent focus:border-purple-500 cursor-pointer mb-6">
-                <option value="">-- Выберите группу --</option>
-                {groups.map(g => <option key={g.id} value={g.id}>{g.title}</option>)}
-              </select>
+              <div className="max-h-80 overflow-y-auto custom-scrollbar space-y-2 mb-6 pr-1">
+                {groups.map(g => {
+                  const alreadyAdded = selectedUser?.groups?.some(group => group.id === g.id);
+                  const checked = selectedGroupIds.includes(g.id);
+                  return (
+                    <button
+                      key={g.id}
+                      type="button"
+                      disabled={alreadyAdded}
+                      onClick={() => handleToggleGroupForModal(g.id)}
+                      className={`w-full text-left p-4 rounded-2xl border-2 transition-all flex items-center gap-3 ${
+                        alreadyAdded
+                          ? 'bg-gray-50 border-gray-100 opacity-60 cursor-not-allowed'
+                          : checked
+                            ? 'bg-purple-50 border-purple-400'
+                            : 'bg-white border-gray-100 hover:border-purple-200'
+                      }`}
+                    >
+                      <div className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center shrink-0 ${checked || alreadyAdded ? 'bg-purple-600 border-purple-600 text-white' : 'border-gray-200'}`}>
+                        {(checked || alreadyAdded) && <Check className="w-4 h-4" />}
+                      </div>
+                      <div>
+                        <p className="font-black text-gray-900">{g.title}</p>
+                        {alreadyAdded && <p className="text-xs font-bold text-gray-400">Уже в группе</p>}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
               
-              <button onClick={handleAddToGroup} disabled={!selectedGroupId} className="w-full py-4 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-black shadow-lg shadow-purple-500/30 transition-all active:scale-95 text-lg disabled:opacity-50">
-                Добавить
+              <button onClick={handleAddToGroup} disabled={selectedGroupIds.length === 0} className="w-full py-4 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-black shadow-lg shadow-purple-500/30 transition-all active:scale-95 text-lg disabled:opacity-50">
+                Добавить выбранные ({selectedGroupIds.length})
               </button>
             </motion.div>
           </motion.div>

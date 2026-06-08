@@ -584,31 +584,49 @@ export default function AdminGroups() {
                       {applications.length === 0 ? (
                         <div className="text-center py-8 text-gray-400 font-bold text-sm">Заявок пока нет</div>
                       ) : (
-                        <div className="space-y-3">
+                        <div className="space-y-4">
                           {applications.map(app => (
-                            <div key={app.id} className={`p-4 rounded-2xl border-2 flex flex-col sm:flex-row sm:items-center gap-4 ${
+                            <div key={app.id} className={`p-5 rounded-3xl border-2 grid grid-cols-1 lg:grid-cols-[1fr_260px_auto] gap-5 ${
                               app.status === 'PENDING' ? 'border-amber-200 bg-amber-50/40' :
                               app.status === 'APPROVED' ? 'border-emerald-200 bg-emerald-50/40' :
                               'border-gray-200 bg-gray-50/40'
                             }`}>
-                              <div className="flex items-center gap-3 flex-1 min-w-0">
-                                <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center overflow-hidden shrink-0">
+                              <div className="flex items-start gap-4 min-w-0">
+                                <div className="w-12 h-12 bg-gray-100 rounded-2xl flex items-center justify-center overflow-hidden shrink-0">
                                   {app.user?.avatar ? <img src={getFullUrl(app.user.avatar)} alt="" className="w-full h-full object-cover" /> : <UserCircle className="w-6 h-6 text-gray-400" />}
                                 </div>
                                 <div className="min-w-0">
-                                  <p className="font-black text-gray-900 text-sm truncate">{app.user?.name} {app.user?.surname}</p>
-                                  <p className="text-xs text-gray-400 truncate">{app.user?.email}</p>
-                                  {app.comment && <p className="text-xs text-gray-600 mt-1 italic">"{app.comment}"</p>}
+                                  <p className="font-black text-gray-900 text-base truncate">
+                                    {app.user?.surname || app.user?.name ? `${app.user?.surname || ''} ${app.user?.name || ''}`.trim() : app.user?.email}
+                                  </p>
+                                  <p className="text-xs text-gray-400 font-bold truncate">{app.user?.email}</p>
+                                  <div className="mt-3 inline-flex items-center gap-2 px-3 py-1.5 bg-white/80 border border-gray-100 rounded-xl">
+                                    <Users className="w-3.5 h-3.5 text-indigo-500" />
+                                    <span className="text-[11px] font-black text-indigo-700">{app.group?.title || selectedGroup?.title || 'Группа'}</span>
+                                  </div>
+                                  <div className="mt-4 bg-white/80 border border-gray-100 rounded-2xl p-4">
+                                    <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">Комментарий к оплате</p>
+                                    <p className="text-sm font-bold text-gray-700 whitespace-pre-wrap">
+                                      {app.comment?.trim() || 'Комментарий не указан'}
+                                    </p>
+                                  </div>
                                 </div>
                               </div>
 
-                              {app.proof_image && (
-                                <a href={getFullUrl(app.proof_image)} target="_blank" rel="noreferrer" className="shrink-0 w-16 h-16 rounded-xl overflow-hidden border border-gray-200 hover:border-indigo-400 transition-colors">
-                                  <img src={getFullUrl(app.proof_image)} alt="Чек" className="w-full h-full object-cover" />
+                              <div className="min-h-[180px]">
+                                {app.proof_image ? (
+                                <a href={getFullUrl(app.proof_image)} target="_blank" rel="noreferrer" className="block w-full h-full min-h-[180px] rounded-2xl overflow-hidden border-2 border-white shadow-sm hover:border-indigo-400 transition-colors bg-white">
+                                  <img src={getFullUrl(app.proof_image)} alt="Чек об оплате" className="w-full h-full object-contain bg-white" />
                                 </a>
-                              )}
+                                ) : (
+                                  <div className="w-full h-full min-h-[180px] rounded-2xl border-2 border-dashed border-gray-200 bg-white/60 flex flex-col items-center justify-center text-gray-400">
+                                    <ImageIcon className="w-8 h-8 mb-2" />
+                                    <p className="text-xs font-black uppercase tracking-widest">Чек не прикреплён</p>
+                                  </div>
+                                )}
+                              </div>
 
-                              <div className="flex items-center gap-2 shrink-0">
+                              <div className="flex lg:flex-col items-stretch gap-2 shrink-0">
                                 {app.status === 'PENDING' ? (
                                   <>
                                     <button onClick={() => handleApproveApp(app.id)} className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl font-black text-xs transition-colors flex items-center gap-1.5">

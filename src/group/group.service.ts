@@ -11,13 +11,10 @@ export class GroupService {
 
   async findAll(requesterId?: string, requesterRole?: string, requesterPermissions: string[] = []) {
     const where =
-      requesterRole === 'CURATOR' && requesterId && !requesterPermissions.includes('MANAGE_GROUPS') && !requesterPermissions.includes('MANAGE_USERS')
-        ? {
-            OR: [
-              { curator_id: requesterId },
-              { teacher_id: requesterId },
-            ],
-          }
+      requesterRole === 'CURATOR' && requesterId
+        ? { curator_id: requesterId }
+        : requesterRole === 'TEACHER' && requesterId
+          ? { teacher_id: requesterId }
         : {};
 
     return this.prisma.group.findMany({
@@ -32,14 +29,10 @@ export class GroupService {
 
   async findOne(id: string, requesterId?: string, requesterRole?: string, requesterPermissions: string[] = []) {
     const where =
-      requesterRole === 'CURATOR' && requesterId && !requesterPermissions.includes('MANAGE_GROUPS') && !requesterPermissions.includes('MANAGE_USERS')
-        ? {
-            id,
-            OR: [
-              { curator_id: requesterId },
-              { teacher_id: requesterId },
-            ],
-          }
+      requesterRole === 'CURATOR' && requesterId
+        ? { id, curator_id: requesterId }
+        : requesterRole === 'TEACHER' && requesterId
+          ? { id, teacher_id: requesterId }
         : { id };
 
     return this.prisma.group.findFirst({
@@ -143,7 +136,22 @@ export class GroupService {
   }
 
   // 🔥 ИСПРАВЛЕННЫЙ МЕТОД: Обновляем учеников и выдаем им курсы ЭТОЙ группы
-  async updateStudents(groupId: string, studentIds: string[]) {
+  async updateStudents(groupId: string, studentIds: string[], requesterId?: string, requesterRole?: string) {
+    return this.updateStudentsScoped(groupId, studentIds, requesterId, requesterRole);
+  }
+
+  private async ensureCanManageGroupMembers(groupId: string, requesterId?: string, requesterRole?: string) {
+    if (!requesterId || requesterRole !== 'CURATOR') return;
+    const group = await this.prisma.group.findFirst({
+      where: { id: groupId, curator_id: requesterId },
+      select: { id: true },
+    });
+    if (!group) throw new ForbiddenException('Можно менять участников только своей группы');
+  }
+
+  async updateStudentsScoped(groupId: string, studentIds: string[], requesterId?: string, requesterRole?: string) {
+    await this.ensureCanManageGroupMembers(groupId, requesterId, requesterRole);
+
     const group = await this.prisma.group.update({
       where: { id: groupId },
       data: {
@@ -162,7 +170,9 @@ export class GroupService {
     return group;
   }
 
-  async removeStudent(groupId: string, userId: string) {
+  async removeStudent(groupId: string, userId: string, requesterId?: string, requesterRole?: string) {
+    await this.ensureCanManageGroupMembers(groupId, requesterId, requesterRole);
+
     const group = await this.prisma.group.findUnique({
       where: { id: groupId },
       include: { students: { where: { id: userId } } },
@@ -312,11 +322,23 @@ export class GroupService {
     });
   }
 
-  async getApplications(groupId: string) {
+  private async ensureCanReviewGroupApplications(groupId: string, reviewerId?: string, reviewerRole?: string) {
+    if (reviewerRole === 'ADMIN') return;
+    const group = await this.prisma.group.findFirst({
+      where: { id: groupId, curator_id: reviewerId },
+      select: { id: true },
+    });
+    if (!group) throw new ForbiddenException('Можно смотреть заявки только своей группы');
+  }
+
+  async getApplications(groupId: string, reviewerId?: string, reviewerRole?: string) {
+    await this.ensureCanReviewGroupApplications(groupId, reviewerId, reviewerRole);
+
     return this.prisma.groupApplication.findMany({
       where: { group_id: groupId },
       include: {
         user: { select: { id: true, name: true, surname: true, email: true, avatar: true } },
+        group: { select: { id: true, title: true } },
       },
       orderBy: { created_at: 'desc' },
     });
@@ -329,7 +351,11 @@ export class GroupService {
     });
   }
 
-  async approveApplication(appId: string, reviewerId: string) {
+  async approveApplication(appId: string, reviewerId: string, reviewerRole?: string) {
+    const existing = await this.prisma.groupApplication.findUnique({ where: { id: appId } });
+    if (!existing) throw new NotFoundException('Заявка не найдена');
+    await this.ensureCanReviewGroupApplications(existing.group_id, reviewerId, reviewerRole);
+
     const app = await this.prisma.groupApplication.update({
       where: { id: appId },
       data: { status: 'APPROVED', reviewed_by: reviewerId, reviewed_at: new Date() },
@@ -338,14 +364,20 @@ export class GroupService {
     return app;
   }
 
-  async rejectApplication(appId: string, reviewerId: string) {
+  async rejectApplication(appId: string, reviewerId: string, reviewerRole?: string) {
+    const existing = await this.prisma.groupApplication.findUnique({ where: { id: appId } });
+    if (!existing) throw new NotFoundException('Заявка не найдена');
+    await this.ensureCanReviewGroupApplications(existing.group_id, reviewerId, reviewerRole);
+
     return this.prisma.groupApplication.update({
       where: { id: appId },
       data: { status: 'REJECTED', reviewed_by: reviewerId, reviewed_at: new Date() },
     });
   }
 
-  async enrollStudent(groupId: string, studentId: string) {
+  async enrollStudent(groupId: string, studentId: string, requesterId?: string, requesterRole?: string) {
+    await this.ensureCanManageGroupMembers(groupId, requesterId, requesterRole);
+
     // 1. Привязываем ученика к группе
     const group = await this.prisma.group.update({
       where: { id: groupId },

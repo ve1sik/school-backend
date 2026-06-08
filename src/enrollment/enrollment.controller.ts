@@ -13,7 +13,7 @@ import { EnrollmentService } from './enrollment.service';
 import { EnrollCourseDto } from './dto/enroll.dto';
 import { AuthGuard } from '@nestjs/passport';
 import { RolesGuard } from '../auth/roles.guard';
-import { Roles } from '../auth/roles.decorator';
+import { Permissions } from '../auth/permissions.decorator';
 
 @UseGuards(AuthGuard('jwt'), RolesGuard)
 @Controller('enrollments')
@@ -30,7 +30,8 @@ export class EnrollmentController {
       throw new ForbiddenException('Не указан курс');
     }
 
-    if (targetUserId !== requesterId && req.user.role !== 'ADMIN') {
+    const canManageUsers = req.user.role === 'ADMIN' || (req.user.admin_permissions || []).includes('MANAGE_USERS');
+    if (targetUserId !== requesterId && !canManageUsers) {
       throw new ForbiddenException('Недостаточно прав для записи другого пользователя');
     }
 
@@ -43,7 +44,7 @@ export class EnrollmentController {
     return this.enrollmentService.getMyCourses(userId);
   }
 
-  @Roles('ADMIN')
+  @Permissions('MANAGE_USERS')
   @Delete(':userId/:courseId')
   async unenroll(
     @Param('userId') userId: string,

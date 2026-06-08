@@ -39,16 +39,34 @@ export class CourseService {
       });
     }
 
-    // Куратор/преподаватель видит только курсы из групп, где он назначен.
-    if ((userRole === 'CURATOR' || userRole === 'TEACHER') && userId) {
+    // Куратор видит только курсы своих кураторских групп, преподаватель — своих преподавательских групп.
+    if (userRole === 'CURATOR' && userId) {
       return this.prisma.course.findMany({
         where: {
           groups: {
             some: {
-              OR: [
-                { curator_id: userId },
-                { teacher_id: userId },
-              ],
+              curator_id: userId,
+            },
+          },
+        },
+        include: {
+          themes: {
+            orderBy: { order_index: 'asc' },
+            include: {
+              lessons: { orderBy: { order_index: 'asc' } },
+            },
+          },
+        },
+        orderBy: { title: 'asc' },
+      });
+    }
+
+    if (userRole === 'TEACHER' && userId) {
+      return this.prisma.course.findMany({
+        where: {
+          groups: {
+            some: {
+              teacher_id: userId,
             },
           },
         },
@@ -101,16 +119,12 @@ export class CourseService {
       throw new ForbiddenException('Нет доступа к курсу');
     }
 
+    const groupRoleFilter = userRole === 'CURATOR' ? { curator_id: userId } : { teacher_id: userId };
     const course = await this.prisma.course.findFirst({
       where: {
         id,
         groups: {
-          some: {
-            OR: [
-              { curator_id: userId },
-              { teacher_id: userId },
-            ],
-          },
+          some: groupRoleFilter,
         },
       },
       select: { id: true },

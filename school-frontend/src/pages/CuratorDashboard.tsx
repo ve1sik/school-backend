@@ -505,26 +505,56 @@ export default function CuratorDashboard() {
 
           <main className="overflow-y-auto p-6 md:p-10">
             <div className="max-w-6xl mx-auto space-y-8">
-              <div className="bg-white rounded-[2rem] border border-gray-100 shadow-sm p-6 md:p-8">
+              <div className="bg-white rounded-[2rem] border border-gray-100 shadow-sm p-6 md:p-8 space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <label className="space-y-2">
-                    <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Курс</span>
-                    <select value={selectedCourse?.id || ''} onChange={event => handleCourseChange(event.target.value)} className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 font-bold outline-none focus:border-purple-400">
+                  <label className="space-y-2 p-4 rounded-3xl bg-indigo-50/60 border border-indigo-100">
+                    <span className="text-[10px] font-black text-indigo-500 uppercase tracking-widest flex items-center gap-2">
+                      <BookOpen className="w-4 h-4" /> 1. Курс
+                    </span>
+                    <select value={selectedCourse?.id || ''} onChange={event => handleCourseChange(event.target.value)} className="w-full bg-white border border-indigo-100 rounded-2xl px-4 py-3 font-black outline-none focus:border-purple-400 text-indigo-950">
                       {(selectedGroup?.courses || []).map((course: any) => <option key={course.id} value={course.id}>{course.title}</option>)}
                     </select>
                   </label>
-                  <label className="space-y-2">
-                    <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Модуль</span>
-                    <select value={selectedTheme?.id || ''} onChange={event => handleThemeChange(event.target.value)} className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 font-bold outline-none focus:border-purple-400">
+                  <label className="space-y-2 p-4 rounded-3xl bg-purple-50/60 border border-purple-100">
+                    <span className="text-[10px] font-black text-purple-500 uppercase tracking-widest flex items-center gap-2">
+                      <FileText className="w-4 h-4" /> 2. Модуль
+                    </span>
+                    <select value={selectedTheme?.id || ''} onChange={event => handleThemeChange(event.target.value)} className="w-full bg-white border border-purple-100 rounded-2xl px-4 py-3 font-black outline-none focus:border-purple-400 text-purple-950">
                       {(selectedCourse?.themes || []).map((theme: any) => <option key={theme.id} value={theme.id}>{theme.title}</option>)}
                     </select>
                   </label>
-                  <label className="space-y-2">
-                    <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Урок</span>
-                    <select value={selectedLesson?.id || ''} onChange={event => setSelectedLessonId(event.target.value)} className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 font-bold outline-none focus:border-purple-400">
+                  <label className="space-y-2 p-4 rounded-3xl bg-emerald-50/60 border border-emerald-100">
+                    <span className="text-[10px] font-black text-emerald-500 uppercase tracking-widest flex items-center gap-2">
+                      <CheckSquare className="w-4 h-4" /> 3. Урок для проверки
+                    </span>
+                    <select value={selectedLesson?.id || ''} onChange={event => setSelectedLessonId(event.target.value)} className="w-full bg-white border border-emerald-100 rounded-2xl px-4 py-3 font-black outline-none focus:border-purple-400 text-emerald-950">
                       {(selectedTheme?.lessons || []).map((lesson: any) => <option key={lesson.id} value={lesson.id}>{lesson.title}</option>)}
                     </select>
                   </label>
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between gap-4 mb-3">
+                    <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Уроки выбранного модуля</h3>
+                    <span className="text-xs font-black text-purple-500">{selectedTheme?.title || 'Модуль не выбран'}</span>
+                  </div>
+                  <div className="flex gap-2 overflow-x-auto pb-2 custom-scrollbar">
+                    {(selectedTheme?.lessons || []).map((lesson: any, index: number) => {
+                      const active = selectedLesson?.id === lesson.id;
+                      return (
+                        <button
+                          key={lesson.id}
+                          onClick={() => setSelectedLessonId(lesson.id)}
+                          className={`shrink-0 px-4 py-3 rounded-2xl border-2 text-left transition-all min-w-[190px] ${
+                            active ? 'bg-purple-600 border-purple-600 text-white shadow-lg shadow-purple-100' : 'bg-gray-50 border-gray-100 hover:border-purple-200 text-gray-700'
+                          }`}
+                        >
+                          <p className={`text-[10px] font-black uppercase tracking-widest mb-1 ${active ? 'text-purple-100' : 'text-gray-400'}`}>Урок {index + 1}</p>
+                          <p className="text-sm font-black truncate">{lesson.title}</p>
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
 
@@ -545,7 +575,9 @@ export default function CuratorDashboard() {
                           </div>
                           <div>
                             <h2 className="text-2xl font-black">{getStudentName(activeStudent)}</h2>
-                            <p className="text-sm font-bold text-gray-400">{selectedLesson?.title || 'Урок не выбран'}</p>
+                            <p className="text-sm font-bold text-gray-400">
+                              {selectedCourse?.title || 'Курс'} / {selectedTheme?.title || 'Модуль'} / {selectedLesson?.title || 'Урок'}
+                            </p>
                           </div>
                         </div>
                       </div>
@@ -593,7 +625,11 @@ export default function CuratorDashboard() {
                           <h3 className="font-black text-2xl text-purple-900 mb-2 flex items-center gap-3">
                             <Mic className="w-7 h-7 text-purple-600" /> Устный ответ
                           </h3>
-                          <p className="text-purple-700 font-medium mb-5 text-sm">Доступен всегда для выбранного ученика и урока. Если балл уже был, новое значение заменит старое в статистике.</p>
+                          <p className="text-purple-700 font-medium mb-3 text-sm">Доступен всегда для выбранного ученика и урока. Если балл уже был, новое значение заменит старое в статистике.</p>
+                          <div className="mb-5 inline-flex flex-wrap items-center gap-2 px-4 py-2 bg-white/80 border border-purple-200 rounded-2xl text-xs font-black text-purple-800">
+                            <BookOpen className="w-4 h-4 text-purple-500" />
+                            Сохраняется только для урока: {selectedLesson?.title || 'урок не выбран'}
+                          </div>
                           {oralScore !== '' && (
                             <div className="inline-flex items-center gap-2 px-4 py-2 bg-white/80 border border-purple-200 rounded-2xl text-xs font-black text-purple-700 mb-5">
                               <CheckCircle2 className="w-4 h-4" /> Сейчас сохранено: {oralScore}/100

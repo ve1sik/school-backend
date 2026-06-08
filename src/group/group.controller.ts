@@ -72,13 +72,13 @@ export class GroupController {
     return this.groupService.updateCourses(id, body.courseIds);
   }
 
-  @Permissions('MANAGE_GROUPS')
+  @Permissions('MANAGE_GROUPS', 'MANAGE_USERS')
   @Post(':id/students')
-  updateStudents(@Param('id') id: string, @Body() body: { studentIds?: string[]; userId?: string }) {
+  updateStudents(@Param('id') id: string, @Body() body: { studentIds?: string[]; userId?: string }, @Request() req) {
     if (body.userId) {
-      return this.groupService.enrollStudent(id, body.userId);
+      return this.groupService.enrollStudent(id, body.userId, req.user.sub, req.user.role);
     }
-    return this.groupService.updateStudents(id, body.studentIds || []);
+    return this.groupService.updateStudents(id, body.studentIds || [], req.user.sub, req.user.role);
   }
 
   @Roles('STUDENT', 'ADMIN', 'CURATOR')
@@ -94,28 +94,28 @@ export class GroupController {
 
   @Roles('ADMIN', 'CURATOR')
   @Get(':id/applications')
-  getApplications(@Param('id') id: string) {
-    return this.groupService.getApplications(id);
+  getApplications(@Param('id') id: string, @Request() req) {
+    return this.groupService.getApplications(id, req.user.sub, req.user.role);
   }
 
   @Roles('ADMIN', 'CURATOR')
   @Patch('applications/:appId/approve')
   approveApplication(@Param('appId') appId: string, @Request() req) {
     const reviewerId = req.user.sub || req.user.id;
-    return this.groupService.approveApplication(appId, reviewerId);
+    return this.groupService.approveApplication(appId, reviewerId, req.user.role);
   }
 
   @Roles('ADMIN', 'CURATOR')
   @Patch('applications/:appId/reject')
   rejectApplication(@Param('appId') appId: string, @Request() req) {
     const reviewerId = req.user.sub || req.user.id;
-    return this.groupService.rejectApplication(appId, reviewerId);
+    return this.groupService.rejectApplication(appId, reviewerId, req.user.role);
   }
 
-  @Permissions('MANAGE_GROUPS')
+  @Permissions('MANAGE_GROUPS', 'MANAGE_USERS')
   @Delete(':id/students/:userId')
-  removeStudent(@Param('id') id: string, @Param('userId') userId: string) {
-    return this.groupService.removeStudent(id, userId);
+  removeStudent(@Param('id') id: string, @Param('userId') userId: string, @Request() req) {
+    return this.groupService.removeStudent(id, userId, req.user.sub, req.user.role);
   }
 
   @Permissions('MANAGE_COURSES', 'MANAGE_GROUPS')
