@@ -2,6 +2,7 @@ import { useEffect, useState, useRef, useMemo } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
+import { DEFAULT_ROLE_PERMISSIONS, type AdminPermission, type Role } from '../lib/auth';
 import { 
   Home, 
   BookOpen, 
@@ -237,8 +238,12 @@ export default function Layout() {
     return 'СТ';
   };
 
-  const isAdminRole = userRole === 'ADMIN' || userData?.role === 'ADMIN';
-  const isCuratorRole = userRole === 'CURATOR' || userData?.role === 'CURATOR';
+  const effectiveRole = (userData?.role || userRole) as Role | undefined;
+  const effectivePermissions = new Set<AdminPermission>([
+    ...((effectiveRole ? DEFAULT_ROLE_PERMISSIONS[effectiveRole] : []) || []),
+    ...((userData?.admin_permissions || []) as AdminPermission[]),
+  ]);
+  const can = (permission: AdminPermission) => effectivePermissions.has(permission);
 
   const menuItems = [
     { path: '/', icon: Home, label: 'Главная' },
@@ -255,12 +260,13 @@ export default function Layout() {
 
   // Админ/куратор-разделы (для мобильного меню)
   const adminItems = [
-    { path: '/admin', icon: BookOpen, label: 'Управление курсами', show: isAdminRole || isCuratorRole },
-    { path: '/admin/users', icon: Users, label: 'Управление пользователями', show: isAdminRole || isCuratorRole },
-    { path: '/admin/groups', icon: ShieldCheck, label: 'Управление потоками', show: isAdminRole },
-    { path: '/admin/decks', icon: Layers, label: 'Карточки (колоды)', show: isAdminRole },
-    { path: '/curator', icon: Users, label: 'Кабинет куратора', show: isAdminRole || isCuratorRole },
+    { path: '/admin', icon: BookOpen, label: 'Управление курсами', show: can('MANAGE_COURSES') },
+    { path: '/admin/users', icon: Users, label: 'Управление пользователями', show: can('MANAGE_USERS') },
+    { path: '/admin/groups', icon: ShieldCheck, label: 'Управление потоками', show: can('MANAGE_GROUPS') },
+    { path: '/admin/decks', icon: Layers, label: 'Карточки (колоды)', show: can('MANAGE_DECKS') },
+    { path: '/curator', icon: Users, label: 'Кабинет куратора', show: can('CURATOR_DASHBOARD') },
   ].filter(item => item.show);
+  const hasAdminItems = adminItems.length > 0;
 
   // Быстрая навигация снизу на телефоне (самое частое)
   const bottomNavItems = [
@@ -341,7 +347,7 @@ export default function Layout() {
               );
             })}
 
-            {isAdmin && (
+            {hasAdminItems && (
               <div className="pt-2 mt-2 border-t border-gray-50 space-y-1.5">
                 {adminItems.map((item) => {
                   const isActive = item.path === '/curator'
@@ -553,7 +559,7 @@ export default function Layout() {
                   );
                 })}
 
-                {isAdmin && (
+                {hasAdminItems && (
                   <div className="pt-2 mt-2 border-t border-gray-50 space-y-1">
                     <p className="px-3 py-1 text-[10px] font-black text-gray-300 uppercase tracking-wider">Управление</p>
                     {adminItems.map((item) => {

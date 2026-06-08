@@ -1,6 +1,12 @@
 // Единые помощники авторизации на фронте
 
 export type Role = 'STUDENT' | 'CURATOR' | 'TEACHER' | 'ADMIN' | 'PARENT';
+export type AdminPermission =
+  | 'MANAGE_COURSES'
+  | 'MANAGE_USERS'
+  | 'MANAGE_GROUPS'
+  | 'MANAGE_DECKS'
+  | 'CURATOR_DASHBOARD';
 
 export function getToken(): string | null {
   return localStorage.getItem('token');
@@ -10,6 +16,7 @@ interface JwtPayload {
   sub?: string;
   email?: string;
   role?: Role;
+  admin_permissions?: AdminPermission[];
   exp?: number;
 }
 
@@ -26,6 +33,25 @@ export function decodeToken(): JwtPayload | null {
 
 export function getRole(): Role | null {
   return decodeToken()?.role ?? null;
+}
+
+export const DEFAULT_ROLE_PERMISSIONS: Record<Role, AdminPermission[]> = {
+  ADMIN: ['MANAGE_COURSES', 'MANAGE_USERS', 'MANAGE_GROUPS', 'MANAGE_DECKS', 'CURATOR_DASHBOARD'],
+  TEACHER: ['MANAGE_COURSES', 'MANAGE_DECKS'],
+  CURATOR: ['CURATOR_DASHBOARD'],
+  STUDENT: [],
+  PARENT: [],
+};
+
+export function getAdminPermissions(): AdminPermission[] {
+  const payload = decodeToken();
+  const role = payload?.role;
+  const defaults = role ? DEFAULT_ROLE_PERMISSIONS[role] || [] : [];
+  return Array.from(new Set([...defaults, ...(payload?.admin_permissions || [])]));
+}
+
+export function hasAdminPermission(permission: AdminPermission): boolean {
+  return getAdminPermissions().includes(permission);
 }
 
 export function isTokenValid(): boolean {

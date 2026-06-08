@@ -54,6 +54,7 @@ model User {
   password_hash String
   role          Role    @default(STUDENT)
   refresh_token String?
+  admin_permissions String[] @default([])
 
   name       String?
   surname    String?

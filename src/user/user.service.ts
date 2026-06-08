@@ -7,6 +7,7 @@ const userListSelect = {
   id: true,
   email: true,
   role: true,
+  admin_permissions: true,
   name: true,
   surname: true,
   patronymic: true,
@@ -27,8 +28,8 @@ const userListSelect = {
 export class UserService {
   constructor(private prisma: PrismaService) {}
 
-  async findAll(skip?: number, take?: number, requesterId?: string, requesterRole?: string) {
-    if (requesterRole === 'CURATOR' && requesterId) {
+  async findAll(skip?: number, take?: number, requesterId?: string, requesterRole?: string, requesterPermissions: string[] = []) {
+    if (requesterRole === 'CURATOR' && requesterId && !requesterPermissions.includes('MANAGE_USERS')) {
       const groups = await this.prisma.group.findMany({
         where: {
           OR: [
@@ -66,8 +67,8 @@ export class UserService {
     });
   }
 
-  async findAllStudents(requesterId?: string, requesterRole?: string) {
-    if (requesterRole === 'CURATOR' && requesterId) {
+  async findAllStudents(requesterId?: string, requesterRole?: string, requesterPermissions: string[] = []) {
+    if (requesterRole === 'CURATOR' && requesterId && !requesterPermissions.includes('MANAGE_USERS')) {
       const groups = await this.prisma.group.findMany({
         where: {
           OR: [
@@ -93,8 +94,8 @@ export class UserService {
     });
   }
 
-  async findAllCurators(requesterId?: string, requesterRole?: string) {
-    if (requesterRole === 'CURATOR' && requesterId) {
+  async findAllCurators(requesterId?: string, requesterRole?: string, requesterPermissions: string[] = []) {
+    if (requesterRole === 'CURATOR' && requesterId && !requesterPermissions.includes('MANAGE_USERS')) {
       return this.prisma.user.findMany({
         where: { id: requesterId },
         select: { id: true, name: true, surname: true, email: true, avatar: true },
@@ -133,7 +134,11 @@ export class UserService {
     });
   }
 
-  async updateUser(id: string, dto: { role?: Role; name?: string; surname?: string; email?: string; password?: string }) {
+  async updateUser(
+    id: string,
+    dto: { role?: Role; name?: string; surname?: string; email?: string; password?: string; admin_permissions?: string[] },
+    requesterRole?: string,
+  ) {
     const user = await this.prisma.user.findUnique({ where: { id } });
     if (!user) throw new NotFoundException('Пользователь не найден');
 
@@ -143,6 +148,12 @@ export class UserService {
     if (dto.surname !== undefined) data.surname = dto.surname;
     if (dto.email) data.email = dto.email;
     if (dto.password) data.password_hash = await bcrypt.hash(dto.password, 10);
+    if (dto.admin_permissions !== undefined) {
+      if (requesterRole !== 'ADMIN') {
+        throw new BadRequestException('Только администратор может менять доступы к админкам');
+      }
+      data.admin_permissions = Array.isArray(dto.admin_permissions) ? dto.admin_permissions : [];
+    }
 
     return this.prisma.user.update({ where: { id }, data, select: userListSelect });
   }

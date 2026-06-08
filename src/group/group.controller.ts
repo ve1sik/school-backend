@@ -3,22 +3,23 @@ import { GroupService } from './group.service';
 import { AuthGuard } from '@nestjs/passport';
 import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
+import { Permissions } from '../auth/permissions.decorator';
 
 @UseGuards(AuthGuard('jwt'), RolesGuard)
 @Controller('groups')
 export class GroupController {
   constructor(private readonly groupService: GroupService) {}
 
-  @Roles('ADMIN')
+  @Permissions('MANAGE_GROUPS')
   @Post()
   create(@Body() createGroupDto: any) {
     return this.groupService.create(createGroupDto);
   }
 
-  @Roles('ADMIN', 'CURATOR')
+  @Permissions('MANAGE_GROUPS', 'MANAGE_USERS')
   @Get()
   findAll(@Request() req) {
-    return this.groupService.findAll(req.user.sub, req.user.role);
+    return this.groupService.findAll(req.user.sub, req.user.role, req.user.admin_permissions || []);
   }
 
   @Roles('ADMIN', 'CURATOR', 'STUDENT', 'TEACHER')
@@ -41,31 +42,31 @@ export class GroupController {
     return this.groupService.getMyThemeAccess(userId);
   }
 
-  @Roles('ADMIN', 'CURATOR')
+  @Permissions('MANAGE_GROUPS', 'MANAGE_USERS')
   @Get(':id')
   findOne(@Param('id') id: string, @Request() req) {
-    return this.groupService.findOne(id, req.user.sub, req.user.role);
+    return this.groupService.findOne(id, req.user.sub, req.user.role, req.user.admin_permissions || []);
   }
 
-  @Roles('ADMIN', 'CURATOR')
+  @Permissions('MANAGE_GROUPS')
   @Patch(':id')
   update(@Param('id') id: string, @Body() updateGroupDto: any, @Request() req) {
-    return this.groupService.update(id, updateGroupDto, req.user.sub, req.user.role);
+    return this.groupService.update(id, updateGroupDto, req.user.sub, req.user.role, req.user.admin_permissions || []);
   }
 
-  @Roles('ADMIN')
+  @Permissions('MANAGE_GROUPS')
   @Delete(':id')
   remove(@Param('id') id: string) {
     return this.groupService.remove(id);
   }
 
-  @Roles('ADMIN')
+  @Permissions('MANAGE_GROUPS')
   @Post(':id/courses')
   updateCourses(@Param('id') id: string, @Body() body: { courseIds: string[] }) {
     return this.groupService.updateCourses(id, body.courseIds);
   }
 
-  @Roles('ADMIN')
+  @Permissions('MANAGE_GROUPS')
   @Post(':id/students')
   updateStudents(@Param('id') id: string, @Body() body: { studentIds?: string[]; userId?: string }) {
     if (body.userId) {
@@ -105,19 +106,19 @@ export class GroupController {
     return this.groupService.rejectApplication(appId, reviewerId);
   }
 
-  @Roles('ADMIN')
+  @Permissions('MANAGE_GROUPS')
   @Delete(':id/students/:userId')
   removeStudent(@Param('id') id: string, @Param('userId') userId: string) {
     return this.groupService.removeStudent(id, userId);
   }
 
-  @Roles('ADMIN', 'CURATOR', 'TEACHER')
+  @Permissions('MANAGE_COURSES', 'MANAGE_GROUPS')
   @Get(':id/theme-access')
   getThemeAccess(@Param('id') id: string) {
     return this.groupService.getThemeAccess(id);
   }
 
-  @Roles('ADMIN', 'CURATOR', 'TEACHER')
+  @Permissions('MANAGE_COURSES', 'MANAGE_GROUPS')
   @Post(':id/theme-access')
   upsertThemeAccess(
     @Param('id') id: string,

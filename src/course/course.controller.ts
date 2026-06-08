@@ -4,6 +4,7 @@ import { AuthGuard } from '@nestjs/passport';
 import { RolesGuard } from '../auth/roles.guard'; 
 import { Roles } from '../auth/roles.decorator';
 import { Role } from '@prisma/client';
+import { Permissions } from '../auth/permissions.decorator';
 
 @UseGuards(AuthGuard('jwt'), RolesGuard)
 @Controller('courses')
@@ -28,6 +29,7 @@ export class CourseController {
   }
 
   @Roles(Role.ADMIN, Role.CURATOR, Role.TEACHER)
+  @Permissions('MANAGE_COURSES')
   @Patch(':id')
   async update(@Param('id') id: string, @Body() dto: any, @Request() req: any) {
     return this.courseService.updateCourse(id, dto, req.user.sub, req.user.role);

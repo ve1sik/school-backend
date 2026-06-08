@@ -4,19 +4,20 @@ import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
 import { Role } from '@prisma/client';
 import { SubmissionsService } from './submissions.service';
+import { Permissions } from '../auth/permissions.decorator';
 
 @UseGuards(AuthGuard('jwt'), RolesGuard)
 @Controller('submissions')
 export class SubmissionsController {
   constructor(private readonly submissionsService: SubmissionsService) {}
 
-  @Roles(Role.ADMIN, Role.CURATOR, Role.TEACHER)
+  @Permissions('CURATOR_DASHBOARD')
   @Post('oral')
   createOralSubmission(@Body() body: any, @Request() req) {
     return this.submissionsService.createOralSubmission(body, req.user.sub, req.user.role);
   }
 
-  @Roles(Role.ADMIN, Role.CURATOR, Role.TEACHER)
+  @Permissions('CURATOR_DASHBOARD')
   @Get('oral/:studentId/:lessonId')
   getOralSubmission(
     @Param('studentId') studentId: string,
@@ -44,7 +45,7 @@ export class SubmissionsController {
   }
 
   // Очередь работ для куратора (PENDING / GRADED) — с фильтром по группам если CURATOR
-  @Roles(Role.ADMIN, Role.CURATOR, Role.TEACHER)
+  @Permissions('CURATOR_DASHBOARD')
   @Get()
   getSubmissionsByStatus(@Query('status') status: string, @Request() req) {
     const finalStatus = status === 'GRADED' ? 'GRADED' : 'PENDING';
@@ -55,7 +56,7 @@ export class SubmissionsController {
     );
   }
 
-  @Roles(Role.ADMIN, Role.CURATOR, Role.TEACHER)
+  @Permissions('CURATOR_DASHBOARD')
   @Get('pending')
   getPending(@Request() req) {
     return this.submissionsService.getSubmissionsByStatus(
@@ -66,7 +67,7 @@ export class SubmissionsController {
   }
 
   // Куратор оценивает работу (или возвращает на доработку)
-  @Roles(Role.ADMIN, Role.CURATOR, Role.TEACHER)
+  @Permissions('CURATOR_DASHBOARD')
   @Patch(':id/grade')
   gradeSubmission(@Param('id') id: string, @Body() body: any) {
     return this.submissionsService.gradeSubmission(id, body.score, body.comment, body.status);

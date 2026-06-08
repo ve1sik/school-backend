@@ -9,9 +9,9 @@ export class GroupService {
     return this.prisma.group.create({ data });
   }
 
-  async findAll(requesterId?: string, requesterRole?: string) {
+  async findAll(requesterId?: string, requesterRole?: string, requesterPermissions: string[] = []) {
     const where =
-      requesterRole === 'CURATOR' && requesterId
+      requesterRole === 'CURATOR' && requesterId && !requesterPermissions.includes('MANAGE_GROUPS') && !requesterPermissions.includes('MANAGE_USERS')
         ? {
             OR: [
               { curator_id: requesterId },
@@ -30,9 +30,9 @@ export class GroupService {
     });
   }
 
-  async findOne(id: string, requesterId?: string, requesterRole?: string) {
+  async findOne(id: string, requesterId?: string, requesterRole?: string, requesterPermissions: string[] = []) {
     const where =
-      requesterRole === 'CURATOR' && requesterId
+      requesterRole === 'CURATOR' && requesterId && !requesterPermissions.includes('MANAGE_GROUPS') && !requesterPermissions.includes('MANAGE_USERS')
         ? {
             id,
             OR: [
@@ -48,11 +48,11 @@ export class GroupService {
     });
   }
 
-  async update(id: string, data: any, requesterId?: string, requesterRole?: string) {
+  async update(id: string, data: any, requesterId?: string, requesterRole?: string, requesterPermissions: string[] = []) {
     const { curator_id, curatorId, teacherId, ...rest } = data;
     const updateData: any = { ...rest };
 
-    if (requesterRole === 'CURATOR') {
+    if (requesterRole === 'CURATOR' && !requesterPermissions.includes('MANAGE_GROUPS')) {
       const group = await this.prisma.group.findUnique({ where: { id }, select: { curator_id: true } });
       if (!group || group.curator_id !== requesterId) {
         throw new ForbiddenException('Можно менять только свою группу');

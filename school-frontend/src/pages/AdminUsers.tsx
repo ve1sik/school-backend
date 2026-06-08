@@ -3,6 +3,7 @@ import { Users, GraduationCap, BookOpen, X, Search, Crown, UserCircle, Mail, Cal
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
+import { DEFAULT_ROLE_PERMISSIONS, type AdminPermission } from '../lib/auth';
 
 const API_URL = 'https://prepodmgy.ru/api';
 
@@ -12,6 +13,7 @@ interface User {
   id: string;
   email: string;
   role: Role;
+  admin_permissions?: AdminPermission[];
   name?: string;
   surname?: string;
   patronymic?: string;
@@ -40,6 +42,14 @@ interface Subject {
   id: string;
   title: string;
 }
+
+const ADMIN_PERMISSION_OPTIONS: { id: AdminPermission; title: string; description: string }[] = [
+  { id: 'MANAGE_COURSES', title: 'Управление курсами', description: 'Курсы, модули, уроки, дедлайны' },
+  { id: 'MANAGE_USERS', title: 'Управление пользователями', description: 'Список пользователей и точечные доступы' },
+  { id: 'MANAGE_GROUPS', title: 'Управление потоками', description: 'Группы, составы, привязка курсов' },
+  { id: 'MANAGE_DECKS', title: 'Карточки и колоды', description: 'Флеш-карточки для уроков' },
+  { id: 'CURATOR_DASHBOARD', title: 'Кабинет куратора', description: 'Проверка работ и устные баллы' },
+];
 
 export default function AdminUsers() {
   const navigate = useNavigate();
@@ -115,6 +125,29 @@ export default function AdminUsers() {
       fetchData();
     } catch (err) {
       showToast('Ошибка изменения роли', 'error');
+    }
+  };
+
+  const handleToggleAdminPermission = async (user: User, permission: AdminPermission) => {
+    if (currentRole !== 'ADMIN') return;
+    const defaults = DEFAULT_ROLE_PERMISSIONS[user.role] || [];
+    if (defaults.includes(permission)) {
+      showToast('Это право уже выдано ролью пользователя', 'error');
+      return;
+    }
+
+    const current = user.admin_permissions || [];
+    const next = current.includes(permission)
+      ? current.filter(p => p !== permission)
+      : [...current, permission];
+
+    try {
+      const res = await axios.patch(`${API_URL}/users/${user.id}`, { admin_permissions: next }, getTokenConfig());
+      setSelectedUser(prev => prev?.id === user.id ? { ...prev, admin_permissions: res.data.admin_permissions || next } : prev);
+      setUsers(prev => prev.map(u => u.id === user.id ? { ...u, admin_permissions: res.data.admin_permissions || next } : u));
+      showToast('Доступы обновлены');
+    } catch {
+      showToast('Ошибка обновления доступов', 'error');
     }
   };
 
@@ -695,6 +728,52 @@ export default function AdminUsers() {
                   <Shield className="w-4 h-4" /> {getRoleBadge(selectedUser.role).text}
                 </div>
               </div>
+
+              {/* ДОСТУПЫ К АДМИНКАМ */}
+              {currentRole === 'ADMIN' && (
+                <div>
+                  <h4 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3">Доступы к админкам</h4>
+                  <div className="space-y-2">
+                    {ADMIN_PERMISSION_OPTIONS.map((permission) => {
+                      const roleDefaults = DEFAULT_ROLE_PERMISSIONS[selectedUser.role] || [];
+                      const grantedByRole = roleDefaults.includes(permission.id);
+                      const grantedManually = selectedUser.admin_permissions?.includes(permission.id);
+                      const isEnabled = grantedByRole || grantedManually;
+
+                      return (
+                        <button
+                          key={permission.id}
+                          type="button"
+                          onClick={() => handleToggleAdminPermission(selectedUser, permission.id)}
+                          className={`w-full text-left p-3 rounded-2xl border transition-all flex items-center gap-3 ${
+                            isEnabled
+                              ? 'bg-indigo-50 border-indigo-200'
+                              : 'bg-gray-50 border-gray-100 hover:border-gray-200'
+                          } ${grantedByRole ? 'cursor-default' : 'cursor-pointer'}`}
+                        >
+                          <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
+                            isEnabled ? 'bg-[#5A4BFF] text-white' : 'bg-white text-gray-300'
+                          }`}>
+                            <Check className="w-4 h-4" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className={`text-sm font-black ${isEnabled ? 'text-indigo-900' : 'text-gray-600'}`}>{permission.title}</p>
+                            <p className="text-[11px] text-gray-400 font-medium mt-0.5">{permission.description}</p>
+                          </div>
+                          {grantedByRole && (
+                            <span className="px-2 py-1 rounded-lg bg-white text-[10px] font-black text-indigo-500 border border-indigo-100 shrink-0">
+                              По роли
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <p className="text-[11px] text-gray-400 font-medium mt-3">
+                    После выдачи нового доступа пользователю лучше перезайти, чтобы обновился токен и меню.
+                  </p>
+                </div>
+              )}
 
               {/* КУРСЫ */}
               <div>

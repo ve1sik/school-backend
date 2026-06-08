@@ -10,8 +10,8 @@ export class AuthService {
     private jwt: JwtService,
   ) {}
 
-  private async issueTokens(userId: string, email: string, role: string) {
-    const payload = { sub: userId, email, role };
+  private async issueTokens(userId: string, email: string, role: string, admin_permissions: string[] = []) {
+    const payload = { sub: userId, email, role, admin_permissions };
     const access_token = this.jwt.sign(payload, { expiresIn: '1d' });
     const refresh_token = this.jwt.sign(payload, {
       expiresIn: '7d',
@@ -39,13 +39,13 @@ export class AuthService {
       throw new UnauthorizedException('Сессия недействительна');
     }
 
-    const tokens = await this.issueTokens(user.id, user.email, user.role);
+    const tokens = await this.issueTokens(user.id, user.email, user.role, user.admin_permissions || []);
     await this.prisma.user.update({
       where: { id: user.id },
       data: { refresh_token: tokens.refresh_token },
     });
 
-    return { user: { id: user.id, email: user.email, role: user.role }, ...tokens };
+    return { user: { id: user.id, email: user.email, role: user.role, admin_permissions: user.admin_permissions || [] }, ...tokens };
   }
 
   // 1. РЕГИСТРАЦИЯ СТУДЕНТА
@@ -85,7 +85,7 @@ export class AuthService {
     const isMatch = await bcrypt.compare(dto.password, user.password_hash);
     if (!isMatch) throw new UnauthorizedException('Неверный email или пароль');
 
-    const tokens = await this.issueTokens(user.id, user.email, user.role);
+    const tokens = await this.issueTokens(user.id, user.email, user.role, user.admin_permissions || []);
 
     await this.prisma.user.update({
       where: { id: user.id },
@@ -93,7 +93,7 @@ export class AuthService {
     });
 
     return {
-      user: { id: user.id, email: user.email, role: user.role },
+      user: { id: user.id, email: user.email, role: user.role, admin_permissions: user.admin_permissions || [] },
       ...tokens,
     };
   }

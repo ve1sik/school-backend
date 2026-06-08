@@ -28,7 +28,6 @@ import Achievements from './pages/Achievements';
 
 import ProtectedRoute from './components/ProtectedRoute';
 
-const STAFF: any = ['ADMIN', 'CURATOR', 'TEACHER'];
 const NON_PARENT: any = ['ADMIN', 'CURATOR', 'TEACHER', 'STUDENT'];
 
 export default function App() {
@@ -48,7 +47,7 @@ export default function App() {
       <Route
         path="/curator"
         element={
-          <ProtectedRoute roles={STAFF}>
+          <ProtectedRoute permissions={['CURATOR_DASHBOARD']}>
             <CuratorDashboard />
           </ProtectedRoute>
         }
@@ -56,7 +55,7 @@ export default function App() {
       <Route
         path="/curator/messages"
         element={
-          <ProtectedRoute roles={STAFF}>
+          <ProtectedRoute permissions={['CURATOR_DASHBOARD']}>
             <CuratorMessages />
           </ProtectedRoute>
         }
@@ -82,10 +81,10 @@ export default function App() {
         <Route path="profile" element={<Profile />} />
         
         {/* 🔥 АДМИНКА */}
-        <Route path="admin" element={<ProtectedRoute roles={STAFF}><AdminCourses /></ProtectedRoute>} />
-        <Route path="admin/groups" element={<ProtectedRoute roles={['ADMIN', 'CURATOR']}><AdminGroups /></ProtectedRoute>} />
-        <Route path="admin/users" element={<ProtectedRoute roles={['ADMIN', 'CURATOR']}><AdminUsers /></ProtectedRoute>} />
-        <Route path="admin/decks" element={<ProtectedRoute roles={['ADMIN', 'TEACHER']}><AdminDecks /></ProtectedRoute>} />
+        <Route path="admin" element={<ProtectedRoute permissions={['MANAGE_COURSES']}><AdminCourses /></ProtectedRoute>} />
+        <Route path="admin/groups" element={<ProtectedRoute permissions={['MANAGE_GROUPS']}><AdminGroups /></ProtectedRoute>} />
+        <Route path="admin/users" element={<ProtectedRoute permissions={['MANAGE_USERS']}><AdminUsers /></ProtectedRoute>} />
+        <Route path="admin/decks" element={<ProtectedRoute permissions={['MANAGE_DECKS']}><AdminDecks /></ProtectedRoute>} />
         
         <Route path="schedule" element={<Schedule />} />
         

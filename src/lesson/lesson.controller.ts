@@ -4,13 +4,14 @@ import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
 import { Role } from '@prisma/client';
 import { LessonService } from './lesson.service';
+import { Permissions } from '../auth/permissions.decorator';
 
 @UseGuards(AuthGuard('jwt'), RolesGuard)
 @Controller('lessons')
 export class LessonController {
   constructor(private readonly lessonService: LessonService) {}
 
-  @Roles(Role.ADMIN, Role.CURATOR, Role.TEACHER)
+  @Permissions('MANAGE_COURSES')
   @Post()
   create(@Body() dto: any, @Request() req) {
     return this.lessonService.create(dto, req.user.sub, req.user.role);
@@ -22,13 +23,13 @@ export class LessonController {
   }
 
   // 🔥 ФИЧА: Эндпоинт для Drag and Drop (перетаскивание уроков)
-  @Roles(Role.ADMIN, Role.CURATOR, Role.TEACHER)
+  @Permissions('MANAGE_COURSES')
   @Patch(':id/reorder')
   reorder(@Param('id') id: string, @Body() dto: { themeId: string; newOrderIndex: number }, @Request() req) {
     return this.lessonService.reorder(id, dto.themeId, dto.newOrderIndex, req.user.sub, req.user.role);
   }
 
-  @Roles(Role.ADMIN, Role.CURATOR, Role.TEACHER)
+  @Permissions('MANAGE_COURSES')
   @Patch(':id')
   update(@Param('id') id: string, @Body() dto: any, @Request() req) {
     // Если прислали только глазик (is_visible), обновляем только его
@@ -39,7 +40,7 @@ export class LessonController {
     return this.lessonService.update(id, dto, req.user.sub, req.user.role);
   }
 
-  @Roles(Role.ADMIN, Role.CURATOR, Role.TEACHER)
+  @Permissions('MANAGE_COURSES')
   @Delete(':id')
   delete(@Param('id') id: string, @Request() req) {
     return this.lessonService.delete(id, req.user.sub, req.user.role);
