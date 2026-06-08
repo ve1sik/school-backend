@@ -1,14 +1,35 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import { ArrowLeft, CheckCircle2, Clock, Search, User, PenTool, MessageSquare, Send, ShieldCheck, Inbox, Loader2, X, ChevronDown, ChevronRight, FolderOpen, BookOpen, CheckSquare, Edit3, Mic, AlertCircle } from 'lucide-react';
+import {
+  AlertCircle,
+  ArrowLeft,
+  BookOpen,
+  CheckCircle2,
+  CheckSquare,
+  ChevronRight,
+  Edit3,
+  FileText,
+  History,
+  Inbox,
+  Loader2,
+  MessageSquare,
+  Mic,
+  PenTool,
+  Search,
+  Send,
+  User,
+  Users,
+  X,
+} from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { invalidateCache } from '../lib/api';
-
 import ReactQuill from 'react-quill-new';
 import 'react-quill-new/dist/quill.snow.css';
+import { invalidateCache } from '../lib/api';
 
 const API_URL = 'https://prepodmgy.ru/api';
+
+type AnswerTab = 'written' | 'tests' | 'history';
 
 const getFullUrl = (url: string) => {
   if (!url) return '';
@@ -20,143 +41,181 @@ const getFullUrl = (url: string) => {
   return `${API_URL}/${cleanPath}`;
 };
 
+const getStudentName = (student: any) =>
+  `${student?.surname || ''} ${student?.name || student?.email || 'Ученик'}`.trim();
+
 export default function CuratorDashboard() {
   const navigate = useNavigate();
+  const [groups, setGroups] = useState<any[]>([]);
   const [submissions, setSubmissions] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  
-  const [activeTab, setActiveTab] = useState<'PENDING' | 'GRADED'>('PENDING');
-
-  // Навигация: Курс -> Ученик -> Урок
-  const [selectedCourse, setSelectedCourse] = useState<string | null>(null);
+  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
+  const [selectedCourseId, setSelectedCourseId] = useState<string | null>(null);
+  const [selectedThemeId, setSelectedThemeId] = useState<string | null>(null);
+  const [selectedLessonId, setSelectedLessonId] = useState<string | null>(null);
   const [activeStudentId, setActiveStudentId] = useState<string | null>(null);
-  const [activeLessonTitle, setActiveLessonTitle] = useState<string | null>(null);
-  const [expandedCourseNav, setExpandedCourseNav] = useState<string | null>(null);
-  
+  const [answerTab, setAnswerTab] = useState<AnswerTab>('written');
   const [searchQuery, setSearchQuery] = useState('');
-  const [toast, setToast] = useState<{ text: string, type: 'success' | 'error' } | null>(null);
-
-  // Стейты ответов
   const [scores, setScores] = useState<Record<string, number | ''>>({});
   const [comments, setComments] = useState<Record<string, string>>({});
-  const [oralScores, setOralScores] = useState<Record<string, number | ''>>({});
-  const [oralComments, setOralComments] = useState<Record<string, string>>({});
+  const [oralScore, setOralScore] = useState<number | ''>('');
+  const [oralComment, setOralComment] = useState('');
+  const [recentlyGradedIds, setRecentlyGradedIds] = useState<Set<string>>(new Set());
+  const [toast, setToast] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
 
   const showToast = (text: string, type: 'success' | 'error' = 'success') => {
     setToast({ text, type });
     setTimeout(() => setToast(null), 3000);
   };
 
-  const fetchSubmissions = async () => {
+  const loadDashboard = async () => {
     setIsLoading(true);
     try {
       const token = localStorage.getItem('token');
-      if (!token) { navigate('/login'); return; }
-      
-      const res = await axios.get(`${API_URL}/submissions`, { 
-        headers: { Authorization: `Bearer ${token}` },
-        params: { status: activeTab } 
-      });
+      if (!token) {
+        navigate('/login');
+        return;
+      }
 
-      if (!res.data || res.data.length === 0) {
-        setSubmissions([]);
-      } else {
-        setSubmissions(res.data);
+      const headers = { Authorization: `Bearer ${token}` };
+      const [scopeRes, pendingRes, gradedRes] = await Promise.all([
+        axios.get(`${API_URL}/groups/curator-scope`, { headers }),
+        axios.get(`${API_URL}/submissions`, { headers, params: { status: 'PENDING' } }).catch(() => ({ data: [] })),
+        axios.get(`${API_URL}/submissions`, { headers, params: { status: 'GRADED' } }).catch(() => ({ data: [] })),
+      ]);
+
+      const uniqueSubmissions = new Map<string, any>();
+      [...(pendingRes.data || []), ...(gradedRes.data || [])].forEach((sub: any) => uniqueSubmissions.set(sub.id, sub));
+      const loadedGroups = scopeRes.data || [];
+
+      setGroups(loadedGroups);
+      setSubmissions([...uniqueSubmissions.values()]);
+
+      const firstGroup = loadedGroups[0];
+      if (firstGroup && !selectedGroupId) {
+        const firstCourse = firstGroup.courses?.[0];
+        const firstTheme = firstCourse?.themes?.[0];
+        const firstLesson = firstTheme?.lessons?.[0];
+        setSelectedGroupId(firstGroup.id);
+        setSelectedCourseId(firstCourse?.id || null);
+        setSelectedThemeId(firstTheme?.id || null);
+        setSelectedLessonId(firstLesson?.id || null);
       }
     } catch (err) {
-      console.error('Ошибка загрузки работ:', err);
+      console.error('Ошибка загрузки кабинета куратора:', err);
+      showToast('Ошибка загрузки кабинета куратора', 'error');
     } finally {
       setIsLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchSubmissions();
-    setSelectedCourse(null);
-    setActiveStudentId(null);
-    setActiveLessonTitle(null);
-  }, [activeTab]);
+    loadDashboard();
+  }, []);
 
-  // ГРУППИРОВКА: Курс -> Ученик -> Уроки -> Ответы
-  const groupedData = useMemo(() => {
-    const courses: Record<string, Record<string, { studentName: string, hasErrors: boolean, lessons: Record<string, { lessonId: string, submissions: any[] }> }>> = {};
-    
-    submissions.forEach(sub => {
-      // Показываем только развёрнутые и устные ответы — авто-тесты куратору не нужны
-      if (sub.isAutoGraded) return;
+  const selectedGroup = groups.find(group => group.id === selectedGroupId) || null;
+  const selectedCourse = selectedGroup?.courses?.find((course: any) => course.id === selectedCourseId) || selectedGroup?.courses?.[0] || null;
+  const selectedTheme = selectedCourse?.themes?.find((theme: any) => theme.id === selectedThemeId) || selectedCourse?.themes?.[0] || null;
+  const selectedLesson = selectedTheme?.lessons?.find((lesson: any) => lesson.id === selectedLessonId) || selectedTheme?.lessons?.[0] || null;
+  const activeStudent = selectedGroup?.students?.find((student: any) => student.id === activeStudentId) || null;
 
-      if (searchQuery && !sub.studentName.toLowerCase().includes(searchQuery.toLowerCase())) return;
+  const lessonSubmissions = useMemo(() => {
+    if (!selectedLesson || !activeStudentId) return [];
+    return submissions.filter((sub: any) => sub.studentId === activeStudentId && sub.lessonId === selectedLesson.id);
+  }, [submissions, activeStudentId, selectedLesson?.id]);
 
-      if (!courses[sub.courseName]) courses[sub.courseName] = {};
-      
-      if (!courses[sub.courseName][sub.studentId]) {
-        courses[sub.courseName][sub.studentId] = {
-          studentName: sub.studentName,
-          hasErrors: false,
-          lessons: {}
-        };
-      }
-      
-      if (!courses[sub.courseName][sub.studentId].lessons[sub.lessonTitle]) {
-        courses[sub.courseName][sub.studentId].lessons[sub.lessonTitle] = {
-          lessonId: sub.lessonId,
-          submissions: []
-        };
-      }
-      
-      courses[sub.courseName][sub.studentId].lessons[sub.lessonTitle].submissions.push(sub);
+  const writtenSubmissions = lessonSubmissions.filter(
+    (sub: any) =>
+      !sub.isAutoGraded &&
+      !String(sub.blockId || '').startsWith('oral-') &&
+      (sub.status !== 'GRADED' || recentlyGradedIds.has(sub.id)),
+  );
+  const testSubmissions = lessonSubmissions.filter((sub: any) => sub.isAutoGraded);
+  const historySubmissions = lessonSubmissions.filter((sub: any) => sub.status === 'GRADED');
 
-      // Логика "Красной рамки": если есть непроверенная работа или 0 баллов (ошибка автопроверки)
-      if (activeTab === 'PENDING' || sub.status === 'ERROR' || (sub.status === 'GRADED' && sub.score === 0)) {
-        courses[sub.courseName][sub.studentId].hasErrors = true;
-      }
-    });
-    return courses;
-  }, [submissions, searchQuery, activeTab]);
+  const tabSubmissions =
+    answerTab === 'written' ? writtenSubmissions : answerTab === 'tests' ? testSubmissions : historySubmissions;
 
-  // Подтягивание старых оценок при переключении урока
+  const submittedStudentIds = useMemo(() => {
+    if (!selectedLesson) return new Set<string>();
+    return new Set(
+      submissions
+        .filter((sub: any) => sub.lessonId === selectedLesson.id && !String(sub.blockId || '').startsWith('oral-'))
+        .map((sub: any) => sub.studentId),
+    );
+  }, [submissions, selectedLesson?.id]);
+
+  const filteredStudents = (selectedGroup?.students || []).filter((student: any) => {
+    const value = `${student.surname || ''} ${student.name || ''} ${student.email || ''}`.toLowerCase();
+    return value.includes(searchQuery.toLowerCase());
+  });
+  const submittedStudents = filteredStudents.filter((student: any) => submittedStudentIds.has(student.id));
+  const notSubmittedStudents = filteredStudents.filter((student: any) => !submittedStudentIds.has(student.id));
+
   useEffect(() => {
-    const currentLesson = selectedCourse && activeStudentId && activeLessonTitle
-      ? groupedData[selectedCourse]?.[activeStudentId]?.lessons[activeLessonTitle]
-      : null;
+    const initialScores: Record<string, number | ''> = {};
+    const initialComments: Record<string, string> = {};
+    lessonSubmissions.forEach((sub: any) => {
+      initialScores[sub.id] = sub.score !== null && sub.score !== undefined ? sub.score : '';
+      initialComments[sub.id] = sub.comment || '';
+    });
+    setScores(initialScores);
+    setComments(initialComments);
+  }, [activeStudentId, selectedLesson?.id, submissions.length]);
 
-    if (selectedCourse && activeStudentId && activeLessonTitle && groupedData[selectedCourse]?.[activeStudentId]?.lessons[activeLessonTitle]) {
-      const initialScores: Record<string, number | ''> = {};
-      const initialComments: Record<string, string> = {};
-      
-      groupedData[selectedCourse][activeStudentId].lessons[activeLessonTitle].submissions.forEach(sub => {
-        initialScores[sub.id] = sub.score !== null && sub.score !== undefined ? sub.score : '';
-        initialComments[sub.id] = sub.comment || '';
-      });
-      
-      setScores(initialScores);
-      setComments(initialComments);
-    }
+  useEffect(() => {
+    setRecentlyGradedIds(new Set());
+  }, [activeStudentId]);
 
-    // Сначала сбрасываем, затем подтягиваем сохранённый устный балл именно для этого ученика и урока.
-    setOralScores({});
-    setOralComments({});
+  useEffect(() => {
+    setOralScore('');
+    setOralComment('');
+    if (!activeStudentId || !selectedLesson?.id) return;
 
-    if (!activeStudentId || !currentLesson?.lessonId) return;
-
-    const fetchExistingOralScore = async () => {
+    const loadOralScore = async () => {
       try {
         const token = localStorage.getItem('token');
-        const res = await axios.get(`${API_URL}/submissions/oral/${activeStudentId}/${currentLesson.lessonId}`, {
+        const res = await axios.get(`${API_URL}/submissions/oral/${activeStudentId}/${selectedLesson.id}`, {
           headers: { Authorization: `Bearer ${token}` },
         });
-
         if (res.data) {
-          setOralScores({ [currentLesson.lessonId]: res.data.score ?? '' });
-          setOralComments({ [currentLesson.lessonId]: res.data.comment || '' });
+          setOralScore(res.data.score ?? '');
+          setOralComment(res.data.comment || '');
         }
       } catch {
-        // Если оценки ещё нет — поле остаётся пустым.
+        // Устная оценка может ещё не существовать.
       }
     };
 
-    fetchExistingOralScore();
-  }, [selectedCourse, activeStudentId, activeLessonTitle, groupedData]);
+    loadOralScore();
+  }, [activeStudentId, selectedLesson?.id]);
+
+  const handleGroupChange = (groupId: string) => {
+    const nextGroup = groups.find(group => group.id === groupId);
+    const firstCourse = nextGroup?.courses?.[0];
+    const firstTheme = firstCourse?.themes?.[0];
+    const firstLesson = firstTheme?.lessons?.[0];
+    setSelectedGroupId(groupId);
+    setSelectedCourseId(firstCourse?.id || null);
+    setSelectedThemeId(firstTheme?.id || null);
+    setSelectedLessonId(firstLesson?.id || null);
+    setActiveStudentId(null);
+  };
+
+  const handleCourseChange = (courseId: string) => {
+    const nextCourse = selectedGroup?.courses?.find((course: any) => course.id === courseId);
+    const firstTheme = nextCourse?.themes?.[0];
+    const firstLesson = firstTheme?.lessons?.[0];
+    setSelectedCourseId(courseId);
+    setSelectedThemeId(firstTheme?.id || null);
+    setSelectedLessonId(firstLesson?.id || null);
+  };
+
+  const handleThemeChange = (themeId: string) => {
+    const nextTheme = selectedCourse?.themes?.find((theme: any) => theme.id === themeId);
+    setSelectedThemeId(themeId);
+    setSelectedLessonId(nextTheme?.lessons?.[0]?.id || null);
+  };
 
   const handleGradeSingle = async (subId: string, maxScore: number) => {
     const currentScore = scores[subId];
@@ -164,487 +223,414 @@ export default function CuratorDashboard() {
       showToast(`Балл должен быть от 0 до ${maxScore}`, 'error');
       return;
     }
-    
+
     try {
       const token = localStorage.getItem('token');
-      if (!String(subId).startsWith('demo-')) {
-        await axios.patch(`${API_URL}/submissions/${subId}/grade`, {
-          score: Number(currentScore), comment: comments[subId] || ''
-        }, { headers: { Authorization: `Bearer ${token}` } });
-      }
+      await axios.patch(
+        `${API_URL}/submissions/${subId}/grade`,
+        { score: Number(currentScore), comment: comments[subId] || '' },
+        { headers: { Authorization: `Bearer ${token}` } },
+      );
 
-      showToast('Оценка сохранена!');
-      
-      if (activeTab === 'PENDING') {
-        const newSubs = submissions.filter(s => s.id !== subId);
-        setSubmissions(newSubs);
-      }
-    } catch (err) {
+      setSubmissions(prev =>
+        prev.map(sub => {
+          if (sub.id !== subId) return sub;
+          const nextComment = comments[subId]?.trim() ? comments[subId] : sub.comment || '';
+          return { ...sub, score: Number(currentScore), comment: nextComment, status: 'GRADED' };
+        }),
+      );
+      setRecentlyGradedIds(prev => new Set(prev).add(subId));
+      invalidateCache('/submissions');
+      showToast('Оценка сохранена');
+    } catch {
       showToast('Ошибка при сохранении оценки', 'error');
     }
   };
 
   const handleReturnForRevision = async (subId: string) => {
-    if (!comments[subId] || !comments[subId].trim()) {
+    if (!comments[subId]?.trim()) {
       showToast('Напишите, что нужно доработать', 'error');
       return;
     }
+
     try {
       const token = localStorage.getItem('token');
-      if (!String(subId).startsWith('demo-')) {
-        await axios.patch(`${API_URL}/submissions/${subId}/grade`, {
-          comment: comments[subId],
-          status: 'REVISION',
-        }, { headers: { Authorization: `Bearer ${token}` } });
-      }
-      showToast('Работа отправлена на доработку 📝');
-      // Уходит из текущего списка — мяч на стороне ученика
-      setSubmissions(submissions.filter(s => s.id !== subId));
-    } catch (err) {
+      await axios.patch(
+        `${API_URL}/submissions/${subId}/grade`,
+        { comment: comments[subId], status: 'REVISION' },
+        { headers: { Authorization: `Bearer ${token}` } },
+      );
+      setSubmissions(prev => prev.map(sub => (sub.id === subId ? { ...sub, comment: comments[subId], status: 'REVISION' } : sub)));
+      showToast('Работа отправлена на доработку');
+    } catch {
       showToast('Ошибка при отправке на доработку', 'error');
     }
   };
 
-  const handleOralGrade = async (lessonId: string) => {
-    const currentScore = oralScores[lessonId];
-    if (currentScore === '') {
-      showToast('Укажите балл за устный ответ!', 'error');
+  const handleOralGrade = async () => {
+    if (!activeStudentId || !selectedLesson) return;
+    if (oralScore === '' || oralScore < 0 || oralScore > 100) {
+      showToast('Балл за устный ответ должен быть от 0 до 100', 'error');
       return;
     }
 
     try {
       const token = localStorage.getItem('token');
-      await axios.post(`${API_URL}/submissions/oral`, {
-        studentId: activeStudentId,
-        lessonId: lessonId,
-        score: Number(currentScore),
-        maxScore: 100,
-        comment: oralComments[lessonId] || 'Устный ответ'
-      }, { headers: { Authorization: `Bearer ${token}` } });
-
-      showToast('Балл за устный ответ сохранён и обновит статистику!', 'success');
-      setOralScores(prev => ({...prev, [lessonId]: Number(currentScore)}));
-      setOralComments(prev => ({...prev, [lessonId]: oralComments[lessonId] || 'Устный ответ'}));
+      await axios.post(
+        `${API_URL}/submissions/oral`,
+        {
+          studentId: activeStudentId,
+          lessonId: selectedLesson.id,
+          score: Number(oralScore),
+          maxScore: 100,
+          comment: oralComment || 'Устный ответ',
+        },
+        { headers: { Authorization: `Bearer ${token}` } },
+      );
       invalidateCache('/submissions');
-    } catch (err) {
+      showToast('Балл за устный ответ сохранён');
+      loadDashboard();
+    } catch {
       showToast('Ошибка сохранения устного балла', 'error');
     }
   };
 
-  if (isLoading) return <div className="h-screen flex items-center justify-center bg-[#F4F7FE]"><Loader2 className="w-12 h-12 animate-spin text-purple-600" /></div>;
+  const renderStudentButton = (student: any, submitted: boolean) => (
+    <button
+      key={student.id}
+      onClick={() => setActiveStudentId(student.id)}
+      className={`w-full text-left p-4 rounded-2xl border-2 transition-all bg-white ${
+        activeStudentId === student.id
+          ? 'border-purple-500 shadow-md shadow-purple-100'
+          : submitted
+            ? 'border-emerald-100 hover:border-emerald-300'
+            : 'border-gray-100 hover:border-purple-200'
+      }`}
+    >
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className={`w-11 h-11 rounded-full flex items-center justify-center shrink-0 ${submitted ? 'bg-emerald-50 text-emerald-600' : 'bg-gray-50 text-gray-400'}`}>
+            <User className="w-5 h-5" />
+          </div>
+          <div className="min-w-0">
+            <p className="font-black text-gray-900 truncate">{getStudentName(student)}</p>
+            <p className="text-[11px] font-bold text-gray-400 truncate">{student.email}</p>
+          </div>
+        </div>
+        <ChevronRight className={`w-4 h-4 shrink-0 ${activeStudentId === student.id ? 'text-purple-600' : 'text-gray-300'}`} />
+      </div>
+    </button>
+  );
 
-  // Данные выбранного ученика и урока
-  const currentStudentData = selectedCourse && activeStudentId ? groupedData[selectedCourse]?.[activeStudentId] : null;
-  const currentLessonData = currentStudentData && activeLessonTitle ? currentStudentData.lessons[activeLessonTitle] : null;
+  const renderSubmissionCard = (sub: any, index: number) => {
+    const [questionText, questionImage] = String(sub.question || '').split('|||IMG|||');
+    const isGraded = sub.status === 'GRADED';
+
+    return (
+      <div key={sub.id} className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
+        <div className="p-6 md:p-8 bg-gray-50/70 border-b border-gray-100">
+          <div className="flex flex-wrap items-center justify-between gap-4 mb-5">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="font-black text-xs uppercase tracking-widest text-gray-500 flex items-center gap-2">
+                {sub.isAutoGraded ? <CheckSquare className="w-4 h-4" /> : <PenTool className="w-4 h-4" />}
+                {sub.isAutoGraded ? 'Тест' : 'Письменный ответ'} {index + 1}
+              </span>
+              <span className={`px-3 py-1 rounded-xl text-[10px] font-black uppercase ${isGraded ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+                {isGraded ? 'Оценено' : 'На проверке'}
+              </span>
+            </div>
+            <div className="bg-white px-4 py-2 rounded-xl text-xs font-black text-gray-400 border border-gray-100">
+              Макс: <span className="text-purple-600 text-base">{sub.maxScore}</span>
+            </div>
+          </div>
+
+          <div className="text-gray-900 font-black theory-read-only">
+            <ReactQuill theme="snow" value={questionText || ''} readOnly modules={{ toolbar: false }} />
+          </div>
+          {questionImage && <img src={getFullUrl(questionImage)} alt="Задание" className="max-h-80 rounded-3xl border border-gray-200 shadow-sm mt-4 object-contain" />}
+
+          <div className="mt-6 p-5 bg-white rounded-3xl border border-gray-100">
+            <div className="text-[10px] font-black text-purple-500 uppercase tracking-widest mb-3 flex items-center gap-2">
+              <User className="w-3 h-3" /> Ответ ученика
+            </div>
+            <div className="text-gray-800 font-medium theory-read-only">
+              <ReactQuill theme="snow" value={sub.answer || ''} readOnly modules={{ toolbar: false }} />
+            </div>
+          </div>
+        </div>
+
+        <div className="p-6 md:p-8 bg-gray-900 text-white">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-5">
+            <div>
+              <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3">Балл</label>
+              <input
+                type="number"
+                min="0"
+                max={sub.maxScore}
+                value={scores[sub.id] ?? ''}
+                onChange={event => setScores(prev => ({ ...prev, [sub.id]: event.target.value === '' ? '' : Number(event.target.value) }))}
+                className="w-full bg-white/5 border-2 border-white/10 rounded-2xl p-4 text-2xl font-black outline-none focus:border-purple-500 text-center text-white"
+              />
+            </div>
+            <div className="md:col-span-3">
+              <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3">Комментарий</label>
+              <textarea
+                value={comments[sub.id] || ''}
+                onChange={event => setComments(prev => ({ ...prev, [sub.id]: event.target.value }))}
+                placeholder="Напишите фидбек..."
+                className="w-full bg-white/5 border-2 border-white/10 rounded-2xl p-4 text-sm outline-none focus:border-purple-500 text-white font-medium resize-none min-h-[70px]"
+              />
+            </div>
+          </div>
+          <div className="mt-6 flex flex-col sm:flex-row justify-end gap-3">
+            {!sub.isAutoGraded && (
+              <button
+                onClick={() => handleReturnForRevision(sub.id)}
+                className="px-6 py-4 bg-amber-500 hover:bg-amber-400 text-white rounded-xl font-black text-sm transition-all flex items-center justify-center gap-2"
+              >
+                <AlertCircle className="w-4 h-4" /> На доработку
+              </button>
+            )}
+            <button
+              onClick={() => handleGradeSingle(sub.id, sub.maxScore || 100)}
+              disabled={scores[sub.id] === ''}
+              className="px-8 py-4 bg-purple-600 hover:bg-purple-500 text-white rounded-xl font-black text-sm transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+            >
+              {isGraded ? <Edit3 className="w-4 h-4" /> : <Send className="w-4 h-4" />}
+              {isGraded ? 'Изменить оценку' : 'Сохранить'}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  if (isLoading) {
+    return (
+      <div className="h-screen flex items-center justify-center bg-[#F4F7FE]">
+        <Loader2 className="w-12 h-12 animate-spin text-purple-600" />
+      </div>
+    );
+  }
 
   return (
-    <div className="flex h-screen bg-[#F4F7FE] font-sans text-gray-900 overflow-hidden">
-      
+    <div className="h-screen bg-[#F4F7FE] font-sans text-gray-900 overflow-hidden flex flex-col">
       <style>{`
         .theory-read-only .ql-container.ql-snow { border: none !important; font-family: inherit !important; font-size: inherit !important; }
         .theory-read-only .ql-editor { padding: 0 !important; color: inherit !important; }
         .ql-editor { min-height: auto !important; font-family: inherit !important; font-size: inherit !important; white-space: normal !important; word-wrap: break-word !important; overflow-wrap: break-word !important; word-break: normal !important; }
-        .ql-editor p { margin-bottom: 0.75em !important; line-height: 1.6 !important; white-space: normal !important; word-wrap: break-word !important; overflow-wrap: break-word !important; }
+        .ql-editor p { margin-bottom: 0.75em !important; line-height: 1.6 !important; }
         .ql-editor img { max-width: 100% !important; border-radius: 1rem !important; margin: 1rem 0 !important; }
       `}</style>
 
-      {/* ЛЕВАЯ ПАНЕЛЬ (ПОКАЗЫВАЕТСЯ ТОЛЬКО КОГДА ВЫБРАН УЧЕНИК) */}
-      <AnimatePresence>
-        {activeStudentId && selectedCourse && (
-          <motion.aside 
-            initial={{ width: 0, opacity: 0 }} 
-            animate={{ width: 380, opacity: 1 }} 
-            exit={{ width: 0, opacity: 0 }}
-            className="bg-white border-r border-gray-100 flex flex-col h-full shrink-0 z-20 shadow-xl overflow-hidden"
-          >
-            <div className="w-[380px] flex flex-col h-full">
-              <div className="p-6 border-b border-gray-50 bg-white shrink-0">
-                <button onClick={() => { setActiveStudentId(null); setActiveLessonTitle(null); }} className="text-[10px] font-black text-gray-400 hover:text-purple-600 flex items-center gap-2 mb-6 transition-colors uppercase tracking-widest">
-                  <ArrowLeft className="w-4 h-4" /> Назад к группе
-                </button>
-                
-                <div className="flex items-center gap-4 mb-6">
-                  <div className="w-14 h-14 bg-purple-50 rounded-full flex items-center justify-center text-purple-600 shrink-0">
-                    <User className="w-7 h-7" />
-                  </div>
-                  <div className="min-w-0">
-                    <h2 className="text-xl font-black leading-tight text-gray-900 truncate" title={currentStudentData?.studentName}>{currentStudentData?.studentName}</h2>
-                    <p className="text-[10px] font-black text-purple-500 uppercase tracking-widest truncate">{selectedCourse}</p>
-                  </div>
-                </div>
-
-                <button 
-                  onClick={() => navigate(`/curator/messages?student=${activeStudentId}`)}
-                  className="w-full py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-xl transition-all duration-300 flex items-center justify-center gap-2 font-black text-xs shadow-md shadow-purple-500/20"
-                >
-                  <MessageSquare className="w-4 h-4" /> Написать в чат
-                </button>
-              </div>
-
-              <div className="flex-1 overflow-y-auto p-4 space-y-2 custom-scrollbar bg-gray-50/50">
-                <h3 className="px-2 mb-4 text-[10px] font-black text-gray-400 uppercase tracking-widest">Уроки с ответами:</h3>
-                
-                <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden shadow-sm">
-                  <button 
-                    onClick={() => setExpandedCourseNav(expandedCourseNav === selectedCourse ? null : selectedCourse)}
-                    className="w-full p-4 flex items-center justify-between bg-purple-50/30 hover:bg-purple-50/80 transition-colors"
-                  >
-                    <div className="flex items-center gap-3">
-                      <FolderOpen className="w-5 h-5 text-purple-600" />
-                      <span className="font-black text-sm text-gray-900">{selectedCourse}</span>
-                    </div>
-                    {expandedCourseNav === selectedCourse ? <ChevronDown className="w-4 h-4 text-purple-400" /> : <ChevronRight className="w-4 h-4 text-gray-400" />}
-                  </button>
-                  
-                  <AnimatePresence>
-                    {(expandedCourseNav === selectedCourse || expandedCourseNav === null) && (
-                      <motion.div initial={{ height: 0 }} animate={{ height: 'auto' }} exit={{ height: 0 }} className="border-t border-gray-50">
-                        {Object.entries(currentStudentData?.lessons || {}).map(([lessonTitle, lessonData]) => {
-                          const isSelected = activeLessonTitle === lessonTitle;
-                          const count = lessonData.submissions.length;
-                          
-                          return (
-                            <button
-                              key={lessonTitle}
-                              onClick={() => setActiveLessonTitle(lessonTitle)}
-                              className={`w-full text-left px-4 py-3 flex items-center justify-between border-b border-gray-50 last:border-0 transition-colors ${isSelected ? 'bg-purple-600 text-white' : 'hover:bg-gray-50 text-gray-700'}`}
-                            >
-                              <div className="flex items-center gap-3 min-w-0">
-                                <BookOpen className={`w-4 h-4 shrink-0 ${isSelected ? 'text-purple-200' : 'text-gray-400'}`} />
-                                <span className={`text-xs font-bold truncate pr-2 ${isSelected ? 'text-white' : 'text-gray-600'}`}>{lessonTitle}</span>
-                              </div>
-                              <span className={`text-[10px] font-black px-2 py-0.5 rounded-md shrink-0 ${isSelected ? 'bg-purple-500 text-white' : 'bg-gray-200 text-gray-500'}`}>
-                                {count}
-                              </span>
-                            </button>
-                          );
-                        })}
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </div>
-              </div>
-            </div>
-          </motion.aside>
-        )}
-      </AnimatePresence>
-
-      {/* ЦЕНТРАЛЬНАЯ ПАНЕЛЬ */}
-      <main className="flex-1 flex flex-col bg-[#F4F7FE] overflow-y-auto custom-scrollbar relative">
-        
-        {/* ШАПКА ЕСЛИ НЕТ АКТИВНОГО СТУДЕНТА (Для навигации по курсам) */}
-        {!activeStudentId && (
-          <div className="bg-white border-b border-gray-100 p-6 md:p-8 flex flex-col md:flex-row md:items-center justify-between gap-6 sticky top-0 z-10 shadow-sm">
-            <div className="flex items-center gap-4">
-              <button onClick={() => navigate('/')} className="w-10 h-10 bg-gray-50 hover:bg-gray-100 rounded-xl flex items-center justify-center text-gray-500 transition-colors">
-                <ArrowLeft className="w-5 h-5" />
-              </button>
-              <div>
-                <h1 className="text-2xl font-black text-gray-900">Кабинет куратора</h1>
-                <p className="text-xs font-bold text-purple-500 uppercase tracking-widest mt-1">Проверка заданий</p>
-              </div>
-            </div>
-            
-            <div className="flex items-center gap-4">
-              <div className="flex bg-gray-50 p-1.5 rounded-xl">
-                <button onClick={() => setActiveTab('PENDING')} className={`px-6 py-2.5 text-xs font-black uppercase tracking-wider rounded-lg transition-all ${activeTab === 'PENDING' ? 'bg-white text-purple-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}>Ожидают</button>
-                <button onClick={() => setActiveTab('GRADED')} className={`px-6 py-2.5 text-xs font-black uppercase tracking-wider rounded-lg transition-all ${activeTab === 'GRADED' ? 'bg-white text-purple-600 shadow-sm' : 'text-gray-400 hover:text-gray-600'}`}>История</button>
-              </div>
-              <div className="relative hidden md:block w-64">
-                <Search className="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
-                <input type="text" placeholder="Поиск ученика..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full bg-gray-50 border border-gray-100 rounded-xl py-2.5 pl-10 pr-4 outline-none focus:bg-white focus:border-purple-400 transition-all font-bold text-sm text-gray-900" />
-              </div>
-            </div>
+      <header className="bg-white border-b border-gray-100 px-6 md:px-8 py-5 flex flex-col xl:flex-row xl:items-center justify-between gap-5 shadow-sm">
+        <div className="flex items-center gap-4">
+          <button onClick={() => navigate('/')} className="w-10 h-10 bg-gray-50 hover:bg-gray-100 rounded-xl flex items-center justify-center text-gray-500">
+            <ArrowLeft className="w-5 h-5" />
+          </button>
+          <div>
+            <h1 className="text-2xl font-black text-gray-900">Кабинет куратора</h1>
+            <p className="text-xs font-bold text-purple-500 uppercase tracking-widest mt-1">Группы, ученики и проверка ответов</p>
           </div>
-        )}
+        </div>
 
-        <div className="p-6 md:p-10 w-full max-w-7xl mx-auto flex-1">
-          
-          {/* СОСТОЯНИЕ 1: ВЫБОР КУРСА */}
-          {!selectedCourse && !activeStudentId && (
-            <AnimatePresence>
-              <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-8">
-                <div className="text-center max-w-2xl mx-auto mb-12 mt-8">
-                  <h2 className="text-3xl md:text-4xl font-black text-gray-900 mb-4">Выберите предмет</h2>
-                  <p className="text-lg text-gray-500 font-medium">Здесь отображаются все курсы, в которых есть сданные работы от учеников.</p>
+        <div className="flex flex-col sm:flex-row gap-3">
+          <select
+            value={selectedGroupId || ''}
+            onChange={event => handleGroupChange(event.target.value)}
+            className="bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 font-bold text-sm outline-none focus:border-purple-400"
+          >
+            {groups.map(group => (
+              <option key={group.id} value={group.id}>{group.title}</option>
+            ))}
+          </select>
+          <div className="relative min-w-[260px]">
+            <Search className="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Поиск ученика..."
+              value={searchQuery}
+              onChange={event => setSearchQuery(event.target.value)}
+              className="w-full bg-gray-50 border border-gray-100 rounded-2xl py-3 pl-10 pr-4 outline-none focus:bg-white focus:border-purple-400 font-bold text-sm"
+            />
+          </div>
+        </div>
+      </header>
+
+      {groups.length === 0 ? (
+        <div className="flex-1 flex items-center justify-center p-8">
+          <div className="text-center bg-white rounded-[3rem] border border-gray-100 shadow-sm p-12 max-w-xl">
+            <Inbox className="w-20 h-20 mx-auto mb-6 text-gray-200" />
+            <h2 className="text-2xl font-black mb-3">Нет доступных групп</h2>
+            <p className="text-gray-500 font-medium">Проверьте, что этому аккаунту назначили группу как куратору.</p>
+          </div>
+        </div>
+      ) : (
+        <div className="flex-1 grid grid-cols-1 xl:grid-cols-[430px_1fr] overflow-hidden">
+          <aside className="bg-white border-r border-gray-100 overflow-y-auto p-5 space-y-5">
+            <div className="bg-purple-50 rounded-3xl p-5 border border-purple-100">
+              <div className="flex items-center gap-3 mb-2">
+                <Users className="w-5 h-5 text-purple-600" />
+                <h2 className="font-black text-lg">{selectedGroup?.title || 'Группа'}</h2>
+              </div>
+              <p className="text-sm text-purple-700 font-bold">Всего участников: {selectedGroup?.students?.length || 0}</p>
+            </div>
+
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h3 className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">Сдали по выбранному уроку</h3>
+                <span className="text-xs font-black text-emerald-600">{submittedStudents.length}</span>
+              </div>
+              {submittedStudents.length === 0 ? (
+                <div className="text-sm font-bold text-gray-400 bg-gray-50 rounded-2xl p-4">Пока никто не сдал</div>
+              ) : (
+                submittedStudents.map(student => renderStudentButton(student, true))
+              )}
+            </div>
+
+            <div className="flex items-center gap-3 py-2">
+              <div className="h-px bg-gray-200 flex-1" />
+              <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Не прошли / не ответили</span>
+              <div className="h-px bg-gray-200 flex-1" />
+            </div>
+
+            <div className="space-y-3">
+              {notSubmittedStudents.length === 0 ? (
+                <div className="text-sm font-bold text-gray-400 bg-gray-50 rounded-2xl p-4">Все ученики уже есть в списке сдавших</div>
+              ) : (
+                notSubmittedStudents.map(student => renderStudentButton(student, false))
+              )}
+            </div>
+          </aside>
+
+          <main className="overflow-y-auto p-6 md:p-10">
+            <div className="max-w-6xl mx-auto space-y-8">
+              <div className="bg-white rounded-[2rem] border border-gray-100 shadow-sm p-6 md:p-8">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <label className="space-y-2">
+                    <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Курс</span>
+                    <select value={selectedCourse?.id || ''} onChange={event => handleCourseChange(event.target.value)} className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 font-bold outline-none focus:border-purple-400">
+                      {(selectedGroup?.courses || []).map((course: any) => <option key={course.id} value={course.id}>{course.title}</option>)}
+                    </select>
+                  </label>
+                  <label className="space-y-2">
+                    <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Модуль</span>
+                    <select value={selectedTheme?.id || ''} onChange={event => handleThemeChange(event.target.value)} className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 font-bold outline-none focus:border-purple-400">
+                      {(selectedCourse?.themes || []).map((theme: any) => <option key={theme.id} value={theme.id}>{theme.title}</option>)}
+                    </select>
+                  </label>
+                  <label className="space-y-2">
+                    <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Урок</span>
+                    <select value={selectedLesson?.id || ''} onChange={event => setSelectedLessonId(event.target.value)} className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 font-bold outline-none focus:border-purple-400">
+                      {(selectedTheme?.lessons || []).map((lesson: any) => <option key={lesson.id} value={lesson.id}>{lesson.title}</option>)}
+                    </select>
+                  </label>
                 </div>
+              </div>
 
-                {Object.keys(groupedData).length === 0 ? (
-                  <div className="text-center py-20 bg-white rounded-[3rem] border border-gray-100 shadow-sm">
-                    <Inbox className="w-20 h-20 mx-auto mb-6 text-gray-200" />
-                    <h3 className="text-2xl font-black text-gray-900 mb-2">{activeTab === 'PENDING' ? 'Нет заданий на проверку' : 'История пуста'}</h3>
-                    <p className="text-gray-500 font-medium">Отдохните, все работы проверены! 🎉</p>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {Object.entries(groupedData).map(([courseName, students]) => {
-                      let totalTasks = 0;
-                      let hasUrgent = false;
-
-                      Object.values(students).forEach(stud => {
-                        if (stud.hasErrors) hasUrgent = true;
-                        Object.values(stud.lessons).forEach(lesson => {
-                          totalTasks += lesson.submissions.length;
-                        });
-                      });
-
-                      return (
-                        <button 
-                          key={courseName}
-                          onClick={() => setSelectedCourse(courseName)}
-                          className="bg-white p-8 rounded-[2.5rem] border border-gray-100 shadow-sm hover:shadow-xl hover:border-purple-200 hover:-translate-y-1.5 transition-all text-left flex flex-col group relative overflow-hidden"
-                        >
-                          {hasUrgent && (
-                            <div className="absolute top-0 right-0 w-16 h-16 bg-rose-500 rotate-45 translate-x-8 -translate-y-8 shadow-sm"></div>
-                          )}
-                          <div className="w-16 h-16 bg-purple-50 rounded-2xl flex items-center justify-center text-purple-600 mb-6 group-hover:scale-110 transition-transform">
-                            <FolderOpen className="w-8 h-8" />
-                          </div>
-                          <h3 className="text-2xl font-black text-gray-900 leading-tight mb-4">{courseName}</h3>
-                          
-                          <div className="mt-auto pt-6 border-t border-gray-50 flex items-center justify-between w-full">
-                            <div className="flex gap-4">
-                              <span className="text-xs font-bold text-gray-500 flex items-center gap-1.5"><User className="w-4 h-4 text-purple-400"/> {Object.keys(students).length} учеников</span>
-                              <span className="text-xs font-bold text-gray-500 flex items-center gap-1.5"><CheckSquare className="w-4 h-4 text-purple-400"/> {totalTasks} ответов</span>
-                            </div>
-                          </div>
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-              </motion.div>
-            </AnimatePresence>
-          )}
-
-          {/* СОСТОЯНИЕ 2: ВЫБРАН КУРС -> СПИСОК УЧЕНИКОВ */}
-          {selectedCourse && !activeStudentId && (
-            <AnimatePresence>
-              <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-8">
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8 bg-white p-8 rounded-[2.5rem] border border-gray-100 shadow-sm">
-                  <div>
-                    <button onClick={() => setSelectedCourse(null)} className="flex items-center gap-2 text-gray-400 hover:text-purple-600 transition-colors font-bold mb-4 text-sm">
-                      <ArrowLeft className="w-4 h-4" /> Назад к предметам
-                    </button>
-                    <h2 className="text-3xl md:text-4xl font-black text-gray-900">{selectedCourse}</h2>
-                  </div>
-                  <div className="bg-purple-50 px-6 py-4 rounded-2xl">
-                    <p className="text-xs font-black text-purple-500 uppercase tracking-widest mb-1">Всего учеников</p>
-                    <p className="text-3xl font-black text-purple-700">{Object.keys(groupedData[selectedCourse] || {}).length}</p>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {Object.entries(groupedData[selectedCourse] || {}).map(([studentId, data]) => {
-                    const studentTasksCount = Object.values(data.lessons).reduce((sum, lesson) => sum + lesson.submissions.length, 0);
-
-                    return (
-                      <motion.button
-                        key={studentId}
-                        whileHover={{ scale: 1.02 }}
-                        onClick={() => { setActiveStudentId(studentId); setActiveLessonTitle(Object.keys(data.lessons)[0] || null); }}
-                        className={`bg-white p-6 rounded-3xl border-2 shadow-sm transition-all text-left flex flex-col justify-between group h-full min-h-[160px] relative overflow-hidden ${data.hasErrors ? 'border-rose-300 hover:shadow-rose-100' : 'border-transparent hover:border-purple-200 hover:shadow-lg'}`}
-                      >
-                        {data.hasErrors && (
-                          <div className="absolute top-4 right-4 text-rose-500 animate-pulse">
-                            <AlertCircle className="w-6 h-6" />
-                          </div>
-                        )}
-                        <div className="flex items-start gap-4 mb-4 z-10">
-                          <div className={`w-14 h-14 rounded-full flex items-center justify-center shrink-0 transition-colors ${data.hasErrors ? 'bg-rose-50 text-rose-500' : 'bg-gray-50 text-gray-400 group-hover:bg-purple-50 group-hover:text-purple-600'}`}>
-                            <User className="w-7 h-7" />
-                          </div>
-                          <div className="pr-6">
-                            <h3 className="font-black text-xl text-gray-900 leading-tight line-clamp-2">{data.studentName}</h3>
-                          </div>
-                        </div>
-                        
-                        <div className="flex items-center justify-between mt-auto w-full pt-4 border-t border-gray-50 z-10">
-                          <span className={`text-xs font-bold flex items-center gap-1.5 ${data.hasErrors ? 'text-rose-500' : 'text-gray-500'}`}>
-                            <CheckSquare className="w-4 h-4 opacity-70"/> Заданий: {studentTasksCount}
-                          </span>
-                          <div className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors ${data.hasErrors ? 'bg-rose-100 text-rose-600' : 'bg-gray-50 text-gray-400 group-hover:bg-purple-600 group-hover:text-white'}`}>
-                            <ChevronRight className="w-4 h-4" />
-                          </div>
-                        </div>
-                      </motion.button>
-                    );
-                  })}
-                </div>
-              </motion.div>
-            </AnimatePresence>
-          )}
-
-          {/* СОСТОЯНИЕ 3: ВЫБРАН УЧЕНИК И УРОК (ЧТЕНИЕ ОТВЕТОВ) */}
-          {activeStudentId && selectedCourse && (
-            <AnimatePresence mode="wait">
-              {!activeLessonTitle ? (
-                <div className="h-full flex items-center justify-center text-center p-12">
-                   <div className="max-w-sm">
-                     <div className="w-24 h-24 bg-white rounded-3xl flex items-center justify-center mx-auto mb-6 shadow-sm border border-gray-100 text-gray-300">
-                       <ArrowLeft className="w-10 h-10" />
-                     </div>
-                     <h3 className="text-2xl font-black text-gray-900 mb-2">Выберите урок слева</h3>
-                   </div>
+              {!activeStudent ? (
+                <div className="text-center bg-white rounded-[3rem] border border-gray-100 shadow-sm p-14">
+                  <User className="w-20 h-20 mx-auto mb-6 text-gray-200" />
+                  <h2 className="text-2xl font-black mb-3">Выберите ученика слева</h2>
+                  <p className="text-gray-500 font-medium">Сначала отображаются все участники группы. После выбора ученика можно смотреть ответы и ставить устный балл.</p>
                 </div>
               ) : (
-                <motion.div key={activeLessonTitle} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="max-w-4xl mx-auto w-full pb-20">
-                  <div className="mb-8">
-                    <h2 className="text-3xl font-black text-gray-900 mb-2">{activeLessonTitle}</h2>
-                    <p className="text-gray-500 font-medium">Проверка ответов ученика <strong className="text-purple-600">{currentStudentData?.studentName}</strong></p>
-                  </div>
-
-                  {currentLessonData?.submissions.map((sub, index) => {
-                    let qText = sub.question?.split('|||IMG|||')[0] || '';
-                    let qImage = sub.question?.split('|||IMG|||')[1] || '';
-                    const isErrorSub = activeTab === 'PENDING' || sub.status === 'ERROR' || (sub.status === 'GRADED' && sub.score === 0);
-
-                    return (
-                      <div key={sub.id} className={`bg-white rounded-3xl shadow-sm border-2 overflow-hidden mb-8 last:mb-0 transition-colors ${isErrorSub ? 'border-rose-200' : 'border-gray-100'}`}>
-                        <div className={`p-6 md:p-8 border-b ${isErrorSub ? 'bg-rose-50/30 border-rose-100' : 'bg-gray-50 border-gray-100'}`}>
-                          <div className="flex items-center justify-between mb-6">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <span className={`font-black text-xs uppercase tracking-widest flex items-center gap-2 ${isErrorSub ? 'text-rose-600' : 'text-gray-500'}`}>
-                                <PenTool className="w-4 h-4 opacity-70" /> Задание {index + 1}
-                              </span>
-                              {sub.isAutoGraded && (
-                                <span className="px-2.5 py-1 rounded-lg bg-indigo-100 text-indigo-700 text-[10px] font-black uppercase tracking-wider">🤖 Автопроверка</span>
-                              )}
-                            </div>
-                            <div className="bg-white px-4 py-2 rounded-xl text-xs font-black text-gray-400 shadow-sm border border-gray-100">
-                              Макс: <span className="text-purple-600 text-base">{sub.maxScore}</span>
-                            </div>
+                <AnimatePresence mode="wait">
+                  <motion.div key={`${activeStudent.id}-${selectedLesson?.id}`} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="space-y-8">
+                    <div className="bg-white rounded-[2rem] border border-gray-100 shadow-sm p-6 md:p-8 flex flex-col lg:flex-row lg:items-center justify-between gap-5">
+                      <div>
+                        <div className="flex items-center gap-3 mb-2">
+                          <div className="w-12 h-12 bg-purple-50 rounded-2xl flex items-center justify-center text-purple-600">
+                            <User className="w-6 h-6" />
                           </div>
-                          
-                          <div className="text-lg text-gray-900 font-black leading-snug mb-6 theory-read-only">
-                            <ReactQuill theme="snow" value={qText} readOnly={true} modules={{ toolbar: false }} />
-                          </div>
-                          
-                          {qImage && <img src={getFullUrl(qImage)} alt="Схема" className="max-h-80 rounded-3xl border border-gray-200 shadow-sm mb-6" />}
-                          
-                          <div className={`mt-8 p-6 rounded-3xl border shadow-sm ${isErrorSub ? 'bg-white border-rose-200' : 'bg-white border-gray-200'}`}>
-                            <div className="text-[10px] font-black text-purple-500 uppercase tracking-widest mb-3 flex items-center gap-2">
-                              <User className="w-3 h-3" /> Ответ студента:
-                            </div>
-                            <div className="text-gray-800 font-medium theory-read-only">
-                              <ReactQuill theme="snow" value={sub.answer || ''} readOnly={true} modules={{ toolbar: false }} />
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* БЛОК ОЦЕНИВАНИЯ */}
-                        <div className="p-6 md:p-8 bg-gray-900 text-white">
-                          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                            <div className="md:col-span-1">
-                              <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3">Балл</label>
-                              <input 
-                                type="number" min="0" max={sub.maxScore} 
-                                value={scores[sub.id] !== undefined ? scores[sub.id] : ''}
-                                onChange={(e) => setScores({...scores, [sub.id]: e.target.value === '' ? '' : Number(e.target.value)})}
-                                placeholder="0"
-                                className="w-full bg-white/5 border-2 border-white/10 rounded-2xl p-4 text-2xl font-black outline-none focus:border-purple-500 transition-all text-center text-white placeholder:text-gray-700"
-                              />
-                            </div>
-                            <div className="md:col-span-3">
-                              <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3">Комментарий</label>
-                              <textarea 
-                                value={comments[sub.id] || ''} 
-                                onChange={(e) => setComments({...comments, [sub.id]: e.target.value})}
-                                placeholder="Напишите фидбек..."
-                                className="w-full bg-white/5 border-2 border-white/10 rounded-2xl p-4 text-sm outline-none focus:border-purple-500 transition-all custom-scrollbar text-white font-medium resize-none min-h-[70px]"
-                              />
-                            </div>
-                          </div>
-                          <div className="mt-6 flex flex-col sm:flex-row justify-end gap-3">
-                            <button
-                              onClick={() => handleReturnForRevision(sub.id)}
-                              className="px-6 py-4 bg-amber-500/90 hover:bg-amber-500 text-white rounded-xl font-black text-sm transition-all active:scale-95 flex items-center justify-center gap-2"
-                              title="Вернуть ученику с комментарием на доработку"
-                            >
-                              <AlertCircle className="w-4 h-4"/> НА ДОРАБОТКУ
-                            </button>
-                            <button 
-                              onClick={() => handleGradeSingle(sub.id, sub.maxScore)} 
-                              disabled={scores[sub.id] === ''}
-                              className="px-8 py-4 bg-purple-600 hover:bg-purple-500 text-white rounded-xl font-black text-sm transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2"
-                            >
-                              {activeTab === 'GRADED' ? <><Edit3 className="w-4 h-4"/> ИЗМЕНИТЬ ОЦЕНКУ</> : <><Send className="w-4 h-4"/> СОХРАНИТЬ</>}
-                            </button>
+                          <div>
+                            <h2 className="text-2xl font-black">{getStudentName(activeStudent)}</h2>
+                            <p className="text-sm font-bold text-gray-400">{selectedLesson?.title || 'Урок не выбран'}</p>
                           </div>
                         </div>
                       </div>
-                    );
-                  })}
+                      <button onClick={() => navigate(`/curator/messages?student=${activeStudent.id}`)} className="px-6 py-4 bg-purple-600 hover:bg-purple-700 text-white rounded-2xl font-black text-sm flex items-center justify-center gap-2">
+                        <MessageSquare className="w-4 h-4" /> Написать в чат
+                      </button>
+                    </div>
 
-                  {/* 🔥 БЛОК: УСТНЫЙ ОТВЕТ */}
-                  {currentLessonData && (
-                    <div className="mt-12 pt-8 border-t-2 border-dashed border-purple-200">
-                      <div className="bg-gradient-to-br from-purple-100 to-indigo-50 p-8 rounded-3xl border border-purple-200 shadow-sm relative overflow-hidden">
-                        <div className="absolute -right-10 -top-10 text-purple-200/50">
-                          <Mic className="w-48 h-48 rotate-12" />
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                      {[
+                        { id: 'written', label: 'Письменные ответы', icon: FileText, count: writtenSubmissions.length },
+                        { id: 'tests', label: 'Тесты', icon: CheckSquare, count: testSubmissions.length },
+                        { id: 'history', label: 'История', icon: History, count: historySubmissions.length },
+                      ].map(tab => {
+                        const Icon = tab.icon;
+                        const active = answerTab === tab.id;
+                        return (
+                          <button key={tab.id} onClick={() => setAnswerTab(tab.id as AnswerTab)} className={`p-5 rounded-3xl border-2 text-left transition-all ${active ? 'bg-purple-600 border-purple-600 text-white shadow-lg shadow-purple-200' : 'bg-white border-gray-100 hover:border-purple-200 text-gray-700'}`}>
+                            <div className="flex items-center justify-between">
+                              <Icon className={`w-6 h-6 ${active ? 'text-white' : 'text-purple-500'}`} />
+                              <span className={`px-3 py-1 rounded-xl text-xs font-black ${active ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-500'}`}>{tab.count}</span>
+                            </div>
+                            <p className="mt-4 font-black">{tab.label}</p>
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    <div className="space-y-6">
+                      {tabSubmissions.length === 0 ? (
+                        <div className="bg-white rounded-[2rem] border border-gray-100 p-10 text-center">
+                          <BookOpen className="w-14 h-14 mx-auto mb-4 text-gray-200" />
+                          <h3 className="text-xl font-black text-gray-900 mb-2">В этой вкладке пока пусто</h3>
+                          <p className="text-gray-500 font-bold">Устный ответ всё равно можно поставить ниже.</p>
                         </div>
+                      ) : (
+                        tabSubmissions.map((sub: any, index: number) => renderSubmissionCard(sub, index))
+                      )}
+                    </div>
+
+                    <div className="pt-2">
+                      <div className="bg-gradient-to-br from-purple-100 to-indigo-50 p-6 md:p-8 rounded-[2rem] border border-purple-200 shadow-sm relative overflow-hidden">
+                        <Mic className="absolute -right-8 -top-8 w-40 h-40 text-purple-200/60 rotate-12" />
                         <div className="relative z-10">
-                          <h4 className="font-black text-2xl text-purple-900 mb-2 flex items-center gap-3">
-                            <Mic className="w-7 h-7 text-purple-600" />
-                            Оценить устный ответ
-                          </h4>
-                          <p className="text-purple-700 font-medium mb-3 text-sm">
-                            Здесь можно поставить или обновить балл за устный ответ. Новое значение заменит старое в статистике.
-                          </p>
-                          {oralScores[currentLessonData.lessonId] !== undefined && oralScores[currentLessonData.lessonId] !== '' && (
-                            <div className="inline-flex items-center gap-2 px-4 py-2 bg-white/80 border border-purple-200 rounded-2xl text-xs font-black text-purple-700 mb-6">
-                              <CheckCircle2 className="w-4 h-4" />
-                              Сейчас сохранено: {oralScores[currentLessonData.lessonId]}/100
+                          <h3 className="font-black text-2xl text-purple-900 mb-2 flex items-center gap-3">
+                            <Mic className="w-7 h-7 text-purple-600" /> Устный ответ
+                          </h3>
+                          <p className="text-purple-700 font-medium mb-5 text-sm">Доступен всегда для выбранного ученика и урока. Если балл уже был, новое значение заменит старое в статистике.</p>
+                          {oralScore !== '' && (
+                            <div className="inline-flex items-center gap-2 px-4 py-2 bg-white/80 border border-purple-200 rounded-2xl text-xs font-black text-purple-700 mb-5">
+                              <CheckCircle2 className="w-4 h-4" /> Сейчас сохранено: {oralScore}/100
                             </div>
                           )}
-                          
-                          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
-                            <div className="md:col-span-1">
-                              <label className="block text-[10px] font-black text-purple-500 uppercase tracking-widest mb-3">Балл из 100</label>
-                              <input 
-                                type="number" min="0" max="100"
-                                value={oralScores[currentLessonData.lessonId] !== undefined ? oralScores[currentLessonData.lessonId] : ''}
-                                onChange={(e) => setOralScores({...oralScores, [currentLessonData.lessonId]: e.target.value === '' ? '' : Number(e.target.value)})}
-                                placeholder="0"
-                                className="w-full bg-white border-2 border-purple-200 focus:border-purple-500 rounded-2xl p-4 text-2xl font-black outline-none transition-all text-center text-purple-900 placeholder:text-purple-200 shadow-sm"
-                              />
-                            </div>
-                            <div className="md:col-span-3">
-                              <label className="block text-[10px] font-black text-purple-500 uppercase tracking-widest mb-3">За что балл? (Тема, активность)</label>
-                              <textarea 
-                                value={oralComments[currentLessonData.lessonId] || ''} 
-                                onChange={(e) => setOralComments({...oralComments, [currentLessonData.lessonId]: e.target.value})}
-                                placeholder="Например: Отлично ответил у доски по теме..."
-                                className="w-full bg-white border-2 border-purple-200 focus:border-purple-500 rounded-2xl p-4 text-sm outline-none transition-all custom-scrollbar text-gray-800 font-medium resize-none min-h-[70px] shadow-sm"
-                              />
-                            </div>
+                          <div className="grid grid-cols-1 md:grid-cols-4 gap-5">
+                            <label>
+                              <span className="block text-[10px] font-black text-purple-500 uppercase tracking-widest mb-3">Балл из 100</span>
+                              <input type="number" min="0" max="100" value={oralScore} onChange={event => setOralScore(event.target.value === '' ? '' : Number(event.target.value))} className="w-full bg-white border-2 border-purple-200 focus:border-purple-500 rounded-2xl p-4 text-2xl font-black outline-none text-center text-purple-900" />
+                            </label>
+                            <label className="md:col-span-3">
+                              <span className="block text-[10px] font-black text-purple-500 uppercase tracking-widest mb-3">Комментарий</span>
+                              <textarea value={oralComment} onChange={event => setOralComment(event.target.value)} placeholder="Например: отлично ответил устно по теме..." className="w-full bg-white border-2 border-purple-200 focus:border-purple-500 rounded-2xl p-4 text-sm outline-none text-gray-800 font-medium resize-none min-h-[70px]" />
+                            </label>
                           </div>
-                          <div className="flex justify-end">
-                            <button 
-                              onClick={() => handleOralGrade(currentLessonData.lessonId)} 
-                              disabled={oralScores[currentLessonData.lessonId] === '' || oralScores[currentLessonData.lessonId] === undefined}
-                              className="px-8 py-4 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-black text-sm transition-all active:scale-95 disabled:opacity-50 flex items-center gap-2 shadow-lg shadow-purple-500/30"
-                            >
-                              <CheckCircle2 className="w-5 h-5"/> СОХРАНИТЬ БАЛЛ
+                          <div className="mt-5 flex justify-end">
+                            <button onClick={handleOralGrade} disabled={oralScore === ''} className="px-8 py-4 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-black text-sm transition-all disabled:opacity-50 flex items-center gap-2 shadow-lg shadow-purple-500/30">
+                              <CheckCircle2 className="w-5 h-5" /> Сохранить устный балл
                             </button>
                           </div>
                         </div>
                       </div>
                     </div>
-                  )}
-
-                </motion.div>
+                  </motion.div>
+                </AnimatePresence>
               )}
-            </AnimatePresence>
-          )}
-
+            </div>
+          </main>
         </div>
-      </main>
+      )}
 
       <AnimatePresence>
         {toast && (
           <motion.div
-            initial={{ opacity: 0, y: 50, scale: 0.3 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 20, scale: 0.8 }}
+            initial={{ opacity: 0, y: 50, scale: 0.3 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 20, scale: 0.8 }}
             className={`fixed bottom-10 right-10 z-[9999] px-8 py-5 rounded-[2rem] shadow-2xl font-black text-white text-lg flex items-center gap-4 ${toast.type === 'success' ? 'bg-emerald-500' : 'bg-rose-500'}`}
           >
             {toast.type === 'success' ? <CheckCircle2 className="w-7 h-7" /> : <X className="w-7 h-7" />}

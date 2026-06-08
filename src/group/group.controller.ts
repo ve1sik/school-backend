@@ -42,6 +42,12 @@ export class GroupController {
     return this.groupService.getMyThemeAccess(userId);
   }
 
+  @Permissions('CURATOR_DASHBOARD')
+  @Get('curator-scope')
+  getCuratorScope(@Request() req) {
+    return this.groupService.getCuratorScope(req.user.sub, req.user.role);
+  }
+
   @Permissions('MANAGE_GROUPS', 'MANAGE_USERS')
   @Get(':id')
   findOne(@Param('id') id: string, @Request() req) {

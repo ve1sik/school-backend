@@ -48,6 +48,39 @@ export class GroupService {
     });
   }
 
+  async getCuratorScope(requesterId?: string, requesterRole?: string) {
+    const where =
+      requesterRole === 'ADMIN'
+        ? {}
+        : requesterRole === 'TEACHER'
+          ? { teacher_id: requesterId }
+          : { curator_id: requesterId };
+
+    return this.prisma.group.findMany({
+      where,
+      include: {
+        curator: { select: { id: true, name: true, surname: true, email: true } },
+        teacher: { select: { id: true, name: true, surname: true, email: true } },
+        students: {
+          select: { id: true, name: true, surname: true, email: true, avatar: true },
+          orderBy: [{ surname: 'asc' }, { name: 'asc' }],
+        },
+        courses: {
+          include: {
+            themes: {
+              orderBy: { order_index: 'asc' },
+              include: {
+                lessons: { orderBy: { order_index: 'asc' } },
+              },
+            },
+          },
+          orderBy: { title: 'asc' },
+        },
+      },
+      orderBy: { title: 'asc' },
+    });
+  }
+
   async update(id: string, data: any, requesterId?: string, requesterRole?: string, requesterPermissions: string[] = []) {
     const { curator_id, curatorId, teacherId, ...rest } = data;
     const updateData: any = { ...rest };
