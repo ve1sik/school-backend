@@ -14,7 +14,8 @@ const PASS_SCORE = 70;
 const safePercent = (earned: number, max: number) =>
   max > 0 ? Math.min(100, Math.round((earned / max) * 100)) : 0;
 
-const scoreOutOf100 = (earned: number, max: number) => safePercent(earned, max);
+const averageOfThreeSections = (tests: number, written: number, oral: number) =>
+  Math.round((tests + written + oral) / 3);
 
 const stripHtml = (html: string) =>
   (html || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
@@ -303,7 +304,10 @@ function buildCourseStats(course: any, mySubs: any[]): CourseStats | null {
       });
 
       if (lessonTarget.taskCount > 0) {
-        const lessonScore = safePercent(lessonTarget.earned, lessonTarget.max);
+        const lessonTestsScore = safePercent(l_tests.e, l_tests.m);
+        const lessonWrittenScore = safePercent(l_written.e, l_written.m);
+        const lessonOralScore = safePercent(l_oral.e, l_oral.m);
+        const lessonScore = averageOfThreeSections(lessonTestsScore, lessonWrittenScore, lessonOralScore);
         themeEarned += lessonTarget.earned;
         themeMax += lessonTarget.max;
         themeTaskCount += lessonTarget.taskCount;
@@ -323,9 +327,9 @@ function buildCourseStats(course: any, mySubs: any[]): CourseStats | null {
           earnedByType: { tests: l_tests.e, written: l_written.e, oral: l_oral.e },
           maxByType: { tests: l_tests.m, written: l_written.m, oral: l_oral.m },
           breakdown: {
-            tests: safePercent(l_tests.e, l_tests.m),
-            written: safePercent(l_written.e, l_written.m),
-            oral: safePercent(l_oral.e, l_oral.m),
+            tests: lessonTestsScore,
+            written: lessonWrittenScore,
+            oral: lessonOralScore,
           },
         });
       }
@@ -333,7 +337,10 @@ function buildCourseStats(course: any, mySubs: any[]): CourseStats | null {
 
     if (themeTaskCount > 0) {
       const orderIndex = theme.order_index ?? themeIdx + 1;
-      const themeTotalScore = safePercent(themeEarned, themeMax);
+      const themeTestsScore = safePercent(t_tests.e, t_tests.m);
+      const themeWrittenScore = safePercent(t_written.e, t_written.m);
+      const themeOralScore = safePercent(t_oral.e, t_oral.m);
+      const themeTotalScore = averageOfThreeSections(themeTestsScore, themeWrittenScore, themeOralScore);
 
       g_tests.e += t_tests.e; g_tests.m += t_tests.m; g_tests.count += t_tests.count;
       g_written.e += t_written.e; g_written.m += t_written.m; g_written.count += t_written.count;
@@ -349,9 +356,9 @@ function buildCourseStats(course: any, mySubs: any[]): CourseStats | null {
         earned: themeEarned,
         max: themeMax,
         breakdown: {
-          tests: safePercent(t_tests.e, t_tests.m),
-          written: safePercent(t_written.e, t_written.m),
-          oral: safePercent(t_oral.e, t_oral.m),
+          tests: themeTestsScore,
+          written: themeWrittenScore,
+          oral: themeOralScore,
         },
         earnedByType: { tests: t_tests.e, written: t_written.e, oral: t_oral.e },
         maxByType: { tests: t_tests.m, written: t_written.m, oral: t_oral.m },
@@ -371,9 +378,9 @@ function buildCourseStats(course: any, mySubs: any[]): CourseStats | null {
         earnedByType: { tests: t_tests.e, written: t_written.e, oral: t_oral.e },
         maxByType: { tests: t_tests.m, written: t_written.m, oral: t_oral.m },
         breakdown: {
-          tests: safePercent(t_tests.e, t_tests.m),
-          written: safePercent(t_written.e, t_written.m),
-          oral: safePercent(t_oral.e, t_oral.m),
+          tests: themeTestsScore,
+          written: themeWrittenScore,
+          oral: themeOralScore,
         },
       });
     }
@@ -384,7 +391,7 @@ function buildCourseStats(course: any, mySubs: any[]): CourseStats | null {
   const globalPTests = safePercent(g_tests.e, g_tests.m);
   const globalPWritten = safePercent(g_written.e, g_written.m);
   const globalPOral = safePercent(g_oral.e, g_oral.m);
-  const coursePercent = safePercent(courseEarned, courseMax);
+  const coursePercent = averageOfThreeSections(globalPTests, globalPWritten, globalPOral);
 
   courseWeakSpots.sort((a, b) => a.percent - b.percent);
 
@@ -599,18 +606,6 @@ export default function Dashboard() {
     show: { opacity: 1, y: 0, transition: { type: 'spring' as const, stiffness: 300, damping: 24 } },
   };
 
-  const currentEarned = selectedLessonRow
-    ? selectedLessonRow.earned
-    : isCourseView
-      ? selectedStats?.totalEarned ?? 0
-      : (currentData as any)?.earned ?? (currentData as any)?.totalEarned ?? 0;
-  const currentMax = selectedLessonRow
-    ? selectedLessonRow.max
-    : isCourseView
-      ? selectedStats?.totalMax ?? 0
-      : (currentData as any)?.max ?? (currentData as any)?.totalMax ?? 0;
-  const totalScore = safePercent(currentEarned, currentMax);
-
   const testsEarned = Math.round(currentData?.earnedByType?.tests ?? 0);
   const testsMax = Math.round(currentData?.maxByType?.tests ?? 0);
   const testsScore = safePercent(testsEarned, testsMax);
@@ -620,6 +615,7 @@ export default function Dashboard() {
   const oralEarned = Math.round(currentData?.earnedByType?.oral ?? 0);
   const oralMax = Math.round(currentData?.maxByType?.oral ?? 0);
   const oralScore = safePercent(oralEarned, oralMax);
+  const totalScore = averageOfThreeSections(testsScore, writtenScore, oralScore);
   const currentTaskCount = selectedLessonRow
     ? selectedLessonRow.taskCount
     : isCourseView
@@ -900,9 +896,9 @@ export default function Dashboard() {
                 <span className="text-gray-800">{selectedLessonRow.fullName}</span>
               </div>
             )}
-            <div className="grid grid-cols-1 lg:grid-cols-[1.45fr_1fr] gap-5">
+            <div className="grid grid-cols-1 lg:grid-cols-[1.45fr_1fr] gap-5 items-start">
               {/* Общий результат — главный большой прямоугольник */}
-              <div className="bg-[#0F172A] rounded-[2.5rem] p-7 md:p-9 text-white relative overflow-hidden min-h-[260px] flex flex-col justify-between shadow-xl shadow-slate-900/10">
+              <div className="bg-[#0F172A] rounded-[1.8rem] p-7 md:p-9 text-white relative overflow-hidden min-h-[240px] flex flex-col justify-between shadow-xl shadow-slate-900/10 lg:mt-3">
                 <div className="absolute -top-16 -right-12 w-56 h-56 bg-[#00FFCC]/15 rounded-full blur-3xl" />
                 <div className="absolute bottom-0 left-0 w-72 h-32 bg-indigo-500/20 rounded-full blur-3xl" />
                 <div className="relative z-10">
@@ -919,9 +915,6 @@ export default function Dashboard() {
                     <p className="text-7xl md:text-8xl font-black tracking-tight text-[#00FFCC] leading-none">{totalScore}</p>
                     <span className="text-3xl md:text-4xl font-black text-white/30 mb-2">/100</span>
                   </div>
-                  <p className="mt-4 text-sm md:text-base font-bold text-white/60">
-                    Реально набрано: <span className="text-white">{currentEarned}</span> из <span className="text-white">{currentMax}</span> баллов
-                  </p>
                 </div>
                 <div className="relative z-10 mt-8">
                   <div className="h-3 bg-white/10 rounded-full overflow-hidden border border-white/10">
@@ -939,25 +932,22 @@ export default function Dashboard() {
 
               {/* Маленькие квадраты 2×2 */}
               <div className="grid grid-cols-2 gap-4">
-                <div className="bg-indigo-50 rounded-[2rem] p-5 border border-indigo-100 min-h-[122px]">
+                <div className="bg-indigo-50 rounded-[1.35rem] p-5 border border-indigo-100 min-h-[108px]">
                   <CheckSquare className="w-6 h-6 text-indigo-500 mb-3" />
                   <p className="text-[10px] font-black uppercase tracking-widest text-indigo-400 mb-1">Тесты</p>
                   <p className="text-3xl font-black text-indigo-700">{testsScore}<span className="text-sm text-indigo-300">/100</span></p>
-                  <p className="text-[11px] text-indigo-300 font-bold mt-1">реально: {testsEarned} из {testsMax}</p>
                 </div>
-                <div className="bg-orange-50 rounded-[2rem] p-5 border border-orange-100 min-h-[122px]">
+                <div className="bg-orange-50 rounded-[1.35rem] p-5 border border-orange-100 min-h-[108px]">
                   <PenTool className="w-6 h-6 text-orange-500 mb-3" />
                   <p className="text-[10px] font-black uppercase tracking-widest text-orange-400 mb-1">Письменные</p>
                   <p className="text-3xl font-black text-orange-700">{writtenScore}<span className="text-sm text-orange-300">/100</span></p>
-                  <p className="text-[11px] text-orange-300 font-bold mt-1">реально: {writtenEarned} из {writtenMax}</p>
                 </div>
-                <div className="bg-teal-50 rounded-[2rem] p-5 border border-teal-100 min-h-[122px]">
+                <div className="bg-teal-50 rounded-[1.35rem] p-5 border border-teal-100 min-h-[108px]">
                   <Mic className="w-6 h-6 text-teal-500 mb-3" />
                   <p className="text-[10px] font-black uppercase tracking-widest text-teal-400 mb-1">Устные</p>
                   <p className="text-3xl font-black text-teal-700">{oralScore}<span className="text-sm text-teal-300">/100</span></p>
-                  <p className="text-[11px] text-teal-300 font-bold mt-1">реально: {oralEarned} из {oralMax}</p>
                 </div>
-                <div className="bg-white rounded-[2rem] p-5 border border-gray-100 min-h-[122px] shadow-sm">
+                <div className="bg-white rounded-[1.35rem] p-5 border border-gray-100 min-h-[108px] shadow-sm">
                   <Star className="w-6 h-6 text-amber-400 mb-3" />
                   <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">Оценено</p>
                   <p className="text-3xl font-black text-gray-900">{currentTaskCount}</p>
