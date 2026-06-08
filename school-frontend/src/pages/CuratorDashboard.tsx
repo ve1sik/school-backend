@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { ArrowLeft, CheckCircle2, Clock, Search, User, PenTool, MessageSquare, Send, ShieldCheck, Inbox, Loader2, X, ChevronDown, ChevronRight, FolderOpen, BookOpen, CheckSquare, Edit3, Mic, AlertCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { invalidateCache } from '../lib/api';
 
 import ReactQuill from 'react-quill-new';
 import 'react-quill-new/dist/quill.snow.css';
@@ -224,6 +225,7 @@ export default function CuratorDashboard() {
       showToast('Балл за устный ответ сохранён и обновит статистику!', 'success');
       setOralScores(prev => ({...prev, [lessonId]: Number(currentScore)}));
       setOralComments(prev => ({...prev, [lessonId]: oralComments[lessonId] || 'Устный ответ'}));
+      invalidateCache('/submissions');
     } catch (err) {
       showToast('Ошибка сохранения устного балла', 'error');
     }

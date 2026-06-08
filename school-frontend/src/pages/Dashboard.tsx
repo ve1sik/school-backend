@@ -45,7 +45,13 @@ type ScoreChartRow = {
   earned: number;
   max: number;
   taskCount: number;
+  earnedByType?: { tests: number; written: number; oral: number };
+  maxByType?: { tests: number; written: number; oral: number };
+  breakdown?: { tests: number; written: number; oral: number };
 };
+
+type ScoreBucket = { e: number; m: number; count: number };
+type ScoreBuckets = { tests: ScoreBucket; written: ScoreBucket; oral: ScoreBucket };
 
 
 function ScoreTable({ data }: { data: ScoreChartRow[] }) {
@@ -130,11 +136,9 @@ type CourseStats = {
 };
 
 function buildCourseStats(course: any, mySubs: any[]): CourseStats | null {
-        let totalThemesCount = 0;
-        let globalTotalScore = 0;
-        let g_tests = { e: 0, m: 0, count: 0 };
-        let g_written = { e: 0, m: 0, count: 0 };
-        let g_oral = { e: 0, m: 0, count: 0 }; 
+  const g_tests = { e: 0, m: 0, count: 0 };
+  const g_written = { e: 0, m: 0, count: 0 };
+  const g_oral = { e: 0, m: 0, count: 0 };
 
   const modulesList: ModuleStats[] = [];
   const globalProgressData: ScoreChartRow[] = [];
@@ -142,149 +146,220 @@ function buildCourseStats(course: any, mySubs: any[]): CourseStats | null {
   let courseEarned = 0;
   let courseMax = 0;
 
-  const courseSubs = mySubs.filter((s: any) => {
-    const lessonId = s.lesson_id || s.lessonId;
-    return course.themes?.some((t: any) =>
-      t.lessons?.some((l: any) => l.id === lessonId),
-    );
+  const courseLessonIds = new Set<string>();
+  course.themes?.forEach((theme: any) => {
+    theme.lessons?.forEach((lesson: any) => courseLessonIds.add(lesson.id));
   });
 
-  course.themes?.forEach((theme: any, themeIdx: number) => {
-            let t_tests = { e: 0, m: 0 };
-            let t_written = { e: 0, m: 0 };
-    let t_oral = { e: 0, m: 0 };
+  const courseSubs = mySubs.filter((s: any) => {
+    const lessonId = s.lesson_id || s.lessonId;
+    return courseLessonIds.has(lessonId);
+  });
 
-            let hasSubmissionsInTheme = false;
+  const gradedSubs = [...courseSubs]
+    .filter((s: any) => s.status === 'GRADED')
+    .sort((a: any, b: any) => {
+      const bTime = new Date(b.updated_at || b.created_at || 0).getTime();
+      const aTime = new Date(a.updated_at || a.created_at || 0).getTime();
+      return bTime - aTime;
+    });
+
+  const latestForBlock = (lessonId: string, blockId: string) =>
+    gradedSubs.find((s: any) => {
+      const subLessonId = s.lesson_id || s.lessonId;
+      const subBlockId = s.block_id || s.blockId;
+      return subLessonId === lessonId && subBlockId === blockId;
+    });
+
+  const oralSubsForLesson = (lessonId: string) =>
+    gradedSubs.filter((s: any) => {
+      const subLessonId = s.lesson_id || s.lessonId;
+      const subBlockId = String(s.block_id || s.blockId || '');
+      return subLessonId === lessonId && subBlockId.startsWith('oral-');
+    });
+
+  const addScore = ({
+    sub,
+    type,
+    maxScore,
+    title,
+    lesson,
+    theme,
+    target,
+  }: {
+    sub: any;
+    type: 'tests' | 'written' | 'oral';
+    maxScore: number;
+    title: string;
+    lesson: any;
+    theme: any;
+    target: { earned: number; max: number; taskCount: number; byType: ScoreBuckets; weakSpots: WeakSpot[] };
+  }) => {
+    const earnedScore = Number(sub.score) || 0;
+    const finalMax = Number(maxScore) || Number(sub.max_score) || 100;
+    const percent = safePercent(earnedScore, finalMax);
+
+    target.earned += earnedScore;
+    target.max += finalMax;
+    target.taskCount += 1;
+    target.byType[type].e += earnedScore;
+    target.byType[type].m += finalMax;
+    target.byType[type].count += 1;
+
+    courseEarned += earnedScore;
+    courseMax += finalMax;
+
+    if (percent < PASS_SCORE) {
+      const spot: WeakSpot = {
+        id: `${lesson.id}-${sub.id}`,
+        blockTitle: title,
+        lessonTitle: lesson.title,
+        themeTitle: theme.title,
+        themeId: theme.id,
+        courseId: course.id,
+        lessonId: lesson.id,
+        isHomework: !!lesson.is_homework,
+        percent,
+        score: earnedScore,
+        maxScore: finalMax,
+        type: type === 'tests' ? 'test' : type === 'written' ? 'written' : 'oral',
+      };
+      target.weakSpots.push(spot);
+      courseWeakSpots.push(spot);
+    }
+  };
+
+  course.themes?.forEach((theme: any, themeIdx: number) => {
+    const t_tests = { e: 0, m: 0, count: 0 };
+    const t_written = { e: 0, m: 0, count: 0 };
+    const t_oral = { e: 0, m: 0, count: 0 };
+
     let themeEarned = 0;
     let themeMax = 0;
+    let themeTaskCount = 0;
     const themeLessonsProgress: ScoreChartRow[] = [];
     const themeWeakSpots: WeakSpot[] = [];
 
-            theme.lessons?.forEach((lesson: any) => {
+    theme.lessons?.forEach((lesson: any) => {
       let blocks: any[] = [];
-              try {
-                const parsed = JSON.parse(lesson.content || '[]');
-                if (Array.isArray(parsed)) blocks = parsed;
+      try {
+        const parsed = JSON.parse(lesson.content || '[]');
+        if (Array.isArray(parsed)) blocks = parsed;
       } catch {
         /* ignore */
       }
 
-              let l_earned = 0;
-              let l_max = 0;
-      let l_taskCount = 0;
-              let hasSubmissionsInLesson = false;
+      const l_tests = { e: 0, m: 0, count: 0 };
+      const l_written = { e: 0, m: 0, count: 0 };
+      const l_oral = { e: 0, m: 0, count: 0 };
+      const lessonTarget = {
+        earned: 0,
+        max: 0,
+        taskCount: 0,
+        byType: { tests: l_tests, written: l_written, oral: l_oral },
+        weakSpots: themeWeakSpots,
+      };
+      const usedSubIds = new Set<string>();
 
-              blocks.forEach((block: any) => {
-        const sub = mySubs.find((s: any) => {
-          const subBlockId = s.blockId || s.block_id;
-          const subLessonId = s.lessonId || s.lesson_id;
-          if (subBlockId === block.id) return true;
-          // Устные оценки куратор ставит на урок целиком, поэтому связываем их с oral-блоком урока.
-          return block.type === 'oral' && subLessonId === lesson.id && String(subBlockId || '').startsWith('oral-');
+      blocks.forEach((block: any) => {
+        const sub = latestForBlock(lesson.id, block.id);
+        if (!sub) return;
+
+        const blockType =
+          block.type === 'test' || block.type === 'test_short' || block.type === 'matching'
+            ? 'tests'
+            : block.type === 'written' || block.type === 'homework' || block.isHomework
+              ? 'written'
+              : block.type === 'oral'
+                ? 'oral'
+                : null;
+
+        if (!blockType) return;
+        usedSubIds.add(sub.id);
+        addScore({
+          sub,
+          type: blockType,
+          maxScore: Number(block.maxScore) || Number(sub.max_score) || (blockType === 'oral' ? 100 : 10),
+          title: stripHtml(block.title || block.question || '') || blockTypeLabel(block.type, block.isHomework),
+          lesson,
+          theme,
+          target: lessonTarget,
         });
-        if (!sub || sub.status !== 'GRADED') return;
-
-                  hasSubmissionsInTheme = true;
-                  hasSubmissionsInLesson = true;
-                  
-                  const maxScore = Number(block.maxScore) || Number(sub.max_score) || 10;
-                  const earnedScore = Number(sub.score) || 0;
-        const percent = safePercent(earnedScore, maxScore);
-
-                  l_earned += earnedScore;
-                  l_max += maxScore;
-        l_taskCount += 1;
-        themeEarned += earnedScore;
-        themeMax += maxScore;
-        courseEarned += earnedScore;
-        courseMax += maxScore;
-
-        if (block.type === 'test' || block.type === 'test_short' || block.type === 'matching') {
-          t_tests.e += earnedScore;
-          t_tests.m += maxScore;
-          g_tests.count++;
-                  } else if (block.type === 'written' || block.type === 'homework' || block.isHomework) {
-          t_written.e += earnedScore;
-          t_written.m += maxScore;
-          g_written.count++;
-                  } else if (block.type === 'oral') {
-          t_oral.e += earnedScore;
-          t_oral.m += maxScore;
-          g_oral.count++;
-        }
-
-        if (percent < 70) {
-          const spot: WeakSpot = {
-            id: `${block.id}-${sub.id}`,
-            blockTitle: stripHtml(block.title || block.question || '') || blockTypeLabel(block.type, block.isHomework),
-            lessonTitle: lesson.title,
-            themeTitle: theme.title,
-            themeId: theme.id,
-            courseId: course.id,
-            lessonId: lesson.id,
-            isHomework: !!lesson.is_homework || !!block.isHomework,
-            percent,
-            score: earnedScore,
-            maxScore,
-            type: block.type,
-          };
-          themeWeakSpots.push(spot);
-          courseWeakSpots.push(spot);
-        }
       });
 
-              if (hasSubmissionsInLesson) {
-                themeLessonsProgress.push({
+      // Устная оценка может быть выставлена куратором на урок целиком, даже если в контенте нет oral-блока.
+      oralSubsForLesson(lesson.id).forEach((sub: any) => {
+        if (usedSubIds.has(sub.id)) return;
+        usedSubIds.add(sub.id);
+        addScore({
+          sub,
+          type: 'oral',
+          maxScore: 100,
+          title: 'Устный ответ',
+          lesson,
+          theme,
+          target: lessonTarget,
+        });
+      });
+
+      if (lessonTarget.taskCount > 0) {
+        const lessonScore = safePercent(lessonTarget.earned, lessonTarget.max);
+        themeEarned += lessonTarget.earned;
+        themeMax += lessonTarget.max;
+        themeTaskCount += lessonTarget.taskCount;
+
+        t_tests.e += l_tests.e; t_tests.m += l_tests.m; t_tests.count += l_tests.count;
+        t_written.e += l_written.e; t_written.m += l_written.m; t_written.count += l_written.count;
+        t_oral.e += l_oral.e; t_oral.m += l_oral.m; t_oral.count += l_oral.count;
+
+        themeLessonsProgress.push({
           name: lesson.title.length > 22 ? `${lesson.title.slice(0, 22)}…` : lesson.title,
           fullName: lesson.title,
-          score: safePercent(l_earned, l_max),
-          earned: l_earned,
-          max: l_max,
-          taskCount: l_taskCount,
+          score: lessonScore,
+          earned: lessonTarget.earned,
+          max: lessonTarget.max,
+          taskCount: lessonTarget.taskCount,
           lessonId: lesson.id,
-                });
-              }
-            });
+          earnedByType: { tests: l_tests.e, written: l_written.e, oral: l_oral.e },
+          maxByType: { tests: l_tests.m, written: l_written.m, oral: l_oral.m },
+          breakdown: {
+            tests: safePercent(l_tests.e, l_tests.m),
+            written: safePercent(l_written.e, l_written.m),
+            oral: safePercent(l_oral.e, l_oral.m),
+          },
+        });
+      }
+    });
 
-            if (hasSubmissionsInTheme) {
-              const pTests = t_tests.m > 0 ? (t_tests.e / t_tests.m) * 100 : 0;
-              const pWritten = t_written.m > 0 ? (t_written.e / t_written.m) * 100 : 0;
-      const pOral = t_oral.m > 0 ? (t_oral.e / t_oral.m) * 100 : 0;
-              const themeTotalScore = Math.round((pTests + pWritten + pOral) / 3);
+    if (themeTaskCount > 0) {
+      const orderIndex = theme.order_index ?? themeIdx + 1;
+      const themeTotalScore = safePercent(themeEarned, themeMax);
 
-              totalThemesCount++;
-              globalTotalScore += themeTotalScore;
-
-      g_tests.e += t_tests.e;
-      g_tests.m += t_tests.m;
-      g_written.e += t_written.e;
-      g_written.m += t_written.m;
-      g_oral.e += t_oral.e;
-      g_oral.m += t_oral.m;
+      g_tests.e += t_tests.e; g_tests.m += t_tests.m; g_tests.count += t_tests.count;
+      g_written.e += t_written.e; g_written.m += t_written.m; g_written.count += t_written.count;
+      g_oral.e += t_oral.e; g_oral.m += t_oral.m; g_oral.count += t_oral.count;
 
       themeWeakSpots.sort((a, b) => a.percent - b.percent);
 
-      const orderIndex = theme.order_index ?? themeIdx + 1;
-
-              modulesList.push({
-                id: theme.id,
-                title: theme.title,
+      modulesList.push({
+        id: theme.id,
+        title: theme.title,
         orderIndex,
-                averageScore: themeTotalScore,
+        averageScore: themeTotalScore,
         earned: themeEarned,
         max: themeMax,
-                breakdown: {
-                  tests: Math.round(pTests),
-                  written: Math.round(pWritten),
-          oral: Math.round(pOral),
-                },
+        breakdown: {
+          tests: safePercent(t_tests.e, t_tests.m),
+          written: safePercent(t_written.e, t_written.m),
+          oral: safePercent(t_oral.e, t_oral.m),
+        },
         earnedByType: { tests: t_tests.e, written: t_written.e, oral: t_oral.e },
         maxByType: { tests: t_tests.m, written: t_written.m, oral: t_oral.m },
         progressData: themeLessonsProgress,
         weakSpots: themeWeakSpots,
-              });
+      });
 
-              globalProgressData.push({
+      globalProgressData.push({
         name: `М${orderIndex}`,
         fullName: `Модуль ${orderIndex}. ${theme.title}`,
         moduleTitle: theme.title,
@@ -292,36 +367,44 @@ function buildCourseStats(course: any, mySubs: any[]): CourseStats | null {
         score: themeTotalScore,
         earned: themeEarned,
         max: themeMax,
-        taskCount: themeLessonsProgress.reduce((s, l) => s + l.taskCount, 0),
-              });
-            }
-          });
+        taskCount: themeTaskCount,
+        earnedByType: { tests: t_tests.e, written: t_written.e, oral: t_oral.e },
+        maxByType: { tests: t_tests.m, written: t_written.m, oral: t_oral.m },
+        breakdown: {
+          tests: safePercent(t_tests.e, t_tests.m),
+          written: safePercent(t_written.e, t_written.m),
+          oral: safePercent(t_oral.e, t_oral.m),
+        },
+      });
+    }
+  });
 
-  if (totalThemesCount === 0) return null;
+  if (courseMax === 0) return null;
 
-  const globalAvg = Math.round(globalTotalScore / totalThemesCount);
-        const globalPTests = g_tests.m > 0 ? Math.round((g_tests.e / g_tests.m) * 100) : 0;
-        const globalPWritten = g_written.m > 0 ? Math.round((g_written.e / g_written.m) * 100) : 0;
-        const globalPOral = g_oral.m > 0 ? Math.round((g_oral.e / g_oral.m) * 100) : 0;
+  const globalPTests = safePercent(g_tests.e, g_tests.m);
+  const globalPWritten = safePercent(g_written.e, g_written.m);
+  const globalPOral = safePercent(g_oral.e, g_oral.m);
   const coursePercent = safePercent(courseEarned, courseMax);
 
   courseWeakSpots.sort((a, b) => a.percent - b.percent);
 
-  const weakest = [
-    { label: 'тесты', value: globalPTests },
-    { label: 'развёрнутые ответы', value: globalPWritten },
-    { label: 'устные опросы', value: globalPOral },
-  ].sort((a, b) => a.value - b.value)[0];
+  const existingCategories = [
+    g_tests.m > 0 ? { label: 'тесты', value: globalPTests } : null,
+    g_written.m > 0 ? { label: 'развёрнутые ответы', value: globalPWritten } : null,
+    g_oral.m > 0 ? { label: 'устные опросы', value: globalPOral } : null,
+  ].filter(Boolean) as { label: string; value: number }[];
+  const weakest = existingCategories.sort((a, b) => a.value - b.value)[0];
 
   const aiReport =
-    `По курсу «${course.title}» набрано ${courseEarned} из ${courseMax} возможных баллов (${coursePercent}%).\n\n` +
-    `Слабее всего: ${weakest.label} (${weakest.value}/100). ` +
-    `Смотри блок «Где стоит подтянуть» — там уроки с ошибками.`;
+    `По курсу «${course.title}» набрано ${courseEarned} из ${courseMax} возможных баллов (${coursePercent}/100).\n\n` +
+    (weakest
+      ? `Слабее всего: ${weakest.label} (${weakest.value}/100).`
+      : 'Пока мало данных для детальной рекомендации.');
 
   return {
     id: course.id,
     title: course.title,
-    averageScore: coursePercent || globalAvg,
+    averageScore: coursePercent,
     totalEarned: courseEarned,
     totalMax: courseMax,
     totalSubmissions: courseSubs.length,
@@ -411,7 +494,7 @@ export default function Dashboard() {
         // 🚀 Общий кеш курсов/работ — навигация между страницами не дёргает бэкенд заново
         const [coursesData, subsData] = await Promise.all([
           cachedGet('/courses').catch(() => []),
-          cachedGet('/submissions/my').catch(() => []),
+          cachedGet('/submissions/my', 0).catch(() => []),
         ]);
         const coursesRes = { data: coursesData };
         const subsRes = { data: subsData };
@@ -456,9 +539,11 @@ export default function Dashboard() {
         averageScore: selectedLessonRow.score,
         totalEarned: selectedLessonRow.earned,
         totalMax: selectedLessonRow.max,
-        breakdown: { tests: selectedLessonRow.score, written: selectedLessonRow.score, oral: 0 },
-        earnedByType: { tests: selectedLessonRow.earned, written: 0, oral: 0 },
-        maxByType: { tests: selectedLessonRow.max, written: 0, oral: 0 },
+        earned: selectedLessonRow.earned,
+        max: selectedLessonRow.max,
+        breakdown: selectedLessonRow.breakdown ?? { tests: 0, written: 0, oral: 0 },
+        earnedByType: selectedLessonRow.earnedByType ?? { tests: 0, written: 0, oral: 0 },
+        maxByType: selectedLessonRow.maxByType ?? { tests: 0, written: 0, oral: 0 },
         progressData: [],
       } as any;
     }
@@ -528,6 +613,11 @@ export default function Dashboard() {
   const testsOutOf100 = scoreOutOf100(currentData?.earnedByType?.tests ?? 0, currentData?.maxByType?.tests ?? 0);
   const writtenOutOf100 = scoreOutOf100(currentData?.earnedByType?.written ?? 0, currentData?.maxByType?.written ?? 0);
   const oralOutOf100 = scoreOutOf100(currentData?.earnedByType?.oral ?? 0, currentData?.maxByType?.oral ?? 0);
+  const currentTaskCount = selectedLessonRow
+    ? selectedLessonRow.taskCount
+    : isCourseView
+      ? (selectedStats?.counts.tests ?? 0) + (selectedStats?.counts.written ?? 0) + (selectedStats?.counts.oral ?? 0)
+      : ((currentData as any)?.progressData ?? []).reduce((sum: number, row: ScoreChartRow) => sum + row.taskCount, 0);
 
   if (isLoading) {
     return (
@@ -803,66 +893,68 @@ export default function Dashboard() {
                 <span className="text-gray-800">{selectedLessonRow.fullName}</span>
               </div>
             )}
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
-              {/* Средний балл */}
-              <div className="bg-[#0F172A] rounded-[2rem] p-6 text-white relative overflow-hidden col-span-2 sm:col-span-1">
-                <div className="absolute -top-6 -right-6 w-32 h-32 bg-[#00FFCC]/15 rounded-full blur-2xl" />
-                <Target className="w-6 h-6 text-[#00FFCC] mb-3" />
-                <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">Результат</p>
-                <p className="text-4xl font-black text-[#00FFCC]">
-                  {currentTotalOutOf100}<span className="text-lg text-gray-500">/100</span>
-                </p>
-                <p className="text-xs text-gray-500 mt-1">{(currentData?.averageScore ?? 0) >= 70 ? '✅ Отлично' : (currentData?.averageScore ?? 0) >= 50 ? '🟡 Средне' : '🔴 Нужно подтянуть'}</p>
-              </div>
-
-              {/* Всего набрано */}
-              <div className="bg-white rounded-[2rem] p-6 border border-gray-100 shadow-sm">
-                <Star className="w-6 h-6 text-indigo-400 mb-3" />
-                <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">Всего</p>
-                <p className="text-3xl font-black text-gray-900">
-                  {currentTotalOutOf100}<span className="text-base text-gray-400">/100</span>
-                </p>
-                <p className="text-xs text-gray-400 mt-1">
-                  реально: {currentEarned} из {currentMax} балл.
-                </p>
-              </div>
-
-              {/* Тесты — earned/max */}
-              <div className="bg-indigo-50 rounded-[2rem] p-6 border border-indigo-100">
-                <CheckSquare className="w-6 h-6 text-indigo-500 mb-3" />
-                <p className="text-[10px] font-black uppercase tracking-widest text-indigo-400 mb-1">Тесты</p>
-                <p className="text-2xl font-black text-indigo-700">
-                  {testsOutOf100}
-                  <span className="text-sm font-bold text-indigo-300">/100</span>
-                </p>
-                <div className="mt-2 h-1.5 bg-indigo-200 rounded-full overflow-hidden">
-                  <div className="h-full bg-indigo-500 rounded-full transition-all" style={{ width: `${testsOutOf100}%` }} />
+            <div className="grid grid-cols-1 lg:grid-cols-[1.45fr_1fr] gap-5">
+              {/* Общий результат — главный большой прямоугольник */}
+              <div className="bg-[#0F172A] rounded-[2.5rem] p-7 md:p-9 text-white relative overflow-hidden min-h-[260px] flex flex-col justify-between shadow-xl shadow-slate-900/10">
+                <div className="absolute -top-16 -right-12 w-56 h-56 bg-[#00FFCC]/15 rounded-full blur-3xl" />
+                <div className="absolute bottom-0 left-0 w-72 h-32 bg-indigo-500/20 rounded-full blur-3xl" />
+                <div className="relative z-10">
+                  <div className="flex items-center justify-between gap-4 mb-8">
+                    <div className="w-14 h-14 rounded-2xl bg-white/10 flex items-center justify-center border border-white/10">
+                      <Target className="w-7 h-7 text-[#00FFCC]" />
+                    </div>
+                    <span className="px-4 py-2 rounded-2xl bg-white/10 border border-white/10 text-[10px] font-black uppercase tracking-widest text-white/70">
+                      {selectedLessonRow ? 'Урок' : isCourseView ? 'Курс' : 'Модуль'}
+                    </span>
+                  </div>
+                  <p className="text-[11px] font-black uppercase tracking-[0.25em] text-white/40 mb-3">Общая аналитика</p>
+                  <div className="flex items-end gap-3">
+                    <p className="text-7xl md:text-8xl font-black tracking-tight text-[#00FFCC] leading-none">{currentTotalOutOf100}</p>
+                    <span className="text-3xl md:text-4xl font-black text-white/30 mb-2">/100</span>
+                  </div>
+                  <p className="mt-4 text-sm md:text-base font-bold text-white/60">
+                    Реально набрано: <span className="text-white">{currentEarned}</span> из <span className="text-white">{currentMax}</span> баллов
+                  </p>
+                </div>
+                <div className="relative z-10 mt-8">
+                  <div className="h-3 bg-white/10 rounded-full overflow-hidden border border-white/10">
+                    <motion.div
+                      initial={{ width: 0 }}
+                      animate={{ width: `${currentTotalOutOf100}%` }}
+                      className="h-full bg-[#00FFCC] rounded-full"
+                    />
+                  </div>
+                  <p className="text-xs font-bold text-white/40 mt-3">
+                    {currentTotalOutOf100 >= 70 ? 'Отлично держим темп' : currentTotalOutOf100 >= 50 ? 'Есть база, надо дожать' : 'Нужно подтянуть этот раздел'}
+                  </p>
                 </div>
               </div>
 
-              {/* Письменные */}
-              <div className="bg-orange-50 rounded-[2rem] p-6 border border-orange-100">
-                <PenTool className="w-6 h-6 text-orange-500 mb-3" />
-                <p className="text-[10px] font-black uppercase tracking-widest text-orange-400 mb-1">Письменные</p>
-                <p className="text-2xl font-black text-orange-700">
-                  {writtenOutOf100}
-                  <span className="text-sm font-bold text-orange-300">/100</span>
-                </p>
-                <div className="mt-2 h-1.5 bg-orange-200 rounded-full overflow-hidden">
-                  <div className="h-full bg-orange-500 rounded-full transition-all" style={{ width: `${writtenOutOf100}%` }} />
+              {/* Маленькие квадраты 2×2 */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="bg-indigo-50 rounded-[2rem] p-5 border border-indigo-100 min-h-[122px]">
+                  <CheckSquare className="w-6 h-6 text-indigo-500 mb-3" />
+                  <p className="text-[10px] font-black uppercase tracking-widest text-indigo-400 mb-1">Тесты</p>
+                  <p className="text-3xl font-black text-indigo-700">{testsOutOf100}<span className="text-sm text-indigo-300">/100</span></p>
+                  <p className="text-[11px] text-indigo-300 font-bold mt-1">{currentData?.earnedByType?.tests ?? 0}/{currentData?.maxByType?.tests ?? 0} балл.</p>
                 </div>
-              </div>
-
-              {/* Устные */}
-              <div className="bg-teal-50 rounded-[2rem] p-6 border border-teal-100">
-                <Mic className="w-6 h-6 text-teal-500 mb-3" />
-                <p className="text-[10px] font-black uppercase tracking-widest text-teal-400 mb-1">Устные</p>
-                <p className="text-2xl font-black text-teal-700">
-                  {oralOutOf100}
-                  <span className="text-sm font-bold text-teal-300">/100</span>
-                </p>
-                <div className="mt-2 h-1.5 bg-teal-200 rounded-full overflow-hidden">
-                  <div className="h-full bg-teal-500 rounded-full transition-all" style={{ width: `${oralOutOf100}%` }} />
+                <div className="bg-orange-50 rounded-[2rem] p-5 border border-orange-100 min-h-[122px]">
+                  <PenTool className="w-6 h-6 text-orange-500 mb-3" />
+                  <p className="text-[10px] font-black uppercase tracking-widest text-orange-400 mb-1">Письменные</p>
+                  <p className="text-3xl font-black text-orange-700">{writtenOutOf100}<span className="text-sm text-orange-300">/100</span></p>
+                  <p className="text-[11px] text-orange-300 font-bold mt-1">{currentData?.earnedByType?.written ?? 0}/{currentData?.maxByType?.written ?? 0} балл.</p>
+                </div>
+                <div className="bg-teal-50 rounded-[2rem] p-5 border border-teal-100 min-h-[122px]">
+                  <Mic className="w-6 h-6 text-teal-500 mb-3" />
+                  <p className="text-[10px] font-black uppercase tracking-widest text-teal-400 mb-1">Устные</p>
+                  <p className="text-3xl font-black text-teal-700">{oralOutOf100}<span className="text-sm text-teal-300">/100</span></p>
+                  <p className="text-[11px] text-teal-300 font-bold mt-1">{currentData?.earnedByType?.oral ?? 0}/{currentData?.maxByType?.oral ?? 0} балл.</p>
+                </div>
+                <div className="bg-white rounded-[2rem] p-5 border border-gray-100 min-h-[122px] shadow-sm">
+                  <Star className="w-6 h-6 text-amber-400 mb-3" />
+                  <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">Оценено</p>
+                  <p className="text-3xl font-black text-gray-900">{currentTaskCount}</p>
+                  <p className="text-[11px] text-gray-400 font-bold mt-1">заданий учтено</p>
                 </div>
               </div>
             </div>
