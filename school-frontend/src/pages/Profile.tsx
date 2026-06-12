@@ -340,11 +340,9 @@ export default function Profile() {
                   <Copy className="w-5 h-5" />
                 </button>
               </div>
-              {telegram?.botUrl && (
-                <a href={telegram.botUrl} target="_blank" rel="noreferrer" className="mt-3 w-full py-3 bg-sky-500 hover:bg-sky-600 text-white rounded-xl font-black text-sm flex items-center justify-center gap-2 transition-colors">
-                  <Send className="w-4 h-4" /> Открыть Telegram бота
-                </a>
-              )}
+              <a href={telegram?.botUrl || 'https://t.me/prepodmgybot'} target="_blank" rel="noreferrer" className="mt-3 w-full py-3 bg-sky-500 hover:bg-sky-600 text-white rounded-xl font-black text-sm flex items-center justify-center gap-2 transition-colors">
+                <Send className="w-4 h-4" /> Открыть Telegram бота
+              </a>
               {telegram?.linked && <p className="text-xs font-bold text-emerald-600 mt-3">Telegram уже привязан</p>}
             </div>
           </div>

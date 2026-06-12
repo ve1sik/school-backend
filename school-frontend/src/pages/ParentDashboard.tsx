@@ -193,11 +193,9 @@ export default function ParentDashboard() {
                       <Copy className="w-4 h-4" />
                     </button>
                   </div>
-                  {telegram?.botUrl && (
-                    <a href={telegram.botUrl} target="_blank" rel="noreferrer" className="mt-3 py-3 bg-sky-500 hover:bg-sky-600 text-white rounded-xl font-black text-sm flex items-center justify-center gap-2">
-                      <Send className="w-4 h-4" /> Открыть бота
-                    </a>
-                  )}
+                  <a href={telegram?.botUrl || 'https://t.me/prepodmgybot'} target="_blank" rel="noreferrer" className="mt-3 py-3 bg-sky-500 hover:bg-sky-600 text-white rounded-xl font-black text-sm flex items-center justify-center gap-2">
+                    <Send className="w-4 h-4" /> Открыть бота
+                  </a>
                 </div>
               </div>
 

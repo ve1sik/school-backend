@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import axios from 'axios';
 
 type TgButton = { text: string; callback_data: string };
 
@@ -21,6 +22,24 @@ export class TelegramService {
     return this.botUsername ? `https://t.me/${this.botUsername}` : '';
   }
 
+  private get axiosConfig() {
+    const proxyUrl = process.env.HTTPS_PROXY || process.env.HTTP_PROXY || '';
+    if (!proxyUrl) return {};
+    try {
+      const u = new URL(proxyUrl);
+      return {
+        proxy: {
+          protocol: u.protocol.replace(':', ''),
+          host: u.hostname,
+          port: Number(u.port) || 8080,
+          ...(u.username ? { auth: { username: u.username, password: u.password } } : {}),
+        },
+      };
+    } catch {
+      return {};
+    }
+  }
+
   private async callTelegram(method: string, body: any) {
     if (!this.token) {
       this.logger.warn('TELEGRAM_BOT_TOKEN is not set');
@@ -28,17 +47,14 @@ export class TelegramService {
     }
 
     try {
-      const res = await fetch(`https://api.telegram.org/bot${this.token}/${method}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-      if (!res.ok) {
-        this.logger.warn(`Telegram ${method} failed: ${res.status} ${await res.text()}`);
-      }
+      const res = await axios.post(
+        `https://api.telegram.org/bot${this.token}/${method}`,
+        body,
+        { ...this.axiosConfig, timeout: 10000 },
+      );
       return res;
-    } catch (error) {
-      this.logger.warn(`Telegram ${method} error: ${String(error)}`);
+    } catch (error: any) {
+      this.logger.warn(`Telegram ${method} error: ${error?.message || String(error)}`);
       return null;
     }
   }
