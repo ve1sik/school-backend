@@ -19,6 +19,7 @@ import { SubjectModule } from './subject/subject.module';
 import { DeckModule } from './deck/deck.module';
 import { FlashcardModule } from './flashcard/flashcard.module';
 import { GamificationModule } from './gamification/gamification.module';
+import { TelegramModule } from './telegram/telegram.module';
 
 // Контроллер загрузки
 import { UploadController } from './upload/upload.controller';
@@ -47,6 +48,7 @@ import { UploadController } from './upload/upload.controller';
     DeckModule,
     FlashcardModule,
     GamificationModule,
+    TelegramModule,
   ],
   controllers: [
     UploadController,

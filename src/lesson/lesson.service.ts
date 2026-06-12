@@ -45,6 +45,7 @@ export class LessonService {
         content: dto.content || null,
         test_data: dto.test_data || null,
         is_homework: dto.is_homework || false,
+        include_in_analytics: dto.include_in_analytics !== undefined ? dto.include_in_analytics : true,
         unlock_date: dto.unlock_date ? new Date(dto.unlock_date) : null,
         deadline: dto.deadline ? new Date(dto.deadline) : null,
       },
@@ -62,6 +63,7 @@ export class LessonService {
         content: dto.content,
         test_data: dto.test_data,
         is_homework: dto.is_homework,
+        ...(dto.include_in_analytics !== undefined ? { include_in_analytics: dto.include_in_analytics } : {}),
         ...(dto.unlock_date !== undefined ? { unlock_date: dto.unlock_date ? new Date(dto.unlock_date) : null } : {}),
         ...(dto.deadline !== undefined ? { deadline: dto.deadline ? new Date(dto.deadline) : null } : {}),
       },
@@ -138,6 +140,14 @@ export class LessonService {
     return this.prisma.lesson.update({
       where: { id },
       data: { is_visible },
+    });
+  }
+
+  async updateAnalyticsVisibility(id: string, include_in_analytics: boolean, userId?: string, userRole?: string) {
+    await this.ensureCanManageLesson(id, userId, userRole);
+    return this.prisma.lesson.update({
+      where: { id },
+      data: { include_in_analytics },
     });
   }
 }

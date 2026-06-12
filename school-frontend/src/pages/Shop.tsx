@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { ShoppingCart, CheckCircle2, Sparkles, GraduationCap, CreditCard, Loader2, ShieldCheck, Target, UserCircle, Calendar, Zap, Star, Search, X, AlertCircle, Clock, Send, Upload, BookOpen, ChevronDown, ChevronUp } from 'lucide-react';
+import { ShoppingCart, CheckCircle2, Sparkles, GraduationCap, CreditCard, Loader2, ShieldCheck, Target, UserCircle, Calendar, Zap, Star, Search, X, AlertCircle, Clock, Send, Upload, BookOpen, ChevronDown, ChevronUp, QrCode } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 
@@ -191,16 +191,22 @@ export default function Shop() {
               </div>
 
               <div className="p-8 space-y-6">
-                {paymentModal.payment_info && (
-                  <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5">
-                    <p className="text-xs font-black text-amber-600 uppercase tracking-widest mb-2">💳 Реквизиты для оплаты</p>
-                    <pre className="text-sm font-bold text-gray-800 whitespace-pre-wrap font-sans">{paymentModal.payment_info}</pre>
+                {paymentModal.payment_qr_url && (
+                  <div className="bg-amber-50 border border-amber-200 rounded-[2rem] p-5 text-center">
+                    <p className="text-xs font-black text-amber-600 uppercase tracking-widest mb-4 flex items-center justify-center gap-2">
+                      <QrCode className="w-4 h-4" /> QR для оплаты
+                    </p>
+                    <a href={getFullUrl(paymentModal.payment_qr_url)} target="_blank" rel="noreferrer" className="block bg-white rounded-[1.5rem] border border-amber-100 p-4 shadow-sm">
+                      <img src={getFullUrl(paymentModal.payment_qr_url)} alt="QR для оплаты" className="w-full max-w-sm mx-auto max-h-[420px] object-contain" />
+                    </a>
+                    <p className="text-[11px] font-bold text-amber-600 mt-3">Нажми на QR, чтобы открыть крупнее. После оплаты прикрепи скрин ниже.</p>
                   </div>
                 )}
 
-                {!paymentModal.payment_info && (
+                {!paymentModal.payment_qr_url && (
                   <div className="bg-gray-50 border border-gray-200 rounded-2xl p-5 text-center">
-                    <p className="text-sm font-bold text-gray-500">Реквизиты для оплаты появятся здесь или уточните у куратора</p>
+                    <QrCode className="w-10 h-10 text-gray-300 mx-auto mb-3" />
+                    <p className="text-sm font-bold text-gray-500">QR для оплаты пока не добавлен. Уточните оплату у куратора.</p>
                   </div>
                 )}
 
@@ -312,8 +318,6 @@ export default function Shop() {
           {filteredGroups.map((group) => {
             const isOwned = userGroups.includes(group.id);
             const appStatus = myApplications[group.id];
-            const hasDiscount = group.old_price && group.old_price > group.price;
-            const discountPercent = hasDiscount ? Math.round(((group.old_price - group.price) / group.old_price) * 100) : 0;
             const featuresList = (group.features && group.features.length > 0) ? group.features : ['Доступ ко всем урокам', 'Проверка ДЗ', 'Авторские конспекты'];
             const courses = group.courses || [];
             const isCoursesExpanded = expandedCourses[group.id];
@@ -337,22 +341,12 @@ export default function Shop() {
                   
                   <div className="absolute top-4 left-4 right-4 flex justify-between items-start">
                     <div className="flex flex-col gap-2 items-start">
-                      {group.badge && (
-                        <div className="px-3 py-1.5 bg-[#5A4BFF] text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-md flex items-center gap-1.5">
-                          <Zap className="w-3 h-3 fill-white" /> {group.badge}
-                        </div>
-                      )}
                       {group.curator && (
                         <div className="px-3 py-1.5 bg-white/90 backdrop-blur-md rounded-xl text-[10px] font-black text-gray-900 uppercase tracking-widest shadow-sm flex items-center gap-1.5">
                           <ShieldCheck className="w-3 h-3 text-[#5A4BFF]" /> С куратором
                         </div>
                       )}
                     </div>
-                    {hasDiscount && (
-                      <div className="px-3 py-1.5 bg-red-500 text-white rounded-xl text-[12px] font-black uppercase tracking-widest shadow-lg transform rotate-3">
-                        -{discountPercent}%
-                      </div>
-                    )}
                   </div>
 
                   {group.start_date && (
@@ -429,11 +423,6 @@ export default function Shop() {
                         <span className="text-3xl font-black text-gray-900 tracking-tight leading-none">
                           {group.price > 0 ? `${group.price.toLocaleString('ru-RU')} ₽` : 'Бесплатно'}
                         </span>
-                        {hasDiscount && (
-                          <span className="text-sm font-bold text-gray-400 line-through mb-0.5">
-                            {group.old_price.toLocaleString('ru-RU')}
-                          </span>
-                        )}
                       </div>
                       {group._count?.students > 0 && (
                         <span className="text-[10px] font-bold text-emerald-500 block mt-1.5">

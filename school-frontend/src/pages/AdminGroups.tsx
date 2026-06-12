@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Users, Plus, Trash2, BookOpen, Loader2, Save, X, Edit3, ShieldCheck, UserCircle, Search, UserCheck, CreditCard, Image as ImageIcon, UploadCloud, Tag, Calendar, ListChecks, Percent, CheckCircle2, AlertCircle, Clock, ChevronDown, ChevronUp } from 'lucide-react';
+import { Users, Plus, Trash2, BookOpen, Loader2, Save, X, Edit3, ShieldCheck, UserCircle, Search, UserCheck, CreditCard, Image as ImageIcon, UploadCloud, Calendar, ListChecks, CheckCircle2, AlertCircle, Clock, ChevronDown, ChevronUp, QrCode } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 import Cropper from 'react-easy-crop';
@@ -62,22 +62,21 @@ export default function AdminGroups() {
   const [selectedCuratorId, setSelectedCuratorId] = useState<string>('');
   
   const [selectedPrice, setSelectedPrice] = useState<number | string>(0);
-  const [hasDiscount, setHasDiscount] = useState(false);
-  const [selectedBadge, setSelectedBadge] = useState<string>('');
   const [selectedStartDate, setSelectedStartDate] = useState<string>('');
   const [selectedFeatures, setSelectedFeatures] = useState<string[]>(["", "", ""]);
   const [selectedCoverUrl, setSelectedCoverUrl] = useState<string>(''); 
+  const [selectedPaymentQrUrl, setSelectedPaymentQrUrl] = useState<string>('');
   const [isUploading, setIsUploading] = useState(false);
 
   // СТЕЙТЫ ДЛЯ КРОППЕРА
   const [rawImage, setRawImage] = useState<string | null>(null);
+  const [cropTarget, setCropTarget] = useState<'cover' | 'qr'>('cover');
   const [crop, setCrop] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
   const [croppedAreaPixels, setCroppedAreaPixels] = useState<any>(null);
 
   const [courseSearch, setCourseSearch] = useState('');
   const [studentSearch, setStudentSearch] = useState('');
-  const [selectedPaymentInfo, setSelectedPaymentInfo] = useState('');
 
   // Заявки на вступление
   const [applications, setApplications] = useState<any[]>([]);
@@ -152,8 +151,6 @@ export default function AdminGroups() {
       setSelectedCuratorId(res.data.curator?.id || '');
       
       setSelectedPrice(res.data.price || 0);
-      setHasDiscount(res.data.old_price > res.data.price);
-      setSelectedBadge(res.data.badge || '');
       setSelectedStartDate(res.data.start_date || ''); 
       
       if (res.data.features && res.data.features.length > 0) {
@@ -163,7 +160,7 @@ export default function AdminGroups() {
       }
       
       setSelectedCoverUrl(res.data.cover_url || '');
-      setSelectedPaymentInfo(res.data.payment_info || '');
+      setSelectedPaymentQrUrl(res.data.payment_qr_url || '');
       setCourseSearch('');
       setStudentSearch('');
       setShowModal(true);
@@ -181,8 +178,11 @@ export default function AdminGroups() {
     }
   };
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>, target: 'cover' | 'qr' = 'cover') => {
     if (e.target.files && e.target.files.length > 0) {
+      setCropTarget(target);
+      setCrop({ x: 0, y: 0 });
+      setZoom(1);
       const reader = new FileReader();
       reader.addEventListener('load', () => setRawImage(reader.result?.toString() || null));
       reader.readAsDataURL(e.target.files[0]);
@@ -207,7 +207,11 @@ export default function AdminGroups() {
       const res = await axios.post(`${API_URL}/upload`, formData, {
         headers: { 'Content-Type': 'multipart/form-data', Authorization: `Bearer ${localStorage.getItem('token')}` }
       });
-      setSelectedCoverUrl(res.data.url);
+      if (cropTarget === 'qr') {
+        setSelectedPaymentQrUrl(res.data.url);
+      } else {
+        setSelectedCoverUrl(res.data.url);
+      }
       setRawImage(null);
     } catch (error) {
       console.error("Ошибка при обрезке", error);
@@ -234,20 +238,19 @@ export default function AdminGroups() {
   const handleSaveGroupSettings = async () => {
     if (!selectedGroup) return;
     try {
-      const calculatedOldPrice = hasDiscount ? Math.round(Number(selectedPrice) / 0.75) : 0;
-
       await Promise.all([
         axios.post(`${API_URL}/groups/${selectedGroup.id}/courses`, { courseIds: selectedCourseIds }, getTokenConfig()),
         axios.post(`${API_URL}/groups/${selectedGroup.id}/students`, { studentIds: selectedStudentIds }, getTokenConfig()),
         axios.patch(`${API_URL}/groups/${selectedGroup.id}`, { 
           curator_id: selectedCuratorId || null,
           price: Number(selectedPrice),
-          old_price: calculatedOldPrice,
-          badge: selectedBadge,
+          old_price: 0,
+          badge: null,
           start_date: selectedStartDate,
           features: selectedFeatures.filter(f => f.trim() !== ''),
           cover_url: selectedCoverUrl,
-          payment_info: selectedPaymentInfo || null,
+          payment_info: null,
+          payment_qr_url: selectedPaymentQrUrl || null,
         }, getTokenConfig())
       ]);
       setShowModal(false);
@@ -410,35 +413,15 @@ export default function AdminGroups() {
                         <span className="text-white font-black flex items-center gap-2">
                           <ImageIcon className="w-5 h-5" /> ВЫБРАТЬ ФОТО
                         </span>
-                        <input type="file" accept="image/*" className="hidden" onChange={handleFileSelect} />
+                        <input type="file" accept="image/*" className="hidden" onChange={(e) => handleFileSelect(e, 'cover')} />
                       </label>
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="bg-emerald-50/50 p-4 rounded-2xl border border-emerald-100 flex flex-col justify-center">
                       <label className="text-[10px] font-black text-emerald-600 uppercase tracking-widest block mb-2">Цена продажи</label>
                       <input type="number" value={selectedPrice} onChange={(e) => setSelectedPrice(e.target.value)} placeholder="5000" className="w-full px-4 py-3 bg-white border border-emerald-200 rounded-xl font-bold text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-400" />
-                    </div>
-                    <div className={`p-4 rounded-2xl border flex flex-col justify-center cursor-pointer transition-all ${hasDiscount ? 'bg-red-50/80 border-red-200' : 'bg-gray-50 border-gray-200'}`} onClick={() => setHasDiscount(!hasDiscount)}>
-                      <label className={`text-[10px] font-black uppercase tracking-widest block mb-2 flex items-center gap-1 cursor-pointer ${hasDiscount ? 'text-red-600' : 'text-gray-400'}`}>
-                        <Percent className="w-3 h-3" /> Авто-скидка 25%
-                      </label>
-                      <div className="flex items-center justify-between mt-1">
-                        <span className={`font-bold text-sm ${hasDiscount ? 'text-gray-900' : 'text-gray-400'}`}>
-                          {hasDiscount ? `~~ ${Math.round(Number(selectedPrice) / 0.75)} ₽ ~~` : 'Выключена'}
-                        </span>
-                        <div className={`w-10 h-6 rounded-full p-1 transition-colors ${hasDiscount ? 'bg-red-400' : 'bg-gray-300'}`}>
-                          <motion.div layout className="w-4 h-4 bg-white rounded-full" animate={{ x: hasDiscount ? 16 : 0 }} />
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="bg-amber-50/50 p-4 rounded-2xl border border-amber-100">
-                      <label className="text-[10px] font-black text-amber-600 uppercase tracking-widest block mb-2 flex items-center gap-1"><Tag className="w-3 h-3" /> Бейдж</label>
-                      <input type="text" value={selectedBadge} onChange={(e) => setSelectedBadge(e.target.value)} placeholder="ХИТ / СКОРО СТАРТ" className="w-full px-4 py-3 bg-white border border-amber-200 rounded-xl font-bold text-gray-900 focus:outline-none focus:ring-2 focus:ring-amber-400" />
                     </div>
                     <div className="bg-blue-50/50 p-4 rounded-2xl border border-blue-100">
                       <label className="text-[10px] font-black text-blue-600 uppercase tracking-widest block mb-2 flex items-center gap-1"><Calendar className="w-3 h-3" /> Дата старта</label>
@@ -473,15 +456,23 @@ export default function AdminGroups() {
                   </div>
 
                   <div className="bg-amber-50/50 p-5 rounded-2xl border border-amber-100">
-                    <h4 className="text-[11px] font-black text-amber-600 uppercase tracking-widest mb-3 flex items-center gap-2"><CreditCard className="w-4 h-4" /> Реквизиты для оплаты</h4>
-                    <textarea
-                      value={selectedPaymentInfo}
-                      onChange={e => setSelectedPaymentInfo(e.target.value)}
-                      rows={4}
-                      placeholder={"Например:\nСбербанк: 4276 1234 5678 9012\nПолучатель: Иванов Иван Иванович\nКомментарий: ОГЭ История"}
-                      className="w-full px-4 py-3 bg-white border border-amber-200 rounded-xl font-mono text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-amber-400 resize-none"
-                    />
-                    <p className="text-[10px] text-amber-500 font-bold mt-1.5">Эта информация будет видна ученику при оформлении заявки</p>
+                    <h4 className="text-[11px] font-black text-amber-600 uppercase tracking-widest mb-3 flex items-center gap-2"><QrCode className="w-4 h-4" /> QR для оплаты</h4>
+                    {selectedPaymentQrUrl ? (
+                      <div className="relative bg-white rounded-2xl border border-amber-200 p-4">
+                        <img src={getFullUrl(selectedPaymentQrUrl)} alt="QR для оплаты" className="w-full max-h-72 object-contain" />
+                        <button type="button" onClick={() => setSelectedPaymentQrUrl('')} className="absolute top-3 right-3 p-2 bg-rose-500 text-white rounded-full hover:bg-rose-600 transition-colors">
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ) : (
+                      <label className="flex flex-col items-center justify-center gap-3 min-h-[220px] bg-white border-2 border-dashed border-amber-200 rounded-2xl cursor-pointer hover:border-amber-400 hover:bg-amber-50 transition-all">
+                        <QrCode className="w-12 h-12 text-amber-300" />
+                        <span className="text-sm font-black text-amber-600">Загрузить QR для оплаты</span>
+                        <span className="text-xs font-bold text-gray-400 text-center px-6">После выбора можно будет обрезать фото по сторонам ровно под QR</span>
+                        <input type="file" accept="image/*" className="hidden" onChange={(e) => handleFileSelect(e, 'qr')} />
+                      </label>
+                    )}
+                    <p className="text-[10px] text-amber-500 font-bold mt-2">Этот QR будет крупно показан ученику в магазине при оплате</p>
                   </div>
 
                   <button onClick={handleSaveGroupSettings} className="mt-auto w-full py-5 bg-gray-900 hover:bg-[#5A4BFF] text-white rounded-2xl font-black text-lg transition-all active:scale-95 shadow-xl flex items-center justify-center gap-3">
@@ -664,17 +655,21 @@ export default function AdminGroups() {
         {rawImage && (
           <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/95 backdrop-blur-md overflow-hidden">
             <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="bg-white rounded-[2rem] p-6 w-full max-w-3xl flex flex-col items-center max-h-[95vh] overflow-y-auto custom-scrollbar">
-              <h3 className="text-2xl font-black mb-4">Настрой обложку курса</h3>
+              <h3 className="text-2xl font-black mb-4">
+                {cropTarget === 'qr' ? 'Обрежь QR для оплаты' : 'Настрой обложку курса'}
+              </h3>
               <p className="text-gray-500 font-medium mb-6 text-center">
-                Передвигай и приближай фото. Управление масштабом супер-плавное.
+                {cropTarget === 'qr'
+                  ? 'Передвигай фото и обрежь по сторонам так, чтобы QR был крупно и ровно в квадрате.'
+                  : 'Передвигай и приближай фото. Управление масштабом супер-плавное.'}
               </p>
               
-              <div className="relative w-full aspect-[16/10] bg-gray-900 rounded-2xl overflow-hidden mb-6 shadow-inner">
+              <div className={`relative w-full ${cropTarget === 'qr' ? 'max-w-xl aspect-square' : 'aspect-[16/10]'} bg-gray-900 rounded-2xl overflow-hidden mb-6 shadow-inner`}>
                 <Cropper
                   image={rawImage}
                   crop={crop}
                   zoom={zoom}
-                  aspect={16 / 9}
+                  aspect={cropTarget === 'qr' ? 1 : 16 / 9}
                   onCropChange={setCrop}
                   onCropComplete={onCropComplete}
                   onZoomChange={setZoom}
@@ -714,7 +709,8 @@ export default function AdminGroups() {
                   ОТМЕНА
                 </button>
                 <button onClick={handleCropSave} disabled={isUploading} className="flex-1 py-4 bg-[#5A4BFF] hover:bg-black text-white font-black rounded-xl transition-all active:scale-95 flex items-center justify-center gap-2 shadow-lg shadow-indigo-500/30 disabled:opacity-70 text-sm">
-                  {isUploading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />} СОХРАНИТЬ 16:9
+                  {isUploading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Save className="w-5 h-5" />}
+                  {cropTarget === 'qr' ? 'СОХРАНИТЬ QR' : 'СОХРАНИТЬ 16:9'}
                 </button>
               </div>
             </motion.div>

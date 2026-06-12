@@ -149,7 +149,9 @@ function buildCourseStats(course: any, mySubs: any[]): CourseStats | null {
 
   const courseLessonIds = new Set<string>();
   course.themes?.forEach((theme: any) => {
-    theme.lessons?.forEach((lesson: any) => courseLessonIds.add(lesson.id));
+    theme.lessons?.forEach((lesson: any) => {
+      if (lesson.include_in_analytics !== false) courseLessonIds.add(lesson.id);
+    });
   });
 
   const courseSubs = mySubs.filter((s: any) => {
@@ -242,6 +244,8 @@ function buildCourseStats(course: any, mySubs: any[]): CourseStats | null {
     const themeWeakSpots: WeakSpot[] = [];
 
     theme.lessons?.forEach((lesson: any) => {
+      if (lesson.include_in_analytics === false) return;
+
       let blocks: any[] = [];
       try {
         const parsed = JSON.parse(lesson.content || '[]');

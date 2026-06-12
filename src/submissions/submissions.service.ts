@@ -1,11 +1,15 @@
 import { ForbiddenException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { TelegramService } from '../telegram/telegram.service';
 
 export const AUTO_GRADE_COMMENT_PREFIX = '🤖 Автоматическая проверка';
 
 @Injectable()
 export class SubmissionsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private telegramService: TelegramService,
+  ) {}
 
   private async canGradeStudentLesson(studentId: string, lessonId: string, requesterId?: string, requesterRole?: string) {
     if (requesterRole === 'ADMIN') return true;
@@ -110,6 +114,8 @@ export class SubmissionsService {
       await this.awardPoints(userId, 15);
     }
 
+    await this.telegramService.notifySubmissionGraded(submission.id, 'written');
+
     return submission;
   }
 
@@ -146,13 +152,17 @@ export class SubmissionsService {
     };
 
     if (existing) {
-      return this.prisma.submission.update({
+      const updated = await this.prisma.submission.update({
         where: { id: existing.id },
         data,
       });
+      await this.telegramService.notifySubmissionGraded(updated.id, 'oral');
+      return updated;
     }
 
-    return this.prisma.submission.create({ data });
+    const created = await this.prisma.submission.create({ data });
+    await this.telegramService.notifySubmissionGraded(created.id, 'oral');
+    return created;
   }
 
   async getOralSubmission(studentId: string, lessonId: string, requesterId?: string, requesterRole?: string) {
@@ -250,6 +260,10 @@ export class SubmissionsService {
     ) {
       const pts = Math.round((score / (updated.max_score || 1)) * 30);
       await this.awardPoints(updated.user_id, pts);
+    }
+
+    if (finalStatus === 'GRADED') {
+      await this.telegramService.notifySubmissionGraded(updated.id, 'written');
     }
 
     return updated;

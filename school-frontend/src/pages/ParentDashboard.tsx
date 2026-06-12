@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   ShieldCheck, LogOut, Lock, ArrowRight, Loader2, User,
   TrendingUp, Flame, BookOpen, CheckSquare,
-  AlertTriangle, Star, RefreshCw, PenTool, Mic
+  AlertTriangle, Star, RefreshCw, PenTool, Mic, Send, Copy
 } from 'lucide-react';
 import axios from 'axios';
 
@@ -19,6 +19,7 @@ export default function ParentDashboard() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [codeError, setCodeError] = useState('');
   const [data, setData] = useState<any>(null);
+  const [telegram, setTelegram] = useState<any>(null);
 
   const fetchData = async (silent = false) => {
     if (!silent) setIsLoading(true);
@@ -33,6 +34,12 @@ export default function ParentDashboard() {
       const d = res.data || {};
       setData(d);
       setIsLinked(d.isLinked !== false);
+      try {
+        const tgRes = await axios.get(`${API_URL}/telegram/link-code`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        setTelegram(tgRes.data);
+      } catch { /* silent */ }
     } catch { /* silent */ }
     finally {
       setIsLoading(false);
@@ -60,6 +67,10 @@ export default function ParentDashboard() {
   };
 
   const handleLogout = () => { localStorage.removeItem('token'); navigate('/login'); };
+  const copyTelegramCode = () => {
+    if (!telegram?.code) return;
+    navigator.clipboard.writeText(telegram.code);
+  };
 
   const scoreColor = (s: number) => s >= 80 ? '#10b981' : s >= 60 ? '#f59e0b' : '#ef4444';
 
@@ -165,6 +176,28 @@ export default function ParentDashboard() {
                     </div>
                     <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Заданий</span>
                   </div>
+                </div>
+              </div>
+
+              <div className="bg-sky-50 rounded-[2.5rem] p-6 md:p-8 border border-sky-100 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-5">
+                <div>
+                  <p className="text-[10px] font-black text-sky-500 uppercase tracking-widest mb-2">Telegram бот для родителя</p>
+                  <h3 className="text-2xl font-black text-sky-950 mb-1">Уведомления и статистика в Telegram</h3>
+                  <p className="text-sm font-bold text-sky-700">Отправьте этот код боту, и он покажет статистику привязанного ребёнка.</p>
+                </div>
+                <div className="bg-white rounded-2xl p-4 border border-sky-100 min-w-[260px]">
+                  <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Код</p>
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-xl font-black tracking-[0.18em] text-gray-900">{telegram?.code || '...'}</p>
+                    <button onClick={copyTelegramCode} className="p-2 bg-sky-100 hover:bg-sky-200 rounded-xl text-sky-700">
+                      <Copy className="w-4 h-4" />
+                    </button>
+                  </div>
+                  {telegram?.botUrl && (
+                    <a href={telegram.botUrl} target="_blank" rel="noreferrer" className="mt-3 py-3 bg-sky-500 hover:bg-sky-600 text-white rounded-xl font-black text-sm flex items-center justify-center gap-2">
+                      <Send className="w-4 h-4" /> Открыть бота
+                    </a>
+                  )}
                 </div>
               </div>
 

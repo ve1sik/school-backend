@@ -36,6 +36,9 @@ export class LessonController {
     if (Object.keys(dto).length === 1 && 'is_visible' in dto) {
       return this.lessonService.updateVisibility(id, dto.is_visible, req.user.sub, req.user.role);
     }
+    if (Object.keys(dto).length === 1 && 'include_in_analytics' in dto) {
+      return this.lessonService.updateAnalyticsVisibility(id, dto.include_in_analytics, req.user.sub, req.user.role);
+    }
     // Во всех остальных случаях — сохраняем всё
     return this.lessonService.update(id, dto, req.user.sub, req.user.role);
   }

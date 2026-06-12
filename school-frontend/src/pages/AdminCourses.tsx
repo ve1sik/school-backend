@@ -126,6 +126,7 @@ export default function AdminCourses() {
   // СТЕЙТЫ ДЛЯ ДАТ УРОКА (в форме создания/редактирования)
   const [lessonUnlockDate, setLessonUnlockDate] = useState('');
   const [lessonDeadline, setLessonDeadline] = useState('');
+  const [lessonIncludeInAnalytics, setLessonIncludeInAnalytics] = useState(true);
 
   const [toast, setToast] = useState<{ text: string, type: 'success' | 'error' } | null>(null);
 
@@ -687,6 +688,7 @@ export default function AdminCourses() {
     setHasHomeworkSection(initialHwBlocks.length > 0);
     setLessonUnlockDate(lesson.unlock_date ? lesson.unlock_date.slice(0, 16) : '');
     setLessonDeadline(lesson.deadline ? lesson.deadline.slice(0, 16) : '');
+    setLessonIncludeInAnalytics(lesson.include_in_analytics !== false);
     setTimeout(() => document.getElementById('lesson-form')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
   };
 
@@ -704,6 +706,7 @@ export default function AdminCourses() {
         type: 'TEXT', 
         content: copyLessonData.lesson.content || '[]', 
         is_homework: false,
+        include_in_analytics: copyLessonData.lesson.include_in_analytics !== false,
         order_index: 999 
       };
 
@@ -772,6 +775,7 @@ export default function AdminCourses() {
       type: 'TEXT', 
       content: JSON.stringify([...cleanedBlocks, ...cleanedHwBlocks]), 
       is_homework: false,
+      include_in_analytics: lessonIncludeInAnalytics,
       unlock_date: lessonUnlockDate || null,
       deadline: lessonDeadline || null,
     };
@@ -811,7 +815,7 @@ export default function AdminCourses() {
     } catch (err) { showToast('Ошибка сохранения', 'error'); }
   };
 
-  const resetLessonForm = () => { setSelectedThemeForLesson(null); setEditingLessonId(null); setNewLessonTitle(''); setBlocks([]); setHwBlocks([]); setHasHomeworkSection(false); setErrors({}); setLessonUnlockDate(''); setLessonDeadline(''); };
+  const resetLessonForm = () => { setSelectedThemeForLesson(null); setEditingLessonId(null); setNewLessonTitle(''); setBlocks([]); setHwBlocks([]); setHasHomeworkSection(false); setErrors({}); setLessonUnlockDate(''); setLessonDeadline(''); setLessonIncludeInAnalytics(true); };
 
   const handleDeleteItem = async (id: string) => {
     setItems(prev => prev.filter(c => c.id !== id));
@@ -838,6 +842,24 @@ export default function AdminCourses() {
   const handleToggleLessonVisibility = async (id: string, status: boolean) => {
     setSelectedCourseForThemes((prev: any) => prev ? { ...prev, themes: (prev.themes || []).map((t: any) => ({ ...t, lessons: (t.lessons || []).map((l: any) => l.id === id ? { ...l, is_visible: !status } : l) })) } : null);
     try { await axios.patch(`${API_URL}/lessons/${id}`, { is_visible: !status }, getTokenConfig()); fetchItems(); } catch (err) {}
+  };
+
+  const handleToggleLessonAnalytics = async (id: string, currentValue: boolean) => {
+    const nextValue = !currentValue;
+    setSelectedCourseForThemes((prev: any) => prev ? {
+      ...prev,
+      themes: (prev.themes || []).map((t: any) => ({
+        ...t,
+        lessons: (t.lessons || []).map((l: any) => l.id === id ? { ...l, include_in_analytics: nextValue } : l),
+      })),
+    } : null);
+    try {
+      await axios.patch(`${API_URL}/lessons/${id}`, { include_in_analytics: nextValue }, getTokenConfig());
+      showToast(nextValue ? 'Урок учитывается в аналитике' : 'Урок исключён из аналитики');
+      fetchItems();
+    } catch (err) {
+      showToast('Ошибка обновления аналитики урока', 'error');
+    }
   };
 
   const renderBlocksList = (blockArray: any[], isHw: boolean) => {
@@ -1631,6 +1653,19 @@ export default function AdminCourses() {
                                 </div>
 
                                 <div className="flex items-center gap-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 shrink-0 transition-opacity">
+                                   <button
+                                     type="button"
+                                     onClick={() => handleToggleLessonAnalytics(lesson.id, lesson.include_in_analytics !== false)}
+                                     title={lesson.include_in_analytics === false ? 'Не учитывается в аналитике' : 'Учитывается в аналитике'}
+                                     className={`px-3 py-2 rounded-xl shadow-sm border text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 transition-colors ${
+                                       lesson.include_in_analytics === false
+                                         ? 'bg-gray-100 text-gray-400 border-gray-200 hover:bg-gray-200'
+                                         : 'bg-emerald-50 text-emerald-600 border-emerald-100 hover:bg-emerald-100'
+                                     }`}
+                                   >
+                                     <CheckCircle2 className="w-4 h-4" />
+                                     Аналитика
+                                   </button>
                                    <button type="button" onClick={() => { setTargetCourseIdForCopy(selectedCourseForThemes.id); setTargetThemeIdForCopy(theme.id); setCopyLessonData({lesson, currentTheme: theme}); }} title="Создать копию" className="p-2 bg-white rounded-xl shadow-sm text-indigo-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors"><Copy className="w-4 h-4" /></button>
                                    <button type="button" onClick={() => startEditingLesson(theme, lesson)} className="p-2 bg-white rounded-xl shadow-sm text-indigo-600 hover:bg-gray-50"><Pencil className="w-4 h-4" /></button>
                                    <button type="button" onClick={() => handleToggleLessonVisibility(lesson.id, lesson.is_visible)} className="p-2 bg-white rounded-xl shadow-sm text-gray-400 hover:text-gray-900">{lesson.is_visible === false ? (<EyeOff className="w-4 h-4" />) : (<Eye className="w-4 h-4" />)}</button>
@@ -1658,6 +1693,26 @@ export default function AdminCourses() {
                               placeholder="Например: Введение в историю..." 
                               className={`w-full px-6 py-5 bg-gray-50 rounded-2xl font-black text-lg outline-none mb-4 border-2 transition-all ${errors['lessonTitle'] ? 'border-red-400 bg-red-50' : 'border-transparent focus:bg-white focus:border-[#5A4BFF]'}`} 
                             />
+
+                            <button
+                              type="button"
+                              onClick={() => setLessonIncludeInAnalytics(prev => !prev)}
+                              className={`w-full mb-4 p-4 rounded-2xl border-2 flex items-center justify-between gap-4 text-left transition-all ${
+                                lessonIncludeInAnalytics
+                                  ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                                  : 'bg-gray-50 border-gray-200 text-gray-500'
+                              }`}
+                            >
+                              <div>
+                                <p className="text-sm font-black">Учитывать этот урок в аналитике</p>
+                                <p className="text-[11px] font-bold opacity-70 mt-0.5">
+                                  Включено по умолчанию. Если выключить, баллы этого урока не попадут в статистику ученика.
+                                </p>
+                              </div>
+                              <div className={`w-12 h-7 rounded-full p-1 transition-colors shrink-0 ${lessonIncludeInAnalytics ? 'bg-emerald-500' : 'bg-gray-300'}`}>
+                                <div className={`w-5 h-5 rounded-full bg-white shadow transition-transform ${lessonIncludeInAnalytics ? 'translate-x-5' : 'translate-x-0'}`} />
+                              </div>
+                            </button>
 
                             {/* ДАТЫ УРОКА */}
                             <div className="flex flex-wrap gap-4 mb-6 p-4 bg-gray-50 rounded-2xl border border-gray-100">

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { User, MapPin, Calendar, Copy, CheckCircle2, Loader2, Mail, Save, X, Camera, BookOpen, Flame, Star, Trophy, Zap, Target, Medal } from 'lucide-react';
+import { User, MapPin, Calendar, Copy, CheckCircle2, Loader2, Mail, Save, X, Camera, BookOpen, Flame, Star, Trophy, Zap, Target, Medal, Send } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 
@@ -20,6 +20,7 @@ export default function Profile() {
   const [stats, setStats] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [copied, setCopied] = useState(false);
+  const [telegram, setTelegram] = useState<any>(null);
 
   // Стейты для редактирования
   const [isEditing, setIsEditing] = useState(false);
@@ -73,6 +74,13 @@ export default function Profile() {
           });
           setStats(statsRes.data);
         } catch { /* silent */ }
+
+        try {
+          const tgRes = await axios.get(`${API_URL}/telegram/link-code`, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          setTelegram(tgRes.data);
+        } catch { /* silent */ }
       } catch (err) {
         console.error('Ошибка загрузки профиля', err);
       } finally {
@@ -88,6 +96,12 @@ export default function Profile() {
     navigator.clipboard.writeText(user.invite_code);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const copyTelegramCode = () => {
+    if (!telegram?.code) return;
+    navigator.clipboard.writeText(telegram.code);
+    showToast('Код Telegram скопирован');
   };
 
   // 🔥 СОХРАНЕНИЕ ПРОФИЛЯ
@@ -308,6 +322,30 @@ export default function Profile() {
               >
                 {copied ? <CheckCircle2 className="w-5 h-5 text-emerald-400" /> : <Copy className="w-5 h-5" />}
               </button>
+            </div>
+            <div className="mt-4 bg-sky-50 rounded-2xl p-5 border border-sky-100">
+              <div className="flex items-center justify-between gap-4 mb-4">
+                <div>
+                  <p className="text-[10px] font-black text-sky-500 uppercase tracking-widest mb-1">Telegram бот</p>
+                  <p className="text-sm font-bold text-sky-900">Статистика и уведомления об оценках</p>
+                </div>
+                <Send className="w-7 h-7 text-sky-500" />
+              </div>
+              <div className="bg-white rounded-xl p-4 border border-sky-100 flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Код для Telegram</p>
+                  <p className="text-xl font-black text-gray-900 tracking-[0.18em]">{telegram?.code || '...'}</p>
+                </div>
+                <button onClick={copyTelegramCode} className="p-3 bg-sky-100 hover:bg-sky-200 text-sky-700 rounded-xl transition-colors">
+                  <Copy className="w-5 h-5" />
+                </button>
+              </div>
+              {telegram?.botUrl && (
+                <a href={telegram.botUrl} target="_blank" rel="noreferrer" className="mt-3 w-full py-3 bg-sky-500 hover:bg-sky-600 text-white rounded-xl font-black text-sm flex items-center justify-center gap-2 transition-colors">
+                  <Send className="w-4 h-4" /> Открыть Telegram бота
+                </a>
+              )}
+              {telegram?.linked && <p className="text-xs font-bold text-emerald-600 mt-3">Telegram уже привязан</p>}
             </div>
           </div>
         </motion.div>

@@ -160,7 +160,7 @@ export class AuthService {
       where: { id: userId },
       data: { invite_code: code },
     });
-    return { code };
+    return { code, invite_code: code };
   }
 
   // 6. РЕГИСТРАЦИЯ РОДИТЕЛЯ С ПРИВЯЗКОЙ

@@ -67,6 +67,9 @@ model User {
   points     Int     @default(0)
 
   invite_code String? @unique
+  telegram_code String? @unique
+  telegram_chat_id String?
+  telegram_linked_at DateTime?
   parent_id   String?
   parent      User?   @relation("ParentChildren", fields: [parent_id], references: [id])
   children    User[]  @relation("ParentChildren")
@@ -105,6 +108,7 @@ model Group {
 
   // Реквизиты для оплаты (номер счёта, карты, комментарий)
   payment_info String?  @db.Text
+  payment_qr_url String? @db.Text
 
   curator_id  String?
   curator     User?    @relation("CuratorGroups", fields: [curator_id], references: [id])
@@ -181,6 +185,7 @@ model Lesson {
   content     String?    @db.Text
   test_data   Json?
   is_visible  Boolean    @default(true)
+  include_in_analytics Boolean @default(true)
   order_index Int
   theme_id    String
   unlock_date DateTime?
