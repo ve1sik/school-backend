@@ -67,9 +67,6 @@ model User {
   points     Int     @default(0)
 
   invite_code String? @unique
-  telegram_code String? @unique
-  telegram_chat_id String?
-  telegram_linked_at DateTime?
   parent_id   String?
   parent      User?   @relation("ParentChildren", fields: [parent_id], references: [id])
   children    User[]  @relation("ParentChildren")

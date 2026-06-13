@@ -1,12 +1,28 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import axios from 'axios';
+import { existsSync, readFileSync, writeFileSync } from 'fs';
+import { join } from 'path';
 
 type TgButton = { text: string; callback_data: string };
+type LinkStore = Record<string, { chatId: string; userId: string; linkedAt: string }>;
+
+// Ответ, который мы возвращаем прямо в HTTP-ответ на webhook
+// Telegram сам доставит его пользователю — без исходящих запросов с сервера
+type WebhookReply = {
+  method: string;
+  chat_id: string | number;
+  text?: string;
+  parse_mode?: string;
+  disable_web_page_preview?: boolean;
+  reply_markup?: any;
+  callback_query_id?: string;
+};
 
 @Injectable()
 export class TelegramService {
   private readonly logger = new Logger(TelegramService.name);
+  private readonly linksPath = join(process.cwd(), 'telegram-links.json');
 
   constructor(private prisma: PrismaService) {}
 
@@ -15,60 +31,56 @@ export class TelegramService {
   }
 
   get botUsername() {
-    return process.env.TELEGRAM_BOT_USERNAME || '';
+    return process.env.TELEGRAM_BOT_USERNAME || 'prepodmgybot';
   }
 
   get botUrl() {
-    return this.botUsername ? `https://t.me/${this.botUsername}` : '';
+    return `https://t.me/${this.botUsername}`;
   }
 
-  private get axiosConfig() {
-    const proxyUrl = process.env.HTTPS_PROXY || process.env.HTTP_PROXY || '';
-    if (!proxyUrl) return {};
+  private loadLinks(): LinkStore {
     try {
-      const u = new URL(proxyUrl);
-      return {
-        proxy: {
-          protocol: u.protocol.replace(':', ''),
-          host: u.hostname,
-          port: Number(u.port) || 8080,
-          ...(u.username ? { auth: { username: u.username, password: u.password } } : {}),
-        },
-      };
+      if (!existsSync(this.linksPath)) return {};
+      return JSON.parse(readFileSync(this.linksPath, 'utf8')) || {};
     } catch {
       return {};
     }
   }
 
-  private async callTelegram(method: string, body: any) {
-    if (!this.token) {
-      this.logger.warn('TELEGRAM_BOT_TOKEN is not set');
-      return null;
-    }
+  private saveLinks(links: LinkStore) {
+    writeFileSync(this.linksPath, JSON.stringify(links, null, 2));
+  }
 
+  private buildCode(userId: string) {
+    return `TG${userId.replace(/-/g, '').slice(0, 8).toUpperCase()}`;
+  }
+
+  async ensureTelegramCode(userId: string) {
+    const links = this.loadLinks();
+    const code = this.buildCode(userId);
+    return { code, botUrl: this.botUrl, linked: !!links[code] };
+  }
+
+  // Используется только для ПРОАКТИВНЫХ уведомлений (оценки от куратора)
+  // Это отдельный исходящий вызов — работает если сервер имеет доступ к Telegram
+  private async pushMessage(chatId: string, text: string, buttons?: TgButton[][]) {
+    if (!this.token) return;
     try {
-      const res = await axios.post(
-        `https://api.telegram.org/bot${this.token}/${method}`,
-        body,
-        { ...this.axiosConfig, timeout: 10000 },
-      );
-      return res;
+      await axios.post(`https://api.telegram.org/bot${this.token}/sendMessage`, {
+        chat_id: chatId,
+        text,
+        parse_mode: 'HTML',
+        disable_web_page_preview: true,
+        reply_markup: buttons ? { inline_keyboard: buttons } : undefined,
+      }, { timeout: 10000 });
     } catch (error: any) {
-      this.logger.warn(`Telegram ${method} error: ${error?.message || String(error)}`);
-      return null;
+      this.logger.warn(`Push notification failed (network issue?): ${error?.message}`);
     }
   }
 
-  async sendMessage(chatId: string, text: string, buttons?: TgButton[][]) {
-    return this.callTelegram('sendMessage', {
-      chat_id: chatId,
-      text,
-      parse_mode: 'HTML',
-      reply_markup: buttons ? { inline_keyboard: buttons } : undefined,
-    });
-  }
-
-  async handleUpdate(update: any) {
+  // Обрабатывает входящий webhook и возвращает ответ прямо в HTTP-ответе
+  // Telegram сам доставит ответ — исходящий запрос с сервера не нужен
+  async handleUpdate(update: any): Promise<WebhookReply | { ok: true }> {
     if (update.message) {
       const chatId = String(update.message.chat.id);
       const text = String(update.message.text || '').trim();
@@ -78,67 +90,70 @@ export class TelegramService {
     if (update.callback_query) {
       const chatId = String(update.callback_query.message.chat.id);
       const data = String(update.callback_query.data || '');
-      await this.callTelegram('answerCallbackQuery', { callback_query_id: update.callback_query.id });
-      return this.handleCallback(chatId, data);
+      const callbackId = update.callback_query.id;
+      return this.handleCallback(chatId, data, callbackId);
     }
 
     return { ok: true };
   }
 
-  private async handleMessage(chatId: string, text: string) {
+  private replyMessage(chatId: string, text: string, buttons?: TgButton[][]): WebhookReply {
+    return {
+      method: 'sendMessage',
+      chat_id: chatId,
+      text,
+      parse_mode: 'HTML',
+      disable_web_page_preview: true,
+      reply_markup: buttons ? { inline_keyboard: buttons } : undefined,
+    };
+  }
+
+  private async handleMessage(chatId: string, text: string): Promise<WebhookReply> {
     const normalized = text.replace('/start', '').trim().toUpperCase();
 
     if (!normalized) {
-      return this.sendMessage(
+      return this.replyMessage(
         chatId,
-        'Привет! Отправьте сюда ваш универсальный код с сайта, чтобы привязать Telegram.\n\nКод находится в профиле ученика или в кабинете родителя.',
+        'Привет! Отправьте код Telegram с сайта, чтобы привязать аккаунт.\n\n<b>Где взять код:</b>\n• Ученик: Мой профиль → блок Telegram бот\n• Родитель: Кабинет родителя → блок Telegram бот',
       );
     }
 
-    const user = await this.prisma.user.findUnique({
-      where: { telegram_code: normalized },
-      include: { children: true },
-    });
-
+    const user = await this.findUserByCode(normalized);
     if (!user) {
-      return this.sendMessage(chatId, 'Код не найден. Проверьте код на сайте и отправьте его ещё раз.');
+      return this.replyMessage(chatId, '❌ Код не найден. Проверьте код на сайте и отправьте его ещё раз.');
     }
 
-    await this.prisma.user.update({
-      where: { id: user.id },
-      data: { telegram_chat_id: chatId, telegram_linked_at: new Date() },
-    });
+    const links = this.loadLinks();
+    links[normalized] = { chatId, userId: user.id, linkedAt: new Date().toISOString() };
+    this.saveLinks(links);
 
     const roleText = user.role === 'PARENT' ? 'родителя' : 'ученика';
-    return this.sendMessage(
+    return this.replyMessage(
       chatId,
-      `Готово! Telegram привязан к аккаунту ${roleText}: <b>${this.escapeHtml(this.userName(user))}</b>.\nТеперь сюда будут приходить уведомления об оценках.`,
-      [[{ text: 'Открыть статистику', callback_data: 'stats' }]],
+      `✅ <b>Готово!</b> Telegram привязан к аккаунту ${roleText}: <b>${this.escapeHtml(this.userName(user))}</b>\n\nТеперь сюда будут приходить уведомления об оценках.`,
+      [[{ text: '📊 Открыть статистику', callback_data: 'stats' }]],
     );
   }
 
-  private async handleCallback(chatId: string, data: string) {
-    const user = await this.prisma.user.findFirst({
-      where: { telegram_chat_id: chatId },
-      include: { children: true },
-    });
-
+  private async handleCallback(chatId: string, data: string, callbackId: string): Promise<WebhookReply> {
+    const user = await this.findUserByChatId(chatId);
     if (!user) {
-      return this.sendMessage(chatId, 'Сначала отправьте универсальный код с сайта.');
+      return this.replyMessage(chatId, 'Сначала отправьте код Telegram с сайта.');
     }
 
-    const student = await this.getTargetStudent(user);
+    const student = user.role === 'PARENT'
+      ? await this.prisma.user.findFirst({ where: { parent_id: user.id } })
+      : user;
+
     if (!student) {
-      return this.sendMessage(chatId, 'К аккаунту не привязан ученик. Проверьте связь ребёнка в личном кабинете.');
+      return this.replyMessage(chatId, 'К аккаунту родителя пока не привязан ученик.');
     }
 
-    if (data === 'stats') return this.sendCourses(chatId, student.id);
-    if (data.startsWith('course:')) return this.sendCourseStats(chatId, student.id, data.slice('course:'.length));
-    if (data.startsWith('theme:')) {
-      return this.sendModuleStats(chatId, student.id, data.slice('theme:'.length));
-    }
+    if (data === 'stats') return this.buildCourseList(chatId, student.id);
+    if (data.startsWith('course:')) return this.buildCourseStats(chatId, student.id, data.slice('course:'.length));
+    if (data.startsWith('theme:')) return this.buildModuleStats(chatId, student.id, data.slice('theme:'.length));
 
-    return this.sendMessage(chatId, 'Не понял команду.');
+    return this.replyMessage(chatId, 'Не понял команду.');
   }
 
   async notifySubmissionGraded(submissionId: string, kind: 'written' | 'oral' = 'written') {
@@ -152,44 +167,47 @@ export class TelegramService {
 
     if (!submission || submission.status !== 'GRADED') return;
 
-    const student = submission.user;
-    const recipients = [student, student.parent].filter(Boolean) as any[];
-    const title = kind === 'oral' ? 'Выставлен балл за устный ответ' : 'Куратор проверил задание';
+    const title = kind === 'oral' ? '🎤 Балл за устный ответ' : '📝 Куратор проверил задание';
     const text =
       `<b>${title}</b>\n` +
-      `Ученик: <b>${this.escapeHtml(this.userName(student))}</b>\n` +
-      `Курс: ${this.escapeHtml(submission.lesson?.theme?.course?.title || 'Курс')}\n` +
-      `Урок: ${this.escapeHtml(submission.lesson?.title || 'Урок')}\n\n` +
-      `Балл: <b>${submission.score ?? 0}/${submission.max_score || 100}</b>\n` +
+      `Ученик: <b>${this.escapeHtml(this.userName(submission.user))}</b>\n` +
+      `Курс: ${this.escapeHtml(submission.lesson?.theme?.course?.title || '—')}\n` +
+      `Урок: ${this.escapeHtml(submission.lesson?.title || '—')}\n\n` +
+      `Балл: <b>${submission.score ?? 0} / ${submission.max_score || 100}</b>\n` +
       `Комментарий: ${this.escapeHtml(submission.comment || 'Без комментария')}`;
 
+    const buttons: TgButton[][] = [[{ text: '📊 Посмотреть статистику', callback_data: 'stats' }]];
+
+    const recipients = [submission.user, submission.user.parent].filter(Boolean) as any[];
     await Promise.all(
-      recipients
-        .filter((user) => user.telegram_chat_id)
-        .map((user) => this.sendMessage(user.telegram_chat_id, text, [[{ text: 'Открыть статистику', callback_data: 'stats' }]])),
+      recipients.map(async (user) => {
+        const chatId = this.getChatIdForUser(user.id);
+        if (chatId) await this.pushMessage(chatId, text, buttons);
+      }),
     );
   }
 
-  async ensureTelegramCode(userId: string) {
-    const user = await this.prisma.user.findUnique({ where: { id: userId } });
-    if (!user) return null;
-    if (user.telegram_code) {
-      return { code: user.telegram_code, botUrl: this.botUrl, linked: !!user.telegram_chat_id };
-    }
+  async testSend(chatId: string) {
+    await this.pushMessage(chatId, '✅ Тест: backend успешно отправляет сообщения в Telegram.');
+    return { ok: true };
+  }
 
-    let code = '';
-    for (let i = 0; i < 5; i++) {
-      code = Math.random().toString(36).slice(2, 10).toUpperCase();
-      const exists = await this.prisma.user.findUnique({ where: { telegram_code: code } });
-      if (!exists) break;
-    }
-
-    const updated = await this.prisma.user.update({
-      where: { id: userId },
-      data: { telegram_code: code },
+  private async findUserByCode(code: string) {
+    const users = await this.prisma.user.findMany({
+      select: { id: true, email: true, name: true, surname: true, role: true },
     });
+    return users.find((u) => this.buildCode(u.id) === code) || null;
+  }
 
-    return { code: updated.telegram_code, botUrl: this.botUrl, linked: !!updated.telegram_chat_id };
+  private async findUserByChatId(chatId: string) {
+    const link = Object.values(this.loadLinks()).find((item) => item.chatId === chatId);
+    if (!link) return null;
+    return this.prisma.user.findUnique({ where: { id: link.userId } });
+  }
+
+  private getChatIdForUser(userId: string) {
+    const code = this.buildCode(userId);
+    return this.loadLinks()[code]?.chatId || null;
   }
 
   private userName(user: any) {
@@ -203,52 +221,44 @@ export class TelegramService {
       .replace(/>/g, '&gt;');
   }
 
-  private async getTargetStudent(user: any) {
-    if (user.role === 'PARENT') return user.children?.[0] || null;
-    return user;
-  }
-
-  private async sendCourses(chatId: string, studentId: string) {
+  private async buildCourseList(chatId: string, studentId: string): Promise<WebhookReply> {
     const courses = await this.prisma.course.findMany({
       where: { enrollments: { some: { user_id: studentId } } },
-      include: { themes: { orderBy: { order_index: 'asc' } } },
       orderBy: { title: 'asc' },
     });
 
-    if (!courses.length) return this.sendMessage(chatId, 'Пока нет курсов для статистики.');
+    if (!courses.length) return this.replyMessage(chatId, 'Пока нет курсов для статистики.');
 
-    return this.sendMessage(
+    return this.replyMessage(
       chatId,
-      'Выберите курс для статистики:',
+      'Выберите курс для просмотра статистики:',
       courses.map((course) => [{ text: course.title, callback_data: `course:${course.id}` }]),
     );
   }
 
-  private async sendCourseStats(chatId: string, studentId: string, courseId: string) {
+  private async buildCourseStats(chatId: string, studentId: string, courseId: string): Promise<WebhookReply> {
     const course = await this.prisma.course.findUnique({
       where: { id: courseId },
       include: { themes: { orderBy: { order_index: 'asc' } } },
     });
-    if (!course) return this.sendMessage(chatId, 'Курс не найден.');
+    if (!course) return this.replyMessage(chatId, 'Курс не найден.');
 
     const stats = await this.calculateStats(studentId, courseId);
-    const text = this.renderStatsText(`Курс: ${course.title}`, stats);
-    const buttons = [
-      ...(course.themes || []).map((theme) => [{ text: `Модуль: ${theme.title}`, callback_data: `theme:${theme.id}` }]),
-      [{ text: 'Назад к курсам', callback_data: 'stats' }],
+    const buttons: TgButton[][] = [
+      ...(course.themes || []).map((theme) => [{ text: `📖 ${theme.title}`, callback_data: `theme:${theme.id}` }]),
+      [{ text: '← Назад к курсам', callback_data: 'stats' }],
     ];
-    return this.sendMessage(chatId, text, buttons);
+    return this.replyMessage(chatId, this.renderStats(`Курс: ${course.title}`, stats), buttons);
   }
 
-  private async sendModuleStats(chatId: string, studentId: string, moduleId: string) {
-    const theme = await this.prisma.theme.findUnique({ where: { id: moduleId } });
-    if (!theme) return this.sendMessage(chatId, 'Модуль не найден.');
+  private async buildModuleStats(chatId: string, studentId: string, themeId: string): Promise<WebhookReply> {
+    const theme = await this.prisma.theme.findUnique({ where: { id: themeId } });
+    if (!theme) return this.replyMessage(chatId, 'Модуль не найден.');
 
-    const stats = await this.calculateStats(studentId, theme.course_id, moduleId);
-    const text = this.renderStatsText(`Модуль: ${theme.title}`, stats);
-    return this.sendMessage(chatId, text, [
-      [{ text: 'Назад к курсу', callback_data: `course:${theme.course_id}` }],
-      [{ text: 'Все курсы', callback_data: 'stats' }],
+    const stats = await this.calculateStats(studentId, theme.course_id, themeId);
+    return this.replyMessage(chatId, this.renderStats(`Модуль: ${theme.title}`, stats), [
+      [{ text: '← Назад к курсу', callback_data: `course:${theme.course_id}` }],
+      [{ text: '← Все курсы', callback_data: 'stats' }],
     ]);
   }
 
@@ -257,34 +267,11 @@ export class TelegramService {
       where: {
         user_id: studentId,
         status: 'GRADED',
-        lesson: {
-          include_in_analytics: true,
-          theme: {
-            id: themeId || undefined,
-            course_id: courseId,
-          },
-        },
+        lesson: { theme: { id: themeId || undefined, course_id: courseId } },
       },
     });
 
-    const attempts = await this.prisma.testAttempt.findMany({
-      where: {
-        user_id: studentId,
-        test: {
-          theme: {
-            id: themeId || undefined,
-            course_id: courseId,
-          },
-        },
-      },
-      orderBy: { created_at: 'desc' },
-    });
-
-    const buckets = {
-      tests: { e: 0, m: 0 },
-      written: { e: 0, m: 0 },
-      oral: { e: 0, m: 0 },
-    };
+    const buckets = { tests: { e: 0, m: 0 }, written: { e: 0, m: 0 }, oral: { e: 0, m: 0 } };
 
     submissions.forEach((sub) => {
       const blockId = String(sub.block_id || '');
@@ -297,37 +284,23 @@ export class TelegramService {
       buckets[type].m += sub.max_score || 100;
     });
 
-    const latestAttempts = new Map<string, any>();
-    attempts.forEach((attempt) => {
-      if (!latestAttempts.has(attempt.test_id)) latestAttempts.set(attempt.test_id, attempt);
-    });
-    latestAttempts.forEach((attempt) => {
-      buckets.tests.e += Math.min(100, Math.max(0, attempt.score || 0));
-      buckets.tests.m += 100;
-    });
+    const pct = (e: number, m: number) => (m > 0 ? Math.round((e / m) * 100) : 0);
+    const tests = pct(buckets.tests.e, buckets.tests.m);
+    const written = pct(buckets.written.e, buckets.written.m);
+    const oral = pct(buckets.oral.e, buckets.oral.m);
 
-    const percent = (e: number, m: number) => (m > 0 ? Math.round((e / m) * 100) : 0);
-    const tests = percent(buckets.tests.e, buckets.tests.m);
-    const written = percent(buckets.written.e, buckets.written.m);
-    const oral = percent(buckets.oral.e, buckets.oral.m);
-    const overall = Math.round((tests + written + oral) / 3);
-
-    return { tests, written, oral, overall, count: submissions.length + latestAttempts.size };
+    return { tests, written, oral, overall: Math.round((tests + written + oral) / 3), count: submissions.length };
   }
 
-  private renderStatsText(title: string, stats: any) {
-    const bar = (value: number) => {
-      const filled = Math.round(value / 10);
-      return '█'.repeat(filled) + '░'.repeat(10 - filled);
-    };
-
+  private renderStats(title: string, s: any) {
+    const bar = (v: number) => '█'.repeat(Math.round(v / 10)) + '░'.repeat(10 - Math.round(v / 10));
     return (
       `<b>${this.escapeHtml(title)}</b>\n\n` +
-      `Общая статистика: <b>${stats.overall}/100</b>\n${bar(stats.overall)}\n\n` +
-      `Тесты: <b>${stats.tests}/100</b>\n${bar(stats.tests)}\n` +
-      `Письменные: <b>${stats.written}/100</b>\n${bar(stats.written)}\n` +
-      `Устные: <b>${stats.oral}/100</b>\n${bar(stats.oral)}\n\n` +
-      `Учтено работ: ${stats.count}`
+      `📊 Общий балл: <b>${s.overall}/100</b>\n${bar(s.overall)}\n\n` +
+      `🔵 Тесты:       <b>${s.tests}/100</b>\n${bar(s.tests)}\n` +
+      `🟡 Письменные: <b>${s.written}/100</b>\n${bar(s.written)}\n` +
+      `🟢 Устные:      <b>${s.oral}/100</b>\n${bar(s.oral)}\n\n` +
+      `Учтено работ: ${s.count}`
     );
   }
 }
