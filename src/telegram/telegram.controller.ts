@@ -6,21 +6,27 @@ import { TelegramService } from './telegram.service';
 export class TelegramController {
   constructor(private readonly telegramService: TelegramService) {}
 
-  // Telegram шлёт сюда все сообщения от пользователей
-  // Мы отвечаем прямо в HTTP-ответе — никаких исходящих запросов не нужно
+  // Telegram шлёт сюда обновления (messages / callback_query)
+  // Отвечаем напрямую в HTTP-ответе — исходящих запросов при интерактиве нет
   @Post('webhook')
   handleWebhook(@Body() update: any) {
     return this.telegramService.handleUpdate(update);
   }
 
-  // Получить код для привязки Telegram (вызывается с сайта)
+  // Получить код и ссылку на бота (вызывается с сайта)
   @UseGuards(AuthGuard('jwt'))
   @Get('link-code')
   getLinkCode(@Request() req) {
     return this.telegramService.ensureTelegramCode(req.user.sub);
   }
 
-  // Тестовая отправка — чтобы проверить, работает ли исходящая связь
+  // Повторная регистрация команд бота (полезно после смены токена)
+  @Get('register-commands')
+  registerCommands() {
+    return this.telegramService.registerBotCommands();
+  }
+
+  // Тестовая отправка — проверить исходящее соединение
   @Get('test-send')
   testSend(@Query('chatId') chatId: string) {
     return this.telegramService.testSend(chatId);

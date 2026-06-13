@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Activity, Loader2, PenTool, AlertCircle, CheckSquare, Mic,
   Target, X, BookOpen, ChevronRight, TrendingDown, Layers, List, BarChart2,
-  PanelRightOpen, Star, ChevronDown,
+  PanelRightOpen, Star, ChevronDown, Send,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { cachedGet } from '../lib/api';
@@ -696,6 +696,30 @@ export default function Dashboard() {
             <List className="w-4 h-4" /> Подробная сводка
           </button>
         </div>
+
+        {/* TELEGRAM БАННЕР */}
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1 }}
+          className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-sky-500 to-indigo-600 p-5 flex items-center justify-between gap-4 shadow-lg shadow-sky-500/25 cursor-pointer group"
+          onClick={() => window.open('/profile', '_self')}
+          role="button"
+          tabIndex={0}
+        >
+          <div className="flex items-center gap-4 min-w-0">
+            <div className="w-12 h-12 shrink-0 rounded-xl bg-white/20 flex items-center justify-center">
+              <Send className="w-6 h-6 text-white" />
+            </div>
+            <div className="min-w-0">
+              <p className="font-black text-white text-base leading-tight">Бот с аналитикой в Telegram</p>
+              <p className="text-sky-100 text-sm font-medium mt-0.5">Получайте оценки и дедлайны прямо в мессенджер</p>
+            </div>
+          </div>
+          <div className="shrink-0 px-4 py-2.5 bg-white/20 hover:bg-white/30 rounded-xl text-white font-black text-sm transition-all group-hover:bg-white/30 flex items-center gap-2">
+            Подключить <ChevronRight className="w-4 h-4" />
+          </div>
+        </motion.div>
 
         {/* ВЫБОР КУРСА */}
         <div className="pt-2">
