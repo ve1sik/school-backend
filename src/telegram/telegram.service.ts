@@ -416,7 +416,7 @@ export class TelegramService implements OnModuleInit {
       this.getStudentCourses(student.id),
       this.prisma.group.findMany({
         where: { students: { some: { id: student.id } } },
-        select: { name: true },
+        select: { title: true },
       }),
       this.prisma.submission.count({ where: { user_id: student.id, status: 'GRADED' } }),
       this.prisma.testAttempt.count({ where: { user_id: student.id } }),
@@ -432,7 +432,7 @@ export class TelegramService implements OnModuleInit {
       `👤 <b>${esc(this.userName(student))}</b>\n` +
       `${'─'.repeat(28)}\n\n` +
       `📚 Курсов: <b>${courses.length}</b>\n` +
-      (groups.length ? `👥 Групп: <b>${groups.map((g) => g.name).join(', ')}</b>\n` : '') +
+      (groups.length ? `👥 Групп: <b>${groups.map((g) => g.title).join(', ')}</b>\n` : '') +
       `\n${medal(summary.overall)} <b>Общий балл: ${summary.overall}/100</b>\n` +
       `${bar(summary.overall)}\n\n` +
       `📝 Работ проверено: <b>${subs}</b>\n` +
