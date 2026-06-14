@@ -121,6 +121,12 @@ export class TelegramService implements OnModuleInit {
     this.proxyError = null;
     if (!raw) return false;
 
+    // Игнорируем документационные заглушки, чтобы они не ломали отправку в Telegram.
+    if (/USER|PASSWORD|HOST|PORT/i.test(raw)) {
+      this.proxyError = 'placeholder proxy ignored';
+      return false;
+    }
+
     try {
       // Поддерживаем оба формата: http://user:pass@host:port и просто host:port
       const normalized = raw.includes('://') ? raw : `http://${raw}`;
