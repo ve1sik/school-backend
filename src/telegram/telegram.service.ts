@@ -6,6 +6,12 @@ import { join } from 'path';
 
 type TgButton = { text: string; callback_data: string };
 type LinkStore = Record<string, { chatId?: string; userId: string; linkedAt?: string; preparedAt?: string }>;
+type PushJob = {
+  chatId: string;
+  text: string;
+  extra?: { buttons?: TgButton[][]; keyboard?: boolean };
+  attempt: number;
+};
 
 // Структура прямого ответа Telegram через webhook
 type WebhookReply =
@@ -55,6 +61,13 @@ const daysLeft = (d: Date | string) => {
 export class TelegramService implements OnModuleInit {
   private readonly logger = new Logger(TelegramService.name);
   private readonly linksPath = join(process.cwd(), 'telegram-links.json');
+  private readonly webhookTimeoutMs = 800;
+  private readonly cacheTtlMs = 60 * 1000;
+  private readonly pushQueue: PushJob[] = [];
+  private pushProcessing = false;
+  private lastPushError: string | null = null;
+  private pushStats = { queued: 0, sent: 0, failed: 0 };
+  private _replyCache = new Map<string, { exp: number; reply: WebhookReply }>();
 
   constructor(private prisma: PrismaService) {}
 
@@ -71,6 +84,7 @@ export class TelegramService implements OnModuleInit {
       }, next9.getTime() - now.getTime());
     };
     scheduleDaily();
+    setInterval(() => this.processPushQueue().catch((e) => this.logger.warn(e?.message)), 300);
     // Регистрируем команды бота
     this.registerBotCommands().catch(() => {});
   }
@@ -174,6 +188,27 @@ export class TelegramService implements OnModuleInit {
     }
   }
 
+  private getCachedReply(key: string): WebhookReply | null {
+    const hit = this._replyCache.get(key);
+    if (!hit) return null;
+    if (hit.exp < Date.now()) {
+      this._replyCache.delete(key);
+      return null;
+    }
+    return hit.reply;
+  }
+
+  private setCachedReply(key: string, reply: WebhookReply, ttlMs = this.cacheTtlMs) {
+    this._replyCache.set(key, { reply, exp: Date.now() + ttlMs });
+    return reply;
+  }
+
+  private invalidateStudentReplyCache(studentId: string) {
+    for (const key of Array.from(this._replyCache.keys())) {
+      if (key.includes(`:${studentId}`)) this._replyCache.delete(key);
+    }
+  }
+
   // ─────────────── Поиск пользователя по коду (без full-scan) ───────────────
   // Код = TG + первые 8 hex-символов UUID (до первого дефиса)
   // UUID формат: xxxxxxxx-xxxx-... → prefix = 8 символов
@@ -225,13 +260,41 @@ export class TelegramService implements OnModuleInit {
           disable_web_page_preview: true,
           reply_markup,
         },
-        { timeout: 2500 },
+        { timeout: 1200 },
       );
       return { ok: true, status: res.status };
     } catch (e: any) {
       const error = e?.response?.data?.description || e?.code || e?.message || 'unknown';
       this.logger.warn(`Telegram push failed for chat ${chatId}: ${error}`);
       return { ok: false, error };
+    }
+  }
+
+  private enqueuePush(chatId: string, text: string, extra?: { buttons?: TgButton[][]; keyboard?: boolean }) {
+    this.pushQueue.push({ chatId, text, extra, attempt: 0 });
+    this.pushStats.queued += 1;
+  }
+
+  private async processPushQueue() {
+    if (this.pushProcessing || this.pushQueue.length === 0) return;
+    this.pushProcessing = true;
+    try {
+      const job = this.pushQueue.shift();
+      if (!job) return;
+      const result = await this.pushMessage(job.chatId, job.text, job.extra);
+      if (result.ok) {
+        this.pushStats.sent += 1;
+        return;
+      }
+
+      this.lastPushError = String(result.error || 'unknown');
+      if (job.attempt < 2) {
+        this.pushQueue.push({ ...job, attempt: job.attempt + 1 });
+      } else {
+        this.pushStats.failed += 1;
+      }
+    } finally {
+      this.pushProcessing = false;
     }
   }
 
@@ -262,24 +325,36 @@ export class TelegramService implements OnModuleInit {
   // ─────────────── Webhook entry ───────────────
 
   async handleUpdate(update: any): Promise<WebhookReply> {
-    try {
-      if (update.message) {
-        return await this.handleMessage(
-          String(update.message.chat.id),
-          String(update.message.text || '').trim(),
-        );
+    const chatId = String(update?.message?.chat?.id || update?.callback_query?.message?.chat?.id || '');
+    const work = (async () => {
+      try {
+        if (update.message) {
+          return await this.handleMessage(
+            String(update.message.chat.id),
+            String(update.message.text || '').trim(),
+          );
+        }
+        if (update.callback_query) {
+          this.answerCbq(update.callback_query.id);
+          return await this.handleCallback(
+            String(update.callback_query.message.chat.id),
+            String(update.callback_query.data || ''),
+          );
+        }
+      } catch (e: any) {
+        this.logger.error(`handleUpdate error: ${e?.message}`);
       }
-      if (update.callback_query) {
-        this.answerCbq(update.callback_query.id); // fire & forget
-        return await this.handleCallback(
-          String(update.callback_query.message.chat.id),
-          String(update.callback_query.data || ''),
-        );
-      }
-    } catch (e: any) {
-      this.logger.error(`handleUpdate error: ${e?.message}`);
-    }
-    return { ok: true };
+      return { ok: true } as WebhookReply;
+    })();
+
+    const fallback = chatId
+      ? this.reply(
+          chatId,
+          '⏳ <b>Данные подгружаются.</b>\n\nНажмите кнопку ещё раз через секунду. Я не завис, просто база отвечает дольше обычного.',
+        )
+      : ({ ok: true } as WebhookReply);
+
+    return this.withTimeout(work, this.webhookTimeoutMs, fallback);
   }
 
   // ─────────────── Message router ───────────────
@@ -526,6 +601,10 @@ export class TelegramService implements OnModuleInit {
   }
 
   private async showProfile(chatId: string, student: any): Promise<WebhookReply> {
+    const cacheKey = `profile:${chatId}:${student.id}`;
+    const cached = this.getCachedReply(cacheKey);
+    if (cached) return cached;
+
     const [courses, groups, subs, attempts] = await Promise.all([
       this.getStudentCourses(student.id),
       this.prisma.group.findMany({
@@ -553,17 +632,21 @@ export class TelegramService implements OnModuleInit {
       `🧩 Тестов пройдено: <b>${attempts}</b>\n` +
       (streakDays > 0 ? `🔥 Стрик: <b>${streakDays} дн.</b> подряд\n` : '');
 
-    return this.reply(chatId, text, {
+    return this.setCachedReply(cacheKey, this.reply(chatId, text, {
       buttons: [
         [{ text: '📊 Статистика', callback_data: 'stats' }],
         [{ text: '📅 Дедлайны', callback_data: 'deadlines' }],
       ],
-    });
+    }));
   }
 
   // ─────────────── Курсы ───────────────
 
   private async showCourseList(chatId: string, studentId: string): Promise<WebhookReply> {
+    const cacheKey = `courses:${chatId}:${studentId}`;
+    const cached = this.getCachedReply(cacheKey);
+    if (cached) return cached;
+
     const courses = await this.getStudentCourses(studentId);
 
     if (!courses.length) {
@@ -589,12 +672,16 @@ export class TelegramService implements OnModuleInit {
     });
     buttons.push([{ text: '📅 Дедлайны', callback_data: 'deadlines' }]);
 
-    return this.reply(chatId, text, { buttons });
+    return this.setCachedReply(cacheKey, this.reply(chatId, text, { buttons }));
   }
 
   // ─────────────── Статистика курса ───────────────
 
   private async showCourseStats(chatId: string, studentId: string, courseId: string): Promise<WebhookReply> {
+    const cacheKey = `course:${chatId}:${studentId}:${courseId}`;
+    const cached = this.getCachedReply(cacheKey);
+    if (cached) return cached;
+
     const [course, stats, deadline] = await Promise.all([
       this.prisma.course.findUnique({
         where: { id: courseId },
@@ -629,12 +716,16 @@ export class TelegramService implements OnModuleInit {
       [{ text: '← Все курсы', callback_data: 'stats' }],
     );
 
-    return this.reply(chatId, text, { buttons: themeButtons });
+    return this.setCachedReply(cacheKey, this.reply(chatId, text, { buttons: themeButtons }));
   }
 
   // ─────────────── Статистика модуля ───────────────
 
   private async showThemeStats(chatId: string, studentId: string, themeId: string): Promise<WebhookReply> {
+    const cacheKey = `theme:${chatId}:${studentId}:${themeId}`;
+    const cached = this.getCachedReply(cacheKey);
+    if (cached) return cached;
+
     const [theme, stats] = await Promise.all([
       this.prisma.theme.findUnique({
         where: { id: themeId },
@@ -670,17 +761,21 @@ export class TelegramService implements OnModuleInit {
       text += `\n⏰ Дедлайн модуля: <b>${fmtDate(theme.deadline)}</b> — ${daysLeft(theme.deadline)}`;
     }
 
-    return this.reply(chatId, text, {
+    return this.setCachedReply(cacheKey, this.reply(chatId, text, {
       buttons: [
         [{ text: `← Назад к курсу`, callback_data: `course:${theme.course_id}` }],
         [{ text: '← Все курсы', callback_data: 'stats' }],
       ],
-    });
+    }));
   }
 
   // ─────────────── Дедлайны ───────────────
 
   private async showDeadlines(chatId: string, studentId: string): Promise<WebhookReply> {
+    const cacheKey = `deadlines:${chatId}:${studentId}`;
+    const cached = this.getCachedReply(cacheKey);
+    if (cached) return cached;
+
     const now = new Date();
     const inTwoWeeks = new Date(now.getTime() + 14 * 86400000);
 
@@ -747,9 +842,9 @@ export class TelegramService implements OnModuleInit {
       }
     }
 
-    return this.reply(chatId, text, {
+    return this.setCachedReply(cacheKey, this.reply(chatId, text, {
       buttons: [[{ text: '← Назад к статистике', callback_data: 'stats' }]],
-    });
+    }));
   }
 
   // ─────────────── Уведомления (проактивные) ───────────────
@@ -785,17 +880,16 @@ export class TelegramService implements OnModuleInit {
       : [];
 
     const recipients = [student, student.parent].filter(Boolean) as any[];
-    await Promise.all(recipients.map(async (u) => {
+    recipients.forEach((u) => {
       const chatId = this.getChatIdForUser(u.id);
       if (!chatId) {
         this.logger.warn(`Telegram notification skipped: user ${u.id} has no linked chatId`);
         return;
       }
-      const result = await this.pushMessage(chatId, text, { buttons });
-      if (!result.ok) {
-        this.logger.warn(`Telegram notification failed for user ${u.id}: ${result.error}`);
-      }
-    }));
+      this.enqueuePush(chatId, text, { buttons });
+    });
+
+    this.invalidateStudentReplyCache(student.id);
   }
 
   // Ежедневные напоминания о дедлайнах (9:00)
@@ -808,6 +902,7 @@ export class TelegramService implements OnModuleInit {
 
     for (const entry of Object.values(links)) {
       try {
+        if (!entry.chatId) continue;
         const user = await this.prisma.user.findUnique({ where: { id: entry.userId } });
         if (!user) continue;
 
@@ -853,7 +948,7 @@ export class TelegramService implements OnModuleInit {
           text += `📅 <b>${esc(ev.title)}</b> — завтра!\n`;
         }
 
-        await this.pushMessage(entry.chatId, text, {
+        this.enqueuePush(entry.chatId, text, {
           buttons: [[{ text: '📅 Все дедлайны', callback_data: 'deadlines' }]],
         });
       } catch (e: any) {
@@ -875,6 +970,10 @@ export class TelegramService implements OnModuleInit {
       preparedCodes: links.length,
       linkedChats: linked.length,
       proxyConfigured: !!(process.env.HTTPS_PROXY || process.env.HTTP_PROXY),
+      queueSize: this.pushQueue.length,
+      pushStats: this.pushStats,
+      lastPushError: this.lastPushError,
+      replyCacheSize: this._replyCache.size,
     };
   }
 
