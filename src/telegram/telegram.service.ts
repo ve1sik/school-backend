@@ -1,6 +1,8 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import axios from 'axios';
+import * as http from 'http';
+import * as https from 'https';
 import { existsSync, readFileSync, writeFileSync } from 'fs';
 import { join } from 'path';
 
@@ -64,10 +66,18 @@ export class TelegramService implements OnModuleInit {
   private readonly webhookTimeoutMs = 800;
   private readonly cacheTtlMs = 60 * 1000;
   private readonly pushQueue: PushJob[] = [];
-  private pushProcessing = false;
+  private pushInFlight = 0;
+  private readonly pushConcurrency = 4;
   private lastPushError: string | null = null;
   private pushStats = { queued: 0, sent: 0, failed: 0 };
+  private lastPushLatencyMs: number | null = null;
   private _replyCache = new Map<string, { exp: number; reply: WebhookReply }>();
+  private readonly tgApi = axios.create({
+    baseURL: `https://api.telegram.org`,
+    timeout: 1500,
+    httpAgent: new http.Agent({ keepAlive: true, maxSockets: 20 }),
+    httpsAgent: new https.Agent({ keepAlive: true, maxSockets: 20 }),
+  });
 
   constructor(private prisma: PrismaService) {}
 
@@ -84,7 +94,6 @@ export class TelegramService implements OnModuleInit {
       }, next9.getTime() - now.getTime());
     };
     scheduleDaily();
-    setInterval(() => this.processPushQueue().catch((e) => this.logger.warn(e?.message)), 300);
     // Регистрируем команды бота
     this.registerBotCommands().catch(() => {});
   }
@@ -98,7 +107,7 @@ export class TelegramService implements OnModuleInit {
   async registerBotCommands() {
     if (!this.token) return;
     try {
-      await axios.post(`https://api.telegram.org/bot${this.token}/setMyCommands`, {
+      await this.tgApi.post(`/bot${this.token}/setMyCommands`, {
         commands: [
           { command: 'start',     description: '🏠 Начало / главное меню' },
           { command: 'restart',   description: '🔄 Перезапустить бота' },
@@ -109,10 +118,10 @@ export class TelegramService implements OnModuleInit {
           { command: 'help',      description: '❓ Помощь' },
         ],
       }, { timeout: 8000 });
-      await axios.post(`https://api.telegram.org/bot${this.token}/setMyDescription`, {
+      await this.tgApi.post(`/bot${this.token}/setMyDescription`, {
         description: 'Бот школы «Препод из МГУ»: аналитика, оценки, дедлайны и уведомления от куратора.',
       }, { timeout: 8000 });
-      await axios.post(`https://api.telegram.org/bot${this.token}/setChatMenuButton`, {
+      await this.tgApi.post(`/bot${this.token}/setChatMenuButton`, {
         menu_button: { type: 'commands' },
       }, { timeout: 8000 });
     } catch { /* не критично */ }
@@ -251,8 +260,9 @@ export class TelegramService implements OnModuleInit {
         ? MAIN_KEYBOARD
         : undefined;
     try {
-      const res = await axios.post(
-        `https://api.telegram.org/bot${this.token}/sendMessage`,
+      const startedAt = Date.now();
+      const res = await this.tgApi.post(
+        `/bot${this.token}/sendMessage`,
         {
           chat_id: chatId,
           text,
@@ -260,8 +270,9 @@ export class TelegramService implements OnModuleInit {
           disable_web_page_preview: true,
           reply_markup,
         },
-        { timeout: 1200 },
+        { timeout: 1500 },
       );
+      this.lastPushLatencyMs = Date.now() - startedAt;
       return { ok: true, status: res.status };
     } catch (e: any) {
       const error = e?.response?.data?.description || e?.code || e?.message || 'unknown';
@@ -273,28 +284,38 @@ export class TelegramService implements OnModuleInit {
   private enqueuePush(chatId: string, text: string, extra?: { buttons?: TgButton[][]; keyboard?: boolean }) {
     this.pushQueue.push({ chatId, text, extra, attempt: 0 });
     this.pushStats.queued += 1;
+    this.drainPushQueue();
   }
 
-  private async processPushQueue() {
-    if (this.pushProcessing || this.pushQueue.length === 0) return;
-    this.pushProcessing = true;
-    try {
+  private drainPushQueue() {
+    while (this.pushInFlight < this.pushConcurrency && this.pushQueue.length > 0) {
       const job = this.pushQueue.shift();
       if (!job) return;
-      const result = await this.pushMessage(job.chatId, job.text, job.extra);
-      if (result.ok) {
-        this.pushStats.sent += 1;
-        return;
-      }
+      this.pushInFlight += 1;
+      this.sendPushJob(job)
+        .catch((e) => {
+          this.lastPushError = e?.message || String(e);
+        })
+        .finally(() => {
+          this.pushInFlight -= 1;
+          if (this.pushQueue.length > 0) this.drainPushQueue();
+        });
+    }
+  }
 
-      this.lastPushError = String(result.error || 'unknown');
-      if (job.attempt < 2) {
-        this.pushQueue.push({ ...job, attempt: job.attempt + 1 });
-      } else {
-        this.pushStats.failed += 1;
-      }
-    } finally {
-      this.pushProcessing = false;
+  private async sendPushJob(job: PushJob) {
+    const result = await this.pushMessage(job.chatId, job.text, job.extra);
+    if (result.ok) {
+      this.pushStats.sent += 1;
+      return;
+    }
+
+    this.lastPushError = String(result.error || 'unknown');
+    if (job.attempt < 1) {
+      // Один быстрый retry без 10-минутных очередей.
+      this.pushQueue.unshift({ ...job, attempt: job.attempt + 1 });
+    } else {
+      this.pushStats.failed += 1;
     }
   }
 
@@ -317,7 +338,7 @@ export class TelegramService implements OnModuleInit {
   private async answerCbq(callbackQueryId: string) {
     if (!this.token) return;
     try {
-      await axios.post(`https://api.telegram.org/bot${this.token}/answerCallbackQuery`,
+      await this.tgApi.post(`/bot${this.token}/answerCallbackQuery`,
         { callback_query_id: callbackQueryId }, { timeout: 5000 });
     } catch { /* не критично */ }
   }
@@ -971,8 +992,10 @@ export class TelegramService implements OnModuleInit {
       linkedChats: linked.length,
       proxyConfigured: !!(process.env.HTTPS_PROXY || process.env.HTTP_PROXY),
       queueSize: this.pushQueue.length,
+      pushInFlight: this.pushInFlight,
       pushStats: this.pushStats,
       lastPushError: this.lastPushError,
+      lastPushLatencyMs: this.lastPushLatencyMs,
       replyCacheSize: this._replyCache.size,
     };
   }
