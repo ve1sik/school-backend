@@ -12,6 +12,15 @@ export function getToken(): string | null {
   return localStorage.getItem('token');
 }
 
+export function getRefreshToken(): string | null {
+  return localStorage.getItem('refresh_token');
+}
+
+export function setAuthTokens(accessToken?: string, refreshToken?: string) {
+  if (accessToken) localStorage.setItem('token', accessToken);
+  if (refreshToken) localStorage.setItem('refresh_token', refreshToken);
+}
+
 interface JwtPayload {
   sub?: string;
   email?: string;
@@ -64,6 +73,7 @@ export function isTokenValid(): boolean {
 
 export function logout() {
   localStorage.removeItem('token');
+  localStorage.removeItem('refresh_token');
 }
 
 // Куда отправлять пользователя «домой» в зависимости от роли

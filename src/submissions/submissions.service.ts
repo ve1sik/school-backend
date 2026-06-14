@@ -114,7 +114,7 @@ export class SubmissionsService {
       await this.awardPoints(userId, 15);
     }
 
-    await this.telegramService.notifySubmissionGraded(submission.id, 'written');
+    this.telegramService.notifySubmissionGraded(submission.id, 'written').catch(() => undefined);
 
     return submission;
   }
@@ -156,12 +156,12 @@ export class SubmissionsService {
         where: { id: existing.id },
         data,
       });
-      await this.telegramService.notifySubmissionGraded(updated.id, 'oral');
+      this.telegramService.notifySubmissionGraded(updated.id, 'oral').catch(() => undefined);
       return updated;
     }
 
     const created = await this.prisma.submission.create({ data });
-    await this.telegramService.notifySubmissionGraded(created.id, 'oral');
+    this.telegramService.notifySubmissionGraded(created.id, 'oral').catch(() => undefined);
     return created;
   }
 
@@ -263,7 +263,7 @@ export class SubmissionsService {
     }
 
     if (finalStatus === 'GRADED') {
-      await this.telegramService.notifySubmissionGraded(updated.id, 'written');
+      this.telegramService.notifySubmissionGraded(updated.id, 'written').catch(() => undefined);
     }
 
     return updated;

@@ -26,6 +26,12 @@ export class TelegramController {
     return this.telegramService.registerBotCommands();
   }
 
+  // Диагностика Telegram: привязанные чаты, токен, proxy
+  @Get('health')
+  health() {
+    return this.telegramService.health();
+  }
+
   // Тестовая отправка — проверить исходящее соединение
   @Get('test-send')
   testSend(@Query('chatId') chatId: string) {

@@ -27,6 +27,7 @@ const handleSubmit = async (e: React.FormEvent) => {
       
       if (token) {
         localStorage.setItem('token', token);
+        if (res.data.refresh_token) localStorage.setItem('refresh_token', res.data.refresh_token);
         
         // РАСШИФРОВЫВАЕМ ТОКЕН И ДОСТАЕМ РОЛЬ
         try {

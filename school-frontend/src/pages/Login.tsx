@@ -37,6 +37,7 @@ export default function Login() {
       }
       
       localStorage.setItem('token', res.data.access_token);
+      if (res.data.refresh_token) localStorage.setItem('refresh_token', res.data.refresh_token);
       
       // Если зашел родитель - кидаем в его дашборд
       const payload = JSON.parse(window.atob(res.data.access_token.split('.')[1]));

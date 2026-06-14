@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef, useMemo } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
-import axios from 'axios';
+import { api } from '../lib/api';
 import { motion, AnimatePresence } from 'framer-motion';
 import { DEFAULT_ROLE_PERMISSIONS, type AdminPermission, type Role } from '../lib/auth';
 import { 
@@ -27,7 +27,7 @@ import {
   Trophy
 } from 'lucide-react';
 
-const API_URL = 'https://prepodmgy.ru/api';
+const SITE_URL = 'https://prepodmgy.ru';
 
 export default function Layout() {
   const location = useLocation();
@@ -107,16 +107,10 @@ export default function Layout() {
 
     const fetchUserData = async () => {
       try {
-        const res = await axios.get(`${API_URL}/auth/me`, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
+        const res = await api.get('/auth/me');
         setUserData(res.data);
       } catch (err) {
         console.error("Ошибка загрузки данных пользователя в шапку");
-        if (axios.isAxiosError(err) && err.response?.status === 401) {
-          localStorage.removeItem('token');
-          navigate('/login');
-        }
       }
     };
 
@@ -129,8 +123,7 @@ export default function Layout() {
       try {
         const token = localStorage.getItem('token');
         if (!token) return;
-        const headers = { Authorization: `Bearer ${token}` };
-        const unreadRes = await axios.get(`${API_URL}/messages/unread`, { headers }).catch(() => ({ data: { count: 0 } }));
+        const unreadRes = await api.get('/messages/unread').catch(() => ({ data: { count: 0 } }));
         setUnreadCount(unreadRes.data.count || 0);
       } catch { /* silent */ }
     };
@@ -139,13 +132,12 @@ export default function Layout() {
       try {
         const token = localStorage.getItem('token');
         if (!token) return;
-        const headers = { Authorization: `Bearer ${token}` };
         const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
 
         const [schedRes, subsRes, cardsRes] = await Promise.all([
-          axios.get(`${API_URL}/schedule`, { headers }).catch(() => ({ data: [] })),
-          axios.get(`${API_URL}/submissions/my`, { headers }).catch(() => ({ data: [] })),
-          axios.get(`${API_URL}/flashcards/stats`, { headers }).catch(() => ({ data: { dueTodayCount: 0, newCount: 0 } })),
+          api.get('/schedule').catch(() => ({ data: [] })),
+          api.get('/submissions/my').catch(() => ({ data: [] })),
+          api.get('/flashcards/stats').catch(() => ({ data: { dueTodayCount: 0, newCount: 0 } })),
         ]);
 
         const notifs: typeof notifications = [];
@@ -495,7 +487,7 @@ export default function Layout() {
 
               <div className="w-10 h-10 bg-[#0A0A0A] border border-gray-800 rounded-full flex items-center justify-center text-[#00FFCC] font-black shadow-[0_0_10px_rgba(0,255,204,0.3)] text-sm tracking-wider overflow-hidden">
                 {userData?.avatar ? (
-                  <img src={userData.avatar.startsWith('http') ? userData.avatar : `${API_URL.replace('/api', '')}/${userData.avatar}`} alt="Profile" className="w-full h-full object-cover" />
+                  <img src={userData.avatar.startsWith('http') ? userData.avatar : `${SITE_URL}/${userData.avatar}`} alt="Profile" className="w-full h-full object-cover" />
                 ) : (
                   getInitials()
                 )}

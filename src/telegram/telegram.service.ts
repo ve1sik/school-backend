@@ -209,22 +209,29 @@ export class TelegramService implements OnModuleInit {
   // ─────────────── Telegram API ───────────────
 
   private async pushMessage(chatId: string, text: string, extra?: { buttons?: TgButton[][]; keyboard?: boolean }) {
-    if (!this.token) return;
+    if (!this.token) return { ok: false, error: 'TELEGRAM_BOT_TOKEN is empty' };
     const reply_markup = extra?.buttons
       ? { inline_keyboard: extra.buttons }
       : extra?.keyboard
         ? MAIN_KEYBOARD
         : undefined;
     try {
-      await axios.post(`https://api.telegram.org/bot${this.token}/sendMessage`, {
-        chat_id: chatId,
-        text,
-        parse_mode: 'HTML',
-        disable_web_page_preview: true,
-        reply_markup,
-      }, { timeout: 10000 });
+      const res = await axios.post(
+        `https://api.telegram.org/bot${this.token}/sendMessage`,
+        {
+          chat_id: chatId,
+          text,
+          parse_mode: 'HTML',
+          disable_web_page_preview: true,
+          reply_markup,
+        },
+        { timeout: 2500 },
+      );
+      return { ok: true, status: res.status };
     } catch (e: any) {
-      this.logger.warn(`Push failed: ${e?.message}`);
+      const error = e?.response?.data?.description || e?.code || e?.message || 'unknown';
+      this.logger.warn(`Telegram push failed for chat ${chatId}: ${error}`);
+      return { ok: false, error };
     }
   }
 
@@ -780,7 +787,14 @@ export class TelegramService implements OnModuleInit {
     const recipients = [student, student.parent].filter(Boolean) as any[];
     await Promise.all(recipients.map(async (u) => {
       const chatId = this.getChatIdForUser(u.id);
-      if (chatId) await this.pushMessage(chatId, text, { buttons });
+      if (!chatId) {
+        this.logger.warn(`Telegram notification skipped: user ${u.id} has no linked chatId`);
+        return;
+      }
+      const result = await this.pushMessage(chatId, text, { buttons });
+      if (!result.ok) {
+        this.logger.warn(`Telegram notification failed for user ${u.id}: ${result.error}`);
+      }
     }));
   }
 
@@ -849,8 +863,19 @@ export class TelegramService implements OnModuleInit {
   }
 
   async testSend(chatId: string) {
-    await this.pushMessage(chatId, '✅ Тест: backend успешно отправляет сообщения в Telegram.');
-    return { ok: true };
+    return this.pushMessage(chatId, '✅ Тест: backend успешно отправляет сообщения в Telegram.');
+  }
+
+  async health() {
+    const links = Object.values(this.loadLinks());
+    const linked = links.filter((l) => !!l.chatId);
+    return {
+      tokenConfigured: !!this.token,
+      botUsername: this.botUsername,
+      preparedCodes: links.length,
+      linkedChats: linked.length,
+      proxyConfigured: !!(process.env.HTTPS_PROXY || process.env.HTTP_PROXY),
+    };
   }
 
   // ─────────────── Вычисления ───────────────
