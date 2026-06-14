@@ -14,6 +14,12 @@ type PushJob = {
   extra?: { buttons?: TgButton[][]; keyboard?: boolean };
   attempt: number;
 };
+type AxiosProxyConfig = {
+  protocol?: string;
+  host: string;
+  port: number;
+  auth?: { username: string; password: string };
+};
 
 // Структура прямого ответа Telegram через webhook
 type WebhookReply =
@@ -69,6 +75,7 @@ export class TelegramService implements OnModuleInit {
   private pushInFlight = 0;
   private readonly pushConcurrency = 4;
   private lastPushError: string | null = null;
+  private proxyError: string | null = null;
   private pushStats = { queued: 0, sent: 0, failed: 0 };
   private lastPushLatencyMs: number | null = null;
   private _replyCache = new Map<string, { exp: number; reply: WebhookReply }>();
@@ -77,6 +84,7 @@ export class TelegramService implements OnModuleInit {
     timeout: 1500,
     httpAgent: new http.Agent({ keepAlive: true, maxSockets: 20 }),
     httpsAgent: new https.Agent({ keepAlive: true, maxSockets: 20 }),
+    proxy: false,
   });
 
   constructor(private prisma: PrismaService) {}
@@ -104,6 +112,51 @@ export class TelegramService implements OnModuleInit {
   get botUsername() { return process.env.TELEGRAM_BOT_USERNAME || 'prepodmgybot'; }
   get botUrl() { return `https://t.me/${this.botUsername}`; }
 
+  private getProxyUrl() {
+    return process.env.HTTPS_PROXY || process.env.HTTP_PROXY || '';
+  }
+
+  private getProxyConfig(): AxiosProxyConfig | false {
+    const raw = this.getProxyUrl().trim();
+    this.proxyError = null;
+    if (!raw) return false;
+
+    try {
+      // Поддерживаем оба формата: http://user:pass@host:port и просто host:port
+      const normalized = raw.includes('://') ? raw : `http://${raw}`;
+      const url = new URL(normalized);
+      if (!url.hostname || !url.port) {
+        throw new Error('proxy must include host and port');
+      }
+      const protocol = url.protocol.replace(':', '') || 'http';
+      if (!['http', 'https'].includes(protocol)) {
+        throw new Error(`unsupported proxy protocol: ${protocol}`);
+      }
+
+      return {
+        protocol,
+        host: url.hostname,
+        port: Number(url.port),
+        auth: url.username
+          ? { username: decodeURIComponent(url.username), password: decodeURIComponent(url.password || '') }
+          : undefined,
+      };
+    } catch (e: any) {
+      this.proxyError = e?.message || 'invalid proxy url';
+      return false;
+    }
+  }
+
+  private telegramRequestConfig(timeout = 1500) {
+    const proxy = this.getProxyConfig();
+    return {
+      timeout,
+      proxy,
+      httpAgent: new http.Agent({ keepAlive: true, maxSockets: 20 }),
+      httpsAgent: new https.Agent({ keepAlive: true, maxSockets: 20 }),
+    };
+  }
+
   async registerBotCommands() {
     if (!this.token) return;
     try {
@@ -117,13 +170,13 @@ export class TelegramService implements OnModuleInit {
           { command: 'courses',   description: '📚 Список моих курсов' },
           { command: 'help',      description: '❓ Помощь' },
         ],
-      }, { timeout: 8000 });
+      }, this.telegramRequestConfig(8000));
       await this.tgApi.post(`/bot${this.token}/setMyDescription`, {
         description: 'Бот школы «Препод из МГУ»: аналитика, оценки, дедлайны и уведомления от куратора.',
-      }, { timeout: 8000 });
+      }, this.telegramRequestConfig(8000));
       await this.tgApi.post(`/bot${this.token}/setChatMenuButton`, {
         menu_button: { type: 'commands' },
-      }, { timeout: 8000 });
+      }, this.telegramRequestConfig(8000));
     } catch { /* не критично */ }
   }
 
@@ -270,7 +323,7 @@ export class TelegramService implements OnModuleInit {
           disable_web_page_preview: true,
           reply_markup,
         },
-        { timeout: 1500 },
+        this.telegramRequestConfig(1500),
       );
       this.lastPushLatencyMs = Date.now() - startedAt;
       return { ok: true, status: res.status };
@@ -339,7 +392,7 @@ export class TelegramService implements OnModuleInit {
     if (!this.token) return;
     try {
       await this.tgApi.post(`/bot${this.token}/answerCallbackQuery`,
-        { callback_query_id: callbackQueryId }, { timeout: 5000 });
+        { callback_query_id: callbackQueryId }, this.telegramRequestConfig(5000));
     } catch { /* не критично */ }
   }
 
@@ -985,12 +1038,15 @@ export class TelegramService implements OnModuleInit {
   async health() {
     const links = Object.values(this.loadLinks());
     const linked = links.filter((l) => !!l.chatId);
+    const proxy = this.getProxyConfig();
     return {
       tokenConfigured: !!this.token,
       botUsername: this.botUsername,
       preparedCodes: links.length,
       linkedChats: linked.length,
-      proxyConfigured: !!(process.env.HTTPS_PROXY || process.env.HTTP_PROXY),
+      proxyConfigured: !!this.getProxyUrl(),
+      proxyValid: !!proxy,
+      proxyError: this.proxyError,
       queueSize: this.pushQueue.length,
       pushInFlight: this.pushInFlight,
       pushStats: this.pushStats,
