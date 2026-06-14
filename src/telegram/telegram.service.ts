@@ -5,7 +5,7 @@ import { existsSync, readFileSync, writeFileSync } from 'fs';
 import { join } from 'path';
 
 type TgButton = { text: string; callback_data: string };
-type LinkStore = Record<string, { chatId: string; userId: string; linkedAt: string }>;
+type LinkStore = Record<string, { chatId?: string; userId: string; linkedAt?: string; preparedAt?: string }>;
 
 // Структура прямого ответа Telegram через webhook
 type WebhookReply =
@@ -17,10 +17,12 @@ const MAIN_KEYBOARD = {
   keyboard: [
     [{ text: '📊 Статистика' },   { text: '📅 Дедлайны' }],
     [{ text: '👤 Мой профиль' },  { text: '📚 Мои курсы' }],
-    [{ text: '🔔 Уведомления' },  { text: '❓ Помощь' }],
+    [{ text: '🔔 Уведомления' },  { text: '🔄 Перезапустить' }],
+    [{ text: '❓ Помощь' }],
   ],
   resize_keyboard: true,
   persistent: true,
+  one_time_keyboard: false,
 };
 
 const AUTO_PREFIX = 'Автоматическая проверка';
@@ -85,12 +87,19 @@ export class TelegramService implements OnModuleInit {
       await axios.post(`https://api.telegram.org/bot${this.token}/setMyCommands`, {
         commands: [
           { command: 'start',     description: '🏠 Начало / главное меню' },
+          { command: 'restart',   description: '🔄 Перезапустить бота' },
           { command: 'stats',     description: '📊 Статистика по курсам' },
           { command: 'deadlines', description: '📅 Ближайшие дедлайны' },
           { command: 'profile',   description: '👤 Мой профиль' },
           { command: 'courses',   description: '📚 Список моих курсов' },
           { command: 'help',      description: '❓ Помощь' },
         ],
+      }, { timeout: 8000 });
+      await axios.post(`https://api.telegram.org/bot${this.token}/setMyDescription`, {
+        description: 'Бот школы «Препод из МГУ»: аналитика, оценки, дедлайны и уведомления от куратора.',
+      }, { timeout: 8000 });
+      await axios.post(`https://api.telegram.org/bot${this.token}/setChatMenuButton`, {
+        menu_button: { type: 'commands' },
       }, { timeout: 8000 });
     } catch { /* не критично */ }
   }
@@ -119,7 +128,12 @@ export class TelegramService implements OnModuleInit {
 
   async ensureTelegramCode(userId: string) {
     const code = this.buildCode(userId);
-    return { code, botUrl: this.botUrl, linked: !!this.loadLinks()[code] };
+    const links = this.loadLinks();
+    if (!links[code]) {
+      links[code] = { userId, preparedAt: new Date().toISOString() };
+      this.saveLinks(links);
+    }
+    return { code, botUrl: this.botUrl, linked: !!this.loadLinks()[code]?.chatId };
   }
 
   private getChatIdForUser(userId: string) {
@@ -146,6 +160,20 @@ export class TelegramService implements OnModuleInit {
     this._userCache.delete(userId);
   }
 
+  private async withTimeout<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T> {
+    let timer: NodeJS.Timeout | undefined;
+    try {
+      return await Promise.race([
+        promise,
+        new Promise<T>((resolve) => {
+          timer = setTimeout(() => resolve(fallback), ms);
+        }),
+      ]);
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
+  }
+
   // ─────────────── Поиск пользователя по коду (без full-scan) ───────────────
   // Код = TG + первые 8 hex-символов UUID (до первого дефиса)
   // UUID формат: xxxxxxxx-xxxx-... → prefix = 8 символов
@@ -153,14 +181,22 @@ export class TelegramService implements OnModuleInit {
   private async findUserByCode(code: string) {
     // Сначала смотрим в уже сохранённых ссылках — если пользователь уже привязан
     const existing = this.loadLinks()[code];
-    if (existing) return this.cachedUser(existing.userId);
+    if (existing) {
+      return this.cachedUser(existing.userId)
+        .catch(() => ({ id: existing.userId, role: 'STUDENT', name: 'Пользователь' }));
+    }
 
     // Иначе ищем по prefix UUID: TG + 8 символов = первые 8 hex UUID
     const uuidPrefix = code.slice(2).toLowerCase(); // 8 символов
-    const candidates = await this.prisma.user.findMany({
-      where: { id: { startsWith: uuidPrefix } },
-      select: { id: true, email: true, name: true, surname: true, role: true },
-    });
+    const candidates = await this.withTimeout(
+      this.prisma.user.findMany({
+        where: { id: { startsWith: uuidPrefix } },
+        select: { id: true, email: true, name: true, surname: true, role: true },
+        take: 3,
+      }),
+      1200,
+      [],
+    );
     return candidates.find((u) => this.buildCode(u.id) === code) || null;
   }
 
@@ -259,6 +295,7 @@ export class TelegramService implements OnModuleInit {
     if (text === '👤 Мой профиль')  return this.requireLinked(chatId, (s) => this.showProfile(chatId, s));
     if (text === '📚 Мои курсы')    return this.requireLinked(chatId, (s) => this.showCourseList(chatId, s.id));
     if (text === '🔔 Уведомления')  return this.requireLinked(chatId, (s) => this.showNotifSettings(chatId));
+    if (text === '🔄 Перезапустить') return this.handleStart(chatId, '/start');
     if (text === '❓ Помощь')        return this.showHelp(chatId);
 
     // Попытка ввести код привязки
@@ -296,7 +333,7 @@ export class TelegramService implements OnModuleInit {
     const student = linked.role === 'PARENT'
       ? await this.prisma.user.findFirst({ where: { parent_id: linked.id }, select: { id: true, name: true, surname: true, email: true, role: true } })
       : linked;
-    if (!student) return this.reply(chatId, 'К аккаунту родителя пока не привязан ученик.', { keyboard: false });
+    if (!student) return this.reply(chatId, 'К аккаунту родителя пока не привязан ученик.');
     return fn(student);
   }
 
@@ -350,7 +387,6 @@ export class TelegramService implements OnModuleInit {
       'Код находится:\n' +
       '• Ученик → <b>Мой профиль</b> → блок «Telegram бот»\n' +
       '• Родитель → <b>Кабинет родителя</b> → блок «Telegram бот»',
-      { keyboard: false },
     );
   }
 
@@ -361,39 +397,65 @@ export class TelegramService implements OnModuleInit {
       return this.handleLinkCode(chatId, deepCode);
     }
 
-    const linked = await this.findUserByChatId(chatId);
+    const linked = Object.values(this.loadLinks()).some((l) => l.chatId === chatId);
     if (!linked) return this.sendWelcome(chatId);
 
-    const student = await this.resolveStudent(linked);
-    return this.showHome(chatId, linked, student);
+    return this.showHomeLite(chatId);
+  }
+
+  private showHomeLite(chatId: string): WebhookReply {
+    return this.reply(
+      chatId,
+      `🏠 <b>Главное меню</b>\n${'─'.repeat(26)}\n\n` +
+      `Бот готов к работе.\n\n` +
+      `📊 <b>Статистика</b> — оценки по курсам\n` +
+      `📅 <b>Дедлайны</b> — ближайшие сроки\n` +
+      `👤 <b>Мой профиль</b> — данные аккаунта\n` +
+      `🔔 <b>Уведомления</b> — что приходит в Telegram\n\n` +
+      `Используйте постоянное меню снизу 👇`,
+    );
   }
 
   private async handleLinkCode(chatId: string, code: string): Promise<WebhookReply> {
+    const links = this.loadLinks();
+    const prepared = links[code];
+
+    // Самый быстрый путь: сайт уже подготовил код через /telegram/link-code.
+    // Тут не ходим в БД вообще, чтобы Telegram получил ответ мгновенно.
+    if (prepared) {
+      links[code] = { ...prepared, chatId, linkedAt: new Date().toISOString() };
+      this.saveLinks(links);
+      this.invalidateCache(prepared.userId);
+
+      return this.reply(
+        chatId,
+        `✅ <b>Telegram подключён!</b>\n\n` +
+        `Теперь бот будет присылать оценки, дедлайны и уведомления от куратора.\n\n` +
+        `Постоянное меню уже внизу экрана 👇\n` +
+        `Нажмите <b>📊 Статистика</b>, <b>📅 Дедлайны</b> или <b>👤 Мой профиль</b>.`,
+      );
+    }
+
     const user = await this.findUserByCode(code);
     if (!user) {
       return this.reply(chatId,
-        '❌ <b>Код не найден.</b>\n\nПроверьте код на сайте и попробуйте снова.',
-        { keyboard: false });
+        '❌ <b>Код не найден или ещё не подготовлен сайтом.</b>\n\n' +
+        'Откройте профиль на сайте, дождитесь блока Telegram и отправьте код ещё раз.',
+      );
     }
 
-    const links = this.loadLinks();
     links[code] = { chatId, userId: user.id, linkedAt: new Date().toISOString() };
     this.saveLinks(links);
     this.invalidateCache(user.id);
-
-    const student = user.role === 'PARENT'
-      ? await this.prisma.user.findFirst({ where: { parent_id: user.id } })
-      : user;
 
     const roleLabel = user.role === 'PARENT' ? 'Родитель' : 'Ученик';
     return this.reply(
       chatId,
       `✅ <b>Аккаунт успешно привязан!</b>\n\n` +
       `${roleLabel}: <b>${esc(this.userName(user))}</b>\n` +
-      (student && student.id !== user.id ? `👤 Ученик: <b>${esc(this.userName(student))}</b>\n` : '') +
       `\nТеперь вам будут приходить уведомления об оценках и напоминания о дедлайнах.\n\n` +
-      `Используйте кнопки меню ниже 👇`,
-      { buttons: [[{ text: '📊 Открыть статистику', callback_data: 'stats' }]] },
+      `Постоянное меню уже внизу экрана 👇\n\n` +
+      `Нажмите <b>📊 Статистика</b> или <b>👤 Мой профиль</b>.`,
     );
   }
 

@@ -505,7 +505,7 @@ export default function Dashboard() {
         // 🚀 Общий кеш курсов/работ — навигация между страницами не дёргает бэкенд заново
         const [coursesData, subsData] = await Promise.all([
           cachedGet('/courses').catch(() => []),
-          cachedGet('/submissions/my', 0).catch(() => []),
+          cachedGet('/submissions/my', 30000).catch(() => []),
         ]);
         const coursesRes = { data: coursesData };
         const subsRes = { data: subsData };

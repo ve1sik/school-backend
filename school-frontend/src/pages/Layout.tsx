@@ -123,8 +123,18 @@ export default function Layout() {
     fetchUserData();
   }, [navigate]);
 
-  // Поллинг: сообщения + сборка всех уведомлений
+  // Поллинг: лёгкие сообщения отдельно, тяжёлые уведомления редко.
   useEffect(() => {
+    const fetchUnread = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        if (!token) return;
+        const headers = { Authorization: `Bearer ${token}` };
+        const unreadRes = await axios.get(`${API_URL}/messages/unread`, { headers }).catch(() => ({ data: { count: 0 } }));
+        setUnreadCount(unreadRes.data.count || 0);
+      } catch { /* silent */ }
+    };
+
     const fetchNotifs = async () => {
       try {
         const token = localStorage.getItem('token');
@@ -132,21 +142,13 @@ export default function Layout() {
         const headers = { Authorization: `Bearer ${token}` };
         const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
 
-        const [unreadRes, schedRes, subsRes, cardsRes] = await Promise.all([
-          axios.get(`${API_URL}/messages/unread`, { headers }).catch(() => ({ data: { count: 0 } })),
+        const [schedRes, subsRes, cardsRes] = await Promise.all([
           axios.get(`${API_URL}/schedule`, { headers }).catch(() => ({ data: [] })),
           axios.get(`${API_URL}/submissions/my`, { headers }).catch(() => ({ data: [] })),
           axios.get(`${API_URL}/flashcards/stats`, { headers }).catch(() => ({ data: { dueTodayCount: 0, newCount: 0 } })),
         ]);
 
-        setUnreadCount(unreadRes.data.count || 0);
-
         const notifs: typeof notifications = [];
-
-        // 1. Непрочитанные сообщения
-        if (unreadRes.data.count > 0) {
-          notifs.push({ id: 'msg', type: 'message', text: `${unreadRes.data.count} новых сообщений`, sub: 'от куратора', link: '/messages' });
-        }
 
         // 2. Проверенные домашки (за последние 7 дней)
         const graded = (subsRes.data as any[]).filter(
@@ -197,9 +199,14 @@ export default function Layout() {
       } catch { /* silent */ }
     };
 
+    fetchUnread();
     fetchNotifs();
-    const interval = setInterval(fetchNotifs, 15000);
-    return () => clearInterval(interval);
+    const unreadInterval = setInterval(fetchUnread, 60000);
+    const notifInterval = setInterval(fetchNotifs, 5 * 60 * 1000);
+    return () => {
+      clearInterval(unreadInterval);
+      clearInterval(notifInterval);
+    };
   }, []);
 
   // Закрываем мобильное меню при переходе на другую страницу

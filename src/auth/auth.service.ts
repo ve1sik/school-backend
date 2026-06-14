@@ -50,8 +50,9 @@ export class AuthService {
 
   // 1. РЕГИСТРАЦИЯ СТУДЕНТА
   async register(dto: any) {
+    const email = String(dto.email || '').trim().toLowerCase();
     const existingUser = await this.prisma.user.findUnique({
-      where: { email: dto.email },
+      where: { email },
     });
 
     if (existingUser) {
@@ -67,19 +68,20 @@ export class AuthService {
 
     await this.prisma.user.create({
       data: {
-        email: dto.email,
+        email,
         password_hash: hash,
         name: dto.name.trim(),
         surname: dto.surname.trim(),
       },
     });
 
-    return this.login(dto);
+    return this.login({ ...dto, email });
   }
 
   // 2. ЛОГИН (Универсальный)
   async login(dto: any) {
-    const user = await this.prisma.user.findUnique({ where: { email: dto.email } });
+    const email = String(dto.email || '').trim().toLowerCase();
+    const user = await this.prisma.user.findUnique({ where: { email } });
     if (!user) throw new UnauthorizedException('Неверный email или пароль');
 
     const isMatch = await bcrypt.compare(dto.password, user.password_hash);
@@ -112,7 +114,7 @@ export class AuthService {
   // 4. ОБНОВЛЕНИЕ ПРОФИЛЯ
   async updateProfile(userId: string, dto: any) {
     const dataToUpdate: any = {};
-    if (dto.email) dataToUpdate.email = dto.email;
+    if (dto.email) dataToUpdate.email = String(dto.email).trim().toLowerCase();
     if (dto.name !== undefined) dataToUpdate.name = dto.name;
     if (dto.surname !== undefined) dataToUpdate.surname = dto.surname;
     if (dto.patronymic !== undefined) dataToUpdate.patronymic = dto.patronymic;
@@ -165,6 +167,7 @@ export class AuthService {
 
   // 6. РЕГИСТРАЦИЯ РОДИТЕЛЯ С ПРИВЯЗКОЙ
   async registerParent(dto: any) {
+    const email = String(dto.email || '').trim().toLowerCase();
     // Проверяем код ребенка
     const student = await this.prisma.user.findUnique({
       where: { invite_code: dto.invite_code }
@@ -175,7 +178,7 @@ export class AuthService {
     }
 
     // Проверяем почту
-    const existingUser = await this.prisma.user.findUnique({ where: { email: dto.email } });
+    const existingUser = await this.prisma.user.findUnique({ where: { email } });
     if (existingUser) throw new BadRequestException('Пользователь с таким email уже существует');
 
     // Хэшируем пароль
@@ -184,7 +187,7 @@ export class AuthService {
     // Создаем родителя
     const parent = await this.prisma.user.create({
       data: {
-        email: dto.email,
+        email,
         password_hash: hash,
         role: 'PARENT',
         name: dto.name,
@@ -201,7 +204,7 @@ export class AuthService {
       }
     });
 
-    return this.login({ email: dto.email, password: dto.password });
+    return this.login({ email, password: dto.password });
   }
 
   // 7. ПРИВЯЗКА УЖЕ СУЩЕСТВУЮЩЕГО РОДИТЕЛЯ

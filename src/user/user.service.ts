@@ -108,13 +108,14 @@ export class UserService {
   }
 
   async createUser(dto: { email: string; password: string; name?: string; surname?: string; role?: Role }) {
-    const existing = await this.prisma.user.findUnique({ where: { email: dto.email } });
+    const email = String(dto.email || '').trim().toLowerCase();
+    const existing = await this.prisma.user.findUnique({ where: { email } });
     if (existing) throw new BadRequestException('Пользователь с таким email уже существует');
 
     const hash = await bcrypt.hash(dto.password, 10);
     return this.prisma.user.create({
       data: {
-        email: dto.email,
+        email,
         password_hash: hash,
         name: dto.name,
         surname: dto.surname,
@@ -136,7 +137,7 @@ export class UserService {
     if (dto.role) data.role = dto.role;
     if (dto.name !== undefined) data.name = dto.name;
     if (dto.surname !== undefined) data.surname = dto.surname;
-    if (dto.email) data.email = dto.email;
+    if (dto.email) data.email = String(dto.email).trim().toLowerCase();
     if (dto.password) data.password_hash = await bcrypt.hash(dto.password, 10);
     if (dto.admin_permissions !== undefined) {
       if (requesterRole !== 'ADMIN') {
