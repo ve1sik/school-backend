@@ -135,10 +135,13 @@ export class CourseService {
 
   async updateCourse(id: string, dto: any, userId?: string, userRole?: string) {
     await this.ensureCanManageCourse(id, userId, userRole);
-    return this.prisma.course.update({
-      where: { id },
-      data: dto,
-    });
+    // Берём только поля, которые реально есть в модели Course
+    const allowed = ['title', 'description', 'cover_url', 'spell_check', 'subject_id'];
+    const data: any = {};
+    for (const key of allowed) {
+      if (key in dto) data[key] = dto[key];
+    }
+    return this.prisma.course.update({ where: { id }, data });
   }
 
   async delete(id: string) {
