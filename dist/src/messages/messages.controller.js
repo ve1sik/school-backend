@@ -20,63 +20,51 @@ let MessagesController = class MessagesController {
     constructor(messagesService) {
         this.messagesService = messagesService;
     }
-    async getContacts(auth) {
-        if (!auth)
-            throw new common_1.UnauthorizedException('Нет токена');
-        const payload = JSON.parse(Buffer.from(auth.split(' ')[1].split('.')[1], 'base64').toString());
-        return this.messagesService.getContacts(payload.sub || payload.id, payload.role);
+    async getContacts(req) {
+        return this.messagesService.getContacts(req.user.sub, req.user.role);
     }
-    async getUnreadCount(auth) {
-        if (!auth)
-            throw new common_1.UnauthorizedException('Нет токена');
-        const payload = JSON.parse(Buffer.from(auth.split(' ')[1].split('.')[1], 'base64').toString());
-        return this.messagesService.getUnreadCount(payload.sub || payload.id);
+    async getUnreadCount(req) {
+        return this.messagesService.getUnreadCount(req.user.sub);
     }
-    async getHistory(auth, contactId) {
-        if (!auth)
-            throw new common_1.UnauthorizedException('Нет токена');
-        const payload = JSON.parse(Buffer.from(auth.split(' ')[1].split('.')[1], 'base64').toString());
-        return this.messagesService.getHistory(payload.sub || payload.id, contactId);
+    async getHistory(req, contactId) {
+        return this.messagesService.getHistory(req.user.sub, contactId);
     }
-    async sendMessage(auth, contactId, text) {
-        if (!auth)
-            throw new common_1.UnauthorizedException('Нет токена');
+    async sendMessage(req, contactId, text) {
         if (!text || !text.trim())
-            throw new common_1.UnauthorizedException('Пустое сообщение');
-        const payload = JSON.parse(Buffer.from(auth.split(' ')[1].split('.')[1], 'base64').toString());
-        return this.messagesService.sendMessage(payload.sub || payload.id, contactId, text);
+            throw new common_1.BadRequestException('Пустое сообщение');
+        return this.messagesService.sendMessage(req.user.sub, contactId, text);
     }
 };
 exports.MessagesController = MessagesController;
 __decorate([
     (0, common_1.Get)('contacts'),
-    __param(0, (0, common_1.Headers)('authorization')),
+    __param(0, (0, common_1.Request)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String]),
+    __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", Promise)
 ], MessagesController.prototype, "getContacts", null);
 __decorate([
     (0, common_1.Get)('unread'),
-    __param(0, (0, common_1.Headers)('authorization')),
+    __param(0, (0, common_1.Request)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String]),
+    __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", Promise)
 ], MessagesController.prototype, "getUnreadCount", null);
 __decorate([
     (0, common_1.Get)(':id'),
-    __param(0, (0, common_1.Headers)('authorization')),
+    __param(0, (0, common_1.Request)()),
     __param(1, (0, common_1.Param)('id')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, String]),
+    __metadata("design:paramtypes", [Object, String]),
     __metadata("design:returntype", Promise)
 ], MessagesController.prototype, "getHistory", null);
 __decorate([
     (0, common_1.Post)(':id'),
-    __param(0, (0, common_1.Headers)('authorization')),
+    __param(0, (0, common_1.Request)()),
     __param(1, (0, common_1.Param)('id')),
     __param(2, (0, common_1.Body)('text')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, String, String]),
+    __metadata("design:paramtypes", [Object, String, String]),
     __metadata("design:returntype", Promise)
 ], MessagesController.prototype, "sendMessage", null);
 exports.MessagesController = MessagesController = __decorate([

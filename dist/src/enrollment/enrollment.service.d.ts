@@ -22,6 +22,7 @@ export declare class EnrollmentService {
             title: string;
             description: string | null;
             cover_url: string | null;
+            spell_check: boolean;
             subject_id: string | null;
         };
     } & {

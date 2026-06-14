@@ -17,62 +17,65 @@ const common_1 = require("@nestjs/common");
 const theme_service_1 = require("./theme.service");
 const passport_1 = require("@nestjs/passport");
 const roles_guard_1 = require("../auth/roles.guard");
-const roles_decorator_1 = require("../auth/roles.decorator");
-const client_1 = require("@prisma/client");
+const permissions_decorator_1 = require("../auth/permissions.decorator");
 let ThemeController = class ThemeController {
     constructor(themeService) {
         this.themeService = themeService;
     }
-    async createTheme(dto) {
-        return this.themeService.create(dto);
+    async createTheme(dto, req) {
+        return this.themeService.create(dto, req.user.sub, req.user.role);
     }
-    async reorder(id, dto) {
-        return this.themeService.reorder(id, dto.newOrderIndex);
+    async reorder(id, dto, req) {
+        return this.themeService.reorder(id, dto.newOrderIndex, req.user.sub, req.user.role);
     }
-    async update(id, dto) {
-        return this.themeService.update(id, dto);
+    async update(id, dto, req) {
+        return this.themeService.update(id, dto, req.user.sub, req.user.role);
     }
-    async deleteTheme(id) {
-        return this.themeService.delete(id);
+    async deleteTheme(id, req) {
+        return this.themeService.delete(id, req.user.sub, req.user.role);
     }
 };
 exports.ThemeController = ThemeController;
 __decorate([
     (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt'), roles_guard_1.RolesGuard),
-    (0, roles_decorator_1.Roles)(client_1.Role.ADMIN, client_1.Role.CURATOR),
+    (0, permissions_decorator_1.Permissions)('MANAGE_COURSES'),
     (0, common_1.Post)(),
     __param(0, (0, common_1.Body)()),
+    __param(1, (0, common_1.Request)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object]),
+    __metadata("design:paramtypes", [Object, Object]),
     __metadata("design:returntype", Promise)
 ], ThemeController.prototype, "createTheme", null);
 __decorate([
     (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt'), roles_guard_1.RolesGuard),
-    (0, roles_decorator_1.Roles)(client_1.Role.ADMIN, client_1.Role.CURATOR),
+    (0, permissions_decorator_1.Permissions)('MANAGE_COURSES'),
     (0, common_1.Patch)(':id/reorder'),
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Body)()),
+    __param(2, (0, common_1.Request)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:paramtypes", [String, Object, Object]),
     __metadata("design:returntype", Promise)
 ], ThemeController.prototype, "reorder", null);
 __decorate([
     (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt'), roles_guard_1.RolesGuard),
-    (0, roles_decorator_1.Roles)(client_1.Role.ADMIN, client_1.Role.CURATOR),
+    (0, permissions_decorator_1.Permissions)('MANAGE_COURSES'),
     (0, common_1.Patch)(':id'),
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Body)()),
+    __param(2, (0, common_1.Request)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:paramtypes", [String, Object, Object]),
     __metadata("design:returntype", Promise)
 ], ThemeController.prototype, "update", null);
 __decorate([
     (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt'), roles_guard_1.RolesGuard),
-    (0, roles_decorator_1.Roles)(client_1.Role.ADMIN, client_1.Role.CURATOR),
+    (0, permissions_decorator_1.Permissions)('MANAGE_COURSES'),
     (0, common_1.Delete)(':id'),
     __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Request)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String]),
+    __metadata("design:paramtypes", [String, Object]),
     __metadata("design:returntype", Promise)
 ], ThemeController.prototype, "deleteTheme", null);
 exports.ThemeController = ThemeController = __decorate([

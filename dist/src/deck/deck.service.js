@@ -66,6 +66,8 @@ let DeckService = class DeckService {
                 deck_id: deckId,
                 front: data.front,
                 back: data.back,
+                front_image: data.front_image ?? null,
+                back_image: data.back_image ?? null,
                 order_index: data.order_index ?? count,
             },
         });
@@ -93,6 +95,8 @@ let DeckService = class DeckService {
                 deck_id: deckId,
                 front: c.front,
                 back: c.back,
+                front_image: c.front_image ?? null,
+                back_image: c.back_image ?? null,
                 order_index: i,
             })),
         });

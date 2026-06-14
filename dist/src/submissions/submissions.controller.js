@@ -14,102 +14,116 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.SubmissionsController = void 0;
 const common_1 = require("@nestjs/common");
+const passport_1 = require("@nestjs/passport");
+const roles_guard_1 = require("../auth/roles.guard");
 const submissions_service_1 = require("./submissions.service");
+const permissions_decorator_1 = require("../auth/permissions.decorator");
 let SubmissionsController = class SubmissionsController {
     constructor(submissionsService) {
         this.submissionsService = submissionsService;
     }
-    createSubmission(auth, body) {
-        if (!auth)
-            throw new common_1.UnauthorizedException('Нет токена');
-        const token = auth.split(' ')[1];
-        const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString());
-        const userId = payload.sub || payload.id;
+    createOralSubmission(body, req) {
+        return this.submissionsService.createOralSubmission(body, req.user.sub, req.user.role);
+    }
+    getOralSubmission(studentId, lessonId, req) {
+        return this.submissionsService.getOralSubmission(studentId, lessonId, req.user.sub, req.user.role);
+    }
+    createSubmission(req, body) {
+        const userId = req.user.sub;
         if (body.autoGraded === true) {
             const score = Number(body.score) || 0;
             return this.submissionsService.createAutoGradedSubmission(userId, body, score, score > 0);
         }
         return this.submissionsService.createSubmission(userId, body);
     }
-    getSubmissionsByStatus(auth, status) {
-        if (!auth)
-            throw new common_1.UnauthorizedException('Нет токена');
+    getSubmissionsByStatus(status, req) {
         const finalStatus = status === 'GRADED' ? 'GRADED' : 'PENDING';
-        return this.submissionsService.getSubmissionsByStatus(finalStatus);
+        return this.submissionsService.getSubmissionsByStatus(finalStatus, req.user.sub, req.user.role);
     }
-    getPending() {
-        return this.submissionsService.getSubmissionsByStatus('PENDING');
+    getPending(req) {
+        return this.submissionsService.getSubmissionsByStatus('PENDING', req.user.sub, req.user.role);
     }
-    gradeSubmission(auth, id, body) {
-        if (!auth)
-            throw new common_1.UnauthorizedException('Нет токена');
-        return this.submissionsService.gradeSubmission(id, body.score, body.comment);
+    gradeSubmission(id, body) {
+        return this.submissionsService.gradeSubmission(id, body.score, body.comment, body.status);
     }
-    getMySubmission(auth, lessonId) {
-        if (!auth)
-            throw new common_1.UnauthorizedException('Нет токена');
-        const token = auth.split(' ')[1];
-        const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString());
-        const userId = payload.sub || payload.id;
-        return this.submissionsService.getSubmissionForStudent(lessonId, userId);
+    getMySubmission(req, lessonId) {
+        return this.submissionsService.getSubmissionForStudent(lessonId, req.user.sub);
     }
-    getMySubmissions(auth) {
-        if (!auth)
-            throw new common_1.UnauthorizedException('Нет токена');
-        const token = auth.split(' ')[1];
-        const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString());
-        const userId = payload.sub || payload.id;
-        return this.submissionsService.getMySubmissions(userId);
+    getMySubmissions(req) {
+        return this.submissionsService.getMySubmissions(req.user.sub);
     }
 };
 exports.SubmissionsController = SubmissionsController;
 __decorate([
+    (0, permissions_decorator_1.Permissions)('CURATOR_DASHBOARD'),
+    (0, common_1.Post)('oral'),
+    __param(0, (0, common_1.Body)()),
+    __param(1, (0, common_1.Request)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, Object]),
+    __metadata("design:returntype", void 0)
+], SubmissionsController.prototype, "createOralSubmission", null);
+__decorate([
+    (0, permissions_decorator_1.Permissions)('CURATOR_DASHBOARD'),
+    (0, common_1.Get)('oral/:studentId/:lessonId'),
+    __param(0, (0, common_1.Param)('studentId')),
+    __param(1, (0, common_1.Param)('lessonId')),
+    __param(2, (0, common_1.Request)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, String, Object]),
+    __metadata("design:returntype", void 0)
+], SubmissionsController.prototype, "getOralSubmission", null);
+__decorate([
     (0, common_1.Post)(),
-    __param(0, (0, common_1.Headers)('authorization')),
+    __param(0, (0, common_1.Request)()),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, Object]),
+    __metadata("design:returntype", void 0)
+], SubmissionsController.prototype, "createSubmission", null);
+__decorate([
+    (0, permissions_decorator_1.Permissions)('CURATOR_DASHBOARD'),
+    (0, common_1.Get)(),
+    __param(0, (0, common_1.Query)('status')),
+    __param(1, (0, common_1.Request)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", void 0)
+], SubmissionsController.prototype, "getSubmissionsByStatus", null);
+__decorate([
+    (0, permissions_decorator_1.Permissions)('CURATOR_DASHBOARD'),
+    (0, common_1.Get)('pending'),
+    __param(0, (0, common_1.Request)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", void 0)
+], SubmissionsController.prototype, "getPending", null);
+__decorate([
+    (0, permissions_decorator_1.Permissions)('CURATOR_DASHBOARD'),
+    (0, common_1.Patch)(':id/grade'),
+    __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Body)()),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [String, Object]),
     __metadata("design:returntype", void 0)
-], SubmissionsController.prototype, "createSubmission", null);
-__decorate([
-    (0, common_1.Get)(),
-    __param(0, (0, common_1.Headers)('authorization')),
-    __param(1, (0, common_1.Query)('status')),
-    __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, String]),
-    __metadata("design:returntype", void 0)
-], SubmissionsController.prototype, "getSubmissionsByStatus", null);
-__decorate([
-    (0, common_1.Get)('pending'),
-    __metadata("design:type", Function),
-    __metadata("design:paramtypes", []),
-    __metadata("design:returntype", void 0)
-], SubmissionsController.prototype, "getPending", null);
-__decorate([
-    (0, common_1.Patch)(':id/grade'),
-    __param(0, (0, common_1.Headers)('authorization')),
-    __param(1, (0, common_1.Param)('id')),
-    __param(2, (0, common_1.Body)()),
-    __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, String, Object]),
-    __metadata("design:returntype", void 0)
 ], SubmissionsController.prototype, "gradeSubmission", null);
 __decorate([
     (0, common_1.Get)('lesson/:lessonId'),
-    __param(0, (0, common_1.Headers)('authorization')),
+    __param(0, (0, common_1.Request)()),
     __param(1, (0, common_1.Param)('lessonId')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, String]),
+    __metadata("design:paramtypes", [Object, String]),
     __metadata("design:returntype", void 0)
 ], SubmissionsController.prototype, "getMySubmission", null);
 __decorate([
     (0, common_1.Get)('my'),
-    __param(0, (0, common_1.Headers)('authorization')),
+    __param(0, (0, common_1.Request)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String]),
+    __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", void 0)
 ], SubmissionsController.prototype, "getMySubmissions", null);
 exports.SubmissionsController = SubmissionsController = __decorate([
+    (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt'), roles_guard_1.RolesGuard),
     (0, common_1.Controller)('submissions'),
     __metadata("design:paramtypes", [submissions_service_1.SubmissionsService])
 ], SubmissionsController);

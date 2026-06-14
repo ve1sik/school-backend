@@ -19,11 +19,37 @@ let AuthService = class AuthService {
         this.prisma = prisma;
         this.jwt = jwt;
     }
-    async issueTokens(userId, email, role) {
-        const payload = { sub: userId, email, role };
+    async issueTokens(userId, email, role, admin_permissions = []) {
+        const payload = { sub: userId, email, role, admin_permissions };
         const access_token = this.jwt.sign(payload, { expiresIn: '1d' });
-        const refresh_token = this.jwt.sign(payload, { expiresIn: '7d' });
+        const refresh_token = this.jwt.sign(payload, {
+            expiresIn: '7d',
+            secret: process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET,
+        });
         return { access_token, refresh_token };
+    }
+    async refresh(refreshToken) {
+        if (!refreshToken)
+            throw new common_1.UnauthorizedException('Нет refresh-токена');
+        let payload;
+        try {
+            payload = this.jwt.verify(refreshToken, {
+                secret: process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET,
+            });
+        }
+        catch {
+            throw new common_1.UnauthorizedException('Невалидный refresh-токен');
+        }
+        const user = await this.prisma.user.findUnique({ where: { id: payload.sub } });
+        if (!user || user.refresh_token !== refreshToken) {
+            throw new common_1.UnauthorizedException('Сессия недействительна');
+        }
+        const tokens = await this.issueTokens(user.id, user.email, user.role, user.admin_permissions || []);
+        await this.prisma.user.update({
+            where: { id: user.id },
+            data: { refresh_token: tokens.refresh_token },
+        });
+        return { user: { id: user.id, email: user.email, role: user.role, admin_permissions: user.admin_permissions || [] }, ...tokens };
     }
     async register(dto) {
         const existingUser = await this.prisma.user.findUnique({
@@ -32,12 +58,17 @@ let AuthService = class AuthService {
         if (existingUser) {
             throw new common_1.BadRequestException('Пользователь с таким email уже существует.');
         }
+        if (!dto.name || !dto.surname) {
+            throw new common_1.BadRequestException('Имя и фамилия обязательны для регистрации.');
+        }
         const salt = await bcrypt.genSalt(10);
         const hash = await bcrypt.hash(dto.password, salt);
         await this.prisma.user.create({
             data: {
                 email: dto.email,
                 password_hash: hash,
+                name: dto.name.trim(),
+                surname: dto.surname.trim(),
             },
         });
         return this.login(dto);
@@ -49,13 +80,13 @@ let AuthService = class AuthService {
         const isMatch = await bcrypt.compare(dto.password, user.password_hash);
         if (!isMatch)
             throw new common_1.UnauthorizedException('Неверный email или пароль');
-        const tokens = await this.issueTokens(user.id, user.email, user.role);
+        const tokens = await this.issueTokens(user.id, user.email, user.role, user.admin_permissions || []);
         await this.prisma.user.update({
             where: { id: user.id },
             data: { refresh_token: tokens.refresh_token },
         });
         return {
-            user: { id: user.id, email: user.email, role: user.role },
+            user: { id: user.id, email: user.email, role: user.role, admin_permissions: user.admin_permissions || [] },
             ...tokens,
         };
     }
@@ -91,13 +122,30 @@ let AuthService = class AuthService {
         const { password_hash, refresh_token, ...result } = updatedUser;
         return result;
     }
+    async changePassword(userId, oldPassword, newPassword) {
+        if (!newPassword || newPassword.length < 6) {
+            throw new common_1.BadRequestException('Новый пароль должен содержать минимум 6 символов');
+        }
+        const user = await this.prisma.user.findUnique({ where: { id: userId } });
+        if (!user)
+            throw new common_1.UnauthorizedException('Пользователь не найден');
+        const isValid = await bcrypt.compare(oldPassword, user.password_hash);
+        if (!isValid)
+            throw new common_1.BadRequestException('Неверный текущий пароль');
+        const newHash = await bcrypt.hash(newPassword, 10);
+        await this.prisma.user.update({
+            where: { id: userId },
+            data: { password_hash: newHash, refresh_token: null },
+        });
+        return { success: true };
+    }
     async generateInviteCode(userId) {
         const code = Math.random().toString(36).substring(2, 8).toUpperCase();
         await this.prisma.user.update({
             where: { id: userId },
             data: { invite_code: code },
         });
-        return { code };
+        return { code, invite_code: code };
     }
     async registerParent(dto) {
         const student = await this.prisma.user.findUnique({

@@ -18,7 +18,7 @@ const enrollment_service_1 = require("./enrollment.service");
 const enroll_dto_1 = require("./dto/enroll.dto");
 const passport_1 = require("@nestjs/passport");
 const roles_guard_1 = require("../auth/roles.guard");
-const roles_decorator_1 = require("../auth/roles.decorator");
+const permissions_decorator_1 = require("../auth/permissions.decorator");
 let EnrollmentController = class EnrollmentController {
     constructor(enrollmentService) {
         this.enrollmentService = enrollmentService;
@@ -30,7 +30,8 @@ let EnrollmentController = class EnrollmentController {
         if (!courseId) {
             throw new common_1.ForbiddenException('Не указан курс');
         }
-        if (targetUserId !== requesterId && req.user.role !== 'ADMIN') {
+        const canManageUsers = req.user.role === 'ADMIN' || (req.user.admin_permissions || []).includes('MANAGE_USERS');
+        if (targetUserId !== requesterId && !canManageUsers) {
             throw new common_1.ForbiddenException('Недостаточно прав для записи другого пользователя');
         }
         return this.enrollmentService.enroll(targetUserId, courseId);
@@ -60,7 +61,7 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], EnrollmentController.prototype, "getMyCourses", null);
 __decorate([
-    (0, roles_decorator_1.Roles)('ADMIN'),
+    (0, permissions_decorator_1.Permissions)('MANAGE_USERS'),
     (0, common_1.Delete)(':userId/:courseId'),
     __param(0, (0, common_1.Param)('userId')),
     __param(1, (0, common_1.Param)('courseId')),

@@ -29,6 +29,8 @@ export declare class DeckService {
             deck_id: string;
             front: string;
             back: string;
+            front_image: string | null;
+            back_image: string | null;
         }[];
     } & {
         id: string;
@@ -69,6 +71,8 @@ export declare class DeckService {
     addCard(deckId: string, data: {
         front: string;
         back: string;
+        front_image?: string;
+        back_image?: string;
         order_index?: number;
     }): Promise<{
         id: string;
@@ -77,10 +81,14 @@ export declare class DeckService {
         deck_id: string;
         front: string;
         back: string;
+        front_image: string | null;
+        back_image: string | null;
     }>;
     updateCard(cardId: string, data: {
         front?: string;
         back?: string;
+        front_image?: string | null;
+        back_image?: string | null;
     }): Promise<{
         id: string;
         created_at: Date;
@@ -88,6 +96,8 @@ export declare class DeckService {
         deck_id: string;
         front: string;
         back: string;
+        front_image: string | null;
+        back_image: string | null;
     }>;
     removeCard(cardId: string): Promise<{
         success: boolean;
@@ -95,6 +105,8 @@ export declare class DeckService {
     bulkSaveCards(deckId: string, cards: {
         front: string;
         back: string;
+        front_image?: string;
+        back_image?: string;
     }[]): Promise<{
         count: number;
     }>;

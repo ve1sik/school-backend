@@ -214,19 +214,36 @@ let DashboardService = class DashboardService {
                 },
             });
         }
-        for (const ans of answers) {
-            const qExists = await this.prisma.question.findUnique({ where: { id: ans.questionId } });
-            if (!qExists) {
-                await this.prisma.question.create({
-                    data: {
-                        id: ans.questionId,
-                        test: { connect: { id: testId } },
-                        content: ans.questionText || 'Вопрос из урока',
-                    },
-                });
-            }
+        const questionIds = answers.map((a) => a.questionId);
+        const existingQuestions = await this.prisma.question.findMany({
+            where: { id: { in: questionIds } },
+            select: { id: true },
+        });
+        const existingIds = new Set(existingQuestions.map((q) => q.id));
+        const questionsToCreate = answers
+            .filter((a) => !existingIds.has(a.questionId))
+            .map((a) => ({
+            id: a.questionId,
+            test_id: testId,
+            content: a.questionText || 'Вопрос из урока',
+        }));
+        if (questionsToCreate.length > 0) {
+            await this.prisma.question.createMany({ data: questionsToCreate, skipDuplicates: true });
         }
         const prevCount = await this.prisma.testAttempt.count({ where: { user_id: userId, test_id: testId } });
+        if (prevCount === 0 && typeof score === 'number' && score > 0) {
+            const pts = Math.round((Math.min(100, score) / 100) * 20);
+            if (pts > 0) {
+                try {
+                    await this.prisma.user.update({
+                        where: { id: userId },
+                        data: { points: { increment: pts } },
+                    });
+                }
+                catch {
+                }
+            }
+        }
         return this.prisma.testAttempt.create({
             data: {
                 user: { connect: { id: userId } },

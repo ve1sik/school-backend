@@ -18,22 +18,28 @@ const user_service_1 = require("./user.service");
 const passport_1 = require("@nestjs/passport");
 const roles_guard_1 = require("../auth/roles.guard");
 const roles_decorator_1 = require("../auth/roles.decorator");
-const update_user_dto_1 = require("./dto/update-user.dto");
+const permissions_decorator_1 = require("../auth/permissions.decorator");
 let UserController = class UserController {
     constructor(userService) {
         this.userService = userService;
     }
-    findAll() {
-        return this.userService.findAll();
+    findAll(req, skip, take) {
+        return this.userService.findAll(skip !== undefined ? Number(skip) : undefined, take !== undefined ? Number(take) : undefined, req.user.sub, req.user.role, req.user.admin_permissions || []);
     }
-    findAllStudents() {
-        return this.userService.findAllStudents();
+    findAllStudents(req) {
+        return this.userService.findAllStudents(req.user.sub, req.user.role, req.user.admin_permissions || []);
     }
-    findAllCurators() {
-        return this.userService.findAllCurators();
+    findAllCurators(req) {
+        return this.userService.findAllCurators(req.user.sub, req.user.role, req.user.admin_permissions || []);
     }
-    update(id, dto) {
-        return this.userService.updateRole(id, dto.role);
+    findAllTeachers() {
+        return this.userService.findAllTeachers();
+    }
+    create(dto) {
+        return this.userService.createUser(dto);
+    }
+    update(id, dto, req) {
+        return this.userService.updateUser(id, dto, req.user.role);
     }
     remove(id) {
         return this.userService.deleteUser(id);
@@ -41,33 +47,54 @@ let UserController = class UserController {
 };
 exports.UserController = UserController;
 __decorate([
-    (0, roles_decorator_1.Roles)('ADMIN'),
+    (0, permissions_decorator_1.Permissions)('MANAGE_USERS'),
     (0, common_1.Get)(),
+    __param(0, (0, common_1.Request)()),
+    __param(1, (0, common_1.Query)('skip')),
+    __param(2, (0, common_1.Query)('take')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", []),
+    __metadata("design:paramtypes", [Object, String, String]),
     __metadata("design:returntype", void 0)
 ], UserController.prototype, "findAll", null);
 __decorate([
-    (0, roles_decorator_1.Roles)('ADMIN', 'CURATOR'),
+    (0, permissions_decorator_1.Permissions)('MANAGE_USERS'),
     (0, common_1.Get)('students'),
+    __param(0, (0, common_1.Request)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", []),
+    __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", void 0)
 ], UserController.prototype, "findAllStudents", null);
 __decorate([
-    (0, roles_decorator_1.Roles)('ADMIN'),
+    (0, permissions_decorator_1.Permissions)('MANAGE_USERS'),
     (0, common_1.Get)('curators'),
+    __param(0, (0, common_1.Request)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", []),
+    __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", void 0)
 ], UserController.prototype, "findAllCurators", null);
 __decorate([
+    (0, permissions_decorator_1.Permissions)('MANAGE_USERS'),
+    (0, common_1.Get)('teachers'),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", void 0)
+], UserController.prototype, "findAllTeachers", null);
+__decorate([
     (0, roles_decorator_1.Roles)('ADMIN'),
+    (0, common_1.Post)(),
+    __param(0, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", void 0)
+], UserController.prototype, "create", null);
+__decorate([
+    (0, permissions_decorator_1.Permissions)('MANAGE_USERS'),
     (0, common_1.Patch)(':id'),
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Body)()),
+    __param(2, (0, common_1.Request)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, update_user_dto_1.UpdateUserDto]),
+    __metadata("design:paramtypes", [String, Object, Object]),
     __metadata("design:returntype", void 0)
 ], UserController.prototype, "update", null);
 __decorate([

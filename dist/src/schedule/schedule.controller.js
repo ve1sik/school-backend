@@ -14,6 +14,10 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ScheduleController = void 0;
 const common_1 = require("@nestjs/common");
+const passport_1 = require("@nestjs/passport");
+const roles_guard_1 = require("../auth/roles.guard");
+const roles_decorator_1 = require("../auth/roles.decorator");
+const client_1 = require("@prisma/client");
 const schedule_service_1 = require("./schedule.service");
 let ScheduleController = class ScheduleController {
     constructor(scheduleService) {
@@ -37,6 +41,7 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], ScheduleController.prototype, "getAllEvents", null);
 __decorate([
+    (0, roles_decorator_1.Roles)(client_1.Role.ADMIN, client_1.Role.CURATOR, client_1.Role.TEACHER),
     (0, common_1.Post)(),
     __param(0, (0, common_1.Body)()),
     __metadata("design:type", Function),
@@ -44,6 +49,7 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], ScheduleController.prototype, "createEvent", null);
 __decorate([
+    (0, roles_decorator_1.Roles)(client_1.Role.ADMIN, client_1.Role.CURATOR, client_1.Role.TEACHER),
     (0, common_1.Delete)(':id'),
     __param(0, (0, common_1.Param)('id')),
     __metadata("design:type", Function),
@@ -51,6 +57,7 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], ScheduleController.prototype, "deleteEvent", null);
 exports.ScheduleController = ScheduleController = __decorate([
+    (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt'), roles_guard_1.RolesGuard),
     (0, common_1.Controller)('schedule'),
     __metadata("design:paramtypes", [schedule_service_1.ScheduleService])
 ], ScheduleController);

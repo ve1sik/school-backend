@@ -2,33 +2,41 @@ import { PrismaService } from '../prisma/prisma.service';
 export declare class LessonService {
     private prisma;
     constructor(prisma: PrismaService);
-    create(dto: any): Promise<{
+    private ensureCanManageTheme;
+    private ensureCanManageLesson;
+    create(dto: any, userId?: string, userRole?: string): Promise<{
         id: string;
         created_at: Date;
         title: string;
         order_index: number;
         is_visible: boolean;
+        unlock_date: Date | null;
+        deadline: Date | null;
         theme_id: string;
         type: import(".prisma/client").$Enums.LessonType;
         video_url: string | null;
         content: string | null;
         test_data: import("@prisma/client/runtime/library").JsonValue | null;
+        include_in_analytics: boolean;
         is_homework: boolean;
     }>;
-    update(id: string, dto: any): Promise<{
+    update(id: string, dto: any, userId?: string, userRole?: string): Promise<{
         id: string;
         created_at: Date;
         title: string;
         order_index: number;
         is_visible: boolean;
+        unlock_date: Date | null;
+        deadline: Date | null;
         theme_id: string;
         type: import(".prisma/client").$Enums.LessonType;
         video_url: string | null;
         content: string | null;
         test_data: import("@prisma/client/runtime/library").JsonValue | null;
+        include_in_analytics: boolean;
         is_homework: boolean;
     }>;
-    reorder(id: string, newThemeId: string, newOrderIndex: number): Promise<{
+    reorder(id: string, newThemeId: string, newOrderIndex: number, userId?: string, userRole?: string): Promise<{
         success: boolean;
     }>;
     getByTheme(themeId: string): Promise<{
@@ -37,37 +45,62 @@ export declare class LessonService {
         title: string;
         order_index: number;
         is_visible: boolean;
+        unlock_date: Date | null;
+        deadline: Date | null;
         theme_id: string;
         type: import(".prisma/client").$Enums.LessonType;
         video_url: string | null;
         content: string | null;
         test_data: import("@prisma/client/runtime/library").JsonValue | null;
+        include_in_analytics: boolean;
         is_homework: boolean;
     }[]>;
-    delete(id: string): Promise<{
+    delete(id: string, userId?: string, userRole?: string): Promise<{
         id: string;
         created_at: Date;
         title: string;
         order_index: number;
         is_visible: boolean;
+        unlock_date: Date | null;
+        deadline: Date | null;
         theme_id: string;
         type: import(".prisma/client").$Enums.LessonType;
         video_url: string | null;
         content: string | null;
         test_data: import("@prisma/client/runtime/library").JsonValue | null;
+        include_in_analytics: boolean;
         is_homework: boolean;
     }>;
-    updateVisibility(id: string, is_visible: boolean): Promise<{
+    updateVisibility(id: string, is_visible: boolean, userId?: string, userRole?: string): Promise<{
         id: string;
         created_at: Date;
         title: string;
         order_index: number;
         is_visible: boolean;
+        unlock_date: Date | null;
+        deadline: Date | null;
         theme_id: string;
         type: import(".prisma/client").$Enums.LessonType;
         video_url: string | null;
         content: string | null;
         test_data: import("@prisma/client/runtime/library").JsonValue | null;
+        include_in_analytics: boolean;
+        is_homework: boolean;
+    }>;
+    updateAnalyticsVisibility(id: string, include_in_analytics: boolean, userId?: string, userRole?: string): Promise<{
+        id: string;
+        created_at: Date;
+        title: string;
+        order_index: number;
+        is_visible: boolean;
+        unlock_date: Date | null;
+        deadline: Date | null;
+        theme_id: string;
+        type: import(".prisma/client").$Enums.LessonType;
+        video_url: string | null;
+        content: string | null;
+        test_data: import("@prisma/client/runtime/library").JsonValue | null;
+        include_in_analytics: boolean;
         is_homework: boolean;
     }>;
 }

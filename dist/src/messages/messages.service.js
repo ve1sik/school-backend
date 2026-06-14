@@ -17,30 +17,22 @@ let MessagesService = class MessagesService {
         this.prisma = prisma;
     }
     async getContacts(userId, role) {
-        let users;
-        if (role === 'STUDENT') {
-            users = await this.prisma.user.findMany({
-                where: { role: { in: ['CURATOR', 'ADMIN'] } },
-                select: { id: true, name: true, surname: true, email: true, role: true, avatar: true }
-            });
-        }
-        else {
-            users = await this.prisma.user.findMany({
-                where: { role: 'STUDENT' },
-                select: { id: true, name: true, surname: true, email: true, role: true, avatar: true }
-            });
-        }
-        const contactsWithUnread = await Promise.all(users.map(async (user) => {
-            const unreadCount = await this.prisma.message.count({
-                where: {
-                    sender_id: user.id,
-                    receiver_id: userId,
-                    is_read: false
-                }
-            });
-            return { ...user, unreadCount };
-        }));
-        return contactsWithUnread.sort((a, b) => b.unreadCount - a.unreadCount);
+        const where = role === 'STUDENT'
+            ? { role: { in: ['CURATOR', 'TEACHER', 'ADMIN'] } }
+            : { role: 'STUDENT' };
+        const users = await this.prisma.user.findMany({
+            where,
+            select: { id: true, name: true, surname: true, email: true, role: true, avatar: true },
+        });
+        const grouped = await this.prisma.message.groupBy({
+            by: ['sender_id'],
+            where: { receiver_id: userId, is_read: false },
+            _count: { _all: true },
+        });
+        const unreadMap = new Map(grouped.map((g) => [g.sender_id, g._count._all]));
+        return users
+            .map((user) => ({ ...user, unreadCount: unreadMap.get(user.id) || 0 }))
+            .sort((a, b) => b.unreadCount - a.unreadCount);
     }
     async getHistory(userId1, userId2) {
         await this.prisma.message.updateMany({

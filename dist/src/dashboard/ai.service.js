@@ -9,9 +9,8 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.AiService = void 0;
 const common_1 = require("@nestjs/common");
 let AiService = class AiService {
-    async generateStrictReport(studentName, testsScore, writtenScore, oralScore, weakestTheme) {
+    generateStrictReport(studentName, testsScore, writtenScore, oralScore, weakestTheme) {
         const totalScore = Math.round((testsScore + writtenScore + oralScore) / 3);
-        await new Promise(resolve => setTimeout(resolve, 800));
         return this.generateSmartAnalytics(totalScore, testsScore, writtenScore, weakestTheme);
     }
     generateSmartAnalytics(totalScore, testsScore, writtenScore, weakestTheme) {

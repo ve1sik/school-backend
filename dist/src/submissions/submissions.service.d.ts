@@ -1,8 +1,11 @@
 import { PrismaService } from '../prisma/prisma.service';
+import { TelegramService } from '../telegram/telegram.service';
 export declare const AUTO_GRADE_COMMENT_PREFIX = "\uD83E\uDD16 \u0410\u0432\u0442\u043E\u043C\u0430\u0442\u0438\u0447\u0435\u0441\u043A\u0430\u044F \u043F\u0440\u043E\u0432\u0435\u0440\u043A\u0430";
 export declare class SubmissionsService {
     private prisma;
-    constructor(prisma: PrismaService);
+    private telegramService;
+    constructor(prisma: PrismaService, telegramService: TelegramService);
+    private canGradeStudentLesson;
     private mapSubmissionForCurator;
     createSubmission(userId: string, body: any): Promise<{
         id: string;
@@ -32,12 +35,43 @@ export declare class SubmissionsService {
         status: import(".prisma/client").$Enums.SubmissionStatus;
         updated_at: Date;
     }>;
-    getSubmissionsByStatus(status: 'PENDING' | 'GRADED'): Promise<{
+    createOralSubmission(body: any, requesterId?: string, requesterRole?: string): Promise<{
+        id: string;
+        created_at: Date;
+        score: number | null;
+        user_id: string;
+        question: string;
+        answer: string;
+        lesson_id: string;
+        block_id: string;
+        max_score: number;
+        comment: string | null;
+        status: import(".prisma/client").$Enums.SubmissionStatus;
+        updated_at: Date;
+    }>;
+    getOralSubmission(studentId: string, lessonId: string, requesterId?: string, requesterRole?: string): Promise<{
+        id: string;
+        created_at: Date;
+        score: number | null;
+        user_id: string;
+        question: string;
+        answer: string;
+        lesson_id: string;
+        block_id: string;
+        max_score: number;
+        comment: string | null;
+        status: import(".prisma/client").$Enums.SubmissionStatus;
+        updated_at: Date;
+    }>;
+    private awardPoints;
+    getSubmissionsByStatus(status: 'PENDING' | 'GRADED', requesterId?: string, requesterRole?: string): Promise<{
         id: any;
         studentId: any;
         studentName: any;
         courseName: any;
         lessonTitle: any;
+        lessonId: any;
+        blockId: any;
         question: any;
         answer: any;
         maxScore: any;
@@ -45,9 +79,11 @@ export declare class SubmissionsService {
         comment: any;
         status: any;
         isAutoGraded: any;
+        updated_at: any;
+        created_at: any;
         date: string;
     }[]>;
-    gradeSubmission(id: string, score: number, comment: string): Promise<{
+    gradeSubmission(id: string, score: number, comment: string, status?: string): Promise<{
         id: string;
         created_at: Date;
         score: number | null;

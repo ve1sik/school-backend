@@ -16,7 +16,38 @@ let LessonService = class LessonService {
     constructor(prisma) {
         this.prisma = prisma;
     }
-    async create(dto) {
+    async ensureCanManageTheme(themeId, userId, userRole) {
+        if (userRole === 'ADMIN')
+            return;
+        const theme = await this.prisma.theme.findFirst({
+            where: {
+                id: themeId,
+                course: {
+                    groups: {
+                        some: {
+                            OR: [
+                                { curator_id: userId },
+                                { teacher_id: userId },
+                            ],
+                        },
+                    },
+                },
+            },
+            select: { id: true },
+        });
+        if (!theme)
+            throw new common_1.ForbiddenException('Можно менять только назначенный курс');
+    }
+    async ensureCanManageLesson(lessonId, userId, userRole) {
+        if (userRole === 'ADMIN')
+            return;
+        const lesson = await this.prisma.lesson.findUnique({ where: { id: lessonId }, select: { theme_id: true } });
+        if (!lesson)
+            throw new Error('Lesson not found');
+        await this.ensureCanManageTheme(lesson.theme_id, userId, userRole);
+    }
+    async create(dto, userId, userRole) {
+        await this.ensureCanManageTheme(dto.themeId, userId, userRole);
         return this.prisma.lesson.create({
             data: {
                 title: dto.title,
@@ -27,10 +58,14 @@ let LessonService = class LessonService {
                 content: dto.content || null,
                 test_data: dto.test_data || null,
                 is_homework: dto.is_homework || false,
+                include_in_analytics: dto.include_in_analytics !== undefined ? dto.include_in_analytics : true,
+                unlock_date: dto.unlock_date ? new Date(dto.unlock_date) : null,
+                deadline: dto.deadline ? new Date(dto.deadline) : null,
             },
         });
     }
-    async update(id, dto) {
+    async update(id, dto, userId, userRole) {
+        await this.ensureCanManageLesson(id, userId, userRole);
         return this.prisma.lesson.update({
             where: { id },
             data: {
@@ -40,10 +75,15 @@ let LessonService = class LessonService {
                 content: dto.content,
                 test_data: dto.test_data,
                 is_homework: dto.is_homework,
+                ...(dto.include_in_analytics !== undefined ? { include_in_analytics: dto.include_in_analytics } : {}),
+                ...(dto.unlock_date !== undefined ? { unlock_date: dto.unlock_date ? new Date(dto.unlock_date) : null } : {}),
+                ...(dto.deadline !== undefined ? { deadline: dto.deadline ? new Date(dto.deadline) : null } : {}),
             },
         });
     }
-    async reorder(id, newThemeId, newOrderIndex) {
+    async reorder(id, newThemeId, newOrderIndex, userId, userRole) {
+        await this.ensureCanManageLesson(id, userId, userRole);
+        await this.ensureCanManageTheme(newThemeId, userId, userRole);
         const lesson = await this.prisma.lesson.findUnique({ where: { id } });
         if (!lesson)
             throw new Error('Lesson not found');
@@ -87,15 +127,24 @@ let LessonService = class LessonService {
             orderBy: { order_index: 'asc' },
         });
     }
-    async delete(id) {
+    async delete(id, userId, userRole) {
+        await this.ensureCanManageLesson(id, userId, userRole);
         return this.prisma.lesson.delete({
             where: { id },
         });
     }
-    async updateVisibility(id, is_visible) {
+    async updateVisibility(id, is_visible, userId, userRole) {
+        await this.ensureCanManageLesson(id, userId, userRole);
         return this.prisma.lesson.update({
             where: { id },
             data: { is_visible },
+        });
+    }
+    async updateAnalyticsVisibility(id, include_in_analytics, userId, userRole) {
+        await this.ensureCanManageLesson(id, userId, userRole);
+        return this.prisma.lesson.update({
+            where: { id },
+            data: { include_in_analytics },
         });
     }
 };

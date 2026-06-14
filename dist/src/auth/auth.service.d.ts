@@ -5,6 +5,16 @@ export declare class AuthService {
     private jwt;
     constructor(prisma: PrismaService, jwt: JwtService);
     private issueTokens;
+    refresh(refreshToken: string): Promise<{
+        access_token: string;
+        refresh_token: string;
+        user: {
+            id: string;
+            email: string;
+            role: import(".prisma/client").$Enums.Role;
+            admin_permissions: string[];
+        };
+    }>;
     register(dto: any): Promise<{
         access_token: string;
         refresh_token: string;
@@ -12,6 +22,7 @@ export declare class AuthService {
             id: string;
             email: string;
             role: import(".prisma/client").$Enums.Role;
+            admin_permissions: string[];
         };
     }>;
     login(dto: any): Promise<{
@@ -21,19 +32,25 @@ export declare class AuthService {
             id: string;
             email: string;
             role: import(".prisma/client").$Enums.Role;
+            admin_permissions: string[];
         };
     }>;
     getMe(userId: string): Promise<{
         id: string;
         email: string;
         invite_code: string | null;
+        telegram_code: string | null;
         role: import(".prisma/client").$Enums.Role;
+        admin_permissions: string[];
         name: string | null;
         surname: string | null;
         patronymic: string | null;
         birthday: string | null;
         city: string | null;
         avatar: string | null;
+        points: number;
+        telegram_chat_id: string | null;
+        telegram_linked_at: Date | null;
         parent_id: string | null;
         created_at: Date;
     }>;
@@ -41,18 +58,27 @@ export declare class AuthService {
         id: string;
         email: string;
         invite_code: string | null;
+        telegram_code: string | null;
         role: import(".prisma/client").$Enums.Role;
+        admin_permissions: string[];
         name: string | null;
         surname: string | null;
         patronymic: string | null;
         birthday: string | null;
         city: string | null;
         avatar: string | null;
+        points: number;
+        telegram_chat_id: string | null;
+        telegram_linked_at: Date | null;
         parent_id: string | null;
         created_at: Date;
     }>;
+    changePassword(userId: string, oldPassword: string, newPassword: string): Promise<{
+        success: boolean;
+    }>;
     generateInviteCode(userId: string): Promise<{
         code: string;
+        invite_code: string;
     }>;
     registerParent(dto: any): Promise<{
         access_token: string;
@@ -61,6 +87,7 @@ export declare class AuthService {
             id: string;
             email: string;
             role: import(".prisma/client").$Enums.Role;
+            admin_permissions: string[];
         };
     }>;
     linkToStudent(parentId: string, inviteCode: string): Promise<{

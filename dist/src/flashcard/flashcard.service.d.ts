@@ -24,6 +24,8 @@ export declare class FlashcardService {
             deck_id: string;
             front: string;
             back: string;
+            front_image: string | null;
+            back_image: string | null;
         }[];
         new: {
             progress: any[];
@@ -37,6 +39,8 @@ export declare class FlashcardService {
             deck_id: string;
             front: string;
             back: string;
+            front_image: string | null;
+            back_image: string | null;
         }[];
         totalDue: number;
     }>;

@@ -16,7 +16,36 @@ let ThemeService = class ThemeService {
     constructor(prisma) {
         this.prisma = prisma;
     }
-    async create(dto) {
+    async ensureCanManageCourse(courseId, userId, userRole) {
+        if (userRole === 'ADMIN')
+            return;
+        const course = await this.prisma.course.findFirst({
+            where: {
+                id: courseId,
+                groups: {
+                    some: {
+                        OR: [
+                            { curator_id: userId },
+                            { teacher_id: userId },
+                        ],
+                    },
+                },
+            },
+            select: { id: true },
+        });
+        if (!course)
+            throw new common_1.ForbiddenException('Можно менять только назначенный курс');
+    }
+    async ensureCanManageTheme(themeId, userId, userRole) {
+        if (userRole === 'ADMIN')
+            return;
+        const theme = await this.prisma.theme.findUnique({ where: { id: themeId }, select: { course_id: true } });
+        if (!theme)
+            throw new Error('Theme not found');
+        await this.ensureCanManageCourse(theme.course_id, userId, userRole);
+    }
+    async create(dto, userId, userRole) {
+        await this.ensureCanManageCourse(dto.courseId, userId, userRole);
         return this.prisma.theme.create({
             data: {
                 course_id: dto.courseId,
@@ -25,18 +54,26 @@ let ThemeService = class ThemeService {
             },
         });
     }
-    async update(id, dto) {
+    async update(id, dto, userId, userRole) {
+        await this.ensureCanManageTheme(id, userId, userRole);
+        const { unlock_date, deadline, ...rest } = dto;
         return this.prisma.theme.update({
             where: { id },
-            data: dto,
+            data: {
+                ...rest,
+                ...(unlock_date !== undefined ? { unlock_date: unlock_date ? new Date(unlock_date) : null } : {}),
+                ...(deadline !== undefined ? { deadline: deadline ? new Date(deadline) : null } : {}),
+            },
         });
     }
-    async delete(id) {
+    async delete(id, userId, userRole) {
+        await this.ensureCanManageTheme(id, userId, userRole);
         return this.prisma.theme.delete({
             where: { id },
         });
     }
-    async reorder(id, newOrderIndex) {
+    async reorder(id, newOrderIndex, userId, userRole) {
+        await this.ensureCanManageTheme(id, userId, userRole);
         const theme = await this.prisma.theme.findUnique({ where: { id } });
         if (!theme)
             throw new Error('Theme not found');

@@ -35,8 +35,48 @@ let CourseService = class CourseService {
         return course;
     }
     async getAllCourses(userId, userRole) {
-        if (userRole === 'ADMIN' || userRole === 'CURATOR') {
+        if (userRole === 'ADMIN') {
             return this.prisma.course.findMany({
+                include: {
+                    themes: {
+                        orderBy: { order_index: 'asc' },
+                        include: {
+                            lessons: { orderBy: { order_index: 'asc' } },
+                        },
+                    },
+                },
+                orderBy: { title: 'asc' },
+            });
+        }
+        if (userRole === 'CURATOR' && userId) {
+            return this.prisma.course.findMany({
+                where: {
+                    groups: {
+                        some: {
+                            curator_id: userId,
+                        },
+                    },
+                },
+                include: {
+                    themes: {
+                        orderBy: { order_index: 'asc' },
+                        include: {
+                            lessons: { orderBy: { order_index: 'asc' } },
+                        },
+                    },
+                },
+                orderBy: { title: 'asc' },
+            });
+        }
+        if (userRole === 'TEACHER' && userId) {
+            return this.prisma.course.findMany({
+                where: {
+                    groups: {
+                        some: {
+                            teacher_id: userId,
+                        },
+                    },
+                },
                 include: {
                     themes: {
                         orderBy: { order_index: 'asc' },
@@ -74,7 +114,27 @@ let CourseService = class CourseService {
     async create(dto) {
         return this.prisma.course.create({ data: dto });
     }
-    async updateCourse(id, dto) {
+    async ensureCanManageCourse(id, userId, userRole) {
+        if (userRole === 'ADMIN')
+            return;
+        if (!userId || !['CURATOR', 'TEACHER'].includes(userRole || '')) {
+            throw new common_1.ForbiddenException('Нет доступа к курсу');
+        }
+        const groupRoleFilter = userRole === 'CURATOR' ? { curator_id: userId } : { teacher_id: userId };
+        const course = await this.prisma.course.findFirst({
+            where: {
+                id,
+                groups: {
+                    some: groupRoleFilter,
+                },
+            },
+            select: { id: true },
+        });
+        if (!course)
+            throw new common_1.ForbiddenException('Можно менять только назначенный курс');
+    }
+    async updateCourse(id, dto, userId, userRole) {
+        await this.ensureCanManageCourse(id, userId, userRole);
         return this.prisma.course.update({
             where: { id },
             data: dto,

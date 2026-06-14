@@ -2,7 +2,7 @@ import { SubmissionsService } from './submissions.service';
 export declare class SubmissionsController {
     private readonly submissionsService;
     constructor(submissionsService: SubmissionsService);
-    createSubmission(auth: string, body: any): Promise<{
+    createOralSubmission(body: any, req: any): Promise<{
         id: string;
         created_at: Date;
         score: number | null;
@@ -16,12 +16,42 @@ export declare class SubmissionsController {
         status: import(".prisma/client").$Enums.SubmissionStatus;
         updated_at: Date;
     }>;
-    getSubmissionsByStatus(auth: string, status: string): Promise<{
+    getOralSubmission(studentId: string, lessonId: string, req: any): Promise<{
+        id: string;
+        created_at: Date;
+        score: number | null;
+        user_id: string;
+        question: string;
+        answer: string;
+        lesson_id: string;
+        block_id: string;
+        max_score: number;
+        comment: string | null;
+        status: import(".prisma/client").$Enums.SubmissionStatus;
+        updated_at: Date;
+    }>;
+    createSubmission(req: any, body: any): Promise<{
+        id: string;
+        created_at: Date;
+        score: number | null;
+        user_id: string;
+        question: string;
+        answer: string;
+        lesson_id: string;
+        block_id: string;
+        max_score: number;
+        comment: string | null;
+        status: import(".prisma/client").$Enums.SubmissionStatus;
+        updated_at: Date;
+    }>;
+    getSubmissionsByStatus(status: string, req: any): Promise<{
         id: any;
         studentId: any;
         studentName: any;
         courseName: any;
         lessonTitle: any;
+        lessonId: any;
+        blockId: any;
         question: any;
         answer: any;
         maxScore: any;
@@ -29,14 +59,18 @@ export declare class SubmissionsController {
         comment: any;
         status: any;
         isAutoGraded: any;
+        updated_at: any;
+        created_at: any;
         date: string;
     }[]>;
-    getPending(): Promise<{
+    getPending(req: any): Promise<{
         id: any;
         studentId: any;
         studentName: any;
         courseName: any;
         lessonTitle: any;
+        lessonId: any;
+        blockId: any;
         question: any;
         answer: any;
         maxScore: any;
@@ -44,9 +78,11 @@ export declare class SubmissionsController {
         comment: any;
         status: any;
         isAutoGraded: any;
+        updated_at: any;
+        created_at: any;
         date: string;
     }[]>;
-    gradeSubmission(auth: string, id: string, body: any): Promise<{
+    gradeSubmission(id: string, body: any): Promise<{
         id: string;
         created_at: Date;
         score: number | null;
@@ -60,7 +96,7 @@ export declare class SubmissionsController {
         status: import(".prisma/client").$Enums.SubmissionStatus;
         updated_at: Date;
     }>;
-    getMySubmission(auth: string, lessonId: string): Promise<{
+    getMySubmission(req: any, lessonId: string): Promise<{
         id: string;
         created_at: Date;
         score: number | null;
@@ -74,7 +110,7 @@ export declare class SubmissionsController {
         status: import(".prisma/client").$Enums.SubmissionStatus;
         updated_at: Date;
     }>;
-    getMySubmissions(auth: string): Promise<{
+    getMySubmissions(req: any): Promise<{
         id: string;
         created_at: Date;
         score: number | null;

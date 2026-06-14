@@ -29,6 +29,8 @@ export declare class DeckController {
             deck_id: string;
             front: string;
             back: string;
+            front_image: string | null;
+            back_image: string | null;
         }[];
     } & {
         id: string;
@@ -76,6 +78,8 @@ export declare class DeckController {
         deck_id: string;
         front: string;
         back: string;
+        front_image: string | null;
+        back_image: string | null;
     }>;
     bulkSave(id: string, body: {
         cards: {
@@ -95,6 +99,8 @@ export declare class DeckController {
         deck_id: string;
         front: string;
         back: string;
+        front_image: string | null;
+        back_image: string | null;
     }>;
     removeCard(cardId: string): Promise<{
         success: boolean;

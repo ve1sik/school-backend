@@ -14,36 +14,44 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.LessonController = void 0;
 const common_1 = require("@nestjs/common");
+const passport_1 = require("@nestjs/passport");
+const roles_guard_1 = require("../auth/roles.guard");
 const lesson_service_1 = require("./lesson.service");
+const permissions_decorator_1 = require("../auth/permissions.decorator");
 let LessonController = class LessonController {
     constructor(lessonService) {
         this.lessonService = lessonService;
     }
-    create(dto) {
-        return this.lessonService.create(dto);
+    create(dto, req) {
+        return this.lessonService.create(dto, req.user.sub, req.user.role);
     }
     getByTheme(themeId) {
         return this.lessonService.getByTheme(themeId);
     }
-    reorder(id, dto) {
-        return this.lessonService.reorder(id, dto.themeId, dto.newOrderIndex);
+    reorder(id, dto, req) {
+        return this.lessonService.reorder(id, dto.themeId, dto.newOrderIndex, req.user.sub, req.user.role);
     }
-    update(id, dto) {
+    update(id, dto, req) {
         if (Object.keys(dto).length === 1 && 'is_visible' in dto) {
-            return this.lessonService.updateVisibility(id, dto.is_visible);
+            return this.lessonService.updateVisibility(id, dto.is_visible, req.user.sub, req.user.role);
         }
-        return this.lessonService.update(id, dto);
+        if (Object.keys(dto).length === 1 && 'include_in_analytics' in dto) {
+            return this.lessonService.updateAnalyticsVisibility(id, dto.include_in_analytics, req.user.sub, req.user.role);
+        }
+        return this.lessonService.update(id, dto, req.user.sub, req.user.role);
     }
-    delete(id) {
-        return this.lessonService.delete(id);
+    delete(id, req) {
+        return this.lessonService.delete(id, req.user.sub, req.user.role);
     }
 };
 exports.LessonController = LessonController;
 __decorate([
+    (0, permissions_decorator_1.Permissions)('MANAGE_COURSES'),
     (0, common_1.Post)(),
     __param(0, (0, common_1.Body)()),
+    __param(1, (0, common_1.Request)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object]),
+    __metadata("design:paramtypes", [Object, Object]),
     __metadata("design:returntype", void 0)
 ], LessonController.prototype, "create", null);
 __decorate([
@@ -54,29 +62,36 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], LessonController.prototype, "getByTheme", null);
 __decorate([
+    (0, permissions_decorator_1.Permissions)('MANAGE_COURSES'),
     (0, common_1.Patch)(':id/reorder'),
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Body)()),
+    __param(2, (0, common_1.Request)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:paramtypes", [String, Object, Object]),
     __metadata("design:returntype", void 0)
 ], LessonController.prototype, "reorder", null);
 __decorate([
+    (0, permissions_decorator_1.Permissions)('MANAGE_COURSES'),
     (0, common_1.Patch)(':id'),
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Body)()),
+    __param(2, (0, common_1.Request)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:paramtypes", [String, Object, Object]),
     __metadata("design:returntype", void 0)
 ], LessonController.prototype, "update", null);
 __decorate([
+    (0, permissions_decorator_1.Permissions)('MANAGE_COURSES'),
     (0, common_1.Delete)(':id'),
     __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Request)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String]),
+    __metadata("design:paramtypes", [String, Object]),
     __metadata("design:returntype", void 0)
 ], LessonController.prototype, "delete", null);
 exports.LessonController = LessonController = __decorate([
+    (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt'), roles_guard_1.RolesGuard),
     (0, common_1.Controller)('lessons'),
     __metadata("design:paramtypes", [lesson_service_1.LessonService])
 ], LessonController);

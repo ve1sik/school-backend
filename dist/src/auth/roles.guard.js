@@ -13,25 +13,49 @@ exports.RolesGuard = void 0;
 const common_1 = require("@nestjs/common");
 const core_1 = require("@nestjs/core");
 const roles_decorator_1 = require("./roles.decorator");
+const prisma_service_1 = require("../prisma/prisma.service");
+const permissions_decorator_1 = require("./permissions.decorator");
 let RolesGuard = class RolesGuard {
-    constructor(reflector) {
+    constructor(reflector, prisma) {
         this.reflector = reflector;
+        this.prisma = prisma;
     }
-    canActivate(context) {
+    async canActivate(context) {
         const requiredRoles = this.reflector.getAllAndOverride(roles_decorator_1.ROLES_KEY, [
             context.getHandler(),
             context.getClass(),
         ]);
-        if (!requiredRoles) {
+        const requiredPermissions = this.reflector.getAllAndOverride(permissions_decorator_1.PERMISSIONS_KEY, [
+            context.getHandler(),
+            context.getClass(),
+        ]);
+        if (!requiredRoles && !requiredPermissions) {
             return true;
         }
         const { user } = context.switchToHttp().getRequest();
+        if (!user)
+            return false;
+        if (user.role === 'ADMIN')
+            return true;
+        if (requiredPermissions?.length) {
+            const defaultPermissions = permissions_decorator_1.DEFAULT_ROLE_PERMISSIONS[user.role] || [];
+            const dbUser = await this.prisma.user.findUnique({
+                where: { id: user.sub },
+                select: { admin_permissions: true },
+            });
+            const permissions = new Set([
+                ...defaultPermissions,
+                ...(dbUser?.admin_permissions || []),
+            ]);
+            return requiredPermissions.some((permission) => permissions.has(permission));
+        }
         return requiredRoles.some((role) => user?.role === role);
     }
 };
 exports.RolesGuard = RolesGuard;
 exports.RolesGuard = RolesGuard = __decorate([
     (0, common_1.Injectable)(),
-    __metadata("design:paramtypes", [core_1.Reflector])
+    __metadata("design:paramtypes", [core_1.Reflector,
+        prisma_service_1.PrismaService])
 ], RolesGuard);
 //# sourceMappingURL=roles.guard.js.map

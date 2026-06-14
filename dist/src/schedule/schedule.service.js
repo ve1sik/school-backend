@@ -29,7 +29,28 @@ let ScheduleService = class ScheduleService {
                 date: new Date(data.date),
                 type: data.type || 'WEBINAR',
                 link: data.link,
+                ...(data.group_id ? { group: { connect: { id: data.group_id } } } : {}),
             }
+        });
+    }
+    async upsertEvent(data) {
+        const existing = await this.prisma.event.findFirst({
+            where: { title: data.title, type: data.type },
+        });
+        if (existing) {
+            return this.prisma.event.update({
+                where: { id: existing.id },
+                data: { date: data.date, description: data.description },
+            });
+        }
+        return this.prisma.event.create({
+            data: {
+                title: data.title,
+                date: data.date,
+                type: data.type,
+                description: data.description,
+                ...(data.group_id ? { group: { connect: { id: data.group_id } } } : {}),
+            },
         });
     }
     async deleteEvent(id) {

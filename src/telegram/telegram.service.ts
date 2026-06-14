@@ -95,16 +95,21 @@ export class TelegramService implements OnModuleInit {
     } catch { /* не критично */ }
   }
 
-  // ─────────────── Link store ───────────────
+  // ─────────────── Link store (читается один раз, хранится в памяти) ───────────────
+
+  private _links: LinkStore | null = null;
 
   private loadLinks(): LinkStore {
+    if (this._links) return this._links;
     try {
-      if (!existsSync(this.linksPath)) return {};
-      return JSON.parse(readFileSync(this.linksPath, 'utf8')) || {};
-    } catch { return {}; }
+      if (!existsSync(this.linksPath)) { this._links = {}; return {}; }
+      this._links = JSON.parse(readFileSync(this.linksPath, 'utf8')) || {};
+      return this._links!;
+    } catch { this._links = {}; return {}; }
   }
 
   private saveLinks(links: LinkStore) {
+    this._links = links;
     writeFileSync(this.linksPath, JSON.stringify(links, null, 2));
   }
 
@@ -121,21 +126,48 @@ export class TelegramService implements OnModuleInit {
     return this.loadLinks()[this.buildCode(userId)]?.chatId || null;
   }
 
+  // ─────────────── In-memory user cache (TTL 5 мин) ───────────────
+
+  private _userCache = new Map<string, { user: any; exp: number }>();
+
+  private async cachedUser(userId: string) {
+    const now = Date.now();
+    const hit = this._userCache.get(userId);
+    if (hit && hit.exp > now) return hit.user;
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: { parent: true },
+    });
+    if (user) this._userCache.set(userId, { user, exp: now + 5 * 60 * 1000 });
+    return user;
+  }
+
+  private invalidateCache(userId: string) {
+    this._userCache.delete(userId);
+  }
+
+  // ─────────────── Поиск пользователя по коду (без full-scan) ───────────────
+  // Код = TG + первые 8 hex-символов UUID (до первого дефиса)
+  // UUID формат: xxxxxxxx-xxxx-... → prefix = 8 символов
+
   private async findUserByCode(code: string) {
-    // Грузим пользователей батчем, без N+1
-    const all = await this.prisma.user.findMany({
+    // Сначала смотрим в уже сохранённых ссылках — если пользователь уже привязан
+    const existing = this.loadLinks()[code];
+    if (existing) return this.cachedUser(existing.userId);
+
+    // Иначе ищем по prefix UUID: TG + 8 символов = первые 8 hex UUID
+    const uuidPrefix = code.slice(2).toLowerCase(); // 8 символов
+    const candidates = await this.prisma.user.findMany({
+      where: { id: { startsWith: uuidPrefix } },
       select: { id: true, email: true, name: true, surname: true, role: true },
     });
-    return all.find((u) => this.buildCode(u.id) === code) || null;
+    return candidates.find((u) => this.buildCode(u.id) === code) || null;
   }
 
   private async findUserByChatId(chatId: string) {
     const link = Object.values(this.loadLinks()).find((l) => l.chatId === chatId);
     if (!link) return null;
-    return this.prisma.user.findUnique({
-      where: { id: link.userId },
-      include: { parent: true },
-    });
+    return this.cachedUser(link.userId);
   }
 
   // ─────────────── Telegram API ───────────────
@@ -240,7 +272,9 @@ export class TelegramService implements OnModuleInit {
     const linked = await this.findUserByChatId(chatId);
     if (!linked) return this.reply(chatId, '⚠️ Сначала отправьте Telegram-код с сайта.');
 
-    const student = await this.resolveStudent(linked);
+    const student = linked.role === 'PARENT'
+      ? await this.prisma.user.findFirst({ where: { parent_id: linked.id }, select: { id: true, name: true, surname: true, email: true, role: true } })
+      : linked;
     if (!student) return this.reply(chatId, 'К аккаунту родителя пока не привязан ученик.\n\nОткройте «Кабинет родителя» на сайте.');
 
     if (data === 'stats')     return this.showCourseList(chatId, student.id);
@@ -259,7 +293,9 @@ export class TelegramService implements OnModuleInit {
   private async requireLinked(chatId: string, fn: (student: any) => Promise<WebhookReply>): Promise<WebhookReply> {
     const linked = await this.findUserByChatId(chatId);
     if (!linked) return this.sendWelcome(chatId);
-    const student = await this.resolveStudent(linked);
+    const student = linked.role === 'PARENT'
+      ? await this.prisma.user.findFirst({ where: { parent_id: linked.id }, select: { id: true, name: true, surname: true, email: true, role: true } })
+      : linked;
     if (!student) return this.reply(chatId, 'К аккаунту родителя пока не привязан ученик.', { keyboard: false });
     return fn(student);
   }
@@ -273,8 +309,14 @@ export class TelegramService implements OnModuleInit {
     return `${u?.surname ?? ''} ${u?.name ?? u?.email ?? 'Пользователь'}`.trim();
   }
 
-  // Все курсы ученика: прямые энролменты + через группы
+  private _coursesCache = new Map<string, { courses: any[]; exp: number }>();
+
+  // Все курсы ученика: прямые энролменты + через группы (кэш 3 мин)
   private async getStudentCourses(studentId: string) {
+    const now = Date.now();
+    const hit = this._coursesCache.get(studentId);
+    if (hit && hit.exp > now) return hit.courses;
+
     const [enrollments, groups] = await Promise.all([
       this.prisma.enrollment.findMany({
         where: { user_id: studentId },
@@ -289,7 +331,9 @@ export class TelegramService implements OnModuleInit {
     const map = new Map<string, any>();
     enrollments.forEach((e) => map.set(e.course_id, e.course));
     groups.forEach((g) => g.courses.forEach((c) => map.set(c.id, c)));
-    return Array.from(map.values());
+    const courses = Array.from(map.values());
+    this._coursesCache.set(studentId, { courses, exp: now + 3 * 60 * 1000 });
+    return courses;
   }
 
   // ─────────────── Экраны ───────────────
@@ -335,6 +379,7 @@ export class TelegramService implements OnModuleInit {
     const links = this.loadLinks();
     links[code] = { chatId, userId: user.id, linkedAt: new Date().toISOString() };
     this.saveLinks(links);
+    this.invalidateCache(user.id);
 
     const student = user.role === 'PARENT'
       ? await this.prisma.user.findFirst({ where: { parent_id: user.id } })
@@ -771,12 +816,14 @@ export class TelegramService implements OnModuleInit {
   }
 
   private async calcStats(studentId: string, courseId?: string, themeId?: string) {
-    const lessonFilter: any = {};
-    if (themeId)  lessonFilter.theme    = { id: themeId };
-    else if (courseId) lessonFilter.theme = { course_id: courseId };
+    const lessonWhere: any = themeId
+      ? { theme_id: themeId }
+      : courseId
+        ? { theme: { course_id: courseId } }
+        : undefined;
 
     const subs = await this.prisma.submission.findMany({
-      where: { user_id: studentId, status: 'GRADED', lesson: lessonFilter },
+      where: { user_id: studentId, status: 'GRADED', ...(lessonWhere ? { lesson: lessonWhere } : {}) },
       select: { score: true, max_score: true, block_id: true, comment: true },
     });
 

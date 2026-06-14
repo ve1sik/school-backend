@@ -19,6 +19,7 @@ const passport_1 = require("@nestjs/passport");
 const roles_guard_1 = require("../auth/roles.guard");
 const roles_decorator_1 = require("../auth/roles.decorator");
 const client_1 = require("@prisma/client");
+const permissions_decorator_1 = require("../auth/permissions.decorator");
 let CourseController = class CourseController {
     constructor(courseService) {
         this.courseService = courseService;
@@ -26,23 +27,14 @@ let CourseController = class CourseController {
     findOne(id) {
         return this.courseService.findOne(id);
     }
-    async getAll(auth) {
-        if (!auth)
-            throw new common_1.UnauthorizedException('Нет токена');
-        const token = auth.split(' ')[1];
-        const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString());
-        const userId = payload.sub || payload.id;
-        const userRole = payload.role;
-        return this.courseService.getAllCourses(userId, userRole);
+    async getAll(req) {
+        return this.courseService.getAllCourses(req.user.sub, req.user.role);
     }
     async createCourse(dto) {
         return this.courseService.create(dto);
     }
-    async createTheme(courseId, body) {
-        return { message: 'Тема создана (заглушка)', courseId, body };
-    }
-    async update(id, dto) {
-        return this.courseService.updateCourse(id, dto);
+    async update(id, dto, req) {
+        return this.courseService.updateCourse(id, dto, req.user.sub, req.user.role);
     }
     async deleteCourse(id) {
         return this.courseService.delete(id);
@@ -57,16 +49,14 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], CourseController.prototype, "findOne", null);
 __decorate([
-    (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
     (0, common_1.Get)(),
-    __param(0, (0, common_1.Headers)('authorization')),
+    __param(0, (0, common_1.Request)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String]),
+    __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", Promise)
 ], CourseController.prototype, "getAll", null);
 __decorate([
-    (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt'), roles_guard_1.RolesGuard),
-    (0, roles_decorator_1.Roles)(client_1.Role.ADMIN, client_1.Role.CURATOR),
+    (0, roles_decorator_1.Roles)(client_1.Role.ADMIN),
     (0, common_1.Post)(),
     __param(0, (0, common_1.Body)()),
     __metadata("design:type", Function),
@@ -74,28 +64,18 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], CourseController.prototype, "createCourse", null);
 __decorate([
-    (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt'), roles_guard_1.RolesGuard),
-    (0, roles_decorator_1.Roles)(client_1.Role.ADMIN, client_1.Role.CURATOR),
-    (0, common_1.Post)(':courseId/themes'),
-    __param(0, (0, common_1.Param)('courseId')),
-    __param(1, (0, common_1.Body)()),
-    __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, Object]),
-    __metadata("design:returntype", Promise)
-], CourseController.prototype, "createTheme", null);
-__decorate([
-    (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt'), roles_guard_1.RolesGuard),
-    (0, roles_decorator_1.Roles)(client_1.Role.ADMIN, client_1.Role.CURATOR),
+    (0, roles_decorator_1.Roles)(client_1.Role.ADMIN, client_1.Role.CURATOR, client_1.Role.TEACHER),
+    (0, permissions_decorator_1.Permissions)('MANAGE_COURSES'),
     (0, common_1.Patch)(':id'),
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Body)()),
+    __param(2, (0, common_1.Request)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:paramtypes", [String, Object, Object]),
     __metadata("design:returntype", Promise)
 ], CourseController.prototype, "update", null);
 __decorate([
-    (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt'), roles_guard_1.RolesGuard),
-    (0, roles_decorator_1.Roles)(client_1.Role.ADMIN, client_1.Role.CURATOR),
+    (0, roles_decorator_1.Roles)(client_1.Role.ADMIN),
     (0, common_1.Delete)(':id'),
     __param(0, (0, common_1.Param)('id')),
     __metadata("design:type", Function),
@@ -103,6 +83,7 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], CourseController.prototype, "deleteCourse", null);
 exports.CourseController = CourseController = __decorate([
+    (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt'), roles_guard_1.RolesGuard),
     (0, common_1.Controller)('courses'),
     __metadata("design:paramtypes", [course_service_1.CourseService])
 ], CourseController);
