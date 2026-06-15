@@ -4,7 +4,7 @@ import { getRefreshToken, getToken, logout, setAuthTokens } from './auth';
 export const API_URL = 'https://prepodmgy.ru/api';
 
 // Единый axios-инстанс: сам подставляет токен и обновляет сессию при 401
-export const api = axios.create({ baseURL: API_URL });
+export const api = axios.create({ baseURL: API_URL, timeout: 20000 });
 
 api.interceptors.request.use((config) => {
   const token = getToken();
@@ -40,6 +40,12 @@ api.interceptors.response.use(
   (res) => res,
   async (error) => {
     const original = error?.config as any;
+
+    // Таймаут или сеть недоступна — не пытаемся рефрешить, просто возвращаем ошибку
+    if (error?.code === 'ECONNABORTED' || error?.message === 'Network Error') {
+      return Promise.reject(error);
+    }
+
     if (error?.response?.status === 401 && original && !original.__isRetryRequest) {
       original.__isRetryRequest = true;
       const newToken = await refreshAccessToken();
@@ -84,6 +90,17 @@ export async function cachedGet<T = any>(path: string, ttlMs = 15000): Promise<T
 
   inflight.set(path, p);
   return p as Promise<T>;
+}
+
+/**
+ * cachedGet с жёстким таймаутом (мс). При превышении бросает ошибку.
+ * Используйте .catch(() => fallback) чтобы не зависнуть при недоступном бэкенде.
+ */
+export async function cachedGetTimeout<T = any>(path: string, ttlMs = 15000, timeoutMs = 18000): Promise<T> {
+  const timeout = new Promise<never>((_, reject) =>
+    setTimeout(() => reject(new Error(`Request timeout: ${path}`)), timeoutMs),
+  );
+  return Promise.race([cachedGet<T>(path, ttlMs), timeout]);
 }
 
 // Сбросить кеш (целиком или по префиксу пути) — вызывать после мутаций

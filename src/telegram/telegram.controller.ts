@@ -6,33 +6,33 @@ import { TelegramService } from './telegram.service';
 export class TelegramController {
   constructor(private readonly telegramService: TelegramService) {}
 
-  // Telegram шлёт сюда обновления (messages / callback_query)
-  // Отвечаем напрямую в HTTP-ответе — исходящих запросов при интерактиве нет
+  /**
+   * Telegram шлёт обновления сюда.
+   * Отвечаем { ok: true } МГНОВЕННО, обработка идёт асинхронно в фоне.
+   * Это устраняет таймаут 800ms и делает бота быстрым.
+   */
   @Post('webhook')
   handleWebhook(@Body() update: any) {
-    return this.telegramService.handleUpdate(update);
+    this.telegramService.handleUpdate(update); // fire-and-forget
+    return { ok: true };
   }
 
-  // Получить код и ссылку на бота (вызывается с сайта)
   @UseGuards(AuthGuard('jwt'))
   @Get('link-code')
   getLinkCode(@Request() req) {
     return this.telegramService.ensureTelegramCode(req.user.sub);
   }
 
-  // Повторная регистрация команд бота (полезно после смены токена)
   @Get('register-commands')
   registerCommands() {
     return this.telegramService.registerBotCommands();
   }
 
-  // Диагностика Telegram: привязанные чаты, токен, proxy
   @Get('health')
   health() {
     return this.telegramService.health();
   }
 
-  // Тестовая отправка — проверить исходящее соединение
   @Get('test-send')
   testSend(@Query('chatId') chatId: string) {
     return this.telegramService.testSend(chatId);

@@ -1,32 +1,12 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import axios from 'axios';
-import * as http from 'http';
-import * as https from 'https';
 import { existsSync, readFileSync, writeFileSync } from 'fs';
 import { join } from 'path';
 
 type TgButton = { text: string; callback_data: string };
 type LinkStore = Record<string, { chatId?: string; userId: string; linkedAt?: string; preparedAt?: string }>;
-type PushJob = {
-  chatId: string;
-  text: string;
-  extra?: { buttons?: TgButton[][]; keyboard?: boolean };
-  attempt: number;
-};
-type AxiosProxyConfig = {
-  protocol?: string;
-  host: string;
-  port: number;
-  auth?: { username: string; password: string };
-};
 
-// Структура прямого ответа Telegram через webhook
-type WebhookReply =
-  | { method: 'sendMessage'; chat_id: string | number; text: string; parse_mode: string; disable_web_page_preview: boolean; reply_markup?: any }
-  | { ok: true };
-
-// Постоянная клавиатура (внизу экрана Telegram)
 const MAIN_KEYBOARD = {
   keyboard: [
     [{ text: '📊 Статистика' },   { text: '📅 Дедлайны' }],
@@ -41,7 +21,6 @@ const MAIN_KEYBOARD = {
 
 const AUTO_PREFIX = 'Автоматическая проверка';
 
-// ─────────────── Форматирование ───────────────
 const esc = (v: any) =>
   String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
@@ -69,21 +48,16 @@ const daysLeft = (d: Date | string) => {
 export class TelegramService implements OnModuleInit {
   private readonly logger = new Logger(TelegramService.name);
   private readonly linksPath = join(process.cwd(), 'telegram-links.json');
-  private readonly webhookTimeoutMs = 800;
-  private readonly cacheTtlMs = 60 * 1000;
-  private readonly pushQueue: PushJob[] = [];
-  private pushInFlight = 0;
-  private readonly pushConcurrency = 4;
-  private lastPushError: string | null = null;
-  private proxyError: string | null = null;
-  private pushStats = { queued: 0, sent: 0, failed: 0 };
-  private lastPushLatencyMs: number | null = null;
-  private _replyCache = new Map<string, { exp: number; reply: WebhookReply }>();
-  private readonly tgApi = axios.create({
-    baseURL: `https://api.telegram.org`,
-    timeout: 1500,
-    httpAgent: new http.Agent({ keepAlive: true, maxSockets: 20 }),
-    httpsAgent: new https.Agent({ keepAlive: true, maxSockets: 20 }),
+
+  // Кеши
+  private _userCache = new Map<string, { user: any; exp: number }>();
+  private _coursesCache = new Map<string, { courses: any[]; exp: number }>();
+  private _links: LinkStore | null = null;
+
+  // HTTP-клиент — без прокси, с keepAlive
+  private readonly tg = axios.create({
+    baseURL: 'https://api.telegram.org',
+    timeout: 15000,
     proxy: false,
   });
 
@@ -102,7 +76,6 @@ export class TelegramService implements OnModuleInit {
       }, next9.getTime() - now.getTime());
     };
     scheduleDaily();
-    // Регистрируем команды бота
     this.registerBotCommands().catch(() => {});
   }
 
@@ -112,433 +85,175 @@ export class TelegramService implements OnModuleInit {
   get botUsername() { return process.env.TELEGRAM_BOT_USERNAME || 'prepodmgybot'; }
   get botUrl() { return `https://t.me/${this.botUsername}`; }
 
-  private getProxyUrl() {
-    return process.env.HTTPS_PROXY || process.env.HTTP_PROXY || '';
-  }
+  // ─────────────── Telegram API ───────────────
 
-  private getProxyConfig(): AxiosProxyConfig | false {
-    const raw = this.getProxyUrl().trim();
-    this.proxyError = null;
-    if (!raw) return false;
-
-    // Игнорируем документационные заглушки, чтобы они не ломали отправку в Telegram.
-    if (/USER|PASSWORD|HOST|PORT/i.test(raw)) {
-      this.proxyError = 'placeholder proxy ignored';
-      return false;
+  /**
+   * Отправить сообщение через Bot API (всегда асинхронно, не через webhook reply).
+   */
+  async sendMessage(
+    chatId: string,
+    text: string,
+    extra?: { buttons?: TgButton[][]; keyboard?: boolean },
+  ): Promise<void> {
+    if (!this.token) {
+      this.logger.warn('TELEGRAM_BOT_TOKEN не задан');
+      return;
     }
+    const reply_markup = extra?.buttons
+      ? { inline_keyboard: extra.buttons }
+      : extra?.keyboard !== false
+        ? MAIN_KEYBOARD
+        : undefined;
 
     try {
-      // Поддерживаем оба формата: http://user:pass@host:port и просто host:port
-      const normalized = raw.includes('://') ? raw : `http://${raw}`;
-      const url = new URL(normalized);
-      if (!url.hostname || !url.port) {
-        throw new Error('proxy must include host and port');
-      }
-      const protocol = url.protocol.replace(':', '') || 'http';
-      if (!['http', 'https'].includes(protocol)) {
-        throw new Error(`unsupported proxy protocol: ${protocol}`);
-      }
-
-      return {
-        protocol,
-        host: url.hostname,
-        port: Number(url.port),
-        auth: url.username
-          ? { username: decodeURIComponent(url.username), password: decodeURIComponent(url.password || '') }
-          : undefined,
-      };
+      await this.tg.post(`/bot${this.token}/sendMessage`, {
+        chat_id: chatId,
+        text,
+        parse_mode: 'HTML',
+        disable_web_page_preview: true,
+        reply_markup,
+      });
     } catch (e: any) {
-      this.proxyError = e?.message || 'invalid proxy url';
-      return false;
+      const err = e?.response?.data?.description || e?.code || e?.message || 'unknown';
+      this.logger.warn(`sendMessage failed for ${chatId}: ${err}`);
     }
   }
 
-  private telegramRequestConfig(timeout = 1500) {
-    const proxy = this.getProxyConfig();
-    return {
-      timeout,
-      proxy,
-      httpAgent: new http.Agent({ keepAlive: true, maxSockets: 20 }),
-      httpsAgent: new https.Agent({ keepAlive: true, maxSockets: 20 }),
-    };
+  private async answerCbq(id: string) {
+    if (!this.token) return;
+    try {
+      await this.tg.post(`/bot${this.token}/answerCallbackQuery`, { callback_query_id: id });
+    } catch { /* не критично */ }
   }
 
   async registerBotCommands() {
     if (!this.token) return;
     try {
-      await this.tgApi.post(`/bot${this.token}/setMyCommands`, {
+      await this.tg.post(`/bot${this.token}/setMyCommands`, {
         commands: [
           { command: 'start',     description: '🏠 Начало / главное меню' },
-          { command: 'restart',   description: '🔄 Перезапустить бота' },
           { command: 'stats',     description: '📊 Статистика по курсам' },
           { command: 'deadlines', description: '📅 Ближайшие дедлайны' },
           { command: 'profile',   description: '👤 Мой профиль' },
           { command: 'courses',   description: '📚 Список моих курсов' },
           { command: 'help',      description: '❓ Помощь' },
         ],
-      }, this.telegramRequestConfig(8000));
-      await this.tgApi.post(`/bot${this.token}/setMyDescription`, {
-        description: 'Бот школы «Препод из МГУ»: аналитика, оценки, дедлайны и уведомления от куратора.',
-      }, this.telegramRequestConfig(8000));
-      await this.tgApi.post(`/bot${this.token}/setChatMenuButton`, {
-        menu_button: { type: 'commands' },
-      }, this.telegramRequestConfig(8000));
+      });
     } catch { /* не критично */ }
   }
 
-  // ─────────────── Link store (читается один раз, хранится в памяти) ───────────────
+  // ─────────────── Webhook entry — отвечаем сразу 200 OK ───────────────
 
-  private _links: LinkStore | null = null;
-
-  private loadLinks(): LinkStore {
-    if (this._links) return this._links;
-    try {
-      if (!existsSync(this.linksPath)) { this._links = {}; return {}; }
-      this._links = JSON.parse(readFileSync(this.linksPath, 'utf8')) || {};
-      return this._links!;
-    } catch { this._links = {}; return {}; }
-  }
-
-  private saveLinks(links: LinkStore) {
-    this._links = links;
-    writeFileSync(this.linksPath, JSON.stringify(links, null, 2));
-  }
-
-  private buildCode(userId: string) {
-    return `TG${userId.replace(/-/g, '').slice(0, 8).toUpperCase()}`;
-  }
-
-  async ensureTelegramCode(userId: string) {
-    const code = this.buildCode(userId);
-    const links = this.loadLinks();
-    if (!links[code]) {
-      links[code] = { userId, preparedAt: new Date().toISOString() };
-      this.saveLinks(links);
-    }
-    return { code, botUrl: this.botUrl, linked: !!this.loadLinks()[code]?.chatId };
-  }
-
-  private getChatIdForUser(userId: string) {
-    return this.loadLinks()[this.buildCode(userId)]?.chatId || null;
-  }
-
-  // ─────────────── In-memory user cache (TTL 5 мин) ───────────────
-
-  private _userCache = new Map<string, { user: any; exp: number }>();
-
-  private async cachedUser(userId: string) {
-    const now = Date.now();
-    const hit = this._userCache.get(userId);
-    if (hit && hit.exp > now) return hit.user;
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-      include: { parent: true },
-    });
-    if (user) this._userCache.set(userId, { user, exp: now + 5 * 60 * 1000 });
-    return user;
-  }
-
-  private invalidateCache(userId: string) {
-    this._userCache.delete(userId);
-  }
-
-  private async withTimeout<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T> {
-    let timer: NodeJS.Timeout | undefined;
-    try {
-      return await Promise.race([
-        promise,
-        new Promise<T>((resolve) => {
-          timer = setTimeout(() => resolve(fallback), ms);
-        }),
-      ]);
-    } finally {
-      if (timer) clearTimeout(timer);
-    }
-  }
-
-  private getCachedReply(key: string): WebhookReply | null {
-    const hit = this._replyCache.get(key);
-    if (!hit) return null;
-    if (hit.exp < Date.now()) {
-      this._replyCache.delete(key);
-      return null;
-    }
-    return hit.reply;
-  }
-
-  private setCachedReply(key: string, reply: WebhookReply, ttlMs = this.cacheTtlMs) {
-    this._replyCache.set(key, { reply, exp: Date.now() + ttlMs });
-    return reply;
-  }
-
-  private invalidateStudentReplyCache(studentId: string) {
-    for (const key of Array.from(this._replyCache.keys())) {
-      if (key.includes(`:${studentId}`)) this._replyCache.delete(key);
-    }
-  }
-
-  // ─────────────── Поиск пользователя по коду (без full-scan) ───────────────
-  // Код = TG + первые 8 hex-символов UUID (до первого дефиса)
-  // UUID формат: xxxxxxxx-xxxx-... → prefix = 8 символов
-
-  private async findUserByCode(code: string) {
-    // Сначала смотрим в уже сохранённых ссылках — если пользователь уже привязан
-    const existing = this.loadLinks()[code];
-    if (existing) {
-      return this.cachedUser(existing.userId)
-        .catch(() => ({ id: existing.userId, role: 'STUDENT', name: 'Пользователь' }));
-    }
-
-    // Иначе ищем по prefix UUID: TG + 8 символов = первые 8 hex UUID
-    const uuidPrefix = code.slice(2).toLowerCase(); // 8 символов
-    const candidates = await this.withTimeout(
-      this.prisma.user.findMany({
-        where: { id: { startsWith: uuidPrefix } },
-        select: { id: true, email: true, name: true, surname: true, role: true },
-        take: 3,
-      }),
-      1200,
-      [],
+  /**
+   * Обрабатываем update АСИНХРОННО. Контроллер сразу возвращает { ok: true },
+   * а реальный ответ бот отправляет через sendMessage API.
+   */
+  handleUpdate(update: any): void {
+    // Запускаем обработку без await — ответ вернём через API, не через HTTP
+    this.processUpdate(update).catch((e) =>
+      this.logger.error(`processUpdate error: ${e?.message}`),
     );
-    return candidates.find((u) => this.buildCode(u.id) === code) || null;
   }
 
-  private async findUserByChatId(chatId: string) {
-    const link = Object.values(this.loadLinks()).find((l) => l.chatId === chatId);
-    if (!link) return null;
-    return this.cachedUser(link.userId);
-  }
-
-  // ─────────────── Telegram API ───────────────
-
-  private async pushMessage(chatId: string, text: string, extra?: { buttons?: TgButton[][]; keyboard?: boolean }) {
-    if (!this.token) return { ok: false, error: 'TELEGRAM_BOT_TOKEN is empty' };
-    const reply_markup = extra?.buttons
-      ? { inline_keyboard: extra.buttons }
-      : extra?.keyboard
-        ? MAIN_KEYBOARD
-        : undefined;
+  private async processUpdate(update: any) {
     try {
-      const startedAt = Date.now();
-      const res = await this.tgApi.post(
-        `/bot${this.token}/sendMessage`,
-        {
-          chat_id: chatId,
-          text,
-          parse_mode: 'HTML',
-          disable_web_page_preview: true,
-          reply_markup,
-        },
-        this.telegramRequestConfig(1500),
-      );
-      this.lastPushLatencyMs = Date.now() - startedAt;
-      return { ok: true, status: res.status };
-    } catch (e: any) {
-      const error = e?.response?.data?.description || e?.code || e?.message || 'unknown';
-      this.logger.warn(`Telegram push failed for chat ${chatId}: ${error}`);
-      return { ok: false, error };
-    }
-  }
-
-  private enqueuePush(chatId: string, text: string, extra?: { buttons?: TgButton[][]; keyboard?: boolean }) {
-    this.pushQueue.push({ chatId, text, extra, attempt: 0 });
-    this.pushStats.queued += 1;
-    this.drainPushQueue();
-  }
-
-  private drainPushQueue() {
-    while (this.pushInFlight < this.pushConcurrency && this.pushQueue.length > 0) {
-      const job = this.pushQueue.shift();
-      if (!job) return;
-      this.pushInFlight += 1;
-      this.sendPushJob(job)
-        .catch((e) => {
-          this.lastPushError = e?.message || String(e);
-        })
-        .finally(() => {
-          this.pushInFlight -= 1;
-          if (this.pushQueue.length > 0) this.drainPushQueue();
-        });
-    }
-  }
-
-  private async sendPushJob(job: PushJob) {
-    const result = await this.pushMessage(job.chatId, job.text, job.extra);
-    if (result.ok) {
-      this.pushStats.sent += 1;
-      return;
-    }
-
-    this.lastPushError = String(result.error || 'unknown');
-    if (job.attempt < 1) {
-      // Один быстрый retry без 10-минутных очередей.
-      this.pushQueue.unshift({ ...job, attempt: job.attempt + 1 });
-    } else {
-      this.pushStats.failed += 1;
-    }
-  }
-
-  private reply(chatId: string, text: string, extra?: { buttons?: TgButton[][]; keyboard?: boolean }): WebhookReply {
-    const reply_markup = extra?.buttons
-      ? { inline_keyboard: extra.buttons }
-      : extra?.keyboard !== false
-        ? MAIN_KEYBOARD
-        : undefined;
-    return {
-      method: 'sendMessage',
-      chat_id: chatId,
-      text,
-      parse_mode: 'HTML',
-      disable_web_page_preview: true,
-      reply_markup,
-    };
-  }
-
-  private async answerCbq(callbackQueryId: string) {
-    if (!this.token) return;
-    try {
-      await this.tgApi.post(`/bot${this.token}/answerCallbackQuery`,
-        { callback_query_id: callbackQueryId }, this.telegramRequestConfig(5000));
-    } catch { /* не критично */ }
-  }
-
-  // ─────────────── Webhook entry ───────────────
-
-  async handleUpdate(update: any): Promise<WebhookReply> {
-    const chatId = String(update?.message?.chat?.id || update?.callback_query?.message?.chat?.id || '');
-    const work = (async () => {
-      try {
-        if (update.message) {
-          return await this.handleMessage(
-            String(update.message.chat.id),
-            String(update.message.text || '').trim(),
-          );
-        }
-        if (update.callback_query) {
-          this.answerCbq(update.callback_query.id);
-          return await this.handleCallback(
-            String(update.callback_query.message.chat.id),
-            String(update.callback_query.data || ''),
-          );
-        }
-      } catch (e: any) {
-        this.logger.error(`handleUpdate error: ${e?.message}`);
+      if (update?.message) {
+        const chatId = String(update.message.chat.id);
+        const text = String(update.message.text || '').trim();
+        await this.handleMessage(chatId, text);
+      } else if (update?.callback_query) {
+        const chatId = String(update.callback_query.message.chat.id);
+        const data = String(update.callback_query.data || '');
+        // Отвечаем на callback query немедленно (убирает «часики» в Telegram)
+        this.answerCbq(update.callback_query.id);
+        await this.handleCallback(chatId, data);
       }
-      return { ok: true } as WebhookReply;
-    })();
-
-    const fallback = chatId
-      ? this.reply(
-          chatId,
-          '⏳ <b>Данные подгружаются.</b>\n\nНажмите кнопку ещё раз через секунду. Я не завис, просто база отвечает дольше обычного.',
-        )
-      : ({ ok: true } as WebhookReply);
-
-    return this.withTimeout(work, this.webhookTimeoutMs, fallback);
+    } catch (e: any) {
+      this.logger.error(`processUpdate inner error: ${e?.message}`);
+    }
   }
 
   // ─────────────── Message router ───────────────
 
-  private async handleMessage(chatId: string, text: string): Promise<WebhookReply> {
+  private async handleMessage(chatId: string, text: string) {
     const clean = text.trim();
     const cmd = clean.replace(/^\/(\w+).*/, '$1').toLowerCase();
 
-    // Команды
-    if (cmd === 'start' || cmd === 'restart') return this.handleStart(chatId, clean);
+    if (cmd === 'start' || cmd === 'restart') return this.doStart(chatId, clean);
     if (cmd === 'stats')     return this.requireLinked(chatId, (s) => this.showCourseList(chatId, s.id));
     if (cmd === 'deadlines') return this.requireLinked(chatId, (s) => this.showDeadlines(chatId, s.id));
     if (cmd === 'profile')   return this.requireLinked(chatId, (s) => this.showProfile(chatId, s));
     if (cmd === 'courses')   return this.requireLinked(chatId, (s) => this.showCourseList(chatId, s.id));
-    if (cmd === 'help')      return this.showHelp(chatId);
+    if (cmd === 'help')      return this.doHelp(chatId);
 
-    // Кнопки постоянной клавиатуры
-    if (text === '📊 Статистика')   return this.requireLinked(chatId, (s) => this.showCourseList(chatId, s.id));
-    if (text === '📅 Дедлайны')     return this.requireLinked(chatId, (s) => this.showDeadlines(chatId, s.id));
-    if (text === '👤 Мой профиль')  return this.requireLinked(chatId, (s) => this.showProfile(chatId, s));
-    if (text === '📚 Мои курсы')    return this.requireLinked(chatId, (s) => this.showCourseList(chatId, s.id));
-    if (text === '🔔 Уведомления')  return this.requireLinked(chatId, (s) => this.showNotifSettings(chatId));
-    if (text === '🔄 Перезапустить') return this.handleStart(chatId, '/start');
-    if (text === '❓ Помощь')        return this.showHelp(chatId);
+    if (text === '📊 Статистика')    return this.requireLinked(chatId, (s) => this.showCourseList(chatId, s.id));
+    if (text === '📅 Дедлайны')      return this.requireLinked(chatId, (s) => this.showDeadlines(chatId, s.id));
+    if (text === '👤 Мой профиль')   return this.requireLinked(chatId, (s) => this.showProfile(chatId, s));
+    if (text === '📚 Мои курсы')     return this.requireLinked(chatId, (s) => this.showCourseList(chatId, s.id));
+    if (text === '🔔 Уведомления')   return this.doNotifInfo(chatId);
+    if (text === '🔄 Перезапустить') return this.doStart(chatId, '/start');
+    if (text === '❓ Помощь')         return this.doHelp(chatId);
 
-    // Попытка ввести код привязки
     const codeMatch = clean.match(/^(?:\/start\s+)?([A-Z0-9]{10,16})$/);
     if (codeMatch) return this.handleLinkCode(chatId, codeMatch[1].toUpperCase());
 
-    return this.handleStart(chatId, clean);
+    return this.doStart(chatId, clean);
   }
 
-  private async handleCallback(chatId: string, data: string): Promise<WebhookReply> {
+  private async handleCallback(chatId: string, data: string) {
     const linked = await this.findUserByChatId(chatId);
-    if (!linked) return this.reply(chatId, '⚠️ Сначала отправьте Telegram-код с сайта.');
+    if (!linked) {
+      return this.sendMessage(chatId, '⚠️ Сначала отправьте Telegram-код с сайта.');
+    }
 
     const student = linked.role === 'PARENT'
-      ? await this.prisma.user.findFirst({ where: { parent_id: linked.id }, select: { id: true, name: true, surname: true, email: true, role: true } })
+      ? await this.prisma.user.findFirst({
+          where: { parent_id: linked.id },
+          select: { id: true, name: true, surname: true, email: true, role: true },
+        })
       : linked;
-    if (!student) return this.reply(chatId, 'К аккаунту родителя пока не привязан ученик.\n\nОткройте «Кабинет родителя» на сайте.');
+
+    if (!student) {
+      return this.sendMessage(chatId, 'К аккаунту родителя пока не привязан ученик.\n\nОткройте «Кабинет родителя» на сайте.');
+    }
 
     if (data === 'stats')     return this.showCourseList(chatId, student.id);
     if (data === 'deadlines') return this.showDeadlines(chatId, student.id);
-    if (data === 'home')      return this.showHome(chatId, linked, student);
     if (data === 'profile')   return this.showProfile(chatId, student);
     if (data === 'courses')   return this.showCourseList(chatId, student.id);
-    if (data.startsWith('course:'))  return this.showCourseStats(chatId, student.id, data.slice(7));
-    if (data.startsWith('theme:'))   return this.showThemeStats(chatId, student.id, data.slice(6));
+    if (data.startsWith('course:')) return this.showCourseStats(chatId, student.id, data.slice(7));
+    if (data.startsWith('theme:'))  return this.showThemeStats(chatId, student.id, data.slice(6));
 
-    return this.reply(chatId, '❓ Не понял команду. Используйте кнопки меню.');
+    return this.sendMessage(chatId, '❓ Не понял команду. Используйте кнопки меню.');
   }
 
   // ─────────────── Helpers ───────────────
 
-  private async requireLinked(chatId: string, fn: (student: any) => Promise<WebhookReply>): Promise<WebhookReply> {
+  private async requireLinked(chatId: string, fn: (student: any) => Promise<void>) {
     const linked = await this.findUserByChatId(chatId);
     if (!linked) return this.sendWelcome(chatId);
-    const student = linked.role === 'PARENT'
-      ? await this.prisma.user.findFirst({ where: { parent_id: linked.id }, select: { id: true, name: true, surname: true, email: true, role: true } })
-      : linked;
-    if (!student) return this.reply(chatId, 'К аккаунту родителя пока не привязан ученик.');
-    return fn(student);
-  }
 
-  private async resolveStudent(user: any) {
-    if (user.role !== 'PARENT') return user;
-    return this.prisma.user.findFirst({ where: { parent_id: user.id } });
+    const student = linked.role === 'PARENT'
+      ? await this.prisma.user.findFirst({
+          where: { parent_id: linked.id },
+          select: { id: true, name: true, surname: true, email: true, role: true },
+        })
+      : linked;
+
+    if (!student) {
+      return this.sendMessage(chatId, 'К аккаунту родителя пока не привязан ученик.');
+    }
+    return fn(student);
   }
 
   private userName(u: any) {
     return `${u?.surname ?? ''} ${u?.name ?? u?.email ?? 'Пользователь'}`.trim();
   }
 
-  private _coursesCache = new Map<string, { courses: any[]; exp: number }>();
-
-  // Все курсы ученика: прямые энролменты + через группы (кэш 3 мин)
-  private async getStudentCourses(studentId: string) {
-    const now = Date.now();
-    const hit = this._coursesCache.get(studentId);
-    if (hit && hit.exp > now) return hit.courses;
-
-    const [enrollments, groups] = await Promise.all([
-      this.prisma.enrollment.findMany({
-        where: { user_id: studentId },
-        include: { course: true },
-      }),
-      this.prisma.group.findMany({
-        where: { students: { some: { id: studentId } } },
-        include: { courses: true },
-      }),
-    ]);
-
-    const map = new Map<string, any>();
-    enrollments.forEach((e) => map.set(e.course_id, e.course));
-    groups.forEach((g) => g.courses.forEach((c) => map.set(c.id, c)));
-    const courses = Array.from(map.values());
-    this._coursesCache.set(studentId, { courses, exp: now + 3 * 60 * 1000 });
-    return courses;
-  }
-
   // ─────────────── Экраны ───────────────
 
-  private sendWelcome(chatId: string): WebhookReply {
-    return this.reply(
+  private async sendWelcome(chatId: string) {
+    return this.sendMessage(
       chatId,
       '👋 <b>Привет! Я бот школы «Препод из МГУ».</b>\n\n' +
       'Я помогу вам:\n' +
@@ -549,24 +264,19 @@ export class TelegramService implements OnModuleInit {
       'Код находится:\n' +
       '• Ученик → <b>Мой профиль</b> → блок «Telegram бот»\n' +
       '• Родитель → <b>Кабинет родителя</b> → блок «Telegram бот»',
+      { keyboard: false },
     );
   }
 
-  private async handleStart(chatId: string, text: string): Promise<WebhookReply> {
-    // /start CODE — deep link привязка
+  private async doStart(chatId: string, text: string) {
     const deepCode = text.replace('/start', '').trim().toUpperCase();
     if (deepCode && deepCode.startsWith('TG')) {
       return this.handleLinkCode(chatId, deepCode);
     }
-
     const linked = Object.values(this.loadLinks()).some((l) => l.chatId === chatId);
     if (!linked) return this.sendWelcome(chatId);
 
-    return this.showHomeLite(chatId);
-  }
-
-  private showHomeLite(chatId: string): WebhookReply {
-    return this.reply(
+    return this.sendMessage(
       chatId,
       `🏠 <b>Главное меню</b>\n${'─'.repeat(26)}\n\n` +
       `Бот готов к работе.\n\n` +
@@ -578,18 +288,41 @@ export class TelegramService implements OnModuleInit {
     );
   }
 
-  private async handleLinkCode(chatId: string, code: string): Promise<WebhookReply> {
+  private async doHelp(chatId: string) {
+    return this.sendMessage(
+      chatId,
+      `❓ <b>Помощь</b>\n${'─'.repeat(26)}\n\n` +
+      `/start — главное меню\n` +
+      `/stats — статистика\n` +
+      `/deadlines — дедлайны\n` +
+      `/profile — профиль\n` +
+      `/courses — курсы\n` +
+      `/help — помощь\n\n` +
+      `Используйте кнопки меню — они всегда внизу экрана.`,
+    );
+  }
+
+  private async doNotifInfo(chatId: string) {
+    return this.sendMessage(
+      chatId,
+      `🔔 <b>Уведомления включены</b>\n\n` +
+      `✅ Когда куратор проверил задание\n` +
+      `✅ Когда выставлен балл за устный ответ\n` +
+      `✅ Напоминания о дедлайнах (каждый день в 9:00)\n\n` +
+      `Уведомления работают автоматически, пока аккаунт привязан.`,
+    );
+  }
+
+  private async handleLinkCode(chatId: string, code: string) {
     const links = this.loadLinks();
     const prepared = links[code];
 
-    // Самый быстрый путь: сайт уже подготовил код через /telegram/link-code.
-    // Тут не ходим в БД вообще, чтобы Telegram получил ответ мгновенно.
     if (prepared) {
       links[code] = { ...prepared, chatId, linkedAt: new Date().toISOString() };
       this.saveLinks(links);
-      this.invalidateCache(prepared.userId);
+      this.invalidateUserCache(prepared.userId);
 
-      return this.reply(
+      return this.sendMessage(
         chatId,
         `✅ <b>Telegram подключён!</b>\n\n` +
         `Теперь бот будет присылать оценки, дедлайны и уведомления от куратора.\n\n` +
@@ -598,94 +331,40 @@ export class TelegramService implements OnModuleInit {
       );
     }
 
-    const user = await this.findUserByCode(code);
+    // Код ещё не был создан через сайт — ищем в БД
+    const uuidPrefix = code.slice(2).toLowerCase();
+    const candidates = await this.prisma.user.findMany({
+      where: { id: { startsWith: uuidPrefix } },
+      select: { id: true, email: true, name: true, surname: true, role: true },
+      take: 3,
+    }).catch(() => []);
+
+    const user = candidates.find((u) => this.buildCode(u.id) === code) || null;
     if (!user) {
-      return this.reply(chatId,
+      return this.sendMessage(
+        chatId,
         '❌ <b>Код не найден или ещё не подготовлен сайтом.</b>\n\n' +
         'Откройте профиль на сайте, дождитесь блока Telegram и отправьте код ещё раз.',
+        { keyboard: false },
       );
     }
 
     links[code] = { chatId, userId: user.id, linkedAt: new Date().toISOString() };
     this.saveLinks(links);
-    this.invalidateCache(user.id);
+    this.invalidateUserCache(user.id);
 
     const roleLabel = user.role === 'PARENT' ? 'Родитель' : 'Ученик';
-    return this.reply(
+    return this.sendMessage(
       chatId,
       `✅ <b>Аккаунт успешно привязан!</b>\n\n` +
-      `${roleLabel}: <b>${esc(this.userName(user))}</b>\n` +
-      `\nТеперь вам будут приходить уведомления об оценках и напоминания о дедлайнах.\n\n` +
-      `Постоянное меню уже внизу экрана 👇\n\n` +
-      `Нажмите <b>📊 Статистика</b> или <b>👤 Мой профиль</b>.`,
+      `${roleLabel}: <b>${esc(this.userName(user))}</b>\n\n` +
+      `Теперь вам будут приходить уведомления об оценках и напоминания о дедлайнах.\n\n` +
+      `Постоянное меню уже внизу экрана 👇`,
     );
   }
 
-  private async showHome(chatId: string, linked: any, student: any): Promise<WebhookReply> {
-    if (!student) return this.reply(chatId, 'Добро пожаловать! Используйте меню ниже.');
-
-    // Параллельно: общий балл + ближайший дедлайн
-    const courses = await this.getStudentCourses(student.id);
-    const summary = courses.length
-      ? await this.buildOverallSummary(student.id, courses.map((c) => c.id))
-      : { overall: 0 };
-
-    const deadline = await this.getAnyNearestDeadline(student.id);
-
-    let text = `🏠 <b>Главное меню</b>\n${'─'.repeat(26)}\n\n`;
-    text += `👤 <b>${esc(this.userName(student))}</b>\n`;
-    text += courses.length ? `📚 Курсов: <b>${courses.length}</b>\n` : '';
-
-    if (courses.length) {
-      text += `\n${medal(summary.overall)} <b>Общий балл: ${summary.overall}/100</b>\n`;
-      text += `${bar(summary.overall)}\n`;
-    }
-
-    if (deadline) {
-      text += `\n⏰ <b>Ближайший дедлайн:</b>\n${esc(deadline.title)} — ${daysLeft(deadline.date)}\n`;
-    }
-
-    text += `\nВыберите раздел из меню ниже 👇`;
-
-    return this.reply(chatId, text, {
-      buttons: [
-        [{ text: '📊 Статистика', callback_data: 'stats' }, { text: '📅 Дедлайны', callback_data: 'deadlines' }],
-      ],
-    });
-  }
-
-  private async showHelp(chatId: string): Promise<WebhookReply> {
-    return this.reply(chatId,
-      `❓ <b>Помощь</b>\n${'─'.repeat(26)}\n\n` +
-      `<b>Команды:</b>\n` +
-      `/start — главное меню\n` +
-      `/stats — статистика\n` +
-      `/deadlines — дедлайны\n` +
-      `/profile — мой профиль\n` +
-      `/courses — список курсов\n` +
-      `/help — эта справка\n\n` +
-      `<b>Или используйте кнопки меню</b> — они всегда внизу экрана.\n\n` +
-      `Если бот завис — нажмите /start для сброса.`,
-    );
-  }
-
-  private async showNotifSettings(chatId: string): Promise<WebhookReply> {
-    return this.reply(chatId,
-      `🔔 <b>Уведомления включены</b>\n\n` +
-      `Вы получаете уведомления:\n` +
-      `✅ Когда куратор проверил задание\n` +
-      `✅ Когда выставлен балл за устный ответ\n` +
-      `✅ Напоминания о дедлайнах (каждый день в 9:00)\n\n` +
-      `Уведомления работают автоматически, пока ваш аккаунт привязан.`,
-    );
-  }
-
-  private async showProfile(chatId: string, student: any): Promise<WebhookReply> {
-    const cacheKey = `profile:${chatId}:${student.id}`;
-    const cached = this.getCachedReply(cacheKey);
-    if (cached) return cached;
-
-    const [courses, groups, subs, attempts] = await Promise.all([
+  private async showProfile(chatId: string, student: any) {
+    const [courses, groups, subs, attempts, streakDays] = await Promise.all([
       this.getStudentCourses(student.id),
       this.prisma.group.findMany({
         where: { students: { some: { id: student.id } } },
@@ -693,50 +372,44 @@ export class TelegramService implements OnModuleInit {
       }),
       this.prisma.submission.count({ where: { user_id: student.id, status: 'GRADED' } }),
       this.prisma.testAttempt.count({ where: { user_id: student.id } }),
+      this.calcStreak(student.id),
     ]);
 
     const summary = courses.length
       ? await this.buildOverallSummary(student.id, courses.map((c) => c.id))
       : { overall: 0 };
 
-    const streakDays = await this.calcStreak(student.id);
-
     let text =
       `👤 <b>${esc(this.userName(student))}</b>\n` +
       `${'─'.repeat(28)}\n\n` +
       `📚 Курсов: <b>${courses.length}</b>\n` +
-      (groups.length ? `👥 Групп: <b>${groups.map((g) => g.title).join(', ')}</b>\n` : '') +
+      (groups.length ? `👥 Группы: <b>${groups.map((g) => g.title).join(', ')}</b>\n` : '') +
       `\n${medal(summary.overall)} <b>Общий балл: ${summary.overall}/100</b>\n` +
       `${bar(summary.overall)}\n\n` +
       `📝 Работ проверено: <b>${subs}</b>\n` +
       `🧩 Тестов пройдено: <b>${attempts}</b>\n` +
       (streakDays > 0 ? `🔥 Стрик: <b>${streakDays} дн.</b> подряд\n` : '');
 
-    return this.setCachedReply(cacheKey, this.reply(chatId, text, {
+    return this.sendMessage(chatId, text, {
       buttons: [
         [{ text: '📊 Статистика', callback_data: 'stats' }],
         [{ text: '📅 Дедлайны', callback_data: 'deadlines' }],
       ],
-    }));
+    });
   }
 
-  // ─────────────── Курсы ───────────────
-
-  private async showCourseList(chatId: string, studentId: string): Promise<WebhookReply> {
-    const cacheKey = `courses:${chatId}:${studentId}`;
-    const cached = this.getCachedReply(cacheKey);
-    if (cached) return cached;
-
+  private async showCourseList(chatId: string, studentId: string) {
     const courses = await this.getStudentCourses(studentId);
 
     if (!courses.length) {
-      return this.reply(chatId, '📚 Вы пока не записаны ни на один курс.\n\nОткройте магазин на сайте и подайте заявку на вступление в группу.');
+      return this.sendMessage(
+        chatId,
+        '📚 Вы пока не записаны ни на один курс.\n\nОткройте магазин на сайте и подайте заявку.',
+      );
     }
 
-    // Параллельно считаем статистику по всем курсам
     const statsArr = await Promise.all(courses.map((c) => this.calcStats(studentId, c.id)));
-    const summary = statsArr.reduce((acc, s) => acc + s.overall, 0);
-    const avg = Math.round(summary / statsArr.length);
+    const avg = Math.round(statsArr.reduce((a, s) => a + s.overall, 0) / statsArr.length);
 
     let text =
       `📚 <b>Мои курсы</b>  ${trend(avg)}\n` +
@@ -752,16 +425,10 @@ export class TelegramService implements OnModuleInit {
     });
     buttons.push([{ text: '📅 Дедлайны', callback_data: 'deadlines' }]);
 
-    return this.setCachedReply(cacheKey, this.reply(chatId, text, { buttons }));
+    return this.sendMessage(chatId, text, { buttons });
   }
 
-  // ─────────────── Статистика курса ───────────────
-
-  private async showCourseStats(chatId: string, studentId: string, courseId: string): Promise<WebhookReply> {
-    const cacheKey = `course:${chatId}:${studentId}:${courseId}`;
-    const cached = this.getCachedReply(cacheKey);
-    if (cached) return cached;
-
+  private async showCourseStats(chatId: string, studentId: string, courseId: string) {
     const [course, stats, deadline] = await Promise.all([
       this.prisma.course.findUnique({
         where: { id: courseId },
@@ -770,10 +437,10 @@ export class TelegramService implements OnModuleInit {
       this.calcStats(studentId, courseId),
       this.getNearestCourseDeadline(courseId),
     ]);
-    if (!course) return this.reply(chatId, 'Курс не найден.');
+
+    if (!course) return this.sendMessage(chatId, 'Курс не найден.');
 
     const t = (n: number) => `${bar(n, 8)} <b>${n}</b>/100`;
-
     let text =
       `📖 <b>${esc(course.title)}</b>\n` +
       `${'─'.repeat(28)}\n\n` +
@@ -788,24 +455,18 @@ export class TelegramService implements OnModuleInit {
       text += `\n\n⏰ <b>Ближайший дедлайн:</b>\n${esc(deadline.title)} — ${daysLeft(deadline.date)}`;
     }
 
-    const themeButtons: TgButton[][] = (course.themes || []).map((t) => [
-      { text: `📌 ${t.title}`, callback_data: `theme:${t.id}` },
+    const themeButtons: TgButton[][] = (course.themes || []).map((th) => [
+      { text: `📌 ${th.title}`, callback_data: `theme:${th.id}` },
     ]);
     themeButtons.push(
       [{ text: '📅 Все дедлайны курса', callback_data: 'deadlines' }],
       [{ text: '← Все курсы', callback_data: 'stats' }],
     );
 
-    return this.setCachedReply(cacheKey, this.reply(chatId, text, { buttons: themeButtons }));
+    return this.sendMessage(chatId, text, { buttons: themeButtons });
   }
 
-  // ─────────────── Статистика модуля ───────────────
-
-  private async showThemeStats(chatId: string, studentId: string, themeId: string): Promise<WebhookReply> {
-    const cacheKey = `theme:${chatId}:${studentId}:${themeId}`;
-    const cached = this.getCachedReply(cacheKey);
-    if (cached) return cached;
-
+  private async showThemeStats(chatId: string, studentId: string, themeId: string) {
     const [theme, stats] = await Promise.all([
       this.prisma.theme.findUnique({
         where: { id: themeId },
@@ -813,7 +474,8 @@ export class TelegramService implements OnModuleInit {
       }),
       this.calcStats(studentId, undefined, themeId),
     ]);
-    if (!theme) return this.reply(chatId, 'Модуль не найден.');
+
+    if (!theme) return this.sendMessage(chatId, 'Модуль не найден.');
 
     const lessonBreakdown = await this.getLessonBreakdown(studentId, themeId);
     const t = (n: number) => `${bar(n, 8)} <b>${n}</b>/100`;
@@ -830,32 +492,25 @@ export class TelegramService implements OnModuleInit {
     if (lessonBreakdown.length) {
       text += `\n<b>Уроки (${lessonBreakdown.filter((l) => l.done).length}/${lessonBreakdown.length} ✅):</b>\n`;
       for (const ls of lessonBreakdown) {
-        const icon = ls.done ? '✅' : '⬜';
-        text += `${icon} ${esc(ls.title)}`;
+        text += `${ls.done ? '✅' : '⬜'} ${esc(ls.title)}`;
         if (ls.deadline) text += `  <i>${daysLeft(ls.deadline)}</i>`;
         text += '\n';
       }
     }
 
     if (theme.deadline) {
-      text += `\n⏰ Дедлайн модуля: <b>${fmtDate(theme.deadline)}</b> — ${daysLeft(theme.deadline)}`;
+      text += `\n⏰ Дедлайн: <b>${fmtDate(theme.deadline)}</b> — ${daysLeft(theme.deadline)}`;
     }
 
-    return this.setCachedReply(cacheKey, this.reply(chatId, text, {
+    return this.sendMessage(chatId, text, {
       buttons: [
         [{ text: `← Назад к курсу`, callback_data: `course:${theme.course_id}` }],
         [{ text: '← Все курсы', callback_data: 'stats' }],
       ],
-    }));
+    });
   }
 
-  // ─────────────── Дедлайны ───────────────
-
-  private async showDeadlines(chatId: string, studentId: string): Promise<WebhookReply> {
-    const cacheKey = `deadlines:${chatId}:${studentId}`;
-    const cached = this.getCachedReply(cacheKey);
-    if (cached) return cached;
-
+  private async showDeadlines(chatId: string, studentId: string) {
     const now = new Date();
     const inTwoWeeks = new Date(now.getTime() + 14 * 86400000);
 
@@ -890,8 +545,9 @@ export class TelegramService implements OnModuleInit {
       : [];
 
     if (!lessons.length && !themes.length && !events.length) {
-      return this.reply(chatId,
-        '✅ <b>Ближайшие 2 недели свободны!</b>\n\nНет ни дедлайнов, ни запланированных событий. Отличная работа!',
+      return this.sendMessage(
+        chatId,
+        '✅ <b>Ближайшие 2 недели свободны!</b>\n\nНет дедлайнов и событий. Отличная работа!',
         { buttons: [[{ text: '← Назад к статистике', callback_data: 'stats' }]] },
       );
     }
@@ -900,8 +556,8 @@ export class TelegramService implements OnModuleInit {
 
     if (themes.length) {
       text += `📚 <b>Модули:</b>\n`;
-      for (const t of themes) {
-        text += `• <b>${esc(t.title)}</b>  ${daysLeft(t.deadline)}\n  <i>${esc(t.course.title)}</i>\n`;
+      for (const th of themes) {
+        text += `• <b>${esc(th.title)}</b>  ${daysLeft(th.deadline)}\n  <i>${esc(th.course.title)}</i>\n`;
       }
       text += '\n';
     }
@@ -922,12 +578,12 @@ export class TelegramService implements OnModuleInit {
       }
     }
 
-    return this.setCachedReply(cacheKey, this.reply(chatId, text, {
+    return this.sendMessage(chatId, text, {
       buttons: [[{ text: '← Назад к статистике', callback_data: 'stats' }]],
-    }));
+    });
   }
 
-  // ─────────────── Уведомления (проактивные) ───────────────
+  // ─────────────── Проактивные уведомления ───────────────
 
   async notifySubmissionGraded(submissionId: string, kind: 'written' | 'oral' = 'written') {
     const sub = await this.prisma.submission.findUnique({
@@ -960,19 +616,14 @@ export class TelegramService implements OnModuleInit {
       : [];
 
     const recipients = [student, student.parent].filter(Boolean) as any[];
-    recipients.forEach((u) => {
+    for (const u of recipients) {
       const chatId = this.getChatIdForUser(u.id);
-      if (!chatId) {
-        this.logger.warn(`Telegram notification skipped: user ${u.id} has no linked chatId`);
-        return;
+      if (chatId) {
+        await this.sendMessage(chatId, text, { buttons });
       }
-      this.enqueuePush(chatId, text, { buttons });
-    });
-
-    this.invalidateStudentReplyCache(student.id);
+    }
   }
 
-  // Ежедневные напоминания о дедлайнах (9:00)
   async sendDeadlineReminders() {
     const links = this.loadLinks();
     if (!Object.keys(links).length) return;
@@ -986,7 +637,9 @@ export class TelegramService implements OnModuleInit {
         const user = await this.prisma.user.findUnique({ where: { id: entry.userId } });
         if (!user) continue;
 
-        const student = await this.resolveStudent(user);
+        const student = user.role === 'PARENT'
+          ? await this.prisma.user.findFirst({ where: { parent_id: user.id } })
+          : user;
         if (!student) continue;
 
         const courses = await this.getStudentCourses(student.id);
@@ -1028,7 +681,7 @@ export class TelegramService implements OnModuleInit {
           text += `📅 <b>${esc(ev.title)}</b> — завтра!\n`;
         }
 
-        this.enqueuePush(entry.chatId, text, {
+        await this.sendMessage(entry.chatId, text, {
           buttons: [[{ text: '📅 Все дедлайны', callback_data: 'deadlines' }]],
         });
       } catch (e: any) {
@@ -1038,28 +691,97 @@ export class TelegramService implements OnModuleInit {
   }
 
   async testSend(chatId: string) {
-    return this.pushMessage(chatId, '✅ Тест: backend успешно отправляет сообщения в Telegram.');
+    await this.sendMessage(chatId, '✅ Тест: backend успешно отправляет сообщения в Telegram.');
+    return { ok: true };
   }
 
   async health() {
     const links = Object.values(this.loadLinks());
     const linked = links.filter((l) => !!l.chatId);
-    const proxy = this.getProxyConfig();
     return {
       tokenConfigured: !!this.token,
       botUsername: this.botUsername,
       preparedCodes: links.length,
       linkedChats: linked.length,
-      proxyConfigured: !!this.getProxyUrl(),
-      proxyValid: !!proxy,
-      proxyError: this.proxyError,
-      queueSize: this.pushQueue.length,
-      pushInFlight: this.pushInFlight,
-      pushStats: this.pushStats,
-      lastPushError: this.lastPushError,
-      lastPushLatencyMs: this.lastPushLatencyMs,
-      replyCacheSize: this._replyCache.size,
     };
+  }
+
+  // ─────────────── Link store ───────────────
+
+  private loadLinks(): LinkStore {
+    if (this._links) return this._links;
+    try {
+      if (!existsSync(this.linksPath)) { this._links = {}; return {}; }
+      this._links = JSON.parse(readFileSync(this.linksPath, 'utf8')) || {};
+      return this._links!;
+    } catch { this._links = {}; return {}; }
+  }
+
+  private saveLinks(links: LinkStore) {
+    this._links = links;
+    writeFileSync(this.linksPath, JSON.stringify(links, null, 2));
+  }
+
+  private buildCode(userId: string) {
+    return `TG${userId.replace(/-/g, '').slice(0, 8).toUpperCase()}`;
+  }
+
+  async ensureTelegramCode(userId: string) {
+    const code = this.buildCode(userId);
+    const links = this.loadLinks();
+    if (!links[code]) {
+      links[code] = { userId, preparedAt: new Date().toISOString() };
+      this.saveLinks(links);
+    }
+    return { code, botUrl: this.botUrl, linked: !!this.loadLinks()[code]?.chatId };
+  }
+
+  private getChatIdForUser(userId: string) {
+    return this.loadLinks()[this.buildCode(userId)]?.chatId || null;
+  }
+
+  private async findUserByChatId(chatId: string) {
+    const link = Object.values(this.loadLinks()).find((l) => l.chatId === chatId);
+    if (!link) return null;
+    return this.cachedUser(link.userId);
+  }
+
+  // ─────────────── User cache ───────────────
+
+  private async cachedUser(userId: string) {
+    const now = Date.now();
+    const hit = this._userCache.get(userId);
+    if (hit && hit.exp > now) return hit.user;
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: { parent: true },
+    });
+    if (user) this._userCache.set(userId, { user, exp: now + 5 * 60 * 1000 });
+    return user;
+  }
+
+  private invalidateUserCache(userId: string) {
+    this._userCache.delete(userId);
+  }
+
+  // ─────────────── Courses cache ───────────────
+
+  private async getStudentCourses(studentId: string) {
+    const now = Date.now();
+    const hit = this._coursesCache.get(studentId);
+    if (hit && hit.exp > now) return hit.courses;
+
+    const [enrollments, groups] = await Promise.all([
+      this.prisma.enrollment.findMany({ where: { user_id: studentId }, include: { course: true } }),
+      this.prisma.group.findMany({ where: { students: { some: { id: studentId } } }, include: { courses: true } }),
+    ]);
+
+    const map = new Map<string, any>();
+    enrollments.forEach((e) => map.set(e.course_id, e.course));
+    groups.forEach((g) => g.courses.forEach((c) => map.set(c.id, c)));
+    const courses = Array.from(map.values());
+    this._coursesCache.set(studentId, { courses, exp: now + 3 * 60 * 1000 });
+    return courses;
   }
 
   // ─────────────── Вычисления ───────────────
@@ -1089,9 +811,7 @@ export class TelegramService implements OnModuleInit {
   private async calcStats(studentId: string, courseId?: string, themeId?: string) {
     const lessonWhere: any = themeId
       ? { theme_id: themeId }
-      : courseId
-        ? { theme: { course_id: courseId } }
-        : undefined;
+      : courseId ? { theme: { course_id: courseId } } : undefined;
 
     const subs = await this.prisma.submission.findMany({
       where: { user_id: studentId, status: 'GRADED', ...(lessonWhere ? { lesson: lessonWhere } : {}) },
@@ -1129,8 +849,8 @@ export class TelegramService implements OnModuleInit {
       }),
     ]);
 
-    const doneLessons = new Set(subs.map((s) => s.lesson_id));
-    return lessons.map((l) => ({ title: l.title, done: doneLessons.has(l.id), deadline: l.deadline }));
+    const done = new Set(subs.map((s) => s.lesson_id));
+    return lessons.map((l) => ({ title: l.title, done: done.has(l.id), deadline: l.deadline }));
   }
 
   private async getNearestCourseDeadline(courseId: string) {
@@ -1154,19 +874,6 @@ export class TelegramService implements OnModuleInit {
     return lesson.deadline! < theme.deadline!
       ? { title: lesson.title, date: lesson.deadline! }
       : { title: theme.title, date: theme.deadline! };
-  }
-
-  private async getAnyNearestDeadline(studentId: string) {
-    const courses = await this.getStudentCourses(studentId);
-    if (!courses.length) return null;
-    const courseIds = courses.map((c) => c.id);
-
-    const lesson = await this.prisma.lesson.findFirst({
-      where: { deadline: { gte: new Date() }, is_visible: true, theme: { course_id: { in: courseIds } } },
-      orderBy: { deadline: 'asc' },
-      select: { title: true, deadline: true },
-    });
-    return lesson ? { title: lesson.title, date: lesson.deadline! } : null;
   }
 
   private async calcStreak(studentId: string) {
