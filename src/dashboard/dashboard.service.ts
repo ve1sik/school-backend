@@ -1,6 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { AiService } from './ai.service'; 
+import { AiService } from './ai.service';
+
+const AUTO_GRADE_PREFIX = 'Автоматическая проверка';
+
+type ScoreBucket = { earned: number; max: number; count: number };
 
 @Injectable()
 export class DashboardService {
@@ -8,6 +12,31 @@ export class DashboardService {
     private prisma: PrismaService,
     private aiService: AiService, 
   ) {}
+
+  private submissionType(blockId: string | null | undefined, comment: string | null | undefined) {
+    const bid = String(blockId || '');
+    if (bid.startsWith('oral-')) return 'oral' as const;
+    if (String(comment ?? '').includes(AUTO_GRADE_PREFIX)) return 'tests' as const;
+    return 'written' as const;
+  }
+
+  private bucketPct(bucket: ScoreBucket) {
+    return bucket.max > 0 ? Math.round((bucket.earned / bucket.max) * 100) : 0;
+  }
+
+  private emptyBuckets(): Record<'tests' | 'written' | 'oral', ScoreBucket> {
+    return {
+      tests: { earned: 0, max: 0, count: 0 },
+      written: { earned: 0, max: 0, count: 0 },
+      oral: { earned: 0, max: 0, count: 0 },
+    };
+  }
+
+  private addToBucket(buckets: Record<'tests' | 'written' | 'oral', ScoreBucket>, type: 'tests' | 'written' | 'oral', earned: number, max: number) {
+    buckets[type].earned += earned;
+    buckets[type].max += max;
+    buckets[type].count += 1;
+  }
 
   async getStudentAnalytics(userId: string) {
     const user = await this.prisma.user.findUnique({
@@ -44,16 +73,15 @@ export class DashboardService {
 
     if (attempts.length === 0 && submissions.length === 0) {
       return {
-        studentName, isLinked, totalTests: 0, averageScore: 0,
+        studentName, isLinked, totalTests: 0, averageScore: 0, gradedCount: 0,
         breakdown: { tests: 0, written: 0, oral: 0 },
         streakDays: 0, weakestTheme: null, progressData: [], activityData: [],
-        modules: [], 
+        modules: [],
         aiReport: 'Данные для анализа отсутствуют. Начните выполнение заданий, чтобы система смогла сформировать отчет.',
       };
     }
 
-    // Отсеиваем дубликаты старых тестов (берем последнюю попытку)
-    const latestAttemptsMap = new Map();
+    const latestAttemptsMap = new Map<string, (typeof attempts)[0]>();
     attempts.forEach((attempt) => {
       if (!latestAttemptsMap.has(attempt.test_id)) {
         latestAttemptsMap.set(attempt.test_id, attempt);
@@ -61,71 +89,96 @@ export class DashboardService {
     });
     const latestAttempts = Array.from(latestAttemptsMap.values());
 
-    // 🔥 ГЕНИАЛЬНЫЙ ФИКС МАТЕМАТИКИ: Собираем все проверенные работы в один массив с ПРАВИЛЬНЫМИ процентами
-    const gradedItems = [];
+    const globalBuckets = this.emptyBuckets();
+    const themeBuckets: Record<string, {
+      id: string;
+      title: string;
+      buckets: Record<'tests' | 'written' | 'oral', ScoreBucket>;
+    }> = {};
 
-    latestAttempts.forEach((a: any) => {
-      if (a.test?.theme) {
-        gradedItems.push({
-          percentage: Math.min(100, Math.max(0, a.score)), // Защита от кривых данных
-          date: new Date(a.created_at),
-          theme: a.test.theme,
-          type: 'test'
-        });
+    const gradedItems: Array<{
+      percentage: number;
+      date: Date;
+      theme: { id: string; title: string };
+      type: 'tests' | 'written' | 'oral';
+    }> = [];
+
+    latestAttempts.forEach((a) => {
+      if (!a.test?.theme) return;
+      const pct = Math.min(100, Math.max(0, a.score || 0));
+      this.addToBucket(globalBuckets, 'tests', pct, 100);
+      gradedItems.push({
+        percentage: pct,
+        date: new Date(a.created_at),
+        theme: a.test.theme,
+        type: 'tests',
+      });
+
+      const tId = a.test.theme.id;
+      if (!themeBuckets[tId]) {
+        themeBuckets[tId] = { id: tId, title: a.test.theme.title, buckets: this.emptyBuckets() };
       }
+      this.addToBucket(themeBuckets[tId].buckets, 'tests', pct, 100);
     });
 
-    const gradedSubmissions = submissions.filter(s => s.status === 'GRADED' && s.score !== null && s.max_score > 0);
-    gradedSubmissions.forEach((s: any) => {
-      if (s.lesson?.theme) {
-        gradedItems.push({
-          // Строгий расчет: (Получил / Максимум) * 100
-          percentage: Math.min(100, Math.max(0, (s.score / s.max_score) * 100)),
-          date: new Date(s.created_at),
-          theme: s.lesson.theme,
-          type: 'written' // Считаем сабмишены как письменные работы для баланса
-        });
+    const gradedSubmissions = submissions.filter(
+      (s) => s.status === 'GRADED' && s.score !== null && s.max_score > 0,
+    );
+
+    gradedSubmissions.forEach((s) => {
+      if (!s.lesson?.theme) return;
+      const type = this.submissionType(s.block_id, s.comment);
+      const pct = Math.min(100, Math.max(0, (s.score / s.max_score) * 100));
+      this.addToBucket(globalBuckets, type, s.score || 0, s.max_score || 100);
+      gradedItems.push({
+        percentage: pct,
+        date: new Date(s.created_at),
+        theme: s.lesson.theme,
+        type,
+      });
+
+      const tId = s.lesson.theme.id;
+      if (!themeBuckets[tId]) {
+        themeBuckets[tId] = { id: tId, title: s.lesson.theme.title, buckets: this.emptyBuckets() };
       }
+      this.addToBucket(themeBuckets[tId].buckets, type, s.score || 0, s.max_score || 100);
     });
 
-    // 1. Итоговый средний балл (честный!)
-    const totalPercentage = gradedItems.reduce((sum, item) => sum + item.percentage, 0);
-    const finalAverageScore = gradedItems.length > 0 ? Math.round(totalPercentage / gradedItems.length) : 0;
-
-    // 2. Группируем статистику по темам (чтобы найти слабую и собрать модули)
-    const themeStats: Record<string, { id: string; title: string; sum: number; count: number }> = {};
-    gradedItems.forEach(item => {
-      const tId = item.theme.id;
-      if (!themeStats[tId]) {
-        themeStats[tId] = { id: tId, title: item.theme.title, sum: 0, count: 0 };
-      }
-      themeStats[tId].sum += item.percentage;
-      themeStats[tId].count += 1;
-    });
+    const breakdown = {
+      tests: this.bucketPct(globalBuckets.tests),
+      written: this.bucketPct(globalBuckets.written),
+      oral: this.bucketPct(globalBuckets.oral),
+    };
+    const finalAverageScore = Math.round((breakdown.tests + breakdown.written + breakdown.oral) / 3);
+    const gradedCount =
+      globalBuckets.tests.count + globalBuckets.written.count + globalBuckets.oral.count;
 
     let weakestTheme = null;
     let lowestAvg = 101;
     const modules = [];
 
-    for (const [id, data] of Object.entries(themeStats)) {
-      const avg = Math.round(data.sum / data.count);
-      
-      // Ищем самую слабую тему (меньше 75 баллов)
-      if (avg < lowestAvg && avg <= 75) {
+    for (const entry of Object.values(themeBuckets)) {
+      const themeBreakdown = {
+        tests: this.bucketPct(entry.buckets.tests),
+        written: this.bucketPct(entry.buckets.written),
+        oral: this.bucketPct(entry.buckets.oral),
+      };
+      const avg = Math.round((themeBreakdown.tests + themeBreakdown.written + themeBreakdown.oral) / 3);
+      const themeGradedCount =
+        entry.buckets.tests.count + entry.buckets.written.count + entry.buckets.oral.count;
+
+      if (avg < lowestAvg && avg <= 75 && themeGradedCount > 0) {
         lowestAvg = avg;
-        weakestTheme = { id, title: data.title, score: avg };
+        weakestTheme = { id: entry.id, title: entry.title, score: avg };
       }
 
-      // Собираем данные для модулей на фронтенде
       modules.push({
-        id: data.id,
-        title: data.title,
+        id: entry.id,
+        title: entry.title,
         averageScore: avg,
-        totalTests: data.count,
-        breakdown: { tests: avg, written: avg, oral: 0 }, // Упрощаем разбивку для красоты UI
-        activityData: [
-          { name: 'Выполнено', count: data.count }
-        ]
+        totalTests: themeGradedCount,
+        breakdown: themeBreakdown,
+        activityData: [{ name: 'Выполнено', count: themeGradedCount }],
       });
     }
 
@@ -185,31 +238,33 @@ export class DashboardService {
       progressData.push({ name: daysOfWeek[d.getDay()], score: scoreOfDay });
     }
 
-    // 5. График активности (Количество сданных работ)
     const activityData = [
-      { name: 'Тесты', count: latestAttempts.length },
-      { name: 'Задания', count: submissions.length },
-      { name: 'Опросы', count: 0 } 
+      { name: 'Тесты', count: globalBuckets.tests.count },
+      { name: 'Письменные', count: globalBuckets.written.count },
+      { name: 'Устные', count: globalBuckets.oral.count },
     ];
 
-    // 6. Формируем текст отчета через твой aiService
-    // Передаем finalAverageScore во все параметры, чтобы ИИ видел общую реальную картину и не ругался на нули
     const aiReport = await this.aiService.generateStrictReport(
-      studentName, finalAverageScore, finalAverageScore, 0, weakestTheme?.title || null,
+      studentName,
+      breakdown.tests,
+      breakdown.written,
+      breakdown.oral,
+      weakestTheme?.title || null,
     );
 
     return {
       studentName,
       isLinked,
       totalTests: attempts.length + submissions.length,
+      gradedCount,
       averageScore: finalAverageScore,
-      breakdown: { tests: finalAverageScore, written: finalAverageScore, oral: 0 },
+      breakdown,
       streakDays,
       weakestTheme,
-      progressData, 
-      activityData, 
+      progressData,
+      activityData,
       modules,
-      aiReport, 
+      aiReport,
     };
   }
 

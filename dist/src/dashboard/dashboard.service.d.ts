@@ -4,10 +4,15 @@ export declare class DashboardService {
     private prisma;
     private aiService;
     constructor(prisma: PrismaService, aiService: AiService);
+    private submissionType;
+    private bucketPct;
+    private emptyBuckets;
+    private addToBucket;
     getStudentAnalytics(userId: string): Promise<{
         studentName: string;
         isLinked: boolean;
         totalTests: number;
+        gradedCount: number;
         averageScore: number;
         breakdown: {
             tests: number;

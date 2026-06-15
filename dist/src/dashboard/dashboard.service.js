@@ -13,10 +13,34 @@ exports.DashboardService = void 0;
 const common_1 = require("@nestjs/common");
 const prisma_service_1 = require("../prisma/prisma.service");
 const ai_service_1 = require("./ai.service");
+const AUTO_GRADE_PREFIX = 'Автоматическая проверка';
 let DashboardService = class DashboardService {
     constructor(prisma, aiService) {
         this.prisma = prisma;
         this.aiService = aiService;
+    }
+    submissionType(blockId, comment) {
+        const bid = String(blockId || '');
+        if (bid.startsWith('oral-'))
+            return 'oral';
+        if (String(comment ?? '').includes(AUTO_GRADE_PREFIX))
+            return 'tests';
+        return 'written';
+    }
+    bucketPct(bucket) {
+        return bucket.max > 0 ? Math.round((bucket.earned / bucket.max) * 100) : 0;
+    }
+    emptyBuckets() {
+        return {
+            tests: { earned: 0, max: 0, count: 0 },
+            written: { earned: 0, max: 0, count: 0 },
+            oral: { earned: 0, max: 0, count: 0 },
+        };
+    }
+    addToBucket(buckets, type, earned, max) {
+        buckets[type].earned += earned;
+        buckets[type].max += max;
+        buckets[type].count += 1;
     }
     async getStudentAnalytics(userId) {
         const user = await this.prisma.user.findUnique({
@@ -47,7 +71,7 @@ let DashboardService = class DashboardService {
         });
         if (attempts.length === 0 && submissions.length === 0) {
             return {
-                studentName, isLinked, totalTests: 0, averageScore: 0,
+                studentName, isLinked, totalTests: 0, averageScore: 0, gradedCount: 0,
                 breakdown: { tests: 0, written: 0, oral: 0 },
                 streakDays: 0, weakestTheme: null, progressData: [], activityData: [],
                 modules: [],
@@ -61,57 +85,74 @@ let DashboardService = class DashboardService {
             }
         });
         const latestAttempts = Array.from(latestAttemptsMap.values());
+        const globalBuckets = this.emptyBuckets();
+        const themeBuckets = {};
         const gradedItems = [];
         latestAttempts.forEach((a) => {
-            if (a.test?.theme) {
-                gradedItems.push({
-                    percentage: Math.min(100, Math.max(0, a.score)),
-                    date: new Date(a.created_at),
-                    theme: a.test.theme,
-                    type: 'test'
-                });
+            if (!a.test?.theme)
+                return;
+            const pct = Math.min(100, Math.max(0, a.score || 0));
+            this.addToBucket(globalBuckets, 'tests', pct, 100);
+            gradedItems.push({
+                percentage: pct,
+                date: new Date(a.created_at),
+                theme: a.test.theme,
+                type: 'tests',
+            });
+            const tId = a.test.theme.id;
+            if (!themeBuckets[tId]) {
+                themeBuckets[tId] = { id: tId, title: a.test.theme.title, buckets: this.emptyBuckets() };
             }
+            this.addToBucket(themeBuckets[tId].buckets, 'tests', pct, 100);
         });
-        const gradedSubmissions = submissions.filter(s => s.status === 'GRADED' && s.score !== null && s.max_score > 0);
+        const gradedSubmissions = submissions.filter((s) => s.status === 'GRADED' && s.score !== null && s.max_score > 0);
         gradedSubmissions.forEach((s) => {
-            if (s.lesson?.theme) {
-                gradedItems.push({
-                    percentage: Math.min(100, Math.max(0, (s.score / s.max_score) * 100)),
-                    date: new Date(s.created_at),
-                    theme: s.lesson.theme,
-                    type: 'written'
-                });
+            if (!s.lesson?.theme)
+                return;
+            const type = this.submissionType(s.block_id, s.comment);
+            const pct = Math.min(100, Math.max(0, (s.score / s.max_score) * 100));
+            this.addToBucket(globalBuckets, type, s.score || 0, s.max_score || 100);
+            gradedItems.push({
+                percentage: pct,
+                date: new Date(s.created_at),
+                theme: s.lesson.theme,
+                type,
+            });
+            const tId = s.lesson.theme.id;
+            if (!themeBuckets[tId]) {
+                themeBuckets[tId] = { id: tId, title: s.lesson.theme.title, buckets: this.emptyBuckets() };
             }
+            this.addToBucket(themeBuckets[tId].buckets, type, s.score || 0, s.max_score || 100);
         });
-        const totalPercentage = gradedItems.reduce((sum, item) => sum + item.percentage, 0);
-        const finalAverageScore = gradedItems.length > 0 ? Math.round(totalPercentage / gradedItems.length) : 0;
-        const themeStats = {};
-        gradedItems.forEach(item => {
-            const tId = item.theme.id;
-            if (!themeStats[tId]) {
-                themeStats[tId] = { id: tId, title: item.theme.title, sum: 0, count: 0 };
-            }
-            themeStats[tId].sum += item.percentage;
-            themeStats[tId].count += 1;
-        });
+        const breakdown = {
+            tests: this.bucketPct(globalBuckets.tests),
+            written: this.bucketPct(globalBuckets.written),
+            oral: this.bucketPct(globalBuckets.oral),
+        };
+        const finalAverageScore = Math.round((breakdown.tests + breakdown.written + breakdown.oral) / 3);
+        const gradedCount = globalBuckets.tests.count + globalBuckets.written.count + globalBuckets.oral.count;
         let weakestTheme = null;
         let lowestAvg = 101;
         const modules = [];
-        for (const [id, data] of Object.entries(themeStats)) {
-            const avg = Math.round(data.sum / data.count);
-            if (avg < lowestAvg && avg <= 75) {
+        for (const entry of Object.values(themeBuckets)) {
+            const themeBreakdown = {
+                tests: this.bucketPct(entry.buckets.tests),
+                written: this.bucketPct(entry.buckets.written),
+                oral: this.bucketPct(entry.buckets.oral),
+            };
+            const avg = Math.round((themeBreakdown.tests + themeBreakdown.written + themeBreakdown.oral) / 3);
+            const themeGradedCount = entry.buckets.tests.count + entry.buckets.written.count + entry.buckets.oral.count;
+            if (avg < lowestAvg && avg <= 75 && themeGradedCount > 0) {
                 lowestAvg = avg;
-                weakestTheme = { id, title: data.title, score: avg };
+                weakestTheme = { id: entry.id, title: entry.title, score: avg };
             }
             modules.push({
-                id: data.id,
-                title: data.title,
+                id: entry.id,
+                title: entry.title,
                 averageScore: avg,
-                totalTests: data.count,
-                breakdown: { tests: avg, written: avg, oral: 0 },
-                activityData: [
-                    { name: 'Выполнено', count: data.count }
-                ]
+                totalTests: themeGradedCount,
+                breakdown: themeBreakdown,
+                activityData: [{ name: 'Выполнено', count: themeGradedCount }],
             });
         }
         const dates = attempts.map((a) => new Date(a.created_at).setHours(0, 0, 0, 0));
@@ -157,17 +198,18 @@ let DashboardService = class DashboardService {
             progressData.push({ name: daysOfWeek[d.getDay()], score: scoreOfDay });
         }
         const activityData = [
-            { name: 'Тесты', count: latestAttempts.length },
-            { name: 'Задания', count: submissions.length },
-            { name: 'Опросы', count: 0 }
+            { name: 'Тесты', count: globalBuckets.tests.count },
+            { name: 'Письменные', count: globalBuckets.written.count },
+            { name: 'Устные', count: globalBuckets.oral.count },
         ];
-        const aiReport = await this.aiService.generateStrictReport(studentName, finalAverageScore, finalAverageScore, 0, weakestTheme?.title || null);
+        const aiReport = await this.aiService.generateStrictReport(studentName, breakdown.tests, breakdown.written, breakdown.oral, weakestTheme?.title || null);
         return {
             studentName,
             isLinked,
             totalTests: attempts.length + submissions.length,
+            gradedCount,
             averageScore: finalAverageScore,
-            breakdown: { tests: finalAverageScore, written: finalAverageScore, oral: 0 },
+            breakdown,
             streakDays,
             weakestTheme,
             progressData,

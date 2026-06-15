@@ -205,7 +205,7 @@ export default function ParentDashboard() {
                   { icon: TrendingUp, label: 'Средний балл', val: `${data?.averageScore ?? 0} / 100`, iconColor: 'text-[#00FFCC]', bg: 'bg-gray-900', textColor: 'text-white', subColor: 'text-gray-400' },
                   { icon: Flame, label: 'Стрик', val: `${data?.streakDays ?? 0} дн.`, iconColor: 'text-orange-500', bg: 'bg-orange-50', textColor: 'text-orange-700', subColor: 'text-orange-400' },
                   { icon: BookOpen, label: 'Всего заданий', val: `${data?.totalTests ?? 0}`, iconColor: 'text-indigo-500', bg: 'bg-indigo-50', textColor: 'text-indigo-700', subColor: 'text-indigo-400' },
-                  { icon: Star, label: 'Оценено работ', val: `${data?.breakdown ? Object.values(data.breakdown).reduce((a: any, b: any) => a + (b > 0 ? 1 : 0), 0) : 0}`, iconColor: 'text-emerald-500', bg: 'bg-emerald-50', textColor: 'text-emerald-700', subColor: 'text-emerald-400' },
+                  { icon: Star, label: 'Оценено работ', val: `${data?.gradedCount ?? 0}`, iconColor: 'text-emerald-500', bg: 'bg-emerald-50', textColor: 'text-emerald-700', subColor: 'text-emerald-400' },
                 ].map(({ icon: Icon, label, val, iconColor, bg, textColor, subColor }) => (
                   <div key={label} className={`${bg} rounded-[2rem] p-6`}>
                     <Icon className={`w-6 h-6 ${iconColor} mb-3`} />

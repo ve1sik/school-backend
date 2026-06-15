@@ -6,6 +6,7 @@ export declare class DashboardController {
         studentName: string;
         isLinked: boolean;
         totalTests: number;
+        gradedCount: number;
         averageScore: number;
         breakdown: {
             tests: number;
