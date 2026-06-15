@@ -57,8 +57,8 @@ export class TelegramService implements OnModuleInit {
   // HTTP-клиент для ПРОАКТИВНЫХ уведомлений (grade alerts, deadline reminders)
   // Только это требует исходящего соединения. Webhook-ответы — через HTTP reply.
   private readonly tg = axios.create({
-    baseURL: 'https://api.telegram.org',
-    timeout: 8000,
+    baseURL: process.env.TELEGRAM_API_BASE_URL || 'https://api.telegram.org',
+    timeout: 15000,
     proxy: false,
   });
 
@@ -138,8 +138,11 @@ export class TelegramService implements OnModuleInit {
     chatId: string,
     text: string,
     extra?: { buttons?: TgButton[][] },
-  ): Promise<void> {
-    if (!this.token) return;
+  ): Promise<boolean> {
+    if (!this.token) {
+      this.logger.error('pushNotification skipped: TELEGRAM_BOT_TOKEN is not set');
+      return false;
+    }
     const reply_markup = extra?.buttons ? { inline_keyboard: extra.buttons } : MAIN_KEYBOARD;
     try {
       await this.tg.post(`/bot${this.token}/sendMessage`, {
@@ -149,9 +152,11 @@ export class TelegramService implements OnModuleInit {
         disable_web_page_preview: true,
         reply_markup,
       });
+      return true;
     } catch (e: any) {
       const err = e?.response?.data?.description || e?.code || e?.message || 'unknown';
-      this.logger.warn(`pushNotification failed for ${chatId}: ${err}`);
+      this.logger.error(`pushNotification failed for chat ${chatId}: ${err}`);
+      return false;
     }
   }
 
@@ -397,29 +402,37 @@ export class TelegramService implements OnModuleInit {
     return this.buildReply(chatId, text);
   }
 
+  private formatBreakdownCards(stats: { tests: number; written: number; oral: number; count: number }) {
+    const row = (label: string, value: number, emoji: string) =>
+      `${emoji} <b>${label}</b>  ${bar(value, 8)} <b>${value}</b>/100\n`;
+    return (
+      `${row('Тесты', stats.tests, '🔵')}` +
+      `${row('Письменные', stats.written, '🟠')}` +
+      `${row('Устные', stats.oral, '🟢')}\n` +
+      `⭐ <b>Оценено:</b> ${stats.count} заданий учтено\n`
+    );
+  }
+
   private async buildAnalyticsSnapshot(student: any): Promise<string> {
-    const [courses, groups, subs, attempts, streakDays] = await Promise.all([
+    const [courses, groups, streakDays, stats] = await Promise.all([
       this.getStudentCourses(student.id),
       this.prisma.group.findMany({
         where: { students: { some: { id: student.id } } },
         select: { title: true },
       }),
-      this.prisma.submission.count({ where: { user_id: student.id, status: 'GRADED' } }),
-      this.prisma.testAttempt.count({ where: { user_id: student.id } }),
       this.calcStreak(student.id),
+      this.calcStats(student.id),
     ]);
 
     const summary = courses.length
       ? await this.buildOverallSummary(student.id, courses.map((c) => c.id))
-      : { overall: 0 };
+      : { overall: stats.overall };
 
     let text =
       `📊 <b>Ваша аналитика</b>\n${'─'.repeat(28)}\n\n` +
       `${medal(summary.overall)} <b>Общий балл: ${summary.overall}/100</b>\n` +
       `${bar(summary.overall)}\n\n` +
-      `📚 Курсов: <b>${courses.length}</b>\n` +
-      `📝 Работ проверено: <b>${subs}</b>\n` +
-      `🧩 Тестов пройдено: <b>${attempts}</b>\n`;
+      this.formatBreakdownCards(stats);
 
     if (streakDays > 0) text += `🔥 Стрик: <b>${streakDays} дн.</b> подряд\n`;
     if (groups.length) text += `👥 Группы: <i>${esc(groups.map((g) => g.title).join(', '))}</i>\n`;
@@ -438,20 +451,19 @@ export class TelegramService implements OnModuleInit {
   }
 
   private async showProfile(chatId: string, student: any): Promise<WR> {
-    const [courses, groups, subs, attempts, streakDays] = await Promise.all([
+    const [courses, groups, streakDays, stats] = await Promise.all([
       this.getStudentCourses(student.id),
       this.prisma.group.findMany({
         where: { students: { some: { id: student.id } } },
         select: { title: true },
       }),
-      this.prisma.submission.count({ where: { user_id: student.id, status: 'GRADED' } }),
-      this.prisma.testAttempt.count({ where: { user_id: student.id } }),
       this.calcStreak(student.id),
+      this.calcStats(student.id),
     ]);
 
     const summary = courses.length
       ? await this.buildOverallSummary(student.id, courses.map((c) => c.id))
-      : { overall: 0 };
+      : { overall: stats.overall };
 
     const text =
       `👤 <b>${esc(this.userName(student))}</b>\n` +
@@ -460,9 +472,8 @@ export class TelegramService implements OnModuleInit {
       (groups.length ? `👥 Группы: <b>${groups.map((g) => g.title).join(', ')}</b>\n` : '') +
       `\n${medal(summary.overall)} <b>Общий балл: ${summary.overall}/100</b>\n` +
       `${bar(summary.overall)}\n\n` +
-      `📝 Работ проверено: <b>${subs}</b>\n` +
-      `🧩 Тестов пройдено: <b>${attempts}</b>\n` +
-      (streakDays > 0 ? `🔥 Стрик: <b>${streakDays} дн.</b> подряд\n` : '');
+      this.formatBreakdownCards(stats) +
+      (streakDays > 0 ? `\n🔥 Стрик: <b>${streakDays} дн.</b> подряд\n` : '');
 
     return this.buildReply(chatId, text, {
       buttons: [
@@ -482,7 +493,10 @@ export class TelegramService implements OnModuleInit {
       );
     }
 
-    const statsArr = await Promise.all(courses.map((c) => this.calcStats(studentId, c.id)));
+    const [statsArr, globalStats] = await Promise.all([
+      Promise.all(courses.map((c) => this.calcStats(studentId, c.id))),
+      this.calcStats(studentId),
+    ]);
     const avg = Math.round(statsArr.reduce((a, s) => a + s.overall, 0) / statsArr.length);
 
     const text =
@@ -490,7 +504,8 @@ export class TelegramService implements OnModuleInit {
       `${'─'.repeat(28)}\n\n` +
       `${medal(avg)} <b>Средний балл: ${avg}/100</b>\n` +
       `${bar(avg)}\n\n` +
-      `<b>Выберите курс:</b>`;
+      this.formatBreakdownCards(globalStats) +
+      `\n<b>Выберите курс:</b>`;
 
     const buttons: TgButton[][] = courses.map((c, i) => {
       const s = statsArr[i];
