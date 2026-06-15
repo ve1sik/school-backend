@@ -82,21 +82,28 @@ export class CourseService {
       });
     }
 
-    const enrollments = await this.prisma.enrollment.findMany({
-      where: { user_id: userId },
-      select: { course_id: true }
-    });
+    // Получаем курсы из прямых enrollments И из групп
+    const [enrollments, groups] = await Promise.all([
+      this.prisma.enrollment.findMany({
+        where: { user_id: userId },
+        select: { course_id: true },
+      }),
+      this.prisma.group.findMany({
+        where: { students: { some: { id: userId } } },
+        select: { courses: { select: { id: true } } },
+      }),
+    ]);
 
-    const purchasedCourseIds = enrollments.map(e => e.course_id);
+    const courseIdSet = new Set<string>();
+    enrollments.forEach(e => courseIdSet.add(e.course_id));
+    groups.forEach(g => g.courses.forEach(c => courseIdSet.add(c.id)));
 
-    if (purchasedCourseIds.length === 0) {
+    if (courseIdSet.size === 0) {
       return [];
     }
 
     return this.prisma.course.findMany({
-      where: {
-        id: { in: purchasedCourseIds } // Фильтр IN
-      },
+      where: { id: { in: [...courseIdSet] } },
       include: {
         themes: {
           orderBy: { order_index: 'asc' },
@@ -105,7 +112,7 @@ export class CourseService {
           },
         },
       },
-      orderBy: { title: 'asc' }, 
+      orderBy: { title: 'asc' },
     });
   }
 
