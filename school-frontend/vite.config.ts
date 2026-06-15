@@ -4,9 +4,13 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({
   plugins: [react()],
   preview: {
-    allowedHosts: ['prepodmgy.ru'], // 🔥 Разрешаем твой домен для прода
+    host: '0.0.0.0',
+    port: 4173,
+    allowedHosts: ['prepodmgy.ru', 'www.prepodmgy.ru'],
   },
   server: {
-    allowedHosts: ['prepodmgy.ru'], // 🔥 На всякий случай для дев-режима
-  }
+    host: '0.0.0.0',
+    port: 5173,
+    allowedHosts: ['prepodmgy.ru', 'www.prepodmgy.ru'],
+  },
 })

@@ -6,6 +6,7 @@ import { join } from 'path';
 
 type TgButton = { text: string; callback_data: string };
 type LinkStore = Record<string, { chatId?: string; userId: string; linkedAt?: string; preparedAt?: string }>;
+type WR = Record<string, any>; // WebhookReply
 
 const MAIN_KEYBOARD = {
   keyboard: [
@@ -54,17 +55,17 @@ export class TelegramService implements OnModuleInit {
   private _coursesCache = new Map<string, { courses: any[]; exp: number }>();
   private _links: LinkStore | null = null;
 
-  // HTTP-клиент — без прокси, с keepAlive
+  // HTTP-клиент для ПРОАКТИВНЫХ уведомлений (grade alerts, deadline reminders)
+  // Только это требует исходящего соединения. Webhook-ответы — через HTTP reply.
   private readonly tg = axios.create({
     baseURL: 'https://api.telegram.org',
-    timeout: 15000,
+    timeout: 8000,
     proxy: false,
   });
 
   constructor(private prisma: PrismaService) {}
 
   onModuleInit() {
-    // Напоминания каждый день в 9:00
     const scheduleDaily = () => {
       const now = new Date();
       const next9 = new Date(now);
@@ -85,46 +86,33 @@ export class TelegramService implements OnModuleInit {
   get botUsername() { return process.env.TELEGRAM_BOT_USERNAME || 'prepodmgybot'; }
   get botUrl() { return `https://t.me/${this.botUsername}`; }
 
-  // ─────────────── Telegram API ───────────────
+  // ─────────────── Webhook reply builder ───────────────
 
   /**
-   * Отправить сообщение через Bot API (всегда асинхронно, не через webhook reply).
+   * Создаёт JSON-ответ для Telegram Webhook Reply API.
+   * Telegram принимает этот ответ и отправляет сообщение — без исходящих запросов с сервера.
    */
-  async sendMessage(
+  private buildReply(
     chatId: string,
     text: string,
     extra?: { buttons?: TgButton[][]; keyboard?: boolean },
-  ): Promise<void> {
-    if (!this.token) {
-      this.logger.warn('TELEGRAM_BOT_TOKEN не задан');
-      return;
-    }
+  ): WR {
     const reply_markup = extra?.buttons
       ? { inline_keyboard: extra.buttons }
       : extra?.keyboard !== false
         ? MAIN_KEYBOARD
         : undefined;
-
-    try {
-      await this.tg.post(`/bot${this.token}/sendMessage`, {
-        chat_id: chatId,
-        text,
-        parse_mode: 'HTML',
-        disable_web_page_preview: true,
-        reply_markup,
-      });
-    } catch (e: any) {
-      const err = e?.response?.data?.description || e?.code || e?.message || 'unknown';
-      this.logger.warn(`sendMessage failed for ${chatId}: ${err}`);
-    }
+    return {
+      method: 'sendMessage',
+      chat_id: chatId,
+      text,
+      parse_mode: 'HTML',
+      disable_web_page_preview: true,
+      ...(reply_markup ? { reply_markup } : {}),
+    };
   }
 
-  private async answerCbq(id: string) {
-    if (!this.token) return;
-    try {
-      await this.tg.post(`/bot${this.token}/answerCallbackQuery`, { callback_query_id: id });
-    } catch { /* не критично */ }
-  }
+  // ─────────────── Outbound API (только для проактивных уведомлений) ───────────────
 
   async registerBotCommands() {
     if (!this.token) return;
@@ -142,40 +130,69 @@ export class TelegramService implements OnModuleInit {
     } catch { /* не критично */ }
   }
 
-  // ─────────────── Webhook entry — отвечаем сразу 200 OK ───────────────
-
   /**
-   * Обрабатываем update АСИНХРОННО. Контроллер сразу возвращает { ok: true },
-   * а реальный ответ бот отправляет через sendMessage API.
+   * Отправить сообщение через outbound API (для проактивных уведомлений об оценках).
+   * Требует исходящего соединения к api.telegram.org.
    */
-  handleUpdate(update: any): void {
-    // Запускаем обработку без await — ответ вернём через API, не через HTTP
-    this.processUpdate(update).catch((e) =>
-      this.logger.error(`processUpdate error: ${e?.message}`),
-    );
+  private async pushNotification(
+    chatId: string,
+    text: string,
+    extra?: { buttons?: TgButton[][] },
+  ): Promise<void> {
+    if (!this.token) return;
+    const reply_markup = extra?.buttons ? { inline_keyboard: extra.buttons } : MAIN_KEYBOARD;
+    try {
+      await this.tg.post(`/bot${this.token}/sendMessage`, {
+        chat_id: chatId,
+        text,
+        parse_mode: 'HTML',
+        disable_web_page_preview: true,
+        reply_markup,
+      });
+    } catch (e: any) {
+      const err = e?.response?.data?.description || e?.code || e?.message || 'unknown';
+      this.logger.warn(`pushNotification failed for ${chatId}: ${err}`);
+    }
   }
 
-  private async processUpdate(update: any) {
+  private async answerCbq(id: string) {
+    if (!this.token) return;
+    try {
+      await this.tg.post(`/bot${this.token}/answerCallbackQuery`, { callback_query_id: id });
+    } catch { /* не критично */ }
+  }
+
+  // ─────────────── Webhook entry ───────────────
+
+  /**
+   * Обрабатывает входящий update и возвращает Webhook Reply.
+   * Telegram принимает ответ и сам отправляет сообщение — НИКАКОГО исходящего соединения.
+   * Ожидание до 30 секунд — нормально, Telegram ждёт до 60 секунд.
+   */
+  async handleUpdate(update: any): Promise<WR> {
     try {
       if (update?.message) {
         const chatId = String(update.message.chat.id);
         const text = String(update.message.text || '').trim();
-        await this.handleMessage(chatId, text);
-      } else if (update?.callback_query) {
+        return await this.handleMessage(chatId, text);
+      }
+      if (update?.callback_query) {
         const chatId = String(update.callback_query.message.chat.id);
         const data = String(update.callback_query.data || '');
-        // Отвечаем на callback query немедленно (убирает «часики» в Telegram)
-        this.answerCbq(update.callback_query.id);
-        await this.handleCallback(chatId, data);
+        // answerCallbackQuery лучше отправить outbound (убирает spinner),
+        // но если ETIMEDOUT — ничего страшного, spinner сам исчезнет через 3 сек.
+        this.answerCbq(update.callback_query.id).catch(() => {});
+        return await this.handleCallback(chatId, data);
       }
     } catch (e: any) {
-      this.logger.error(`processUpdate inner error: ${e?.message}`);
+      this.logger.error(`handleUpdate error: ${e?.message}`);
     }
+    return { ok: true };
   }
 
   // ─────────────── Message router ───────────────
 
-  private async handleMessage(chatId: string, text: string) {
+  private async handleMessage(chatId: string, text: string): Promise<WR> {
     const clean = text.trim();
     const cmd = clean.replace(/^\/(\w+).*/, '$1').toLowerCase();
 
@@ -200,10 +217,10 @@ export class TelegramService implements OnModuleInit {
     return this.doStart(chatId, clean);
   }
 
-  private async handleCallback(chatId: string, data: string) {
+  private async handleCallback(chatId: string, data: string): Promise<WR> {
     const linked = await this.findUserByChatId(chatId);
     if (!linked) {
-      return this.sendMessage(chatId, '⚠️ Сначала отправьте Telegram-код с сайта.');
+      return this.buildReply(chatId, '⚠️ Сначала отправьте Telegram-код с сайта.');
     }
 
     const student = linked.role === 'PARENT'
@@ -214,7 +231,7 @@ export class TelegramService implements OnModuleInit {
       : linked;
 
     if (!student) {
-      return this.sendMessage(chatId, 'К аккаунту родителя пока не привязан ученик.\n\nОткройте «Кабинет родителя» на сайте.');
+      return this.buildReply(chatId, 'К аккаунту родителя пока не привязан ученик.\n\nОткройте «Кабинет родителя» на сайте.');
     }
 
     if (data === 'stats')     return this.showCourseList(chatId, student.id);
@@ -224,12 +241,12 @@ export class TelegramService implements OnModuleInit {
     if (data.startsWith('course:')) return this.showCourseStats(chatId, student.id, data.slice(7));
     if (data.startsWith('theme:'))  return this.showThemeStats(chatId, student.id, data.slice(6));
 
-    return this.sendMessage(chatId, '❓ Не понял команду. Используйте кнопки меню.');
+    return this.buildReply(chatId, '❓ Не понял команду. Используйте кнопки меню.');
   }
 
   // ─────────────── Helpers ───────────────
 
-  private async requireLinked(chatId: string, fn: (student: any) => Promise<void>) {
+  private async requireLinked(chatId: string, fn: (student: any) => Promise<WR>): Promise<WR> {
     const linked = await this.findUserByChatId(chatId);
     if (!linked) return this.sendWelcome(chatId);
 
@@ -241,7 +258,7 @@ export class TelegramService implements OnModuleInit {
       : linked;
 
     if (!student) {
-      return this.sendMessage(chatId, 'К аккаунту родителя пока не привязан ученик.');
+      return this.buildReply(chatId, 'К аккаунту родителя пока не привязан ученик.');
     }
     return fn(student);
   }
@@ -252,8 +269,8 @@ export class TelegramService implements OnModuleInit {
 
   // ─────────────── Экраны ───────────────
 
-  private async sendWelcome(chatId: string) {
-    return this.sendMessage(
+  private sendWelcome(chatId: string): WR {
+    return this.buildReply(
       chatId,
       '👋 <b>Привет! Я бот школы «Препод из МГУ».</b>\n\n' +
       'Я помогу вам:\n' +
@@ -268,7 +285,7 @@ export class TelegramService implements OnModuleInit {
     );
   }
 
-  private async doStart(chatId: string, text: string) {
+  private async doStart(chatId: string, text: string): Promise<WR> {
     const deepCode = text.replace('/start', '').trim().toUpperCase();
     if (deepCode && deepCode.startsWith('TG')) {
       return this.handleLinkCode(chatId, deepCode);
@@ -276,7 +293,7 @@ export class TelegramService implements OnModuleInit {
     const linked = Object.values(this.loadLinks()).some((l) => l.chatId === chatId);
     if (!linked) return this.sendWelcome(chatId);
 
-    return this.sendMessage(
+    return this.buildReply(
       chatId,
       `🏠 <b>Главное меню</b>\n${'─'.repeat(26)}\n\n` +
       `Бот готов к работе.\n\n` +
@@ -288,8 +305,8 @@ export class TelegramService implements OnModuleInit {
     );
   }
 
-  private async doHelp(chatId: string) {
-    return this.sendMessage(
+  private doHelp(chatId: string): WR {
+    return this.buildReply(
       chatId,
       `❓ <b>Помощь</b>\n${'─'.repeat(26)}\n\n` +
       `/start — главное меню\n` +
@@ -302,8 +319,8 @@ export class TelegramService implements OnModuleInit {
     );
   }
 
-  private async doNotifInfo(chatId: string) {
-    return this.sendMessage(
+  private doNotifInfo(chatId: string): WR {
+    return this.buildReply(
       chatId,
       `🔔 <b>Уведомления включены</b>\n\n` +
       `✅ Когда куратор проверил задание\n` +
@@ -313,7 +330,7 @@ export class TelegramService implements OnModuleInit {
     );
   }
 
-  private async handleLinkCode(chatId: string, code: string) {
+  private async handleLinkCode(chatId: string, code: string): Promise<WR> {
     const links = this.loadLinks();
     const prepared = links[code];
 
@@ -322,7 +339,7 @@ export class TelegramService implements OnModuleInit {
       this.saveLinks(links);
       this.invalidateUserCache(prepared.userId);
 
-      return this.sendMessage(
+      return this.buildReply(
         chatId,
         `✅ <b>Telegram подключён!</b>\n\n` +
         `Теперь бот будет присылать оценки, дедлайны и уведомления от куратора.\n\n` +
@@ -341,7 +358,7 @@ export class TelegramService implements OnModuleInit {
 
     const user = candidates.find((u) => this.buildCode(u.id) === code) || null;
     if (!user) {
-      return this.sendMessage(
+      return this.buildReply(
         chatId,
         '❌ <b>Код не найден или ещё не подготовлен сайтом.</b>\n\n' +
         'Откройте профиль на сайте, дождитесь блока Telegram и отправьте код ещё раз.',
@@ -354,7 +371,7 @@ export class TelegramService implements OnModuleInit {
     this.invalidateUserCache(user.id);
 
     const roleLabel = user.role === 'PARENT' ? 'Родитель' : 'Ученик';
-    return this.sendMessage(
+    return this.buildReply(
       chatId,
       `✅ <b>Аккаунт успешно привязан!</b>\n\n` +
       `${roleLabel}: <b>${esc(this.userName(user))}</b>\n\n` +
@@ -363,7 +380,7 @@ export class TelegramService implements OnModuleInit {
     );
   }
 
-  private async showProfile(chatId: string, student: any) {
+  private async showProfile(chatId: string, student: any): Promise<WR> {
     const [courses, groups, subs, attempts, streakDays] = await Promise.all([
       this.getStudentCourses(student.id),
       this.prisma.group.findMany({
@@ -379,7 +396,7 @@ export class TelegramService implements OnModuleInit {
       ? await this.buildOverallSummary(student.id, courses.map((c) => c.id))
       : { overall: 0 };
 
-    let text =
+    const text =
       `👤 <b>${esc(this.userName(student))}</b>\n` +
       `${'─'.repeat(28)}\n\n` +
       `📚 Курсов: <b>${courses.length}</b>\n` +
@@ -390,7 +407,7 @@ export class TelegramService implements OnModuleInit {
       `🧩 Тестов пройдено: <b>${attempts}</b>\n` +
       (streakDays > 0 ? `🔥 Стрик: <b>${streakDays} дн.</b> подряд\n` : '');
 
-    return this.sendMessage(chatId, text, {
+    return this.buildReply(chatId, text, {
       buttons: [
         [{ text: '📊 Статистика', callback_data: 'stats' }],
         [{ text: '📅 Дедлайны', callback_data: 'deadlines' }],
@@ -398,11 +415,11 @@ export class TelegramService implements OnModuleInit {
     });
   }
 
-  private async showCourseList(chatId: string, studentId: string) {
+  private async showCourseList(chatId: string, studentId: string): Promise<WR> {
     const courses = await this.getStudentCourses(studentId);
 
     if (!courses.length) {
-      return this.sendMessage(
+      return this.buildReply(
         chatId,
         '📚 Вы пока не записаны ни на один курс.\n\nОткройте магазин на сайте и подайте заявку.',
       );
@@ -411,7 +428,7 @@ export class TelegramService implements OnModuleInit {
     const statsArr = await Promise.all(courses.map((c) => this.calcStats(studentId, c.id)));
     const avg = Math.round(statsArr.reduce((a, s) => a + s.overall, 0) / statsArr.length);
 
-    let text =
+    const text =
       `📚 <b>Мои курсы</b>  ${trend(avg)}\n` +
       `${'─'.repeat(28)}\n\n` +
       `${medal(avg)} <b>Средний балл: ${avg}/100</b>\n` +
@@ -425,10 +442,10 @@ export class TelegramService implements OnModuleInit {
     });
     buttons.push([{ text: '📅 Дедлайны', callback_data: 'deadlines' }]);
 
-    return this.sendMessage(chatId, text, { buttons });
+    return this.buildReply(chatId, text, { buttons });
   }
 
-  private async showCourseStats(chatId: string, studentId: string, courseId: string) {
+  private async showCourseStats(chatId: string, studentId: string, courseId: string): Promise<WR> {
     const [course, stats, deadline] = await Promise.all([
       this.prisma.course.findUnique({
         where: { id: courseId },
@@ -438,7 +455,7 @@ export class TelegramService implements OnModuleInit {
       this.getNearestCourseDeadline(courseId),
     ]);
 
-    if (!course) return this.sendMessage(chatId, 'Курс не найден.');
+    if (!course) return this.buildReply(chatId, 'Курс не найден.');
 
     const t = (n: number) => `${bar(n, 8)} <b>${n}</b>/100`;
     let text =
@@ -463,10 +480,10 @@ export class TelegramService implements OnModuleInit {
       [{ text: '← Все курсы', callback_data: 'stats' }],
     );
 
-    return this.sendMessage(chatId, text, { buttons: themeButtons });
+    return this.buildReply(chatId, text, { buttons: themeButtons });
   }
 
-  private async showThemeStats(chatId: string, studentId: string, themeId: string) {
+  private async showThemeStats(chatId: string, studentId: string, themeId: string): Promise<WR> {
     const [theme, stats] = await Promise.all([
       this.prisma.theme.findUnique({
         where: { id: themeId },
@@ -475,7 +492,7 @@ export class TelegramService implements OnModuleInit {
       this.calcStats(studentId, undefined, themeId),
     ]);
 
-    if (!theme) return this.sendMessage(chatId, 'Модуль не найден.');
+    if (!theme) return this.buildReply(chatId, 'Модуль не найден.');
 
     const lessonBreakdown = await this.getLessonBreakdown(studentId, themeId);
     const t = (n: number) => `${bar(n, 8)} <b>${n}</b>/100`;
@@ -502,7 +519,7 @@ export class TelegramService implements OnModuleInit {
       text += `\n⏰ Дедлайн: <b>${fmtDate(theme.deadline)}</b> — ${daysLeft(theme.deadline)}`;
     }
 
-    return this.sendMessage(chatId, text, {
+    return this.buildReply(chatId, text, {
       buttons: [
         [{ text: `← Назад к курсу`, callback_data: `course:${theme.course_id}` }],
         [{ text: '← Все курсы', callback_data: 'stats' }],
@@ -510,7 +527,7 @@ export class TelegramService implements OnModuleInit {
     });
   }
 
-  private async showDeadlines(chatId: string, studentId: string) {
+  private async showDeadlines(chatId: string, studentId: string): Promise<WR> {
     const now = new Date();
     const inTwoWeeks = new Date(now.getTime() + 14 * 86400000);
 
@@ -545,7 +562,7 @@ export class TelegramService implements OnModuleInit {
       : [];
 
     if (!lessons.length && !themes.length && !events.length) {
-      return this.sendMessage(
+      return this.buildReply(
         chatId,
         '✅ <b>Ближайшие 2 недели свободны!</b>\n\nНет дедлайнов и событий. Отличная работа!',
         { buttons: [[{ text: '← Назад к статистике', callback_data: 'stats' }]] },
@@ -578,12 +595,12 @@ export class TelegramService implements OnModuleInit {
       }
     }
 
-    return this.sendMessage(chatId, text, {
+    return this.buildReply(chatId, text, {
       buttons: [[{ text: '← Назад к статистике', callback_data: 'stats' }]],
     });
   }
 
-  // ─────────────── Проактивные уведомления ───────────────
+  // ─────────────── Проактивные уведомления (исходящие) ───────────────
 
   async notifySubmissionGraded(submissionId: string, kind: 'written' | 'oral' = 'written') {
     const sub = await this.prisma.submission.findUnique({
@@ -619,7 +636,7 @@ export class TelegramService implements OnModuleInit {
     for (const u of recipients) {
       const chatId = this.getChatIdForUser(u.id);
       if (chatId) {
-        await this.sendMessage(chatId, text, { buttons });
+        await this.pushNotification(chatId, text, { buttons });
       }
     }
   }
@@ -681,7 +698,7 @@ export class TelegramService implements OnModuleInit {
           text += `📅 <b>${esc(ev.title)}</b> — завтра!\n`;
         }
 
-        await this.sendMessage(entry.chatId, text, {
+        await this.pushNotification(entry.chatId, text, {
           buttons: [[{ text: '📅 Все дедлайны', callback_data: 'deadlines' }]],
         });
       } catch (e: any) {
@@ -691,8 +708,12 @@ export class TelegramService implements OnModuleInit {
   }
 
   async testSend(chatId: string) {
-    await this.sendMessage(chatId, '✅ Тест: backend успешно отправляет сообщения в Telegram.');
-    return { ok: true };
+    try {
+      await this.pushNotification(chatId, '✅ Тест: backend успешно отправляет сообщения в Telegram.');
+      return { ok: true };
+    } catch (e: any) {
+      return { ok: false, error: e?.code || e?.message };
+    }
   }
 
   async health() {
@@ -703,6 +724,7 @@ export class TelegramService implements OnModuleInit {
       botUsername: this.botUsername,
       preparedCodes: links.length,
       linkedChats: linked.length,
+      architecture: 'webhook-reply',
     };
   }
 

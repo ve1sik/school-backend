@@ -11,10 +11,15 @@ export class TelegramController {
    * Отвечаем { ok: true } МГНОВЕННО, обработка идёт асинхронно в фоне.
    * Это устраняет таймаут 800ms и делает бота быстрым.
    */
+  /**
+   * Telegram шлёт обновления сюда.
+   * Ожидаем Promise и возвращаем JSON Telegram'у — это Webhook Reply.
+   * Telegram принимает ответ и СРАЗУ отправляет сообщение пользователю.
+   * Никаких исходящих запросов с сервера не требуется.
+   */
   @Post('webhook')
   handleWebhook(@Body() update: any) {
-    this.telegramService.handleUpdate(update); // fire-and-forget
-    return { ok: true };
+    return this.telegramService.handleUpdate(update);
   }
 
   @UseGuards(AuthGuard('jwt'))
