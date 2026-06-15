@@ -13,7 +13,12 @@ export class DashboardController {
     return this.dashboardService.getStudentAnalytics(req.user.sub);
   }
 
-  // 2. Выгрузка ошибок по конкретной теме
+  /** Сырые данные ребёнка из БД — статистику считает фронт (как у ученика). */
+  @Get('parent-data')
+  async getParentData(@Request() req: any) {
+    return this.dashboardService.getParentRawData(req.user.sub);
+  }
+
   @Get('mistakes/:themeId')
   async getMistakes(@Request() req: any, @Param('themeId') themeId: string) {
     return this.dashboardService.getMistakesWork(req.user.sub, themeId);

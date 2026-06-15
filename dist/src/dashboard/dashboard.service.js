@@ -48,6 +48,34 @@ let DashboardService = class DashboardService {
             orderBy: { title: 'asc' },
         });
     }
+    async getParentRawData(userId) {
+        const user = await this.prisma.user.findUnique({
+            where: { id: userId },
+            include: { children: { select: { id: true, name: true } } },
+        });
+        if (user?.role !== 'PARENT' || !user.children?.length) {
+            return {
+                isLinked: false,
+                studentName: user?.name || 'Ученик',
+                courses: [],
+                submissions: [],
+            };
+        }
+        const child = user.children[0];
+        const [courses, submissions] = await Promise.all([
+            this.loadStudentCourses(child.id),
+            this.prisma.submission.findMany({
+                where: { user_id: child.id },
+                orderBy: { updated_at: 'desc' },
+            }),
+        ]);
+        return {
+            isLinked: true,
+            studentName: child.name || 'Ученик',
+            courses,
+            submissions,
+        };
+    }
     async getStudentAnalytics(userId) {
         const user = await this.prisma.user.findUnique({
             where: { id: userId },

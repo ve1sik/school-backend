@@ -23,6 +23,9 @@ let DashboardController = class DashboardController {
     async getAnalytics(req) {
         return this.dashboardService.getStudentAnalytics(req.user.sub);
     }
+    async getParentData(req) {
+        return this.dashboardService.getParentRawData(req.user.sub);
+    }
     async getMistakes(req, themeId) {
         return this.dashboardService.getMistakesWork(req.user.sub, themeId);
     }
@@ -38,6 +41,13 @@ __decorate([
     __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", Promise)
 ], DashboardController.prototype, "getAnalytics", null);
+__decorate([
+    (0, common_1.Get)('parent-data'),
+    __param(0, (0, common_1.Request)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", Promise)
+], DashboardController.prototype, "getParentData", null);
 __decorate([
     (0, common_1.Get)('mistakes/:themeId'),
     __param(0, (0, common_1.Request)()),

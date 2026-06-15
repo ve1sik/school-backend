@@ -7,6 +7,7 @@ import {
   AlertTriangle, Star, RefreshCw, PenTool, Mic, Send, Copy
 } from 'lucide-react';
 import axios from 'axios';
+import { buildParentView } from '../lib/courseStats';
 
 const API_URL = 'https://prepodmgy.ru/api';
 
@@ -28,12 +29,18 @@ export default function ParentDashboard() {
       const token = localStorage.getItem('token');
       if (!token) { navigate('/login'); return; }
 
-      const res = await axios.get(`${API_URL}/dashboard/analytics`, {
+      const res = await axios.get(`${API_URL}/dashboard/parent-data`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      const d = res.data || {};
-      setData(d);
-      setIsLinked(d.isLinked !== false);
+      const raw = res.data || {};
+      if (raw.isLinked === false) {
+        setIsLinked(false);
+        setData(null);
+      } else {
+        const view = buildParentView(raw.courses || [], raw.submissions || []);
+        setData({ ...view, studentName: raw.studentName, isLinked: true });
+        setIsLinked(true);
+      }
       try {
         const tgRes = await axios.get(`${API_URL}/telegram/link-code`, {
           headers: { Authorization: `Bearer ${token}` },
