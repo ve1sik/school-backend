@@ -1,5 +1,24 @@
 @import "tailwindcss";
 
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    margin: 0;
+    background-color: #f4f7fe;
+    color: #111827;
+    min-height: 100vh;
+    min-height: -webkit-fill-available;
+  }
+
+  #root {
+    min-height: 100vh;
+    min-height: -webkit-fill-available;
+  }
+}
+
 @layer components {
   /* --- КНОПКИ --- */
   .btn-primary {

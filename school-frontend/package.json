@@ -26,6 +26,8 @@
     "zustand": "^5.0.12"
   },
   "devDependencies": {
+    "@vitejs/plugin-legacy": "^6.0.0",
+    "terser": "^5.36.0",
     "@eslint/js": "^9.39.4",
     "@tailwindcss/postcss": "^4.2.2",
     "@types/bcrypt": "^6.0.0",

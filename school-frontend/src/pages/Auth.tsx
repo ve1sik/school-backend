@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import { decodeJwtPayload, setAuthTokens } from '../lib/auth';
 import { Mail, Lock, GraduationCap, Sparkles, ShieldCheck, Loader2, ArrowRight, MessageSquare } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -26,23 +27,13 @@ const handleSubmit = async (e: React.FormEvent) => {
       const token = res.data.token || res.data.access_token;
       
       if (token) {
-        localStorage.setItem('token', token);
-        if (res.data.refresh_token) localStorage.setItem('refresh_token', res.data.refresh_token);
+        setAuthTokens(token, res.data.refresh_token);
         
-        // РАСШИФРОВЫВАЕМ ТОКЕН И ДОСТАЕМ РОЛЬ
-        try {
-          const base64Url = token.split('.')[1];
-          const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-          const payload = JSON.parse(window.atob(base64));
-          
-          // РАСПРЕДЕЛЯЕМ ПОТОКИ
-          if (payload.role === 'ADMIN' || payload.role === 'CURATOR') {
-            navigate('/admin'); // Кидаем препода в админку
-          } else {
-            navigate('/courses'); // Кидаем студента учиться
-          }
-        } catch (e) {
-          navigate('/courses'); // Если что-то пошло не так, кидаем как обычного юзера
+        const payload = decodeJwtPayload<{ role?: string }>(token);
+        if (payload?.role === 'ADMIN' || payload?.role === 'CURATOR') {
+          navigate('/admin');
+        } else {
+          navigate('/courses');
         }
         
       } else {

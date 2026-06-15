@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Mail, Lock, LogIn, Loader2, GraduationCap, Users, MessageCircle, Share2, User } from 'lucide-react';
 import axios from 'axios';
+import { decodeJwtPayload, setAuthTokens } from '../lib/auth';
 
 const API_URL = 'https://prepodmgy.ru/api';
 
@@ -15,6 +16,11 @@ export default function Login() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const navigate = useNavigate();
+
+  const showSafariHint =
+    typeof navigator !== 'undefined' &&
+    /iPhone|iPad|iPod/i.test(navigator.userAgent) &&
+    /Telegram/i.test(navigator.userAgent);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -36,12 +42,10 @@ export default function Login() {
         res = await axios.post(`${API_URL}/auth/register-parent`, formData);
       }
       
-      localStorage.setItem('token', res.data.access_token);
-      if (res.data.refresh_token) localStorage.setItem('refresh_token', res.data.refresh_token);
+      setAuthTokens(res.data.access_token, res.data.refresh_token);
       
-      // Если зашел родитель - кидаем в его дашборд
-      const payload = JSON.parse(window.atob(res.data.access_token.split('.')[1]));
-      navigate(payload.role === 'PARENT' ? '/parent-dashboard' : '/');
+      const payload = decodeJwtPayload<{ role?: string }>(res.data.access_token);
+      navigate(payload?.role === 'PARENT' ? '/parent-dashboard' : '/');
       
     } catch (err: any) {
       setError(err.response?.data?.message || 'Ошибка доступа');
@@ -68,6 +72,23 @@ export default function Login() {
         <p className="text-center text-gray-400 font-medium mb-8 text-sm uppercase tracking-widest">
           Платформа <span className="text-[#5A4BFF] font-black">Препод из МГУ</span>
         </p>
+
+        {showSafariHint && (
+          <div className="mb-6 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+            <p className="font-bold mb-2">На iPhone сайт лучше открывать в Safari</p>
+            <p className="mb-3 leading-relaxed">
+              Встроенный браузер Telegram иногда не загружает сайт. Нажмите «⋯» → «Открыть в Safari».
+            </p>
+            <a
+              href="https://prepodmgy.ru/login"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center justify-center rounded-xl bg-[#5A4BFF] px-4 py-2 font-bold text-white"
+            >
+              Открыть в Safari
+            </a>
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
           

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { ChevronLeft, ChevronRight, Video, Clock, Link as LinkIcon, Plus, X, Trash2, CalendarDays, Loader2, MapPin, AlertCircle, Sparkles, ExternalLink, ArrowRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
+import { decodeToken } from '../lib/auth';
 
 const API_URL = 'https://prepodmgy.ru/api';
 
@@ -17,9 +18,8 @@ export default function Schedule() {
     try {
       const token = localStorage.getItem('token');
       if (token) {
-        // Расшифровываем payload из JWT токена
-        const payload = JSON.parse(atob(token.split('.')[1]));
-        if (payload.role === 'ADMIN') {
+        const payload = decodeToken();
+        if (payload?.role === 'ADMIN') {
           setIsAdmin(true);
         }
       }

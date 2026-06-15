@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef, useMemo } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { api } from '../lib/api';
+import { decodeToken } from '../lib/auth';
 import { motion, AnimatePresence } from 'framer-motion';
 import { DEFAULT_ROLE_PERMISSIONS, type AdminPermission, type Role } from '../lib/auth';
 import { 
@@ -96,9 +97,9 @@ export default function Layout() {
     }
 
     try {
-      const payload = JSON.parse(window.atob(token.split('.')[1]));
-      setUserRole(payload.role || '');
-      if (payload.role === 'ADMIN' || payload.role === 'CURATOR') {
+      const payload = decodeToken();
+      setUserRole(payload?.role || '');
+      if (payload?.role === 'ADMIN' || payload?.role === 'CURATOR') {
         setIsAdmin(true);
       }
     } catch (e) {

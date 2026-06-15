@@ -3,6 +3,7 @@ import { useSearchParams, useNavigate } from 'react-router-dom';
 import { Search, Send, User, ShieldCheck, Inbox, X, Loader2, ArrowLeft } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
+import { decodeToken } from '../lib/auth';
 
 const API_URL = 'https://prepodmgy.ru/api';
 
@@ -40,8 +41,9 @@ export default function Messages() {
       try {
         const token = localStorage.getItem('token');
         if (!token) return;
-        const payload = JSON.parse(window.atob(token.split('.')[1]));
-        setMyId(payload.sub || payload.id);
+        const payload = decodeToken();
+        if (!payload) return;
+        setMyId(payload.sub || '');
 
         const res = await axios.get(`${API_URL}/messages/contacts`, getTokenConfig());
         const role: string = payload.role || '';

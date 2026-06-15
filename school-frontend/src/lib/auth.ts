@@ -8,17 +8,54 @@ export type AdminPermission =
   | 'MANAGE_DECKS'
   | 'CURATOR_DASHBOARD';
 
+function safeGetItem(key: string): string | null {
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function safeSetItem(key: string, value: string) {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    /* Safari private mode / Telegram WebView */
+  }
+}
+
+function safeRemoveItem(key: string) {
+  try {
+    localStorage.removeItem(key);
+  } catch {
+    /* ignore */
+  }
+}
+
+/** JWT использует base64url — Safari строже Chrome, нужна нормализация */
+export function decodeJwtPayload<T = JwtPayload>(token: string): T | null {
+  try {
+    const part = token.split('.')[1];
+    if (!part) return null;
+    let base64 = part.replace(/-/g, '+').replace(/_/g, '/');
+    while (base64.length % 4) base64 += '=';
+    return JSON.parse(window.atob(base64)) as T;
+  } catch {
+    return null;
+  }
+}
+
 export function getToken(): string | null {
-  return localStorage.getItem('token');
+  return safeGetItem('token');
 }
 
 export function getRefreshToken(): string | null {
-  return localStorage.getItem('refresh_token');
+  return safeGetItem('refresh_token');
 }
 
 export function setAuthTokens(accessToken?: string, refreshToken?: string) {
-  if (accessToken) localStorage.setItem('token', accessToken);
-  if (refreshToken) localStorage.setItem('refresh_token', refreshToken);
+  if (accessToken) safeSetItem('token', accessToken);
+  if (refreshToken) safeSetItem('refresh_token', refreshToken);
 }
 
 interface JwtPayload {
@@ -32,12 +69,7 @@ interface JwtPayload {
 export function decodeToken(): JwtPayload | null {
   const token = getToken();
   if (!token) return null;
-  try {
-    const payload = JSON.parse(window.atob(token.split('.')[1]));
-    return payload as JwtPayload;
-  } catch {
-    return null;
-  }
+  return decodeJwtPayload<JwtPayload>(token);
 }
 
 export function getRole(): Role | null {
@@ -72,8 +104,8 @@ export function isTokenValid(): boolean {
 }
 
 export function logout() {
-  localStorage.removeItem('token');
-  localStorage.removeItem('refresh_token');
+  safeRemoveItem('token');
+  safeRemoveItem('refresh_token');
 }
 
 // Куда отправлять пользователя «домой» в зависимости от роли
