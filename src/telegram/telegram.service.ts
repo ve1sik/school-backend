@@ -3,10 +3,20 @@ import { PrismaService } from '../prisma/prisma.service';
 import axios from 'axios';
 import { randomBytes } from 'crypto';
 import { existsSync, readFileSync } from 'fs';
+import { Agent as HttpsAgent } from 'https';
 import { join } from 'path';
 
+type GradedSubRow = {
+  score: number | null;
+  max_score: number;
+  block_id: string | null;
+  comment: string | null;
+  lesson?: { theme_id: string; theme?: { course_id: string } | null } | null;
+};
+
+type StatsRow = { tests: number; written: number; oral: number; overall: number; count: number };
 type TgButton = { text: string; callback_data: string };
-type WR = Record<string, any>; // WebhookReply
+type WR = Record<string, any>;
 
 const MAIN_KEYBOARD = {
   keyboard: [
@@ -53,13 +63,17 @@ export class TelegramService implements OnModuleInit {
   // Кеши
   private _userCache = new Map<string, { user: any; exp: number }>();
   private _coursesCache = new Map<string, { courses: any[]; exp: number }>();
+  private _chatStudentCache = new Map<string, { student: any; exp: number }>();
+  private _gradedDataCache = new Map<string, { subs: GradedSubRow[]; attempts: any[]; exp: number }>();
+
+  private readonly httpsAgent = new HttpsAgent({ keepAlive: true, maxSockets: 20 });
 
   // HTTP-клиент для ПРОАКТИВНЫХ уведомлений (grade alerts, deadline reminders)
-  // Только это требует исходящего соединения. Webhook-ответы — через HTTP reply.
   private readonly tg = axios.create({
     baseURL: process.env.TELEGRAM_API_BASE_URL || 'https://api.telegram.org',
-    timeout: 15000,
+    timeout: 12000,
     proxy: false,
+    httpsAgent: this.httpsAgent,
   });
 
   constructor(private prisma: PrismaService) {}
@@ -144,20 +158,28 @@ export class TelegramService implements OnModuleInit {
       return false;
     }
     const reply_markup = extra?.buttons ? { inline_keyboard: extra.buttons } : MAIN_KEYBOARD;
-    try {
-      await this.tg.post(`/bot${this.token}/sendMessage`, {
-        chat_id: chatId,
-        text,
-        parse_mode: 'HTML',
-        disable_web_page_preview: true,
-        reply_markup,
-      });
-      return true;
-    } catch (e: any) {
-      const err = e?.response?.data?.description || e?.code || e?.message || 'unknown';
-      this.logger.error(`pushNotification failed for chat ${chatId}: ${err}`);
-      return false;
+    const payload = {
+      chat_id: chatId,
+      text,
+      parse_mode: 'HTML',
+      disable_web_page_preview: true,
+      reply_markup,
+    };
+
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      try {
+        await this.tg.post(`/bot${this.token}/sendMessage`, payload);
+        return true;
+      } catch (e: any) {
+        const err = e?.response?.data?.description || e?.code || e?.message || 'unknown';
+        if (attempt === 2) {
+          this.logger.error(`pushNotification failed for chat ${chatId} (attempt ${attempt}): ${err}`);
+          return false;
+        }
+        await new Promise((r) => setTimeout(r, 250));
+      }
     }
+    return false;
   }
 
   private async answerCbq(id: string) {
@@ -223,20 +245,9 @@ export class TelegramService implements OnModuleInit {
   }
 
   private async handleCallback(chatId: string, data: string): Promise<WR> {
-    const linked = await this.findUserByChatId(chatId);
-    if (!linked) {
-      return this.buildReply(chatId, '⚠️ Сначала отправьте Telegram-код с сайта.');
-    }
-
-    const student = linked.role === 'PARENT'
-      ? await this.prisma.user.findFirst({
-          where: { parent_id: linked.id },
-          select: { id: true, name: true, surname: true, email: true, role: true },
-        })
-      : linked;
-
+    const student = await this.resolveStudent(chatId);
     if (!student) {
-      return this.buildReply(chatId, 'К аккаунту родителя пока не привязан ученик.\n\nОткройте «Кабинет родителя» на сайте.');
+      return this.buildReply(chatId, '⚠️ Сначала отправьте Telegram-код с сайта.');
     }
 
     if (data === 'stats')     return this.showCourseList(chatId, student.id);
@@ -252,20 +263,33 @@ export class TelegramService implements OnModuleInit {
   // ─────────────── Helpers ───────────────
 
   private async requireLinked(chatId: string, fn: (student: any) => Promise<WR>): Promise<WR> {
-    const linked = await this.findUserByChatId(chatId);
-    if (!linked) return this.sendWelcome(chatId);
-
-    const student = linked.role === 'PARENT'
-      ? await this.prisma.user.findFirst({
-          where: { parent_id: linked.id },
-          select: { id: true, name: true, surname: true, email: true, role: true },
-        })
-      : linked;
-
-    if (!student) {
-      return this.buildReply(chatId, 'К аккаунту родителя пока не привязан ученик.');
-    }
+    const student = await this.resolveStudent(chatId);
+    if (!student) return this.sendWelcome(chatId);
     return fn(student);
+  }
+
+  private async resolveStudent(chatId: string) {
+    const now = Date.now();
+    const hit = this._chatStudentCache.get(chatId);
+    if (hit && hit.exp > now) return hit.student;
+
+    const linked = await this.prisma.user.findFirst({
+      where: { telegram_chat_id: chatId },
+      select: { id: true, name: true, surname: true, email: true, role: true },
+    });
+    if (!linked) return null;
+
+    let student: any = linked;
+    if (linked.role === 'PARENT') {
+      student = await this.prisma.user.findFirst({
+        where: { parent_id: linked.id },
+        select: { id: true, name: true, surname: true, email: true, role: true },
+      });
+      if (!student) return null;
+    }
+
+    this._chatStudentCache.set(chatId, { student, exp: now + 5 * 60 * 1000 });
+    return student;
   }
 
   private userName(u: any) {
@@ -387,6 +411,10 @@ export class TelegramService implements OnModuleInit {
         })
       : user;
 
+    if (student) {
+      this._chatStudentCache.set(chatId, { student, exp: Date.now() + 5 * 60 * 1000 });
+    }
+
     const roleLabel = user.role === 'PARENT' ? 'Родитель' : 'Ученик';
     let text =
       `✅ <b>Аккаунт успешно привязан!</b>\n\n` +
@@ -438,7 +466,8 @@ export class TelegramService implements OnModuleInit {
     if (groups.length) text += `👥 Группы: <i>${esc(groups.map((g) => g.title).join(', '))}</i>\n`;
 
     if (courses.length) {
-      const statsArr = await Promise.all(courses.map((c) => this.calcStats(student.id, c.id)));
+      const { subs } = await this.getGradedData(student.id);
+      const statsArr = courses.map((c) => this.computeStats(subs, { courseId: c.id }));
       text += `\n<b>По курсам:</b>\n`;
       courses.forEach((c, i) => {
         const s = statsArr[i];
@@ -494,7 +523,10 @@ export class TelegramService implements OnModuleInit {
     }
 
     const [statsArr, globalStats] = await Promise.all([
-      Promise.all(courses.map((c) => this.calcStats(studentId, c.id))),
+      (async () => {
+        const { subs } = await this.getGradedData(studentId);
+        return courses.map((c) => this.computeStats(subs, { courseId: c.id }));
+      })(),
       this.calcStats(studentId),
     ]);
     const avg = Math.round(statsArr.reduce((a, s) => a + s.overall, 0) / statsArr.length);
@@ -674,17 +706,39 @@ export class TelegramService implements OnModuleInit {
 
   // ─────────────── Проактивные уведомления (исходящие) ───────────────
 
-  async notifySubmissionGraded(submissionId: string, kind: 'written' | 'oral' = 'written') {
+  async notifySubmissionGraded(
+    submissionId: string,
+    kind: 'written' | 'oral' = 'written',
+  ): Promise<{ sent: boolean; reason?: string }> {
     const sub = await this.prisma.submission.findUnique({
       where: { id: submissionId },
       include: {
-        user: { include: { parent: true } },
+        user: {
+          select: {
+            id: true,
+            email: true,
+            name: true,
+            surname: true,
+            telegram_chat_id: true,
+            parent: {
+              select: {
+                id: true,
+                email: true,
+                telegram_chat_id: true,
+              },
+            },
+          },
+        },
         lesson: { include: { theme: { include: { course: true } } } },
       },
     });
-    if (!sub || sub.status !== 'GRADED') return;
+    if (!sub || sub.status !== 'GRADED') {
+      return { sent: false, reason: 'submission_not_graded' };
+    }
 
-    if (kind === 'written' && String(sub.comment ?? '').includes(AUTO_PREFIX)) return;
+    if (kind === 'written' && String(sub.comment ?? '').includes(AUTO_PREFIX)) {
+      return { sent: false, reason: 'auto_graded' };
+    }
 
     const student = sub.user;
     const scorePct = sub.max_score > 0 ? Math.round(((sub.score ?? 0) / sub.max_score) * 100) : 0;
@@ -706,13 +760,34 @@ export class TelegramService implements OnModuleInit {
       ? [[{ text: '📊 Посмотреть статистику курса', callback_data: `course:${courseId}` }]]
       : [];
 
-    const recipients = [student, student.parent].filter(Boolean) as any[];
-    for (const u of recipients) {
-      const chatId = await this.getChatIdForUser(u.id);
-      if (chatId) {
-        await this.pushNotification(chatId, text, { buttons });
+    const targets = [
+      student.telegram_chat_id ? { chatId: student.telegram_chat_id, who: 'student' } : null,
+      student.parent?.telegram_chat_id
+        ? { chatId: student.parent.telegram_chat_id, who: 'parent' }
+        : null,
+    ].filter(Boolean) as { chatId: string; who: string }[];
+
+    if (!targets.length) {
+      this.logger.warn(
+        `Grade notify skipped: no telegram_chat_id for student ${student.id} (${student.email}), submission ${submissionId}`,
+      );
+      return { sent: false, reason: 'no_telegram_linked' };
+    }
+
+    let sentAny = false;
+    for (const target of targets) {
+      const ok = await this.pushNotification(target.chatId, text, { buttons });
+      if (ok) {
+        sentAny = true;
+        this.logger.log(`Grade notify sent to ${target.who} chat ${target.chatId}, submission ${submissionId}`);
       }
     }
+
+    if (!sentAny) {
+      return { sent: false, reason: 'telegram_api_failed' };
+    }
+    this.invalidateGradedCache(student.id);
+    return { sent: true };
   }
 
   async sendDeadlineReminders() {
@@ -944,39 +1019,31 @@ export class TelegramService implements OnModuleInit {
   // ─────────────── Вычисления ───────────────
 
   private async buildOverallSummary(studentId: string, courseIds: string[]) {
-    const [subs, attempts] = await Promise.all([
-      this.prisma.submission.findMany({
-        where: { user_id: studentId, status: 'GRADED', lesson: { theme: { course_id: { in: courseIds } } } },
-        select: { score: true, max_score: true },
-      }),
-      this.prisma.testAttempt.findMany({
-        where: { user_id: studentId },
-        select: { test_id: true, score: true },
-      }),
-    ]);
+    const { subs, attempts } = await this.getGradedData(studentId);
+    const scopedSubs = subs.filter((s) => courseIds.includes(s.lesson?.theme?.course_id || ''));
 
     const latest = new Map<string, number>();
     attempts.forEach((a) => { if (!latest.has(a.test_id)) latest.set(a.test_id, a.score || 0); });
 
     let sum = 0; let cnt = 0;
-    subs.forEach((s) => { sum += s.max_score > 0 ? ((s.score ?? 0) / s.max_score) * 100 : 0; cnt++; });
+    scopedSubs.forEach((s) => { sum += s.max_score > 0 ? ((s.score ?? 0) / s.max_score) * 100 : 0; cnt++; });
     latest.forEach((score) => { sum += Math.min(100, score); cnt++; });
 
     return { overall: cnt > 0 ? Math.round(sum / cnt) : 0 };
   }
 
-  private async calcStats(studentId: string, courseId?: string, themeId?: string) {
-    const lessonWhere: any = themeId
-      ? { theme_id: themeId }
-      : courseId ? { theme: { course_id: courseId } } : undefined;
-
-    const subs = await this.prisma.submission.findMany({
-      where: { user_id: studentId, status: 'GRADED', ...(lessonWhere ? { lesson: lessonWhere } : {}) },
-      select: { score: true, max_score: true, block_id: true, comment: true },
+  private computeStats(
+    subs: GradedSubRow[],
+    filter?: { courseId?: string; themeId?: string },
+  ): StatsRow {
+    const filtered = subs.filter((s) => {
+      if (filter?.themeId) return s.lesson?.theme_id === filter.themeId;
+      if (filter?.courseId) return s.lesson?.theme?.course_id === filter.courseId;
+      return true;
     });
 
     const b = { tests: { e: 0, m: 0 }, written: { e: 0, m: 0 }, oral: { e: 0, m: 0 } };
-    subs.forEach((s) => {
+    filtered.forEach((s) => {
       const bid = String(s.block_id || '');
       const type = bid.startsWith('oral-') ? 'oral'
         : (s.comment ?? '').includes(AUTO_PREFIX) ? 'tests'
@@ -990,7 +1057,47 @@ export class TelegramService implements OnModuleInit {
     const written = pct(b.written.e, b.written.m);
     const oral = pct(b.oral.e, b.oral.m);
 
-    return { tests, written, oral, overall: Math.round((tests + written + oral) / 3), count: subs.length };
+    return { tests, written, oral, overall: Math.round((tests + written + oral) / 3), count: filtered.length };
+  }
+
+  private async getGradedData(studentId: string) {
+    const now = Date.now();
+    const hit = this._gradedDataCache.get(studentId);
+    if (hit && hit.exp > now) return hit;
+
+    const [subs, attempts] = await Promise.all([
+      this.prisma.submission.findMany({
+        where: { user_id: studentId, status: 'GRADED' },
+        select: {
+          score: true,
+          max_score: true,
+          block_id: true,
+          comment: true,
+          lesson: { select: { theme_id: true, theme: { select: { course_id: true } } } },
+        },
+      }),
+      this.prisma.testAttempt.findMany({
+        where: { user_id: studentId },
+        select: { test_id: true, score: true },
+        orderBy: { created_at: 'desc' },
+      }),
+    ]);
+
+    const data = { subs, attempts, exp: now + 45_000 };
+    this._gradedDataCache.set(studentId, data);
+    return data;
+  }
+
+  private invalidateGradedCache(studentId: string) {
+    this._gradedDataCache.delete(studentId);
+  }
+
+  private async calcStats(studentId: string, courseId?: string, themeId?: string): Promise<StatsRow> {
+    const { subs } = await this.getGradedData(studentId);
+    return this.computeStats(subs, {
+      ...(themeId ? { themeId } : {}),
+      ...(courseId ? { courseId } : {}),
+    });
   }
 
   private async getLessonBreakdown(studentId: string, themeId: string) {

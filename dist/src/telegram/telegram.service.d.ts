@@ -6,6 +6,9 @@ export declare class TelegramService implements OnModuleInit {
     private readonly logger;
     private _userCache;
     private _coursesCache;
+    private _chatStudentCache;
+    private _gradedDataCache;
+    private readonly httpsAgent;
     private readonly tg;
     constructor(prisma: PrismaService);
     onModuleInit(): void;
@@ -20,19 +23,24 @@ export declare class TelegramService implements OnModuleInit {
     private handleMessage;
     private handleCallback;
     private requireLinked;
+    private resolveStudent;
     private userName;
     private sendWelcome;
     private doStart;
     private doHelp;
     private doNotifInfo;
     private handleLinkCode;
+    private formatBreakdownCards;
     private buildAnalyticsSnapshot;
     private showProfile;
     private showCourseList;
     private showCourseStats;
     private showThemeStats;
     private showDeadlines;
-    notifySubmissionGraded(submissionId: string, kind?: 'written' | 'oral'): Promise<void>;
+    notifySubmissionGraded(submissionId: string, kind?: 'written' | 'oral'): Promise<{
+        sent: boolean;
+        reason?: string;
+    }>;
     sendDeadlineReminders(): Promise<void>;
     testSend(chatId: string): Promise<{
         ok: boolean;
@@ -63,6 +71,9 @@ export declare class TelegramService implements OnModuleInit {
     private invalidateUserCache;
     private getStudentCourses;
     private buildOverallSummary;
+    private computeStats;
+    private getGradedData;
+    private invalidateGradedCache;
     private calcStats;
     private getLessonBreakdown;
     private getNearestCourseDeadline;

@@ -16,6 +16,7 @@ const prisma_service_1 = require("../prisma/prisma.service");
 const axios_1 = require("axios");
 const crypto_1 = require("crypto");
 const fs_1 = require("fs");
+const https_1 = require("https");
 const path_1 = require("path");
 const MAIN_KEYBOARD = {
     keyboard: [
@@ -56,10 +57,14 @@ let TelegramService = TelegramService_1 = class TelegramService {
         this.logger = new common_1.Logger(TelegramService_1.name);
         this._userCache = new Map();
         this._coursesCache = new Map();
+        this._chatStudentCache = new Map();
+        this._gradedDataCache = new Map();
+        this.httpsAgent = new https_1.Agent({ keepAlive: true, maxSockets: 20 });
         this.tg = axios_1.default.create({
-            baseURL: 'https://api.telegram.org',
-            timeout: 8000,
+            baseURL: process.env.TELEGRAM_API_BASE_URL || 'https://api.telegram.org',
+            timeout: 12000,
             proxy: false,
+            httpsAgent: this.httpsAgent,
         });
     }
     onModuleInit() {
@@ -114,22 +119,33 @@ let TelegramService = TelegramService_1 = class TelegramService {
         catch { }
     }
     async pushNotification(chatId, text, extra) {
-        if (!this.token)
-            return;
+        if (!this.token) {
+            this.logger.error('pushNotification skipped: TELEGRAM_BOT_TOKEN is not set');
+            return false;
+        }
         const reply_markup = extra?.buttons ? { inline_keyboard: extra.buttons } : MAIN_KEYBOARD;
-        try {
-            await this.tg.post(`/bot${this.token}/sendMessage`, {
-                chat_id: chatId,
-                text,
-                parse_mode: 'HTML',
-                disable_web_page_preview: true,
-                reply_markup,
-            });
+        const payload = {
+            chat_id: chatId,
+            text,
+            parse_mode: 'HTML',
+            disable_web_page_preview: true,
+            reply_markup,
+        };
+        for (let attempt = 1; attempt <= 2; attempt++) {
+            try {
+                await this.tg.post(`/bot${this.token}/sendMessage`, payload);
+                return true;
+            }
+            catch (e) {
+                const err = e?.response?.data?.description || e?.code || e?.message || 'unknown';
+                if (attempt === 2) {
+                    this.logger.error(`pushNotification failed for chat ${chatId} (attempt ${attempt}): ${err}`);
+                    return false;
+                }
+                await new Promise((r) => setTimeout(r, 250));
+            }
         }
-        catch (e) {
-            const err = e?.response?.data?.description || e?.code || e?.message || 'unknown';
-            this.logger.warn(`pushNotification failed for ${chatId}: ${err}`);
-        }
+        return false;
     }
     async answerCbq(id) {
         if (!this.token)
@@ -193,18 +209,9 @@ let TelegramService = TelegramService_1 = class TelegramService {
         return this.doStart(chatId, clean);
     }
     async handleCallback(chatId, data) {
-        const linked = await this.findUserByChatId(chatId);
-        if (!linked) {
-            return this.buildReply(chatId, '⚠️ Сначала отправьте Telegram-код с сайта.');
-        }
-        const student = linked.role === 'PARENT'
-            ? await this.prisma.user.findFirst({
-                where: { parent_id: linked.id },
-                select: { id: true, name: true, surname: true, email: true, role: true },
-            })
-            : linked;
+        const student = await this.resolveStudent(chatId);
         if (!student) {
-            return this.buildReply(chatId, 'К аккаунту родителя пока не привязан ученик.\n\nОткройте «Кабинет родителя» на сайте.');
+            return this.buildReply(chatId, '⚠️ Сначала отправьте Telegram-код с сайта.');
         }
         if (data === 'stats')
             return this.showCourseList(chatId, student.id);
@@ -221,19 +228,33 @@ let TelegramService = TelegramService_1 = class TelegramService {
         return this.buildReply(chatId, '❓ Не понял команду. Используйте кнопки меню.');
     }
     async requireLinked(chatId, fn) {
-        const linked = await this.findUserByChatId(chatId);
-        if (!linked)
+        const student = await this.resolveStudent(chatId);
+        if (!student)
             return this.sendWelcome(chatId);
-        const student = linked.role === 'PARENT'
-            ? await this.prisma.user.findFirst({
+        return fn(student);
+    }
+    async resolveStudent(chatId) {
+        const now = Date.now();
+        const hit = this._chatStudentCache.get(chatId);
+        if (hit && hit.exp > now)
+            return hit.student;
+        const linked = await this.prisma.user.findFirst({
+            where: { telegram_chat_id: chatId },
+            select: { id: true, name: true, surname: true, email: true, role: true },
+        });
+        if (!linked)
+            return null;
+        let student = linked;
+        if (linked.role === 'PARENT') {
+            student = await this.prisma.user.findFirst({
                 where: { parent_id: linked.id },
                 select: { id: true, name: true, surname: true, email: true, role: true },
-            })
-            : linked;
-        if (!student) {
-            return this.buildReply(chatId, 'К аккаунту родителя пока не привязан ученик.');
+            });
+            if (!student)
+                return null;
         }
-        return fn(student);
+        this._chatStudentCache.set(chatId, { student, exp: now + 5 * 60 * 1000 });
+        return student;
     }
     userName(u) {
         return `${u?.surname ?? ''} ${u?.name ?? u?.email ?? 'Пользователь'}`.trim();
@@ -319,6 +340,9 @@ let TelegramService = TelegramService_1 = class TelegramService {
                 select: { id: true, name: true, surname: true, email: true, role: true },
             })
             : user;
+        if (student) {
+            this._chatStudentCache.set(chatId, { student, exp: Date.now() + 5 * 60 * 1000 });
+        }
         const roleLabel = user.role === 'PARENT' ? 'Родитель' : 'Ученик';
         let text = `✅ <b>Аккаунт успешно привязан!</b>\n\n` +
             `${roleLabel}: <b>${esc(this.userName(user))}</b>\n\n`;
@@ -331,32 +355,37 @@ let TelegramService = TelegramService_1 = class TelegramService {
         }
         return this.buildReply(chatId, text);
     }
+    formatBreakdownCards(stats) {
+        const row = (label, value, emoji) => `${emoji} <b>${label}</b>  ${bar(value, 8)} <b>${value}</b>/100\n`;
+        return (`${row('Тесты', stats.tests, '🔵')}` +
+            `${row('Письменные', stats.written, '🟠')}` +
+            `${row('Устные', stats.oral, '🟢')}\n` +
+            `⭐ <b>Оценено:</b> ${stats.count} заданий учтено\n`);
+    }
     async buildAnalyticsSnapshot(student) {
-        const [courses, groups, subs, attempts, streakDays] = await Promise.all([
+        const [courses, groups, streakDays, stats] = await Promise.all([
             this.getStudentCourses(student.id),
             this.prisma.group.findMany({
                 where: { students: { some: { id: student.id } } },
                 select: { title: true },
             }),
-            this.prisma.submission.count({ where: { user_id: student.id, status: 'GRADED' } }),
-            this.prisma.testAttempt.count({ where: { user_id: student.id } }),
             this.calcStreak(student.id),
+            this.calcStats(student.id),
         ]);
         const summary = courses.length
             ? await this.buildOverallSummary(student.id, courses.map((c) => c.id))
-            : { overall: 0 };
+            : { overall: stats.overall };
         let text = `📊 <b>Ваша аналитика</b>\n${'─'.repeat(28)}\n\n` +
             `${medal(summary.overall)} <b>Общий балл: ${summary.overall}/100</b>\n` +
             `${bar(summary.overall)}\n\n` +
-            `📚 Курсов: <b>${courses.length}</b>\n` +
-            `📝 Работ проверено: <b>${subs}</b>\n` +
-            `🧩 Тестов пройдено: <b>${attempts}</b>\n`;
+            this.formatBreakdownCards(stats);
         if (streakDays > 0)
             text += `🔥 Стрик: <b>${streakDays} дн.</b> подряд\n`;
         if (groups.length)
             text += `👥 Группы: <i>${esc(groups.map((g) => g.title).join(', '))}</i>\n`;
         if (courses.length) {
-            const statsArr = await Promise.all(courses.map((c) => this.calcStats(student.id, c.id)));
+            const { subs } = await this.getGradedData(student.id);
+            const statsArr = courses.map((c) => this.computeStats(subs, { courseId: c.id }));
             text += `\n<b>По курсам:</b>\n`;
             courses.forEach((c, i) => {
                 const s = statsArr[i];
@@ -367,28 +396,26 @@ let TelegramService = TelegramService_1 = class TelegramService {
         return text;
     }
     async showProfile(chatId, student) {
-        const [courses, groups, subs, attempts, streakDays] = await Promise.all([
+        const [courses, groups, streakDays, stats] = await Promise.all([
             this.getStudentCourses(student.id),
             this.prisma.group.findMany({
                 where: { students: { some: { id: student.id } } },
                 select: { title: true },
             }),
-            this.prisma.submission.count({ where: { user_id: student.id, status: 'GRADED' } }),
-            this.prisma.testAttempt.count({ where: { user_id: student.id } }),
             this.calcStreak(student.id),
+            this.calcStats(student.id),
         ]);
         const summary = courses.length
             ? await this.buildOverallSummary(student.id, courses.map((c) => c.id))
-            : { overall: 0 };
+            : { overall: stats.overall };
         const text = `👤 <b>${esc(this.userName(student))}</b>\n` +
             `${'─'.repeat(28)}\n\n` +
             `📚 Курсов: <b>${courses.length}</b>\n` +
             (groups.length ? `👥 Группы: <b>${groups.map((g) => g.title).join(', ')}</b>\n` : '') +
             `\n${medal(summary.overall)} <b>Общий балл: ${summary.overall}/100</b>\n` +
             `${bar(summary.overall)}\n\n` +
-            `📝 Работ проверено: <b>${subs}</b>\n` +
-            `🧩 Тестов пройдено: <b>${attempts}</b>\n` +
-            (streakDays > 0 ? `🔥 Стрик: <b>${streakDays} дн.</b> подряд\n` : '');
+            this.formatBreakdownCards(stats) +
+            (streakDays > 0 ? `\n🔥 Стрик: <b>${streakDays} дн.</b> подряд\n` : '');
         return this.buildReply(chatId, text, {
             buttons: [
                 [{ text: '📊 Статистика', callback_data: 'stats' }],
@@ -401,13 +428,20 @@ let TelegramService = TelegramService_1 = class TelegramService {
         if (!courses.length) {
             return this.buildReply(chatId, '📚 Вы пока не записаны ни на один курс.\n\nОткройте магазин на сайте и подайте заявку.');
         }
-        const statsArr = await Promise.all(courses.map((c) => this.calcStats(studentId, c.id)));
+        const [statsArr, globalStats] = await Promise.all([
+            (async () => {
+                const { subs } = await this.getGradedData(studentId);
+                return courses.map((c) => this.computeStats(subs, { courseId: c.id }));
+            })(),
+            this.calcStats(studentId),
+        ]);
         const avg = Math.round(statsArr.reduce((a, s) => a + s.overall, 0) / statsArr.length);
         const text = `📚 <b>Мои курсы</b>  ${trend(avg)}\n` +
             `${'─'.repeat(28)}\n\n` +
             `${medal(avg)} <b>Средний балл: ${avg}/100</b>\n` +
             `${bar(avg)}\n\n` +
-            `<b>Выберите курс:</b>`;
+            this.formatBreakdownCards(globalStats) +
+            `\n<b>Выберите курс:</b>`;
         const buttons = courses.map((c, i) => {
             const s = statsArr[i];
             const emoji = s.overall >= 75 ? '🟢' : s.overall >= 50 ? '🟡' : s.count > 0 ? '🔴' : '⬜';
@@ -546,14 +580,31 @@ let TelegramService = TelegramService_1 = class TelegramService {
         const sub = await this.prisma.submission.findUnique({
             where: { id: submissionId },
             include: {
-                user: { include: { parent: true } },
+                user: {
+                    select: {
+                        id: true,
+                        email: true,
+                        name: true,
+                        surname: true,
+                        telegram_chat_id: true,
+                        parent: {
+                            select: {
+                                id: true,
+                                email: true,
+                                telegram_chat_id: true,
+                            },
+                        },
+                    },
+                },
                 lesson: { include: { theme: { include: { course: true } } } },
             },
         });
-        if (!sub || sub.status !== 'GRADED')
-            return;
-        if (kind === 'written' && String(sub.comment ?? '').includes(AUTO_PREFIX))
-            return;
+        if (!sub || sub.status !== 'GRADED') {
+            return { sent: false, reason: 'submission_not_graded' };
+        }
+        if (kind === 'written' && String(sub.comment ?? '').includes(AUTO_PREFIX)) {
+            return { sent: false, reason: 'auto_graded' };
+        }
         const student = sub.user;
         const scorePct = sub.max_score > 0 ? Math.round(((sub.score ?? 0) / sub.max_score) * 100) : 0;
         const icon = kind === 'oral' ? '🎤' : '📝';
@@ -570,13 +621,29 @@ let TelegramService = TelegramService_1 = class TelegramService {
         const buttons = courseId
             ? [[{ text: '📊 Посмотреть статистику курса', callback_data: `course:${courseId}` }]]
             : [];
-        const recipients = [student, student.parent].filter(Boolean);
-        for (const u of recipients) {
-            const chatId = await this.getChatIdForUser(u.id);
-            if (chatId) {
-                await this.pushNotification(chatId, text, { buttons });
+        const targets = [
+            student.telegram_chat_id ? { chatId: student.telegram_chat_id, who: 'student' } : null,
+            student.parent?.telegram_chat_id
+                ? { chatId: student.parent.telegram_chat_id, who: 'parent' }
+                : null,
+        ].filter(Boolean);
+        if (!targets.length) {
+            this.logger.warn(`Grade notify skipped: no telegram_chat_id for student ${student.id} (${student.email}), submission ${submissionId}`);
+            return { sent: false, reason: 'no_telegram_linked' };
+        }
+        let sentAny = false;
+        for (const target of targets) {
+            const ok = await this.pushNotification(target.chatId, text, { buttons });
+            if (ok) {
+                sentAny = true;
+                this.logger.log(`Grade notify sent to ${target.who} chat ${target.chatId}, submission ${submissionId}`);
             }
         }
+        if (!sentAny) {
+            return { sent: false, reason: 'telegram_api_failed' };
+        }
+        this.invalidateGradedCache(student.id);
+        return { sent: true };
     }
     async sendDeadlineReminders() {
         const linkedUsers = await this.prisma.user.findMany({
@@ -783,35 +850,27 @@ let TelegramService = TelegramService_1 = class TelegramService {
         return courses;
     }
     async buildOverallSummary(studentId, courseIds) {
-        const [subs, attempts] = await Promise.all([
-            this.prisma.submission.findMany({
-                where: { user_id: studentId, status: 'GRADED', lesson: { theme: { course_id: { in: courseIds } } } },
-                select: { score: true, max_score: true },
-            }),
-            this.prisma.testAttempt.findMany({
-                where: { user_id: studentId },
-                select: { test_id: true, score: true },
-            }),
-        ]);
+        const { subs, attempts } = await this.getGradedData(studentId);
+        const scopedSubs = subs.filter((s) => courseIds.includes(s.lesson?.theme?.course_id || ''));
         const latest = new Map();
         attempts.forEach((a) => { if (!latest.has(a.test_id))
             latest.set(a.test_id, a.score || 0); });
         let sum = 0;
         let cnt = 0;
-        subs.forEach((s) => { sum += s.max_score > 0 ? ((s.score ?? 0) / s.max_score) * 100 : 0; cnt++; });
+        scopedSubs.forEach((s) => { sum += s.max_score > 0 ? ((s.score ?? 0) / s.max_score) * 100 : 0; cnt++; });
         latest.forEach((score) => { sum += Math.min(100, score); cnt++; });
         return { overall: cnt > 0 ? Math.round(sum / cnt) : 0 };
     }
-    async calcStats(studentId, courseId, themeId) {
-        const lessonWhere = themeId
-            ? { theme_id: themeId }
-            : courseId ? { theme: { course_id: courseId } } : undefined;
-        const subs = await this.prisma.submission.findMany({
-            where: { user_id: studentId, status: 'GRADED', ...(lessonWhere ? { lesson: lessonWhere } : {}) },
-            select: { score: true, max_score: true, block_id: true, comment: true },
+    computeStats(subs, filter) {
+        const filtered = subs.filter((s) => {
+            if (filter?.themeId)
+                return s.lesson?.theme_id === filter.themeId;
+            if (filter?.courseId)
+                return s.lesson?.theme?.course_id === filter.courseId;
+            return true;
         });
         const b = { tests: { e: 0, m: 0 }, written: { e: 0, m: 0 }, oral: { e: 0, m: 0 } };
-        subs.forEach((s) => {
+        filtered.forEach((s) => {
             const bid = String(s.block_id || '');
             const type = bid.startsWith('oral-') ? 'oral'
                 : (s.comment ?? '').includes(AUTO_PREFIX) ? 'tests'
@@ -823,7 +882,43 @@ let TelegramService = TelegramService_1 = class TelegramService {
         const tests = pct(b.tests.e, b.tests.m);
         const written = pct(b.written.e, b.written.m);
         const oral = pct(b.oral.e, b.oral.m);
-        return { tests, written, oral, overall: Math.round((tests + written + oral) / 3), count: subs.length };
+        return { tests, written, oral, overall: Math.round((tests + written + oral) / 3), count: filtered.length };
+    }
+    async getGradedData(studentId) {
+        const now = Date.now();
+        const hit = this._gradedDataCache.get(studentId);
+        if (hit && hit.exp > now)
+            return hit;
+        const [subs, attempts] = await Promise.all([
+            this.prisma.submission.findMany({
+                where: { user_id: studentId, status: 'GRADED' },
+                select: {
+                    score: true,
+                    max_score: true,
+                    block_id: true,
+                    comment: true,
+                    lesson: { select: { theme_id: true, theme: { select: { course_id: true } } } },
+                },
+            }),
+            this.prisma.testAttempt.findMany({
+                where: { user_id: studentId },
+                select: { test_id: true, score: true },
+                orderBy: { created_at: 'desc' },
+            }),
+        ]);
+        const data = { subs, attempts, exp: now + 45_000 };
+        this._gradedDataCache.set(studentId, data);
+        return data;
+    }
+    invalidateGradedCache(studentId) {
+        this._gradedDataCache.delete(studentId);
+    }
+    async calcStats(studentId, courseId, themeId) {
+        const { subs } = await this.getGradedData(studentId);
+        return this.computeStats(subs, {
+            ...(themeId ? { themeId } : {}),
+            ...(courseId ? { courseId } : {}),
+        });
     }
     async getLessonBreakdown(studentId, themeId) {
         const [lessons, subs] = await Promise.all([

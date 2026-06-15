@@ -142,11 +142,11 @@ let SubmissionsService = class SubmissionsService {
                 where: { id: existing.id },
                 data,
             });
-            this.telegramService.notifySubmissionGraded(updated.id, 'oral').catch(() => undefined);
+            await this.telegramService.notifySubmissionGraded(updated.id, 'oral');
             return updated;
         }
         const created = await this.prisma.submission.create({ data });
-        this.telegramService.notifySubmissionGraded(created.id, 'oral').catch(() => undefined);
+        await this.telegramService.notifySubmissionGraded(created.id, 'oral');
         return created;
     }
     async getOralSubmission(studentId, lessonId, requesterId, requesterRole) {
@@ -227,7 +227,7 @@ let SubmissionsService = class SubmissionsService {
             await this.awardPoints(updated.user_id, pts);
         }
         if (finalStatus === 'GRADED') {
-            this.telegramService.notifySubmissionGraded(updated.id, 'written').catch(() => undefined);
+            await this.telegramService.notifySubmissionGraded(updated.id, 'written');
         }
         return updated;
     }
