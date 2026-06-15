@@ -1,41 +1,45 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { AiService } from './ai.service';
-
-const AUTO_GRADE_PREFIX = 'Автоматическая проверка';
-
-type ScoreBucket = { earned: number; max: number; count: number };
+import { buildCourseAnalytics, mergeCourseAnalytics } from './course-analytics.util';
 
 @Injectable()
 export class DashboardService {
   constructor(
     private prisma: PrismaService,
-    private aiService: AiService, 
+    private aiService: AiService,
   ) {}
 
-  private submissionType(blockId: string | null | undefined, comment: string | null | undefined) {
-    const bid = String(blockId || '');
-    if (bid.startsWith('oral-')) return 'oral' as const;
-    if (String(comment ?? '').includes(AUTO_GRADE_PREFIX)) return 'tests' as const;
-    return 'written' as const;
-  }
+  private async loadStudentCourses(studentId: string) {
+    const [enrollments, groups] = await Promise.all([
+      this.prisma.enrollment.findMany({
+        where: { user_id: studentId },
+        select: { course_id: true },
+      }),
+      this.prisma.group.findMany({
+        where: { students: { some: { id: studentId } } },
+        select: { courses: { select: { id: true } } },
+      }),
+    ]);
 
-  private bucketPct(bucket: ScoreBucket) {
-    return bucket.max > 0 ? Math.round((bucket.earned / bucket.max) * 100) : 0;
-  }
+    const courseIds = new Set<string>();
+    enrollments.forEach((e) => courseIds.add(e.course_id));
+    groups.forEach((g) => g.courses.forEach((c) => courseIds.add(c.id)));
 
-  private emptyBuckets(): Record<'tests' | 'written' | 'oral', ScoreBucket> {
-    return {
-      tests: { earned: 0, max: 0, count: 0 },
-      written: { earned: 0, max: 0, count: 0 },
-      oral: { earned: 0, max: 0, count: 0 },
-    };
-  }
+    if (!courseIds.size) return [];
 
-  private addToBucket(buckets: Record<'tests' | 'written' | 'oral', ScoreBucket>, type: 'tests' | 'written' | 'oral', earned: number, max: number) {
-    buckets[type].earned += earned;
-    buckets[type].max += max;
-    buckets[type].count += 1;
+    return this.prisma.course.findMany({
+      where: { id: { in: [...courseIds] } },
+      include: {
+        themes: {
+          orderBy: { order_index: 'asc' },
+          include: {
+            lessons: { orderBy: { order_index: 'asc' } },
+          },
+        },
+      },
+      orderBy: { title: 'asc' },
+    });
   }
 
   async getStudentAnalytics(userId: string) {
@@ -58,139 +62,67 @@ export class DashboardService {
       }
     }
 
-    // Достаем старые попытки (для обратной совместимости)
-    const attempts = await this.prisma.testAttempt.findMany({
-      where: { user_id: targetUserId },
-      orderBy: { created_at: 'desc' },
-      include: { test: { include: { theme: true } } },
-    });
-
-    // Достаем новые сабмишены (тесты, ДЗ, эссе)
-    const submissions = await this.prisma.submission.findMany({
-      where: { user_id: targetUserId },
-      include: { lesson: { include: { theme: true } } }
-    });
-
-    if (attempts.length === 0 && submissions.length === 0) {
+    if (!isLinked) {
       return {
-        studentName, isLinked, totalTests: 0, averageScore: 0, gradedCount: 0,
+        studentName,
+        isLinked: false,
+        totalTests: 0,
+        averageScore: 0,
+        gradedCount: 0,
         breakdown: { tests: 0, written: 0, oral: 0 },
-        streakDays: 0, weakestTheme: null, progressData: [], activityData: [],
+        streakDays: 0,
+        weakestTheme: null,
+        progressData: [],
+        activityData: [],
         modules: [],
-        aiReport: 'Данные для анализа отсутствуют. Начните выполнение заданий, чтобы система смогла сформировать отчет.',
+        aiReport: 'Привяжите аккаунт ребёнка по коду из его профиля.',
       };
     }
 
-    const latestAttemptsMap = new Map<string, (typeof attempts)[0]>();
-    attempts.forEach((attempt) => {
-      if (!latestAttemptsMap.has(attempt.test_id)) {
-        latestAttemptsMap.set(attempt.test_id, attempt);
-      }
-    });
-    const latestAttempts = Array.from(latestAttemptsMap.values());
+    const [courses, submissions, attempts] = await Promise.all([
+      this.loadStudentCourses(targetUserId),
+      this.prisma.submission.findMany({
+        where: { user_id: targetUserId },
+        orderBy: { updated_at: 'desc' },
+      }),
+      this.prisma.testAttempt.findMany({
+        where: { user_id: targetUserId },
+        orderBy: { created_at: 'desc' },
+      }),
+    ]);
 
-    const globalBuckets = this.emptyBuckets();
-    const themeBuckets: Record<string, {
-      id: string;
-      title: string;
-      buckets: Record<'tests' | 'written' | 'oral', ScoreBucket>;
-    }> = {};
+    const courseStats = courses
+      .map((course) => buildCourseAnalytics(course, submissions))
+      .filter((stats): stats is NonNullable<typeof stats> => !!stats);
 
-    const gradedItems: Array<{
-      percentage: number;
-      date: Date;
-      theme: { id: string; title: string };
-      type: 'tests' | 'written' | 'oral';
-    }> = [];
-
-    latestAttempts.forEach((a) => {
-      if (!a.test?.theme) return;
-      const pct = Math.min(100, Math.max(0, a.score || 0));
-      this.addToBucket(globalBuckets, 'tests', pct, 100);
-      gradedItems.push({
-        percentage: pct,
-        date: new Date(a.created_at),
-        theme: a.test.theme,
-        type: 'tests',
-      });
-
-      const tId = a.test.theme.id;
-      if (!themeBuckets[tId]) {
-        themeBuckets[tId] = { id: tId, title: a.test.theme.title, buckets: this.emptyBuckets() };
-      }
-      this.addToBucket(themeBuckets[tId].buckets, 'tests', pct, 100);
-    });
-
-    const gradedSubmissions = submissions.filter(
-      (s) => s.status === 'GRADED' && s.score !== null && s.max_score > 0,
-    );
-
-    gradedSubmissions.forEach((s) => {
-      if (!s.lesson?.theme) return;
-      const type = this.submissionType(s.block_id, s.comment);
-      const pct = Math.min(100, Math.max(0, (s.score / s.max_score) * 100));
-      this.addToBucket(globalBuckets, type, s.score || 0, s.max_score || 100);
-      gradedItems.push({
-        percentage: pct,
-        date: new Date(s.created_at),
-        theme: s.lesson.theme,
-        type,
-      });
-
-      const tId = s.lesson.theme.id;
-      if (!themeBuckets[tId]) {
-        themeBuckets[tId] = { id: tId, title: s.lesson.theme.title, buckets: this.emptyBuckets() };
-      }
-      this.addToBucket(themeBuckets[tId].buckets, type, s.score || 0, s.max_score || 100);
-    });
-
-    const breakdown = {
-      tests: this.bucketPct(globalBuckets.tests),
-      written: this.bucketPct(globalBuckets.written),
-      oral: this.bucketPct(globalBuckets.oral),
-    };
-    const finalAverageScore = Math.round((breakdown.tests + breakdown.written + breakdown.oral) / 3);
-    const gradedCount =
-      globalBuckets.tests.count + globalBuckets.written.count + globalBuckets.oral.count;
-
-    let weakestTheme = null;
-    let lowestAvg = 101;
-    const modules = [];
-
-    for (const entry of Object.values(themeBuckets)) {
-      const themeBreakdown = {
-        tests: this.bucketPct(entry.buckets.tests),
-        written: this.bucketPct(entry.buckets.written),
-        oral: this.bucketPct(entry.buckets.oral),
+    if (!courseStats.length) {
+      return {
+        studentName,
+        isLinked: true,
+        totalTests: submissions.length + attempts.length,
+        averageScore: 0,
+        gradedCount: 0,
+        breakdown: { tests: 0, written: 0, oral: 0 },
+        streakDays: 0,
+        weakestTheme: null,
+        progressData: [],
+        activityData: [],
+        modules: [],
+        aiReport: 'Данные для анализа отсутствуют. Начните выполнение заданий.',
       };
-      const avg = Math.round((themeBreakdown.tests + themeBreakdown.written + themeBreakdown.oral) / 3);
-      const themeGradedCount =
-        entry.buckets.tests.count + entry.buckets.written.count + entry.buckets.oral.count;
-
-      if (avg < lowestAvg && avg <= 75 && themeGradedCount > 0) {
-        lowestAvg = avg;
-        weakestTheme = { id: entry.id, title: entry.title, score: avg };
-      }
-
-      modules.push({
-        id: entry.id,
-        title: entry.title,
-        averageScore: avg,
-        totalTests: themeGradedCount,
-        breakdown: themeBreakdown,
-        activityData: [{ name: 'Выполнено', count: themeGradedCount }],
-      });
     }
 
-    // 3. Высчитываем стрик (Дни подряд)
-    const dates = attempts.map((a) => new Date(a.created_at).setHours(0, 0, 0, 0));
-    submissions.forEach(s => dates.push(new Date(s.created_at).setHours(0, 0, 0, 0)));
-    
+    const merged = mergeCourseAnalytics(courseStats);
+
+    const dates = [
+      ...attempts.map((a) => new Date(a.created_at).setHours(0, 0, 0, 0)),
+      ...submissions.map((s) => new Date(s.created_at).setHours(0, 0, 0, 0)),
+    ];
     const uniqueDates = [...new Set(dates)].sort((a, b) => b - a);
     let streakDays = 0;
     const today = new Date().setHours(0, 0, 0, 0);
     const yesterday = today - 86400000;
-    let currentDateCheck = uniqueDates[0] === today ? today : (uniqueDates[0] === yesterday ? yesterday : null);
+    let currentDateCheck = uniqueDates[0] === today ? today : uniqueDates[0] === yesterday ? yesterday : null;
 
     if (currentDateCheck !== null) {
       streakDays = 1;
@@ -202,66 +134,35 @@ export class DashboardService {
       }
     }
 
-    // 🔥 4. УМНЫЙ НАКОПИТЕЛЬНЫЙ ГРАФИК ПРОГРЕССА (БЕЗ ПРОСАДОК)
-    const progressData = [];
-    const daysOfWeek = ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'];
-    
-    let cumulativeSum = 0;
-    let cumulativeCount = 0;
-
-    // Считаем всё, что было ДО последних 7 дней (чтобы график стартовал не с нуля, если ученик давно учится)
-    const sevenDaysAgo = new Date();
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6);
-    sevenDaysAgo.setHours(0, 0, 0, 0);
-    
-    gradedItems.filter(i => i.date < sevenDaysAgo).forEach(i => {
-      cumulativeSum += i.percentage;
-      cumulativeCount++;
-    });
-
-    for (let i = 6; i >= 0; i--) {
-      const d = new Date();
-      d.setDate(d.getDate() - i);
-      const startOfDay = new Date(d.setHours(0, 0, 0, 0));
-      const endOfDay = new Date(d.setHours(23, 59, 59, 999));
-
-      const dailyItems = gradedItems.filter(item => item.date >= startOfDay && item.date <= endOfDay);
-      
-      // Добавляем дневные результаты в копилку
-      dailyItems.forEach(i => {
-        cumulativeSum += i.percentage;
-        cumulativeCount++;
-      });
-
-      // Считаем общий средний балл на этот конкретный день
-      const scoreOfDay = cumulativeCount > 0 ? Math.round(cumulativeSum / cumulativeCount) : 0;
-      progressData.push({ name: daysOfWeek[d.getDay()], score: scoreOfDay });
-    }
+    const modules = merged.modules.map((m) => ({
+      ...m,
+      activityData: [{ name: 'Выполнено', count: m.totalTests }],
+    }));
 
     const activityData = [
-      { name: 'Тесты', count: globalBuckets.tests.count },
-      { name: 'Письменные', count: globalBuckets.written.count },
-      { name: 'Устные', count: globalBuckets.oral.count },
+      { name: 'Тесты', count: courseStats.reduce((s, c) => s + c.buckets.tests.count, 0) },
+      { name: 'Письменные', count: courseStats.reduce((s, c) => s + c.buckets.written.count, 0) },
+      { name: 'Устные', count: courseStats.reduce((s, c) => s + c.buckets.oral.count, 0) },
     ];
 
     const aiReport = await this.aiService.generateStrictReport(
       studentName,
-      breakdown.tests,
-      breakdown.written,
-      breakdown.oral,
-      weakestTheme?.title || null,
+      merged.breakdown.tests,
+      merged.breakdown.written,
+      merged.breakdown.oral,
+      merged.weakestTheme?.title || null,
     );
 
     return {
       studentName,
-      isLinked,
-      totalTests: attempts.length + submissions.length,
-      gradedCount,
-      averageScore: finalAverageScore,
-      breakdown,
+      isLinked: true,
+      totalTests: submissions.length + attempts.length,
+      gradedCount: merged.gradedCount,
+      averageScore: merged.averageScore,
+      breakdown: merged.breakdown,
       streakDays,
-      weakestTheme,
-      progressData,
+      weakestTheme: merged.weakestTheme,
+      progressData: [],
       activityData,
       modules,
       aiReport,

@@ -14,13 +14,31 @@ export declare class DashboardController {
             oral: number;
         };
         streakDays: number;
-        weakestTheme: any;
+        weakestTheme: {
+            id: string;
+            title: string;
+            score: number;
+        };
         progressData: any[];
         activityData: {
             name: string;
             count: number;
         }[];
-        modules: any[];
+        modules: {
+            activityData: {
+                name: string;
+                count: number;
+            }[];
+            id: string;
+            title: string;
+            averageScore: number;
+            totalTests: number;
+            breakdown: {
+                tests: number;
+                written: number;
+                oral: number;
+            };
+        }[];
         aiReport: string;
     }>;
     getMistakes(req: any, themeId: string): Promise<{

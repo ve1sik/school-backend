@@ -4,10 +4,7 @@ export declare class DashboardService {
     private prisma;
     private aiService;
     constructor(prisma: PrismaService, aiService: AiService);
-    private submissionType;
-    private bucketPct;
-    private emptyBuckets;
-    private addToBucket;
+    private loadStudentCourses;
     getStudentAnalytics(userId: string): Promise<{
         studentName: string;
         isLinked: boolean;
@@ -20,13 +17,31 @@ export declare class DashboardService {
             oral: number;
         };
         streakDays: number;
-        weakestTheme: any;
+        weakestTheme: {
+            id: string;
+            title: string;
+            score: number;
+        };
         progressData: any[];
         activityData: {
             name: string;
             count: number;
         }[];
-        modules: any[];
+        modules: {
+            activityData: {
+                name: string;
+                count: number;
+            }[];
+            id: string;
+            title: string;
+            averageScore: number;
+            totalTests: number;
+            breakdown: {
+                tests: number;
+                written: number;
+                oral: number;
+            };
+        }[];
         aiReport: string;
     }>;
     getMistakesWork(userId: string, themeId: string): Promise<{
