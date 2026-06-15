@@ -88,18 +88,24 @@ let CourseService = class CourseService {
                 orderBy: { title: 'asc' },
             });
         }
-        const enrollments = await this.prisma.enrollment.findMany({
-            where: { user_id: userId },
-            select: { course_id: true }
-        });
-        const purchasedCourseIds = enrollments.map(e => e.course_id);
-        if (purchasedCourseIds.length === 0) {
+        const [enrollments, groups] = await Promise.all([
+            this.prisma.enrollment.findMany({
+                where: { user_id: userId },
+                select: { course_id: true },
+            }),
+            this.prisma.group.findMany({
+                where: { students: { some: { id: userId } } },
+                select: { courses: { select: { id: true } } },
+            }),
+        ]);
+        const courseIdSet = new Set();
+        enrollments.forEach(e => courseIdSet.add(e.course_id));
+        groups.forEach(g => g.courses.forEach(c => courseIdSet.add(c.id)));
+        if (courseIdSet.size === 0) {
             return [];
         }
         return this.prisma.course.findMany({
-            where: {
-                id: { in: purchasedCourseIds }
-            },
+            where: { id: { in: [...courseIdSet] } },
             include: {
                 themes: {
                     orderBy: { order_index: 'asc' },
@@ -135,10 +141,13 @@ let CourseService = class CourseService {
     }
     async updateCourse(id, dto, userId, userRole) {
         await this.ensureCanManageCourse(id, userId, userRole);
-        return this.prisma.course.update({
-            where: { id },
-            data: dto,
-        });
+        const allowed = ['title', 'description', 'cover_url', 'spell_check', 'subject_id'];
+        const data = {};
+        for (const key of allowed) {
+            if (key in dto)
+                data[key] = dto[key];
+        }
+        return this.prisma.course.update({ where: { id }, data });
     }
     async delete(id) {
         const themes = await this.prisma.theme.findMany({ where: { course_id: id } });

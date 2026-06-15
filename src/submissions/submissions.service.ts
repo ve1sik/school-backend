@@ -114,8 +114,6 @@ export class SubmissionsService {
       await this.awardPoints(userId, 15);
     }
 
-    this.telegramService.notifySubmissionGraded(submission.id, 'written').catch(() => undefined);
-
     return submission;
   }
 

@@ -29,6 +29,9 @@ let TelegramController = class TelegramController {
     registerCommands() {
         return this.telegramService.registerBotCommands();
     }
+    health() {
+        return this.telegramService.health();
+    }
     testSend(chatId) {
         return this.telegramService.testSend(chatId);
     }
@@ -55,6 +58,12 @@ __decorate([
     __metadata("design:paramtypes", []),
     __metadata("design:returntype", void 0)
 ], TelegramController.prototype, "registerCommands", null);
+__decorate([
+    (0, common_1.Get)('health'),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", void 0)
+], TelegramController.prototype, "health", null);
 __decorate([
     (0, common_1.Get)('test-send'),
     __param(0, (0, common_1.Query)('chatId')),

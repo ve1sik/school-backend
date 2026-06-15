@@ -52,8 +52,9 @@ let AuthService = class AuthService {
         return { user: { id: user.id, email: user.email, role: user.role, admin_permissions: user.admin_permissions || [] }, ...tokens };
     }
     async register(dto) {
+        const email = String(dto.email || '').trim().toLowerCase();
         const existingUser = await this.prisma.user.findUnique({
-            where: { email: dto.email },
+            where: { email },
         });
         if (existingUser) {
             throw new common_1.BadRequestException('Пользователь с таким email уже существует.');
@@ -65,16 +66,17 @@ let AuthService = class AuthService {
         const hash = await bcrypt.hash(dto.password, salt);
         await this.prisma.user.create({
             data: {
-                email: dto.email,
+                email,
                 password_hash: hash,
                 name: dto.name.trim(),
                 surname: dto.surname.trim(),
             },
         });
-        return this.login(dto);
+        return this.login({ ...dto, email });
     }
     async login(dto) {
-        const user = await this.prisma.user.findUnique({ where: { email: dto.email } });
+        const email = String(dto.email || '').trim().toLowerCase();
+        const user = await this.prisma.user.findUnique({ where: { email } });
         if (!user)
             throw new common_1.UnauthorizedException('Неверный email или пароль');
         const isMatch = await bcrypt.compare(dto.password, user.password_hash);
@@ -102,7 +104,7 @@ let AuthService = class AuthService {
     async updateProfile(userId, dto) {
         const dataToUpdate = {};
         if (dto.email)
-            dataToUpdate.email = dto.email;
+            dataToUpdate.email = String(dto.email).trim().toLowerCase();
         if (dto.name !== undefined)
             dataToUpdate.name = dto.name;
         if (dto.surname !== undefined)
@@ -148,19 +150,20 @@ let AuthService = class AuthService {
         return { code, invite_code: code };
     }
     async registerParent(dto) {
+        const email = String(dto.email || '').trim().toLowerCase();
         const student = await this.prisma.user.findUnique({
             where: { invite_code: dto.invite_code }
         });
         if (!student) {
             throw new common_1.BadRequestException('Неверный код доступа ребенка. Проверьте код.');
         }
-        const existingUser = await this.prisma.user.findUnique({ where: { email: dto.email } });
+        const existingUser = await this.prisma.user.findUnique({ where: { email } });
         if (existingUser)
             throw new common_1.BadRequestException('Пользователь с таким email уже существует');
         const hash = await bcrypt.hash(dto.password, 10);
         const parent = await this.prisma.user.create({
             data: {
-                email: dto.email,
+                email,
                 password_hash: hash,
                 role: 'PARENT',
                 name: dto.name,
@@ -174,7 +177,7 @@ let AuthService = class AuthService {
                 invite_code: null
             }
         });
-        return this.login({ email: dto.email, password: dto.password });
+        return this.login({ email, password: dto.password });
     }
     async linkToStudent(parentId, inviteCode) {
         const student = await this.prisma.user.findUnique({

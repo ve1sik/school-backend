@@ -6,8 +6,6 @@ export declare class GroupService {
         id: string;
         title: string;
         cover_url: string | null;
-        teacher_id: string | null;
-        curator_id: string | null;
         price: number;
         old_price: number | null;
         start_date: string | null;
@@ -16,38 +14,20 @@ export declare class GroupService {
         is_public: boolean;
         payment_info: string | null;
         payment_qr_url: string | null;
+        curator_id: string | null;
+        teacher_id: string | null;
     }>;
     findAll(requesterId?: string, requesterRole?: string, requesterPermissions?: string[]): Promise<({
         _count: {
-            courses: number;
             students: number;
-        };
-        teacher: {
-            id: string;
-            email: string;
-            invite_code: string | null;
-            telegram_code: string | null;
-            password_hash: string;
-            role: import(".prisma/client").$Enums.Role;
-            refresh_token: string | null;
-            admin_permissions: string[];
-            name: string | null;
-            surname: string | null;
-            patronymic: string | null;
-            birthday: string | null;
-            city: string | null;
-            avatar: string | null;
-            points: number;
-            telegram_chat_id: string | null;
-            telegram_linked_at: Date | null;
-            parent_id: string | null;
-            created_at: Date;
+            courses: number;
         };
         curator: {
             id: string;
             email: string;
             invite_code: string | null;
-            telegram_code: string | null;
+            telegram_chat_id: string | null;
+            telegram_link_code: string | null;
             password_hash: string;
             role: import(".prisma/client").$Enums.Role;
             refresh_token: string | null;
@@ -59,17 +39,35 @@ export declare class GroupService {
             city: string | null;
             avatar: string | null;
             points: number;
-            telegram_chat_id: string | null;
-            telegram_linked_at: Date | null;
             parent_id: string | null;
+            telegram_linked_at: Date | null;
+            created_at: Date;
+        };
+        teacher: {
+            id: string;
+            email: string;
+            invite_code: string | null;
+            telegram_chat_id: string | null;
+            telegram_link_code: string | null;
+            password_hash: string;
+            role: import(".prisma/client").$Enums.Role;
+            refresh_token: string | null;
+            admin_permissions: string[];
+            name: string | null;
+            surname: string | null;
+            patronymic: string | null;
+            birthday: string | null;
+            city: string | null;
+            avatar: string | null;
+            points: number;
+            parent_id: string | null;
+            telegram_linked_at: Date | null;
             created_at: Date;
         };
     } & {
         id: string;
         title: string;
         cover_url: string | null;
-        teacher_id: string | null;
-        curator_id: string | null;
         price: number;
         old_price: number | null;
         start_date: string | null;
@@ -78,8 +76,73 @@ export declare class GroupService {
         is_public: boolean;
         payment_info: string | null;
         payment_qr_url: string | null;
+        curator_id: string | null;
+        teacher_id: string | null;
     })[]>;
     findOne(id: string, requesterId?: string, requesterRole?: string, requesterPermissions?: string[]): Promise<{
+        curator: {
+            id: string;
+            email: string;
+            invite_code: string | null;
+            telegram_chat_id: string | null;
+            telegram_link_code: string | null;
+            password_hash: string;
+            role: import(".prisma/client").$Enums.Role;
+            refresh_token: string | null;
+            admin_permissions: string[];
+            name: string | null;
+            surname: string | null;
+            patronymic: string | null;
+            birthday: string | null;
+            city: string | null;
+            avatar: string | null;
+            points: number;
+            parent_id: string | null;
+            telegram_linked_at: Date | null;
+            created_at: Date;
+        };
+        teacher: {
+            id: string;
+            email: string;
+            invite_code: string | null;
+            telegram_chat_id: string | null;
+            telegram_link_code: string | null;
+            password_hash: string;
+            role: import(".prisma/client").$Enums.Role;
+            refresh_token: string | null;
+            admin_permissions: string[];
+            name: string | null;
+            surname: string | null;
+            patronymic: string | null;
+            birthday: string | null;
+            city: string | null;
+            avatar: string | null;
+            points: number;
+            parent_id: string | null;
+            telegram_linked_at: Date | null;
+            created_at: Date;
+        };
+        students: {
+            id: string;
+            email: string;
+            invite_code: string | null;
+            telegram_chat_id: string | null;
+            telegram_link_code: string | null;
+            password_hash: string;
+            role: import(".prisma/client").$Enums.Role;
+            refresh_token: string | null;
+            admin_permissions: string[];
+            name: string | null;
+            surname: string | null;
+            patronymic: string | null;
+            birthday: string | null;
+            city: string | null;
+            avatar: string | null;
+            points: number;
+            parent_id: string | null;
+            telegram_linked_at: Date | null;
+            created_at: Date;
+        }[];
         courses: {
             id: string;
             title: string;
@@ -88,75 +151,10 @@ export declare class GroupService {
             spell_check: boolean;
             subject_id: string | null;
         }[];
-        teacher: {
-            id: string;
-            email: string;
-            invite_code: string | null;
-            telegram_code: string | null;
-            password_hash: string;
-            role: import(".prisma/client").$Enums.Role;
-            refresh_token: string | null;
-            admin_permissions: string[];
-            name: string | null;
-            surname: string | null;
-            patronymic: string | null;
-            birthday: string | null;
-            city: string | null;
-            avatar: string | null;
-            points: number;
-            telegram_chat_id: string | null;
-            telegram_linked_at: Date | null;
-            parent_id: string | null;
-            created_at: Date;
-        };
-        curator: {
-            id: string;
-            email: string;
-            invite_code: string | null;
-            telegram_code: string | null;
-            password_hash: string;
-            role: import(".prisma/client").$Enums.Role;
-            refresh_token: string | null;
-            admin_permissions: string[];
-            name: string | null;
-            surname: string | null;
-            patronymic: string | null;
-            birthday: string | null;
-            city: string | null;
-            avatar: string | null;
-            points: number;
-            telegram_chat_id: string | null;
-            telegram_linked_at: Date | null;
-            parent_id: string | null;
-            created_at: Date;
-        };
-        students: {
-            id: string;
-            email: string;
-            invite_code: string | null;
-            telegram_code: string | null;
-            password_hash: string;
-            role: import(".prisma/client").$Enums.Role;
-            refresh_token: string | null;
-            admin_permissions: string[];
-            name: string | null;
-            surname: string | null;
-            patronymic: string | null;
-            birthday: string | null;
-            city: string | null;
-            avatar: string | null;
-            points: number;
-            telegram_chat_id: string | null;
-            telegram_linked_at: Date | null;
-            parent_id: string | null;
-            created_at: Date;
-        }[];
     } & {
         id: string;
         title: string;
         cover_url: string | null;
-        teacher_id: string | null;
-        curator_id: string | null;
         price: number;
         old_price: number | null;
         start_date: string | null;
@@ -165,8 +163,29 @@ export declare class GroupService {
         is_public: boolean;
         payment_info: string | null;
         payment_qr_url: string | null;
+        curator_id: string | null;
+        teacher_id: string | null;
     }>;
     getCuratorScope(requesterId?: string, requesterRole?: string): Promise<({
+        curator: {
+            id: string;
+            email: string;
+            name: string;
+            surname: string;
+        };
+        teacher: {
+            id: string;
+            email: string;
+            name: string;
+            surname: string;
+        };
+        students: {
+            id: string;
+            email: string;
+            name: string;
+            surname: string;
+            avatar: string;
+        }[];
         courses: ({
             themes: ({
                 lessons: {
@@ -202,31 +221,10 @@ export declare class GroupService {
             spell_check: boolean;
             subject_id: string | null;
         })[];
-        teacher: {
-            id: string;
-            email: string;
-            name: string;
-            surname: string;
-        };
-        curator: {
-            id: string;
-            email: string;
-            name: string;
-            surname: string;
-        };
-        students: {
-            id: string;
-            email: string;
-            name: string;
-            surname: string;
-            avatar: string;
-        }[];
     } & {
         id: string;
         title: string;
         cover_url: string | null;
-        teacher_id: string | null;
-        curator_id: string | null;
         price: number;
         old_price: number | null;
         start_date: string | null;
@@ -235,13 +233,13 @@ export declare class GroupService {
         is_public: boolean;
         payment_info: string | null;
         payment_qr_url: string | null;
+        curator_id: string | null;
+        teacher_id: string | null;
     })[]>;
     update(id: string, data: any, requesterId?: string, requesterRole?: string, requesterPermissions?: string[]): Promise<{
         id: string;
         title: string;
         cover_url: string | null;
-        teacher_id: string | null;
-        curator_id: string | null;
         price: number;
         old_price: number | null;
         start_date: string | null;
@@ -250,13 +248,13 @@ export declare class GroupService {
         is_public: boolean;
         payment_info: string | null;
         payment_qr_url: string | null;
+        curator_id: string | null;
+        teacher_id: string | null;
     }>;
     remove(id: string): Promise<{
         id: string;
         title: string;
         cover_url: string | null;
-        teacher_id: string | null;
-        curator_id: string | null;
         price: number;
         old_price: number | null;
         start_date: string | null;
@@ -265,13 +263,16 @@ export declare class GroupService {
         is_public: boolean;
         payment_info: string | null;
         payment_qr_url: string | null;
+        curator_id: string | null;
+        teacher_id: string | null;
     }>;
     updateCourses(groupId: string, courseIds: string[]): Promise<{
         students: {
             id: string;
             email: string;
             invite_code: string | null;
-            telegram_code: string | null;
+            telegram_chat_id: string | null;
+            telegram_link_code: string | null;
             password_hash: string;
             role: import(".prisma/client").$Enums.Role;
             refresh_token: string | null;
@@ -283,17 +284,14 @@ export declare class GroupService {
             city: string | null;
             avatar: string | null;
             points: number;
-            telegram_chat_id: string | null;
-            telegram_linked_at: Date | null;
             parent_id: string | null;
+            telegram_linked_at: Date | null;
             created_at: Date;
         }[];
     } & {
         id: string;
         title: string;
         cover_url: string | null;
-        teacher_id: string | null;
-        curator_id: string | null;
         price: number;
         old_price: number | null;
         start_date: string | null;
@@ -302,6 +300,8 @@ export declare class GroupService {
         is_public: boolean;
         payment_info: string | null;
         payment_qr_url: string | null;
+        curator_id: string | null;
+        teacher_id: string | null;
     }>;
     updateStudents(groupId: string, studentIds: string[], requesterId?: string, requesterRole?: string): Promise<{
         courses: {
@@ -316,8 +316,6 @@ export declare class GroupService {
         id: string;
         title: string;
         cover_url: string | null;
-        teacher_id: string | null;
-        curator_id: string | null;
         price: number;
         old_price: number | null;
         start_date: string | null;
@@ -326,6 +324,8 @@ export declare class GroupService {
         is_public: boolean;
         payment_info: string | null;
         payment_qr_url: string | null;
+        curator_id: string | null;
+        teacher_id: string | null;
     }>;
     private ensureCanManageGroupMembers;
     updateStudentsScoped(groupId: string, studentIds: string[], requesterId?: string, requesterRole?: string): Promise<{
@@ -341,8 +341,6 @@ export declare class GroupService {
         id: string;
         title: string;
         cover_url: string | null;
-        teacher_id: string | null;
-        curator_id: string | null;
         price: number;
         old_price: number | null;
         start_date: string | null;
@@ -351,13 +349,13 @@ export declare class GroupService {
         is_public: boolean;
         payment_info: string | null;
         payment_qr_url: string | null;
+        curator_id: string | null;
+        teacher_id: string | null;
     }>;
     removeStudent(groupId: string, userId: string, requesterId?: string, requesterRole?: string): Promise<{
         id: string;
         title: string;
         cover_url: string | null;
-        teacher_id: string | null;
-        curator_id: string | null;
         price: number;
         old_price: number | null;
         start_date: string | null;
@@ -366,6 +364,8 @@ export declare class GroupService {
         is_public: boolean;
         payment_info: string | null;
         payment_qr_url: string | null;
+        curator_id: string | null;
+        teacher_id: string | null;
     }>;
     getMyThemeAccess(userId: string): Promise<{
         group_id: string;
@@ -409,8 +409,6 @@ export declare class GroupService {
             id: string;
             title: string;
             cover_url: string | null;
-            teacher_id: string | null;
-            curator_id: string | null;
             price: number;
             old_price: number | null;
             start_date: string | null;
@@ -419,6 +417,8 @@ export declare class GroupService {
             is_public: boolean;
             payment_info: string | null;
             payment_qr_url: string | null;
+            curator_id: string | null;
+            teacher_id: string | null;
         };
     } & {
         id: string;
@@ -432,23 +432,21 @@ export declare class GroupService {
         _count: {
             students: number;
         };
+        curator: {
+            name: string;
+            surname: string;
+            avatar: string;
+        };
         courses: {
             id: string;
             title: string;
             description: string;
             cover_url: string;
         }[];
-        curator: {
-            name: string;
-            surname: string;
-            avatar: string;
-        };
     } & {
         id: string;
         title: string;
         cover_url: string | null;
-        teacher_id: string | null;
-        curator_id: string | null;
         price: number;
         old_price: number | null;
         start_date: string | null;
@@ -457,6 +455,8 @@ export declare class GroupService {
         is_public: boolean;
         payment_info: string | null;
         payment_qr_url: string | null;
+        curator_id: string | null;
+        teacher_id: string | null;
     })[]>;
     applyForGroup(groupId: string, userId: string, data: {
         comment?: string;

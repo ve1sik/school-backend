@@ -3,14 +3,7 @@ export declare class TelegramController {
     private readonly telegramService;
     constructor(telegramService: TelegramService);
     handleWebhook(update: any): Promise<{
-        method: "sendMessage";
-        chat_id: string | number;
-        text: string;
-        parse_mode: string;
-        disable_web_page_preview: boolean;
-        reply_markup?: any;
-    } | {
-        ok: true;
+        [x: string]: any;
     }>;
     getLinkCode(req: any): Promise<{
         code: string;
@@ -18,7 +11,18 @@ export declare class TelegramController {
         linked: boolean;
     }>;
     registerCommands(): Promise<void>;
+    health(): Promise<{
+        tokenConfigured: boolean;
+        botUsername: string;
+        preparedCodes: number;
+        linkedChats: number;
+        architecture: string;
+    }>;
     testSend(chatId: string): Promise<{
         ok: boolean;
+        error?: undefined;
+    } | {
+        ok: boolean;
+        error: any;
     }>;
 }

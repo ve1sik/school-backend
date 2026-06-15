@@ -1,52 +1,32 @@
 import { OnModuleInit } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-type WebhookReply = {
-    method: 'sendMessage';
-    chat_id: string | number;
-    text: string;
-    parse_mode: string;
-    disable_web_page_preview: boolean;
-    reply_markup?: any;
-} | {
-    ok: true;
-};
+type WR = Record<string, any>;
 export declare class TelegramService implements OnModuleInit {
     private prisma;
     private readonly logger;
-    private readonly linksPath;
+    private _userCache;
+    private _coursesCache;
+    private readonly tg;
     constructor(prisma: PrismaService);
     onModuleInit(): void;
     private get token();
     get botUsername(): string;
     get botUrl(): string;
+    private buildReply;
     registerBotCommands(): Promise<void>;
-    private loadLinks;
-    private saveLinks;
-    private buildCode;
-    ensureTelegramCode(userId: string): Promise<{
-        code: string;
-        botUrl: string;
-        linked: boolean;
-    }>;
-    private getChatIdForUser;
-    private findUserByCode;
-    private findUserByChatId;
-    private pushMessage;
-    private reply;
+    private pushNotification;
     private answerCbq;
-    handleUpdate(update: any): Promise<WebhookReply>;
+    handleUpdate(update: any): Promise<WR>;
     private handleMessage;
     private handleCallback;
     private requireLinked;
-    private resolveStudent;
     private userName;
-    private getStudentCourses;
     private sendWelcome;
-    private handleStart;
+    private doStart;
+    private doHelp;
+    private doNotifInfo;
     private handleLinkCode;
-    private showHome;
-    private showHelp;
-    private showNotifSettings;
+    private buildAnalyticsSnapshot;
     private showProfile;
     private showCourseList;
     private showCourseStats;
@@ -56,12 +36,36 @@ export declare class TelegramService implements OnModuleInit {
     sendDeadlineReminders(): Promise<void>;
     testSend(chatId: string): Promise<{
         ok: boolean;
+        error?: undefined;
+    } | {
+        ok: boolean;
+        error: any;
     }>;
+    health(): Promise<{
+        tokenConfigured: boolean;
+        botUsername: string;
+        preparedCodes: number;
+        linkedChats: number;
+        architecture: string;
+    }>;
+    private generateLinkCode;
+    private buildLegacyCode;
+    private findUserByLegacyCode;
+    ensureTelegramCode(userId: string): Promise<{
+        code: string;
+        botUrl: string;
+        linked: boolean;
+    }>;
+    private getChatIdForUser;
+    private findUserByChatId;
+    private migrateLegacyLinks;
+    private cachedUser;
+    private invalidateUserCache;
+    private getStudentCourses;
     private buildOverallSummary;
     private calcStats;
     private getLessonBreakdown;
     private getNearestCourseDeadline;
-    private getAnyNearestDeadline;
     private calcStreak;
 }
 export {};

@@ -1,11 +1,11 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import axios from 'axios';
-import { existsSync, readFileSync, writeFileSync } from 'fs';
+import { randomBytes } from 'crypto';
+import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
 
 type TgButton = { text: string; callback_data: string };
-type LinkStore = Record<string, { chatId?: string; userId: string; linkedAt?: string; preparedAt?: string }>;
 type WR = Record<string, any>; // WebhookReply
 
 const MAIN_KEYBOARD = {
@@ -21,6 +21,7 @@ const MAIN_KEYBOARD = {
 };
 
 const AUTO_PREFIX = 'Автоматическая проверка';
+const LEGACY_LINKS_PATH = join(process.cwd(), 'telegram-links.json');
 
 const esc = (v: any) =>
   String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -48,12 +49,10 @@ const daysLeft = (d: Date | string) => {
 @Injectable()
 export class TelegramService implements OnModuleInit {
   private readonly logger = new Logger(TelegramService.name);
-  private readonly linksPath = join(process.cwd(), 'telegram-links.json');
 
   // Кеши
   private _userCache = new Map<string, { user: any; exp: number }>();
   private _coursesCache = new Map<string, { courses: any[]; exp: number }>();
-  private _links: LinkStore | null = null;
 
   // HTTP-клиент для ПРОАКТИВНЫХ уведомлений (grade alerts, deadline reminders)
   // Только это требует исходящего соединения. Webhook-ответы — через HTTP reply.
@@ -66,6 +65,7 @@ export class TelegramService implements OnModuleInit {
   constructor(private prisma: PrismaService) {}
 
   onModuleInit() {
+    this.migrateLegacyLinks().catch((e) => this.logger.warn(`Legacy TG links migration: ${e?.message}`));
     const scheduleDaily = () => {
       const now = new Date();
       const next9 = new Date(now);
@@ -211,7 +211,7 @@ export class TelegramService implements OnModuleInit {
     if (text === '🔄 Перезапустить') return this.doStart(chatId, '/start');
     if (text === '❓ Помощь')         return this.doHelp(chatId);
 
-    const codeMatch = clean.match(/^(?:\/start\s+)?([A-Z0-9]{10,16})$/);
+    const codeMatch = clean.match(/^(?:\/start\s+)?([A-Z0-9]{6,16})$/i);
     if (codeMatch) return this.handleLinkCode(chatId, codeMatch[1].toUpperCase());
 
     return this.doStart(chatId, clean);
@@ -286,11 +286,15 @@ export class TelegramService implements OnModuleInit {
   }
 
   private async doStart(chatId: string, text: string): Promise<WR> {
-    const deepCode = text.replace('/start', '').trim().toUpperCase();
-    if (deepCode && deepCode.startsWith('TG')) {
+    const deepCode = text.replace(/^\/start\s*/i, '').trim().toUpperCase();
+    if (deepCode && deepCode !== 'START') {
       return this.handleLinkCode(chatId, deepCode);
     }
-    const linked = Object.values(this.loadLinks()).some((l) => l.chatId === chatId);
+
+    const linked = await this.prisma.user.findFirst({
+      where: { telegram_chat_id: chatId },
+      select: { id: true },
+    });
     if (!linked) return this.sendWelcome(chatId);
 
     return this.buildReply(
@@ -331,53 +335,106 @@ export class TelegramService implements OnModuleInit {
   }
 
   private async handleLinkCode(chatId: string, code: string): Promise<WR> {
-    const links = this.loadLinks();
-    const prepared = links[code];
+    let user = await this.prisma.user.findFirst({
+      where: { telegram_link_code: code },
+      select: {
+        id: true, email: true, name: true, surname: true, role: true,
+        telegram_chat_id: true,
+      },
+    });
 
-    if (prepared) {
-      links[code] = { ...prepared, chatId, linkedAt: new Date().toISOString() };
-      this.saveLinks(links);
-      this.invalidateUserCache(prepared.userId);
-
-      return this.buildReply(
-        chatId,
-        `✅ <b>Telegram подключён!</b>\n\n` +
-        `Теперь бот будет присылать оценки, дедлайны и уведомления от куратора.\n\n` +
-        `Постоянное меню уже внизу экрана 👇\n` +
-        `Нажмите <b>📊 Статистика</b>, <b>📅 Дедлайны</b> или <b>👤 Мой профиль</b>.`,
-      );
+    if (!user && code.startsWith('TG')) {
+      user = await this.findUserByLegacyCode(code);
     }
 
-    // Код ещё не был создан через сайт — ищем в БД
-    const uuidPrefix = code.slice(2).toLowerCase();
-    const candidates = await this.prisma.user.findMany({
-      where: { id: { startsWith: uuidPrefix } },
-      select: { id: true, email: true, name: true, surname: true, role: true },
-      take: 3,
-    }).catch(() => []);
-
-    const user = candidates.find((u) => this.buildCode(u.id) === code) || null;
     if (!user) {
       return this.buildReply(
         chatId,
-        '❌ <b>Код не найден или ещё не подготовлен сайтом.</b>\n\n' +
-        'Откройте профиль на сайте, дождитесь блока Telegram и отправьте код ещё раз.',
+        '❌ <b>Код не найден или уже использован.</b>\n\n' +
+        'Откройте профиль на сайте → блок «Telegram бот» → нажмите «Открыть бота» или скопируйте новый код.',
         { keyboard: false },
       );
     }
 
-    links[code] = { chatId, userId: user.id, linkedAt: new Date().toISOString() };
-    this.saveLinks(links);
+    if (user.telegram_chat_id && user.telegram_chat_id !== chatId) {
+      return this.buildReply(
+        chatId,
+        '⚠️ Этот аккаунт уже привязан к другому Telegram.\n\n' +
+        'Если это ваш аккаунт — отвяжите Telegram в профиле на сайте и повторите подключение.',
+        { keyboard: false },
+      );
+    }
+
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: {
+        telegram_chat_id: chatId,
+        telegram_link_code: null,
+        telegram_linked_at: new Date(),
+      },
+    });
     this.invalidateUserCache(user.id);
 
+    const student = user.role === 'PARENT'
+      ? await this.prisma.user.findFirst({
+          where: { parent_id: user.id },
+          select: { id: true, name: true, surname: true, email: true, role: true },
+        })
+      : user;
+
     const roleLabel = user.role === 'PARENT' ? 'Родитель' : 'Ученик';
-    return this.buildReply(
-      chatId,
+    let text =
       `✅ <b>Аккаунт успешно привязан!</b>\n\n` +
-      `${roleLabel}: <b>${esc(this.userName(user))}</b>\n\n` +
-      `Теперь вам будут приходить уведомления об оценках и напоминания о дедлайнах.\n\n` +
-      `Постоянное меню уже внизу экрана 👇`,
-    );
+      `${roleLabel}: <b>${esc(this.userName(user))}</b>\n\n`;
+
+    if (student) {
+      text += await this.buildAnalyticsSnapshot(student);
+      text += `\nПостоянное меню внизу 👇 — <b>📊 Статистика</b>, <b>📅 Дедлайны</b>.`;
+    } else {
+      text += 'К аккаунту родителя пока не привязан ученик.\nСделайте это в «Кабинете родителя» на сайте.';
+    }
+
+    return this.buildReply(chatId, text);
+  }
+
+  private async buildAnalyticsSnapshot(student: any): Promise<string> {
+    const [courses, groups, subs, attempts, streakDays] = await Promise.all([
+      this.getStudentCourses(student.id),
+      this.prisma.group.findMany({
+        where: { students: { some: { id: student.id } } },
+        select: { title: true },
+      }),
+      this.prisma.submission.count({ where: { user_id: student.id, status: 'GRADED' } }),
+      this.prisma.testAttempt.count({ where: { user_id: student.id } }),
+      this.calcStreak(student.id),
+    ]);
+
+    const summary = courses.length
+      ? await this.buildOverallSummary(student.id, courses.map((c) => c.id))
+      : { overall: 0 };
+
+    let text =
+      `📊 <b>Ваша аналитика</b>\n${'─'.repeat(28)}\n\n` +
+      `${medal(summary.overall)} <b>Общий балл: ${summary.overall}/100</b>\n` +
+      `${bar(summary.overall)}\n\n` +
+      `📚 Курсов: <b>${courses.length}</b>\n` +
+      `📝 Работ проверено: <b>${subs}</b>\n` +
+      `🧩 Тестов пройдено: <b>${attempts}</b>\n`;
+
+    if (streakDays > 0) text += `🔥 Стрик: <b>${streakDays} дн.</b> подряд\n`;
+    if (groups.length) text += `👥 Группы: <i>${esc(groups.map((g) => g.title).join(', '))}</i>\n`;
+
+    if (courses.length) {
+      const statsArr = await Promise.all(courses.map((c) => this.calcStats(student.id, c.id)));
+      text += `\n<b>По курсам:</b>\n`;
+      courses.forEach((c, i) => {
+        const s = statsArr[i];
+        const emoji = s.overall >= 75 ? '🟢' : s.overall >= 50 ? '🟡' : s.count > 0 ? '🔴' : '⬜';
+        text += `${emoji} ${esc(c.title)} — <b>${s.overall}/100</b>\n`;
+      });
+    }
+
+    return text;
   }
 
   private async showProfile(chatId: string, student: any): Promise<WR> {
@@ -612,6 +669,8 @@ export class TelegramService implements OnModuleInit {
     });
     if (!sub || sub.status !== 'GRADED') return;
 
+    if (kind === 'written' && String(sub.comment ?? '').includes(AUTO_PREFIX)) return;
+
     const student = sub.user;
     const scorePct = sub.max_score > 0 ? Math.round(((sub.score ?? 0) / sub.max_score) * 100) : 0;
     const icon = kind === 'oral' ? '🎤' : '📝';
@@ -634,7 +693,7 @@ export class TelegramService implements OnModuleInit {
 
     const recipients = [student, student.parent].filter(Boolean) as any[];
     for (const u of recipients) {
-      const chatId = this.getChatIdForUser(u.id);
+      const chatId = await this.getChatIdForUser(u.id);
       if (chatId) {
         await this.pushNotification(chatId, text, { buttons });
       }
@@ -642,16 +701,19 @@ export class TelegramService implements OnModuleInit {
   }
 
   async sendDeadlineReminders() {
-    const links = this.loadLinks();
-    if (!Object.keys(links).length) return;
+    const linkedUsers = await this.prisma.user.findMany({
+      where: { telegram_chat_id: { not: null } },
+      select: { id: true, role: true, telegram_chat_id: true },
+    });
+    if (!linkedUsers.length) return;
 
     const now = new Date();
     const in3Days = new Date(now.getTime() + 3 * 86400000);
 
-    for (const entry of Object.values(links)) {
+    for (const entry of linkedUsers) {
       try {
-        if (!entry.chatId) continue;
-        const user = await this.prisma.user.findUnique({ where: { id: entry.userId } });
+        const chatId = entry.telegram_chat_id!;
+        const user = await this.prisma.user.findUnique({ where: { id: entry.id } });
         if (!user) continue;
 
         const student = user.role === 'PARENT'
@@ -698,11 +760,11 @@ export class TelegramService implements OnModuleInit {
           text += `📅 <b>${esc(ev.title)}</b> — завтра!\n`;
         }
 
-        await this.pushNotification(entry.chatId, text, {
+        await this.pushNotification(chatId, text, {
           buttons: [[{ text: '📅 Все дедлайны', callback_data: 'deadlines' }]],
         });
       } catch (e: any) {
-        this.logger.warn(`Reminder error for ${entry.userId}: ${e?.message}`);
+        this.logger.warn(`Reminder error for ${entry.id}: ${e?.message}`);
       }
     }
   }
@@ -717,55 +779,113 @@ export class TelegramService implements OnModuleInit {
   }
 
   async health() {
-    const links = Object.values(this.loadLinks());
-    const linked = links.filter((l) => !!l.chatId);
+    const [linked, prepared] = await Promise.all([
+      this.prisma.user.count({ where: { telegram_chat_id: { not: null } } }),
+      this.prisma.user.count({ where: { telegram_link_code: { not: null } } }),
+    ]);
     return {
       tokenConfigured: !!this.token,
       botUsername: this.botUsername,
-      preparedCodes: links.length,
-      linkedChats: linked.length,
-      architecture: 'webhook-reply',
+      preparedCodes: prepared,
+      linkedChats: linked,
+      architecture: 'webhook-reply + db-links',
     };
   }
 
-  // ─────────────── Link store ───────────────
+  // ─────────────── Link management (PostgreSQL) ───────────────
 
-  private loadLinks(): LinkStore {
-    if (this._links) return this._links;
-    try {
-      if (!existsSync(this.linksPath)) { this._links = {}; return {}; }
-      this._links = JSON.parse(readFileSync(this.linksPath, 'utf8')) || {};
-      return this._links!;
-    } catch { this._links = {}; return {}; }
+  private generateLinkCode() {
+    return randomBytes(4).toString('hex').toUpperCase();
   }
 
-  private saveLinks(links: LinkStore) {
-    this._links = links;
-    writeFileSync(this.linksPath, JSON.stringify(links, null, 2));
-  }
-
-  private buildCode(userId: string) {
+  private buildLegacyCode(userId: string) {
     return `TG${userId.replace(/-/g, '').slice(0, 8).toUpperCase()}`;
   }
 
-  async ensureTelegramCode(userId: string) {
-    const code = this.buildCode(userId);
-    const links = this.loadLinks();
-    if (!links[code]) {
-      links[code] = { userId, preparedAt: new Date().toISOString() };
-      this.saveLinks(links);
-    }
-    return { code, botUrl: this.botUrl, linked: !!this.loadLinks()[code]?.chatId };
+  private async findUserByLegacyCode(code: string) {
+    const uuidPrefix = code.slice(2).toLowerCase();
+    const candidates = await this.prisma.user.findMany({
+      where: { id: { startsWith: uuidPrefix } },
+      select: {
+        id: true, email: true, name: true, surname: true, role: true,
+        telegram_chat_id: true,
+      },
+      take: 3,
+    });
+    return candidates.find((u) => this.buildLegacyCode(u.id) === code) || null;
   }
 
-  private getChatIdForUser(userId: string) {
-    return this.loadLinks()[this.buildCode(userId)]?.chatId || null;
+  async ensureTelegramCode(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { telegram_chat_id: true, telegram_link_code: true },
+    });
+    if (!user) return { code: null, botUrl: this.botUrl, linked: false };
+
+    if (user.telegram_chat_id) {
+      return { code: null, botUrl: this.botUrl, linked: true };
+    }
+
+    let code = user.telegram_link_code;
+    if (!code) {
+      code = this.generateLinkCode();
+      await this.prisma.user.update({
+        where: { id: userId },
+        data: { telegram_link_code: code },
+      });
+    }
+
+    return {
+      code,
+      botUrl: `${this.botUrl}?start=${code}`,
+      linked: false,
+    };
+  }
+
+  private async getChatIdForUser(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { telegram_chat_id: true },
+    });
+    return user?.telegram_chat_id || null;
   }
 
   private async findUserByChatId(chatId: string) {
-    const link = Object.values(this.loadLinks()).find((l) => l.chatId === chatId);
-    if (!link) return null;
-    return this.cachedUser(link.userId);
+    return this.prisma.user.findFirst({
+      where: { telegram_chat_id: chatId },
+      include: { parent: true },
+    });
+  }
+
+  private async migrateLegacyLinks() {
+    if (!existsSync(LEGACY_LINKS_PATH)) return;
+
+    let raw: Record<string, { chatId?: string; userId: string }>;
+    try {
+      raw = JSON.parse(readFileSync(LEGACY_LINKS_PATH, 'utf8')) || {};
+    } catch {
+      return;
+    }
+
+    let migrated = 0;
+    for (const entry of Object.values(raw)) {
+      if (!entry?.chatId || !entry?.userId) continue;
+      try {
+        await this.prisma.user.updateMany({
+          where: { id: entry.userId, telegram_chat_id: null },
+          data: {
+            telegram_chat_id: entry.chatId,
+            telegram_linked_at: new Date(),
+            telegram_link_code: null,
+          },
+        });
+        migrated++;
+      } catch { /* skip broken rows */ }
+    }
+
+    if (migrated) {
+      this.logger.log(`Migrated ${migrated} Telegram links from telegram-links.json into DB`);
+    }
   }
 
   // ─────────────── User cache ───────────────

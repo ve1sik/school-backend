@@ -14,18 +14,22 @@ exports.TelegramService = void 0;
 const common_1 = require("@nestjs/common");
 const prisma_service_1 = require("../prisma/prisma.service");
 const axios_1 = require("axios");
+const crypto_1 = require("crypto");
 const fs_1 = require("fs");
 const path_1 = require("path");
 const MAIN_KEYBOARD = {
     keyboard: [
         [{ text: '📊 Статистика' }, { text: '📅 Дедлайны' }],
         [{ text: '👤 Мой профиль' }, { text: '📚 Мои курсы' }],
-        [{ text: '🔔 Уведомления' }, { text: '❓ Помощь' }],
+        [{ text: '🔔 Уведомления' }, { text: '🔄 Перезапустить' }],
+        [{ text: '❓ Помощь' }],
     ],
     resize_keyboard: true,
     persistent: true,
+    one_time_keyboard: false,
 };
 const AUTO_PREFIX = 'Автоматическая проверка';
+const LEGACY_LINKS_PATH = (0, path_1.join)(process.cwd(), 'telegram-links.json');
 const esc = (v) => String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 const bar = (v, len = 10) => {
     const filled = Math.min(len, Math.round((v / 100) * len));
@@ -50,9 +54,16 @@ let TelegramService = TelegramService_1 = class TelegramService {
     constructor(prisma) {
         this.prisma = prisma;
         this.logger = new common_1.Logger(TelegramService_1.name);
-        this.linksPath = (0, path_1.join)(process.cwd(), 'telegram-links.json');
+        this._userCache = new Map();
+        this._coursesCache = new Map();
+        this.tg = axios_1.default.create({
+            baseURL: 'https://api.telegram.org',
+            timeout: 8000,
+            proxy: false,
+        });
     }
     onModuleInit() {
+        this.migrateLegacyLinks().catch((e) => this.logger.warn(`Legacy TG links migration: ${e?.message}`));
         const scheduleDaily = () => {
             const now = new Date();
             const next9 = new Date(now);
@@ -70,83 +81,7 @@ let TelegramService = TelegramService_1 = class TelegramService {
     get token() { return process.env.TELEGRAM_BOT_TOKEN || ''; }
     get botUsername() { return process.env.TELEGRAM_BOT_USERNAME || 'prepodmgybot'; }
     get botUrl() { return `https://t.me/${this.botUsername}`; }
-    async registerBotCommands() {
-        if (!this.token)
-            return;
-        try {
-            await axios_1.default.post(`https://api.telegram.org/bot${this.token}/setMyCommands`, {
-                commands: [
-                    { command: 'start', description: '🏠 Начало / главное меню' },
-                    { command: 'stats', description: '📊 Статистика по курсам' },
-                    { command: 'deadlines', description: '📅 Ближайшие дедлайны' },
-                    { command: 'profile', description: '👤 Мой профиль' },
-                    { command: 'courses', description: '📚 Список моих курсов' },
-                    { command: 'help', description: '❓ Помощь' },
-                ],
-            }, { timeout: 8000 });
-        }
-        catch { }
-    }
-    loadLinks() {
-        try {
-            if (!(0, fs_1.existsSync)(this.linksPath))
-                return {};
-            return JSON.parse((0, fs_1.readFileSync)(this.linksPath, 'utf8')) || {};
-        }
-        catch {
-            return {};
-        }
-    }
-    saveLinks(links) {
-        (0, fs_1.writeFileSync)(this.linksPath, JSON.stringify(links, null, 2));
-    }
-    buildCode(userId) {
-        return `TG${userId.replace(/-/g, '').slice(0, 8).toUpperCase()}`;
-    }
-    async ensureTelegramCode(userId) {
-        const code = this.buildCode(userId);
-        return { code, botUrl: this.botUrl, linked: !!this.loadLinks()[code] };
-    }
-    getChatIdForUser(userId) {
-        return this.loadLinks()[this.buildCode(userId)]?.chatId || null;
-    }
-    async findUserByCode(code) {
-        const all = await this.prisma.user.findMany({
-            select: { id: true, email: true, name: true, surname: true, role: true },
-        });
-        return all.find((u) => this.buildCode(u.id) === code) || null;
-    }
-    async findUserByChatId(chatId) {
-        const link = Object.values(this.loadLinks()).find((l) => l.chatId === chatId);
-        if (!link)
-            return null;
-        return this.prisma.user.findUnique({
-            where: { id: link.userId },
-            include: { parent: true },
-        });
-    }
-    async pushMessage(chatId, text, extra) {
-        if (!this.token)
-            return;
-        const reply_markup = extra?.buttons
-            ? { inline_keyboard: extra.buttons }
-            : extra?.keyboard
-                ? MAIN_KEYBOARD
-                : undefined;
-        try {
-            await axios_1.default.post(`https://api.telegram.org/bot${this.token}/sendMessage`, {
-                chat_id: chatId,
-                text,
-                parse_mode: 'HTML',
-                disable_web_page_preview: true,
-                reply_markup,
-            }, { timeout: 10000 });
-        }
-        catch (e) {
-            this.logger.warn(`Push failed: ${e?.message}`);
-        }
-    }
-    reply(chatId, text, extra) {
+    buildReply(chatId, text, extra) {
         const reply_markup = extra?.buttons
             ? { inline_keyboard: extra.buttons }
             : extra?.keyboard !== false
@@ -158,25 +93,64 @@ let TelegramService = TelegramService_1 = class TelegramService {
             text,
             parse_mode: 'HTML',
             disable_web_page_preview: true,
-            reply_markup,
+            ...(reply_markup ? { reply_markup } : {}),
         };
     }
-    async answerCbq(callbackQueryId) {
+    async registerBotCommands() {
         if (!this.token)
             return;
         try {
-            await axios_1.default.post(`https://api.telegram.org/bot${this.token}/answerCallbackQuery`, { callback_query_id: callbackQueryId }, { timeout: 5000 });
+            await this.tg.post(`/bot${this.token}/setMyCommands`, {
+                commands: [
+                    { command: 'start', description: '🏠 Начало / главное меню' },
+                    { command: 'stats', description: '📊 Статистика по курсам' },
+                    { command: 'deadlines', description: '📅 Ближайшие дедлайны' },
+                    { command: 'profile', description: '👤 Мой профиль' },
+                    { command: 'courses', description: '📚 Список моих курсов' },
+                    { command: 'help', description: '❓ Помощь' },
+                ],
+            });
+        }
+        catch { }
+    }
+    async pushNotification(chatId, text, extra) {
+        if (!this.token)
+            return;
+        const reply_markup = extra?.buttons ? { inline_keyboard: extra.buttons } : MAIN_KEYBOARD;
+        try {
+            await this.tg.post(`/bot${this.token}/sendMessage`, {
+                chat_id: chatId,
+                text,
+                parse_mode: 'HTML',
+                disable_web_page_preview: true,
+                reply_markup,
+            });
+        }
+        catch (e) {
+            const err = e?.response?.data?.description || e?.code || e?.message || 'unknown';
+            this.logger.warn(`pushNotification failed for ${chatId}: ${err}`);
+        }
+    }
+    async answerCbq(id) {
+        if (!this.token)
+            return;
+        try {
+            await this.tg.post(`/bot${this.token}/answerCallbackQuery`, { callback_query_id: id });
         }
         catch { }
     }
     async handleUpdate(update) {
         try {
-            if (update.message) {
-                return await this.handleMessage(String(update.message.chat.id), String(update.message.text || '').trim());
+            if (update?.message) {
+                const chatId = String(update.message.chat.id);
+                const text = String(update.message.text || '').trim();
+                return await this.handleMessage(chatId, text);
             }
-            if (update.callback_query) {
-                this.answerCbq(update.callback_query.id);
-                return await this.handleCallback(String(update.callback_query.message.chat.id), String(update.callback_query.data || ''));
+            if (update?.callback_query) {
+                const chatId = String(update.callback_query.message.chat.id);
+                const data = String(update.callback_query.data || '');
+                this.answerCbq(update.callback_query.id).catch(() => { });
+                return await this.handleCallback(chatId, data);
             }
         }
         catch (e) {
@@ -188,7 +162,7 @@ let TelegramService = TelegramService_1 = class TelegramService {
         const clean = text.trim();
         const cmd = clean.replace(/^\/(\w+).*/, '$1').toLowerCase();
         if (cmd === 'start' || cmd === 'restart')
-            return this.handleStart(chatId, clean);
+            return this.doStart(chatId, clean);
         if (cmd === 'stats')
             return this.requireLinked(chatId, (s) => this.showCourseList(chatId, s.id));
         if (cmd === 'deadlines')
@@ -198,7 +172,7 @@ let TelegramService = TelegramService_1 = class TelegramService {
         if (cmd === 'courses')
             return this.requireLinked(chatId, (s) => this.showCourseList(chatId, s.id));
         if (cmd === 'help')
-            return this.showHelp(chatId);
+            return this.doHelp(chatId);
         if (text === '📊 Статистика')
             return this.requireLinked(chatId, (s) => this.showCourseList(chatId, s.id));
         if (text === '📅 Дедлайны')
@@ -208,27 +182,34 @@ let TelegramService = TelegramService_1 = class TelegramService {
         if (text === '📚 Мои курсы')
             return this.requireLinked(chatId, (s) => this.showCourseList(chatId, s.id));
         if (text === '🔔 Уведомления')
-            return this.requireLinked(chatId, (s) => this.showNotifSettings(chatId));
+            return this.doNotifInfo(chatId);
+        if (text === '🔄 Перезапустить')
+            return this.doStart(chatId, '/start');
         if (text === '❓ Помощь')
-            return this.showHelp(chatId);
-        const codeMatch = clean.match(/^(?:\/start\s+)?([A-Z0-9]{10,16})$/);
+            return this.doHelp(chatId);
+        const codeMatch = clean.match(/^(?:\/start\s+)?([A-Z0-9]{6,16})$/i);
         if (codeMatch)
             return this.handleLinkCode(chatId, codeMatch[1].toUpperCase());
-        return this.handleStart(chatId, clean);
+        return this.doStart(chatId, clean);
     }
     async handleCallback(chatId, data) {
         const linked = await this.findUserByChatId(chatId);
-        if (!linked)
-            return this.reply(chatId, '⚠️ Сначала отправьте Telegram-код с сайта.');
-        const student = await this.resolveStudent(linked);
-        if (!student)
-            return this.reply(chatId, 'К аккаунту родителя пока не привязан ученик.\n\nОткройте «Кабинет родителя» на сайте.');
+        if (!linked) {
+            return this.buildReply(chatId, '⚠️ Сначала отправьте Telegram-код с сайта.');
+        }
+        const student = linked.role === 'PARENT'
+            ? await this.prisma.user.findFirst({
+                where: { parent_id: linked.id },
+                select: { id: true, name: true, surname: true, email: true, role: true },
+            })
+            : linked;
+        if (!student) {
+            return this.buildReply(chatId, 'К аккаунту родителя пока не привязан ученик.\n\nОткройте «Кабинет родителя» на сайте.');
+        }
         if (data === 'stats')
             return this.showCourseList(chatId, student.id);
         if (data === 'deadlines')
             return this.showDeadlines(chatId, student.id);
-        if (data === 'home')
-            return this.showHome(chatId, linked, student);
         if (data === 'profile')
             return this.showProfile(chatId, student);
         if (data === 'courses')
@@ -237,43 +218,28 @@ let TelegramService = TelegramService_1 = class TelegramService {
             return this.showCourseStats(chatId, student.id, data.slice(7));
         if (data.startsWith('theme:'))
             return this.showThemeStats(chatId, student.id, data.slice(6));
-        return this.reply(chatId, '❓ Не понял команду. Используйте кнопки меню.');
+        return this.buildReply(chatId, '❓ Не понял команду. Используйте кнопки меню.');
     }
     async requireLinked(chatId, fn) {
         const linked = await this.findUserByChatId(chatId);
         if (!linked)
             return this.sendWelcome(chatId);
-        const student = await this.resolveStudent(linked);
-        if (!student)
-            return this.reply(chatId, 'К аккаунту родителя пока не привязан ученик.', { keyboard: false });
+        const student = linked.role === 'PARENT'
+            ? await this.prisma.user.findFirst({
+                where: { parent_id: linked.id },
+                select: { id: true, name: true, surname: true, email: true, role: true },
+            })
+            : linked;
+        if (!student) {
+            return this.buildReply(chatId, 'К аккаунту родителя пока не привязан ученик.');
+        }
         return fn(student);
-    }
-    async resolveStudent(user) {
-        if (user.role !== 'PARENT')
-            return user;
-        return this.prisma.user.findFirst({ where: { parent_id: user.id } });
     }
     userName(u) {
         return `${u?.surname ?? ''} ${u?.name ?? u?.email ?? 'Пользователь'}`.trim();
     }
-    async getStudentCourses(studentId) {
-        const [enrollments, groups] = await Promise.all([
-            this.prisma.enrollment.findMany({
-                where: { user_id: studentId },
-                include: { course: true },
-            }),
-            this.prisma.group.findMany({
-                where: { students: { some: { id: studentId } } },
-                include: { courses: true },
-            }),
-        ]);
-        const map = new Map();
-        enrollments.forEach((e) => map.set(e.course_id, e.course));
-        groups.forEach((g) => g.courses.forEach((c) => map.set(c.id, c)));
-        return Array.from(map.values());
-    }
     sendWelcome(chatId) {
-        return this.reply(chatId, '👋 <b>Привет! Я бот школы «Препод из МГУ».</b>\n\n' +
+        return this.buildReply(chatId, '👋 <b>Привет! Я бот школы «Препод из МГУ».</b>\n\n' +
             'Я помогу вам:\n' +
             '📊 Смотреть статистику и оценки\n' +
             '📅 Следить за дедлайнами\n' +
@@ -283,82 +249,90 @@ let TelegramService = TelegramService_1 = class TelegramService {
             '• Ученик → <b>Мой профиль</b> → блок «Telegram бот»\n' +
             '• Родитель → <b>Кабинет родителя</b> → блок «Telegram бот»', { keyboard: false });
     }
-    async handleStart(chatId, text) {
-        const deepCode = text.replace('/start', '').trim().toUpperCase();
-        if (deepCode && deepCode.startsWith('TG')) {
+    async doStart(chatId, text) {
+        const deepCode = text.replace(/^\/start\s*/i, '').trim().toUpperCase();
+        if (deepCode && deepCode !== 'START') {
             return this.handleLinkCode(chatId, deepCode);
         }
-        const linked = await this.findUserByChatId(chatId);
+        const linked = await this.prisma.user.findFirst({
+            where: { telegram_chat_id: chatId },
+            select: { id: true },
+        });
         if (!linked)
             return this.sendWelcome(chatId);
-        const student = await this.resolveStudent(linked);
-        return this.showHome(chatId, linked, student);
+        return this.buildReply(chatId, `🏠 <b>Главное меню</b>\n${'─'.repeat(26)}\n\n` +
+            `Бот готов к работе.\n\n` +
+            `📊 <b>Статистика</b> — оценки по курсам\n` +
+            `📅 <b>Дедлайны</b> — ближайшие сроки\n` +
+            `👤 <b>Мой профиль</b> — данные аккаунта\n` +
+            `🔔 <b>Уведомления</b> — что приходит в Telegram\n\n` +
+            `Используйте постоянное меню снизу 👇`);
     }
-    async handleLinkCode(chatId, code) {
-        const user = await this.findUserByCode(code);
-        if (!user) {
-            return this.reply(chatId, '❌ <b>Код не найден.</b>\n\nПроверьте код на сайте и попробуйте снова.', { keyboard: false });
-        }
-        const links = this.loadLinks();
-        links[code] = { chatId, userId: user.id, linkedAt: new Date().toISOString() };
-        this.saveLinks(links);
-        const student = user.role === 'PARENT'
-            ? await this.prisma.user.findFirst({ where: { parent_id: user.id } })
-            : user;
-        const roleLabel = user.role === 'PARENT' ? 'Родитель' : 'Ученик';
-        return this.reply(chatId, `✅ <b>Аккаунт успешно привязан!</b>\n\n` +
-            `${roleLabel}: <b>${esc(this.userName(user))}</b>\n` +
-            (student && student.id !== user.id ? `👤 Ученик: <b>${esc(this.userName(student))}</b>\n` : '') +
-            `\nТеперь вам будут приходить уведомления об оценках и напоминания о дедлайнах.\n\n` +
-            `Используйте кнопки меню ниже 👇`, { buttons: [[{ text: '📊 Открыть статистику', callback_data: 'stats' }]] });
-    }
-    async showHome(chatId, linked, student) {
-        if (!student)
-            return this.reply(chatId, 'Добро пожаловать! Используйте меню ниже.');
-        const courses = await this.getStudentCourses(student.id);
-        const summary = courses.length
-            ? await this.buildOverallSummary(student.id, courses.map((c) => c.id))
-            : { overall: 0 };
-        const deadline = await this.getAnyNearestDeadline(student.id);
-        let text = `🏠 <b>Главное меню</b>\n${'─'.repeat(26)}\n\n`;
-        text += `👤 <b>${esc(this.userName(student))}</b>\n`;
-        text += courses.length ? `📚 Курсов: <b>${courses.length}</b>\n` : '';
-        if (courses.length) {
-            text += `\n${medal(summary.overall)} <b>Общий балл: ${summary.overall}/100</b>\n`;
-            text += `${bar(summary.overall)}\n`;
-        }
-        if (deadline) {
-            text += `\n⏰ <b>Ближайший дедлайн:</b>\n${esc(deadline.title)} — ${daysLeft(deadline.date)}\n`;
-        }
-        text += `\nВыберите раздел из меню ниже 👇`;
-        return this.reply(chatId, text, {
-            buttons: [
-                [{ text: '📊 Статистика', callback_data: 'stats' }, { text: '📅 Дедлайны', callback_data: 'deadlines' }],
-            ],
-        });
-    }
-    async showHelp(chatId) {
-        return this.reply(chatId, `❓ <b>Помощь</b>\n${'─'.repeat(26)}\n\n` +
-            `<b>Команды:</b>\n` +
+    doHelp(chatId) {
+        return this.buildReply(chatId, `❓ <b>Помощь</b>\n${'─'.repeat(26)}\n\n` +
             `/start — главное меню\n` +
             `/stats — статистика\n` +
             `/deadlines — дедлайны\n` +
-            `/profile — мой профиль\n` +
-            `/courses — список курсов\n` +
-            `/help — эта справка\n\n` +
-            `<b>Или используйте кнопки меню</b> — они всегда внизу экрана.\n\n` +
-            `Если бот завис — нажмите /start для сброса.`);
+            `/profile — профиль\n` +
+            `/courses — курсы\n` +
+            `/help — помощь\n\n` +
+            `Используйте кнопки меню — они всегда внизу экрана.`);
     }
-    async showNotifSettings(chatId) {
-        return this.reply(chatId, `🔔 <b>Уведомления включены</b>\n\n` +
-            `Вы получаете уведомления:\n` +
+    doNotifInfo(chatId) {
+        return this.buildReply(chatId, `🔔 <b>Уведомления включены</b>\n\n` +
             `✅ Когда куратор проверил задание\n` +
             `✅ Когда выставлен балл за устный ответ\n` +
             `✅ Напоминания о дедлайнах (каждый день в 9:00)\n\n` +
-            `Уведомления работают автоматически, пока ваш аккаунт привязан.`);
+            `Уведомления работают автоматически, пока аккаунт привязан.`);
     }
-    async showProfile(chatId, student) {
-        const [courses, groups, subs, attempts] = await Promise.all([
+    async handleLinkCode(chatId, code) {
+        let user = await this.prisma.user.findFirst({
+            where: { telegram_link_code: code },
+            select: {
+                id: true, email: true, name: true, surname: true, role: true,
+                telegram_chat_id: true,
+            },
+        });
+        if (!user && code.startsWith('TG')) {
+            user = await this.findUserByLegacyCode(code);
+        }
+        if (!user) {
+            return this.buildReply(chatId, '❌ <b>Код не найден или уже использован.</b>\n\n' +
+                'Откройте профиль на сайте → блок «Telegram бот» → нажмите «Открыть бота» или скопируйте новый код.', { keyboard: false });
+        }
+        if (user.telegram_chat_id && user.telegram_chat_id !== chatId) {
+            return this.buildReply(chatId, '⚠️ Этот аккаунт уже привязан к другому Telegram.\n\n' +
+                'Если это ваш аккаунт — отвяжите Telegram в профиле на сайте и повторите подключение.', { keyboard: false });
+        }
+        await this.prisma.user.update({
+            where: { id: user.id },
+            data: {
+                telegram_chat_id: chatId,
+                telegram_link_code: null,
+                telegram_linked_at: new Date(),
+            },
+        });
+        this.invalidateUserCache(user.id);
+        const student = user.role === 'PARENT'
+            ? await this.prisma.user.findFirst({
+                where: { parent_id: user.id },
+                select: { id: true, name: true, surname: true, email: true, role: true },
+            })
+            : user;
+        const roleLabel = user.role === 'PARENT' ? 'Родитель' : 'Ученик';
+        let text = `✅ <b>Аккаунт успешно привязан!</b>\n\n` +
+            `${roleLabel}: <b>${esc(this.userName(user))}</b>\n\n`;
+        if (student) {
+            text += await this.buildAnalyticsSnapshot(student);
+            text += `\nПостоянное меню внизу 👇 — <b>📊 Статистика</b>, <b>📅 Дедлайны</b>.`;
+        }
+        else {
+            text += 'К аккаунту родителя пока не привязан ученик.\nСделайте это в «Кабинете родителя» на сайте.';
+        }
+        return this.buildReply(chatId, text);
+    }
+    async buildAnalyticsSnapshot(student) {
+        const [courses, groups, subs, attempts, streakDays] = await Promise.all([
             this.getStudentCourses(student.id),
             this.prisma.group.findMany({
                 where: { students: { some: { id: student.id } } },
@@ -366,21 +340,56 @@ let TelegramService = TelegramService_1 = class TelegramService {
             }),
             this.prisma.submission.count({ where: { user_id: student.id, status: 'GRADED' } }),
             this.prisma.testAttempt.count({ where: { user_id: student.id } }),
+            this.calcStreak(student.id),
         ]);
         const summary = courses.length
             ? await this.buildOverallSummary(student.id, courses.map((c) => c.id))
             : { overall: 0 };
-        const streakDays = await this.calcStreak(student.id);
-        let text = `👤 <b>${esc(this.userName(student))}</b>\n` +
+        let text = `📊 <b>Ваша аналитика</b>\n${'─'.repeat(28)}\n\n` +
+            `${medal(summary.overall)} <b>Общий балл: ${summary.overall}/100</b>\n` +
+            `${bar(summary.overall)}\n\n` +
+            `📚 Курсов: <b>${courses.length}</b>\n` +
+            `📝 Работ проверено: <b>${subs}</b>\n` +
+            `🧩 Тестов пройдено: <b>${attempts}</b>\n`;
+        if (streakDays > 0)
+            text += `🔥 Стрик: <b>${streakDays} дн.</b> подряд\n`;
+        if (groups.length)
+            text += `👥 Группы: <i>${esc(groups.map((g) => g.title).join(', '))}</i>\n`;
+        if (courses.length) {
+            const statsArr = await Promise.all(courses.map((c) => this.calcStats(student.id, c.id)));
+            text += `\n<b>По курсам:</b>\n`;
+            courses.forEach((c, i) => {
+                const s = statsArr[i];
+                const emoji = s.overall >= 75 ? '🟢' : s.overall >= 50 ? '🟡' : s.count > 0 ? '🔴' : '⬜';
+                text += `${emoji} ${esc(c.title)} — <b>${s.overall}/100</b>\n`;
+            });
+        }
+        return text;
+    }
+    async showProfile(chatId, student) {
+        const [courses, groups, subs, attempts, streakDays] = await Promise.all([
+            this.getStudentCourses(student.id),
+            this.prisma.group.findMany({
+                where: { students: { some: { id: student.id } } },
+                select: { title: true },
+            }),
+            this.prisma.submission.count({ where: { user_id: student.id, status: 'GRADED' } }),
+            this.prisma.testAttempt.count({ where: { user_id: student.id } }),
+            this.calcStreak(student.id),
+        ]);
+        const summary = courses.length
+            ? await this.buildOverallSummary(student.id, courses.map((c) => c.id))
+            : { overall: 0 };
+        const text = `👤 <b>${esc(this.userName(student))}</b>\n` +
             `${'─'.repeat(28)}\n\n` +
             `📚 Курсов: <b>${courses.length}</b>\n` +
-            (groups.length ? `👥 Групп: <b>${groups.map((g) => g.title).join(', ')}</b>\n` : '') +
+            (groups.length ? `👥 Группы: <b>${groups.map((g) => g.title).join(', ')}</b>\n` : '') +
             `\n${medal(summary.overall)} <b>Общий балл: ${summary.overall}/100</b>\n` +
             `${bar(summary.overall)}\n\n` +
             `📝 Работ проверено: <b>${subs}</b>\n` +
             `🧩 Тестов пройдено: <b>${attempts}</b>\n` +
             (streakDays > 0 ? `🔥 Стрик: <b>${streakDays} дн.</b> подряд\n` : '');
-        return this.reply(chatId, text, {
+        return this.buildReply(chatId, text, {
             buttons: [
                 [{ text: '📊 Статистика', callback_data: 'stats' }],
                 [{ text: '📅 Дедлайны', callback_data: 'deadlines' }],
@@ -390,12 +399,11 @@ let TelegramService = TelegramService_1 = class TelegramService {
     async showCourseList(chatId, studentId) {
         const courses = await this.getStudentCourses(studentId);
         if (!courses.length) {
-            return this.reply(chatId, '📚 Вы пока не записаны ни на один курс.\n\nОткройте магазин на сайте и подайте заявку на вступление в группу.');
+            return this.buildReply(chatId, '📚 Вы пока не записаны ни на один курс.\n\nОткройте магазин на сайте и подайте заявку.');
         }
         const statsArr = await Promise.all(courses.map((c) => this.calcStats(studentId, c.id)));
-        const summary = statsArr.reduce((acc, s) => acc + s.overall, 0);
-        const avg = Math.round(summary / statsArr.length);
-        let text = `📚 <b>Мои курсы</b>  ${trend(avg)}\n` +
+        const avg = Math.round(statsArr.reduce((a, s) => a + s.overall, 0) / statsArr.length);
+        const text = `📚 <b>Мои курсы</b>  ${trend(avg)}\n` +
             `${'─'.repeat(28)}\n\n` +
             `${medal(avg)} <b>Средний балл: ${avg}/100</b>\n` +
             `${bar(avg)}\n\n` +
@@ -406,7 +414,7 @@ let TelegramService = TelegramService_1 = class TelegramService {
             return [{ text: `${emoji} ${c.title} — ${s.overall}/100`, callback_data: `course:${c.id}` }];
         });
         buttons.push([{ text: '📅 Дедлайны', callback_data: 'deadlines' }]);
-        return this.reply(chatId, text, { buttons });
+        return this.buildReply(chatId, text, { buttons });
     }
     async showCourseStats(chatId, studentId, courseId) {
         const [course, stats, deadline] = await Promise.all([
@@ -418,7 +426,7 @@ let TelegramService = TelegramService_1 = class TelegramService {
             this.getNearestCourseDeadline(courseId),
         ]);
         if (!course)
-            return this.reply(chatId, 'Курс не найден.');
+            return this.buildReply(chatId, 'Курс не найден.');
         const t = (n) => `${bar(n, 8)} <b>${n}</b>/100`;
         let text = `📖 <b>${esc(course.title)}</b>\n` +
             `${'─'.repeat(28)}\n\n` +
@@ -431,11 +439,11 @@ let TelegramService = TelegramService_1 = class TelegramService {
         if (deadline) {
             text += `\n\n⏰ <b>Ближайший дедлайн:</b>\n${esc(deadline.title)} — ${daysLeft(deadline.date)}`;
         }
-        const themeButtons = (course.themes || []).map((t) => [
-            { text: `📌 ${t.title}`, callback_data: `theme:${t.id}` },
+        const themeButtons = (course.themes || []).map((th) => [
+            { text: `📌 ${th.title}`, callback_data: `theme:${th.id}` },
         ]);
         themeButtons.push([{ text: '📅 Все дедлайны курса', callback_data: 'deadlines' }], [{ text: '← Все курсы', callback_data: 'stats' }]);
-        return this.reply(chatId, text, { buttons: themeButtons });
+        return this.buildReply(chatId, text, { buttons: themeButtons });
     }
     async showThemeStats(chatId, studentId, themeId) {
         const [theme, stats] = await Promise.all([
@@ -446,7 +454,7 @@ let TelegramService = TelegramService_1 = class TelegramService {
             this.calcStats(studentId, undefined, themeId),
         ]);
         if (!theme)
-            return this.reply(chatId, 'Модуль не найден.');
+            return this.buildReply(chatId, 'Модуль не найден.');
         const lessonBreakdown = await this.getLessonBreakdown(studentId, themeId);
         const t = (n) => `${bar(n, 8)} <b>${n}</b>/100`;
         let text = `📌 <b>${esc(theme.title)}</b>\n` +
@@ -459,17 +467,16 @@ let TelegramService = TelegramService_1 = class TelegramService {
         if (lessonBreakdown.length) {
             text += `\n<b>Уроки (${lessonBreakdown.filter((l) => l.done).length}/${lessonBreakdown.length} ✅):</b>\n`;
             for (const ls of lessonBreakdown) {
-                const icon = ls.done ? '✅' : '⬜';
-                text += `${icon} ${esc(ls.title)}`;
+                text += `${ls.done ? '✅' : '⬜'} ${esc(ls.title)}`;
                 if (ls.deadline)
                     text += `  <i>${daysLeft(ls.deadline)}</i>`;
                 text += '\n';
             }
         }
         if (theme.deadline) {
-            text += `\n⏰ Дедлайн модуля: <b>${fmtDate(theme.deadline)}</b> — ${daysLeft(theme.deadline)}`;
+            text += `\n⏰ Дедлайн: <b>${fmtDate(theme.deadline)}</b> — ${daysLeft(theme.deadline)}`;
         }
-        return this.reply(chatId, text, {
+        return this.buildReply(chatId, text, {
             buttons: [
                 [{ text: `← Назад к курсу`, callback_data: `course:${theme.course_id}` }],
                 [{ text: '← Все курсы', callback_data: 'stats' }],
@@ -507,13 +514,13 @@ let TelegramService = TelegramService_1 = class TelegramService {
             })
             : [];
         if (!lessons.length && !themes.length && !events.length) {
-            return this.reply(chatId, '✅ <b>Ближайшие 2 недели свободны!</b>\n\nНет ни дедлайнов, ни запланированных событий. Отличная работа!', { buttons: [[{ text: '← Назад к статистике', callback_data: 'stats' }]] });
+            return this.buildReply(chatId, '✅ <b>Ближайшие 2 недели свободны!</b>\n\nНет дедлайнов и событий. Отличная работа!', { buttons: [[{ text: '← Назад к статистике', callback_data: 'stats' }]] });
         }
         let text = `⏰ <b>Дедлайны (14 дней)</b>\n${'─'.repeat(28)}\n\n`;
         if (themes.length) {
             text += `📚 <b>Модули:</b>\n`;
-            for (const t of themes) {
-                text += `• <b>${esc(t.title)}</b>  ${daysLeft(t.deadline)}\n  <i>${esc(t.course.title)}</i>\n`;
+            for (const th of themes) {
+                text += `• <b>${esc(th.title)}</b>  ${daysLeft(th.deadline)}\n  <i>${esc(th.course.title)}</i>\n`;
             }
             text += '\n';
         }
@@ -531,7 +538,7 @@ let TelegramService = TelegramService_1 = class TelegramService {
                 text += `${icon} <b>${esc(ev.title)}</b>  ${daysLeft(ev.date)}\n  <i>${fmtDate(ev.date)}</i>\n`;
             }
         }
-        return this.reply(chatId, text, {
+        return this.buildReply(chatId, text, {
             buttons: [[{ text: '← Назад к статистике', callback_data: 'stats' }]],
         });
     }
@@ -544,6 +551,8 @@ let TelegramService = TelegramService_1 = class TelegramService {
             },
         });
         if (!sub || sub.status !== 'GRADED')
+            return;
+        if (kind === 'written' && String(sub.comment ?? '').includes(AUTO_PREFIX))
             return;
         const student = sub.user;
         const scorePct = sub.max_score > 0 ? Math.round(((sub.score ?? 0) / sub.max_score) * 100) : 0;
@@ -562,24 +571,31 @@ let TelegramService = TelegramService_1 = class TelegramService {
             ? [[{ text: '📊 Посмотреть статистику курса', callback_data: `course:${courseId}` }]]
             : [];
         const recipients = [student, student.parent].filter(Boolean);
-        await Promise.all(recipients.map(async (u) => {
-            const chatId = this.getChatIdForUser(u.id);
-            if (chatId)
-                await this.pushMessage(chatId, text, { buttons });
-        }));
+        for (const u of recipients) {
+            const chatId = await this.getChatIdForUser(u.id);
+            if (chatId) {
+                await this.pushNotification(chatId, text, { buttons });
+            }
+        }
     }
     async sendDeadlineReminders() {
-        const links = this.loadLinks();
-        if (!Object.keys(links).length)
+        const linkedUsers = await this.prisma.user.findMany({
+            where: { telegram_chat_id: { not: null } },
+            select: { id: true, role: true, telegram_chat_id: true },
+        });
+        if (!linkedUsers.length)
             return;
         const now = new Date();
         const in3Days = new Date(now.getTime() + 3 * 86400000);
-        for (const entry of Object.values(links)) {
+        for (const entry of linkedUsers) {
             try {
-                const user = await this.prisma.user.findUnique({ where: { id: entry.userId } });
+                const chatId = entry.telegram_chat_id;
+                const user = await this.prisma.user.findUnique({ where: { id: entry.id } });
                 if (!user)
                     continue;
-                const student = await this.resolveStudent(user);
+                const student = user.role === 'PARENT'
+                    ? await this.prisma.user.findFirst({ where: { parent_id: user.id } })
+                    : user;
                 if (!student)
                     continue;
                 const courses = await this.getStudentCourses(student.id);
@@ -617,18 +633,154 @@ let TelegramService = TelegramService_1 = class TelegramService {
                 for (const ev of events) {
                     text += `📅 <b>${esc(ev.title)}</b> — завтра!\n`;
                 }
-                await this.pushMessage(entry.chatId, text, {
+                await this.pushNotification(chatId, text, {
                     buttons: [[{ text: '📅 Все дедлайны', callback_data: 'deadlines' }]],
                 });
             }
             catch (e) {
-                this.logger.warn(`Reminder error for ${entry.userId}: ${e?.message}`);
+                this.logger.warn(`Reminder error for ${entry.id}: ${e?.message}`);
             }
         }
     }
     async testSend(chatId) {
-        await this.pushMessage(chatId, '✅ Тест: backend успешно отправляет сообщения в Telegram.');
-        return { ok: true };
+        try {
+            await this.pushNotification(chatId, '✅ Тест: backend успешно отправляет сообщения в Telegram.');
+            return { ok: true };
+        }
+        catch (e) {
+            return { ok: false, error: e?.code || e?.message };
+        }
+    }
+    async health() {
+        const [linked, prepared] = await Promise.all([
+            this.prisma.user.count({ where: { telegram_chat_id: { not: null } } }),
+            this.prisma.user.count({ where: { telegram_link_code: { not: null } } }),
+        ]);
+        return {
+            tokenConfigured: !!this.token,
+            botUsername: this.botUsername,
+            preparedCodes: prepared,
+            linkedChats: linked,
+            architecture: 'webhook-reply + db-links',
+        };
+    }
+    generateLinkCode() {
+        return (0, crypto_1.randomBytes)(4).toString('hex').toUpperCase();
+    }
+    buildLegacyCode(userId) {
+        return `TG${userId.replace(/-/g, '').slice(0, 8).toUpperCase()}`;
+    }
+    async findUserByLegacyCode(code) {
+        const uuidPrefix = code.slice(2).toLowerCase();
+        const candidates = await this.prisma.user.findMany({
+            where: { id: { startsWith: uuidPrefix } },
+            select: {
+                id: true, email: true, name: true, surname: true, role: true,
+                telegram_chat_id: true,
+            },
+            take: 3,
+        });
+        return candidates.find((u) => this.buildLegacyCode(u.id) === code) || null;
+    }
+    async ensureTelegramCode(userId) {
+        const user = await this.prisma.user.findUnique({
+            where: { id: userId },
+            select: { telegram_chat_id: true, telegram_link_code: true },
+        });
+        if (!user)
+            return { code: null, botUrl: this.botUrl, linked: false };
+        if (user.telegram_chat_id) {
+            return { code: null, botUrl: this.botUrl, linked: true };
+        }
+        let code = user.telegram_link_code;
+        if (!code) {
+            code = this.generateLinkCode();
+            await this.prisma.user.update({
+                where: { id: userId },
+                data: { telegram_link_code: code },
+            });
+        }
+        return {
+            code,
+            botUrl: `${this.botUrl}?start=${code}`,
+            linked: false,
+        };
+    }
+    async getChatIdForUser(userId) {
+        const user = await this.prisma.user.findUnique({
+            where: { id: userId },
+            select: { telegram_chat_id: true },
+        });
+        return user?.telegram_chat_id || null;
+    }
+    async findUserByChatId(chatId) {
+        return this.prisma.user.findFirst({
+            where: { telegram_chat_id: chatId },
+            include: { parent: true },
+        });
+    }
+    async migrateLegacyLinks() {
+        if (!(0, fs_1.existsSync)(LEGACY_LINKS_PATH))
+            return;
+        let raw;
+        try {
+            raw = JSON.parse((0, fs_1.readFileSync)(LEGACY_LINKS_PATH, 'utf8')) || {};
+        }
+        catch {
+            return;
+        }
+        let migrated = 0;
+        for (const entry of Object.values(raw)) {
+            if (!entry?.chatId || !entry?.userId)
+                continue;
+            try {
+                await this.prisma.user.updateMany({
+                    where: { id: entry.userId, telegram_chat_id: null },
+                    data: {
+                        telegram_chat_id: entry.chatId,
+                        telegram_linked_at: new Date(),
+                        telegram_link_code: null,
+                    },
+                });
+                migrated++;
+            }
+            catch { }
+        }
+        if (migrated) {
+            this.logger.log(`Migrated ${migrated} Telegram links from telegram-links.json into DB`);
+        }
+    }
+    async cachedUser(userId) {
+        const now = Date.now();
+        const hit = this._userCache.get(userId);
+        if (hit && hit.exp > now)
+            return hit.user;
+        const user = await this.prisma.user.findUnique({
+            where: { id: userId },
+            include: { parent: true },
+        });
+        if (user)
+            this._userCache.set(userId, { user, exp: now + 5 * 60 * 1000 });
+        return user;
+    }
+    invalidateUserCache(userId) {
+        this._userCache.delete(userId);
+    }
+    async getStudentCourses(studentId) {
+        const now = Date.now();
+        const hit = this._coursesCache.get(studentId);
+        if (hit && hit.exp > now)
+            return hit.courses;
+        const [enrollments, groups] = await Promise.all([
+            this.prisma.enrollment.findMany({ where: { user_id: studentId }, include: { course: true } }),
+            this.prisma.group.findMany({ where: { students: { some: { id: studentId } } }, include: { courses: true } }),
+        ]);
+        const map = new Map();
+        enrollments.forEach((e) => map.set(e.course_id, e.course));
+        groups.forEach((g) => g.courses.forEach((c) => map.set(c.id, c)));
+        const courses = Array.from(map.values());
+        this._coursesCache.set(studentId, { courses, exp: now + 3 * 60 * 1000 });
+        return courses;
     }
     async buildOverallSummary(studentId, courseIds) {
         const [subs, attempts] = await Promise.all([
@@ -651,13 +803,11 @@ let TelegramService = TelegramService_1 = class TelegramService {
         return { overall: cnt > 0 ? Math.round(sum / cnt) : 0 };
     }
     async calcStats(studentId, courseId, themeId) {
-        const lessonFilter = {};
-        if (themeId)
-            lessonFilter.theme = { id: themeId };
-        else if (courseId)
-            lessonFilter.theme = { course_id: courseId };
+        const lessonWhere = themeId
+            ? { theme_id: themeId }
+            : courseId ? { theme: { course_id: courseId } } : undefined;
         const subs = await this.prisma.submission.findMany({
-            where: { user_id: studentId, status: 'GRADED', lesson: lessonFilter },
+            where: { user_id: studentId, status: 'GRADED', ...(lessonWhere ? { lesson: lessonWhere } : {}) },
             select: { score: true, max_score: true, block_id: true, comment: true },
         });
         const b = { tests: { e: 0, m: 0 }, written: { e: 0, m: 0 }, oral: { e: 0, m: 0 } };
@@ -687,8 +837,8 @@ let TelegramService = TelegramService_1 = class TelegramService {
                 select: { lesson_id: true },
             }),
         ]);
-        const doneLessons = new Set(subs.map((s) => s.lesson_id));
-        return lessons.map((l) => ({ title: l.title, done: doneLessons.has(l.id), deadline: l.deadline }));
+        const done = new Set(subs.map((s) => s.lesson_id));
+        return lessons.map((l) => ({ title: l.title, done: done.has(l.id), deadline: l.deadline }));
     }
     async getNearestCourseDeadline(courseId) {
         const now = new Date();
@@ -713,18 +863,6 @@ let TelegramService = TelegramService_1 = class TelegramService {
         return lesson.deadline < theme.deadline
             ? { title: lesson.title, date: lesson.deadline }
             : { title: theme.title, date: theme.deadline };
-    }
-    async getAnyNearestDeadline(studentId) {
-        const courses = await this.getStudentCourses(studentId);
-        if (!courses.length)
-            return null;
-        const courseIds = courses.map((c) => c.id);
-        const lesson = await this.prisma.lesson.findFirst({
-            where: { deadline: { gte: new Date() }, is_visible: true, theme: { course_id: { in: courseIds } } },
-            orderBy: { deadline: 'asc' },
-            select: { title: true, deadline: true },
-        });
-        return lesson ? { title: lesson.title, date: lesson.deadline } : null;
     }
     async calcStreak(studentId) {
         const [attempts, subs] = await Promise.all([

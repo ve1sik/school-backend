@@ -39,7 +39,8 @@ export declare class AuthService {
         id: string;
         email: string;
         invite_code: string | null;
-        telegram_code: string | null;
+        telegram_chat_id: string | null;
+        telegram_link_code: string | null;
         role: import(".prisma/client").$Enums.Role;
         admin_permissions: string[];
         name: string | null;
@@ -49,16 +50,16 @@ export declare class AuthService {
         city: string | null;
         avatar: string | null;
         points: number;
-        telegram_chat_id: string | null;
-        telegram_linked_at: Date | null;
         parent_id: string | null;
+        telegram_linked_at: Date | null;
         created_at: Date;
     }>;
     updateProfile(userId: string, dto: any): Promise<{
         id: string;
         email: string;
         invite_code: string | null;
-        telegram_code: string | null;
+        telegram_chat_id: string | null;
+        telegram_link_code: string | null;
         role: import(".prisma/client").$Enums.Role;
         admin_permissions: string[];
         name: string | null;
@@ -68,9 +69,8 @@ export declare class AuthService {
         city: string | null;
         avatar: string | null;
         points: number;
-        telegram_chat_id: string | null;
-        telegram_linked_at: Date | null;
         parent_id: string | null;
+        telegram_linked_at: Date | null;
         created_at: Date;
     }>;
     changePassword(userId: string, oldPassword: string, newPassword: string): Promise<{

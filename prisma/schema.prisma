@@ -71,6 +71,10 @@ model User {
   parent      User?   @relation("ParentChildren", fields: [parent_id], references: [id])
   children    User[]  @relation("ParentChildren")
 
+  telegram_chat_id   String?   @unique
+  telegram_link_code String?   @unique
+  telegram_linked_at DateTime?
+
   created_at DateTime @default(now())
 
   test_attempts TestAttempt[]
