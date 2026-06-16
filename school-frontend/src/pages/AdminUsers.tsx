@@ -3,7 +3,7 @@ import { Users, GraduationCap, BookOpen, X, Search, Crown, UserCircle, Mail, Cal
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
-import { DEFAULT_ROLE_PERMISSIONS, type AdminPermission } from '../lib/auth';
+import { DEFAULT_ROLE_PERMISSIONS, type AdminPermission, getTokenConfig } from '../lib/auth';
 
 const API_URL = 'https://prepodmgy.ru/api';
 
@@ -86,8 +86,6 @@ export default function AdminUsers() {
     setToast({ text, type });
     setTimeout(() => setToast(null), 4000);
   };
-
-  const getTokenConfig = () => ({ headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } });
 
   useEffect(() => {
     fetchData();

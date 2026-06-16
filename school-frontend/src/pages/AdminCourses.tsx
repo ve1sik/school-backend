@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { GraduationCap, X, PlayCircle, Trash2, ArrowLeft, FileText, CheckSquare, Eye, EyeOff, Pencil, Type, PenTool, CheckCircle2, ArrowUp, ArrowDown, Image as ImageIcon, UploadCloud, Plus, FileDown, Link2, BookOpen, Loader2, FileSignature, SaveAll, List, Copy, Search, Folder, ArrowRight, ChevronDown, ChevronsUp, ChevronUp, ChevronsDown } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
+import { getTokenConfig } from '../lib/auth';
 import { useNavigate } from 'react-router-dom';
 
 import ReactQuill from 'react-quill-new';
@@ -136,8 +137,6 @@ export default function AdminCourses() {
   };
 
   const navigate = useNavigate();
-  const getTokenConfig = () => ({ headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } });
-
   const handleSaveThemeDates = async (themeId: string, themeTitle: string) => {
     const row = themeDatesMap[themeId] || { unlock_date: '', deadline: '' };
     try {
@@ -644,7 +643,7 @@ export default function AdminCourses() {
     formData.append('file', file);
     try {
       showToast(`Загрузка файла ${file.name}...`, 'success');
-      const res = await axios.post(`${API_URL}/upload`, formData, { headers: { 'Content-Type': 'multipart/form-data', Authorization: `Bearer ${localStorage.getItem('token')}` } });
+      const res = await axios.post(`${API_URL}/upload`, formData, { headers: { 'Content-Type': 'multipart/form-data', ...getTokenConfig().headers } });
       updateBlock(blockId, { [targetUrlField]: res.data.url, [targetNameField]: res.data.fileName || file.name }, isHw);
       showToast(`Файл успешно загружен!`);
     } catch (err) { showToast('Ошибка при загрузке файла', 'error'); }

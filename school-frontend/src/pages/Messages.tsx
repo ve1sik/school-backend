@@ -3,7 +3,7 @@ import { useSearchParams, useNavigate } from 'react-router-dom';
 import { Search, Send, User, ShieldCheck, Inbox, X, Loader2, ArrowLeft } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
-import { decodeToken } from '../lib/auth';
+import { decodeToken, getToken, getTokenConfig } from '../lib/auth';
 
 const API_URL = 'https://prepodmgy.ru/api';
 
@@ -27,8 +27,6 @@ export default function Messages() {
   const [myId, setMyId] = useState<string>('');
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const getTokenConfig = () => ({ headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } });
-
   useEffect(() => {
     const curatorFromUrl = searchParams.get('curator');
     if (curatorFromUrl) {
@@ -39,7 +37,7 @@ export default function Messages() {
   useEffect(() => {
     const fetchContacts = async () => {
       try {
-        const token = localStorage.getItem('token');
+        const token = getToken();
         if (!token) return;
         const payload = decodeToken();
         if (!payload) return;

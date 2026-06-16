@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { cachedGet } from '../lib/api';
+import { getToken } from '../lib/auth';
 
 const COURSE_INLINE_LIMIT = 3;
 const PASS_SCORE = 70;
@@ -496,7 +497,7 @@ export default function Dashboard() {
   useEffect(() => {
     const fetchRealStats = async () => {
       try {
-        const token = localStorage.getItem('token');
+        const token = getToken();
         if (!token) {
           navigate('/login');
           return;

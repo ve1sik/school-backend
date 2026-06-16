@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Users, Plus, Trash2, BookOpen, Loader2, Save, X, Edit3, ShieldCheck, UserCircle, Search, UserCheck, CreditCard, Image as ImageIcon, UploadCloud, Calendar, ListChecks, CheckCircle2, AlertCircle, Clock, ChevronDown, ChevronUp, QrCode } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
+import { getTokenConfig } from '../lib/auth';
 import Cropper from 'react-easy-crop';
 
 const API_URL = 'https://prepodmgy.ru/api';
@@ -82,8 +83,6 @@ export default function AdminGroups() {
   const [applications, setApplications] = useState<any[]>([]);
   const [applicationsLoading, setApplicationsLoading] = useState(false);
   const [showApplications, setShowApplications] = useState(false);
-
-  const getTokenConfig = () => ({ headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } });
 
   useEffect(() => {
     fetchData();
@@ -205,7 +204,7 @@ export default function AdminGroups() {
       formData.append('file', file);
 
       const res = await axios.post(`${API_URL}/upload`, formData, {
-        headers: { 'Content-Type': 'multipart/form-data', Authorization: `Bearer ${localStorage.getItem('token')}` }
+        headers: { 'Content-Type': 'multipart/form-data', ...getTokenConfig().headers },
       });
       if (cropTarget === 'qr') {
         setSelectedPaymentQrUrl(res.data.url);

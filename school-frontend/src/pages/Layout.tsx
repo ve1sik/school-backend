@@ -2,6 +2,7 @@ import { useEffect, useState, useRef, useMemo } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { api } from '../lib/api';
 import { decodeToken, getToken, logout, safeStorageGet, safeStorageRemove, safeStorageSet } from '../lib/auth';
+import { parseSafeDate } from '../lib/parseDate';
 import { motion, AnimatePresence } from 'framer-motion';
 import { DEFAULT_ROLE_PERMISSIONS, type AdminPermission, type Role } from '../lib/auth';
 import { 
@@ -146,7 +147,7 @@ export default function Layout() {
 
         // 2. Проверенные домашки (за последние 7 дней)
         const graded = (subsRes.data as any[]).filter(
-          s => s.status === 'GRADED' && new Date(s.updated_at || s.created_at).getTime() > weekAgo
+          s => s.status === 'GRADED' && parseSafeDate(s.updated_at || s.created_at).getTime() > weekAgo
         );
         if (graded.length > 0) {
           notifs.push({ id: 'graded', type: 'graded', text: `${graded.length} домашних работ проверено`, sub: 'Посмотреть оценку', link: '/homework' });
@@ -156,19 +157,19 @@ export default function Layout() {
         const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1);
         const tomorrowStr = tomorrow.toDateString();
         const deadlines = (schedRes.data as any[]).filter(
-          e => e.type === 'DEADLINE' && new Date(e.date).toDateString() === tomorrowStr
+          e => e.type === 'DEADLINE' && parseSafeDate(e.date).toDateString() === tomorrowStr
         );
         deadlines.forEach(d => {
-          notifs.push({ id: `dl-${d.id}`, type: 'deadline', text: `Дедлайн завтра: ${d.title}`, sub: new Date(d.date).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }), link: '/schedule' });
+          notifs.push({ id: `dl-${d.id}`, type: 'deadline', text: `Дедлайн завтра: ${d.title}`, sub: parseSafeDate(d.date).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }), link: '/schedule' });
         });
 
         // 4. Занятие сегодня с ссылкой
         const todayStr = new Date().toDateString();
         const todayEvents = (schedRes.data as any[]).filter(
-          e => e.type === 'WEBINAR' && new Date(e.date).toDateString() === todayStr && e.link
+          e => e.type === 'WEBINAR' && parseSafeDate(e.date).toDateString() === todayStr && e.link
         );
         todayEvents.forEach(e => {
-          notifs.push({ id: `ev-${e.id}`, type: 'deadline', text: `Занятие сегодня: ${e.title}`, sub: `в ${new Date(e.date).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}`, link: e.link });
+          notifs.push({ id: `ev-${e.id}`, type: 'deadline', text: `Занятие сегодня: ${e.title}`, sub: `в ${parseSafeDate(e.date).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}`, link: e.link });
         });
 
         // 5. Карточки на повтор

@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Flame, Star, RotateCcw, ChevronLeft, Layers, BookOpen, Loader2, Trophy, Zap } from 'lucide-react';
 import axios from 'axios';
+import { getTokenConfig } from '../lib/auth';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 
 const API_URL = 'https://prepodmgy.ru/api';
@@ -54,7 +55,7 @@ export default function FlashcardStudy() {
   const [selectedDeckId, setSelectedDeckId] = useState<string | undefined>(deckIdParam);
   const [direction, setDirection] = useState<1 | -1>(1);
 
-  const cfg = () => ({ headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } });
+  const cfg = () => getTokenConfig();
 
   const fetchHome = useCallback(async () => {
     setIsLoading(true);

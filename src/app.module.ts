@@ -23,6 +23,7 @@ import { TelegramModule } from './telegram/telegram.module';
 
 // Контроллер загрузки
 import { UploadController } from './upload/upload.controller';
+import { ClientLogController } from './client-log/client-log.controller';
 
 @Module({
   imports: [
@@ -52,6 +53,7 @@ import { UploadController } from './upload/upload.controller';
   ],
   controllers: [
     UploadController,
+    ClientLogController,
   ],
   providers: [],
 })

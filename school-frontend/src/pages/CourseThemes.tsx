@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import { getToken } from '../lib/auth';
 import { ArrowLeft, Loader2, PlayCircle, Layers } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -15,7 +16,7 @@ export default function CourseThemes() {
   useEffect(() => {
     const fetchCourseAndProgress = async () => {
       try {
-        const token = localStorage.getItem('token');
+        const token = getToken();
         if (!token) return navigate('/login');
 
         // 1. БЕЗОПАСНАЯ ЗАГРУЗКА КУРСА

@@ -5,6 +5,7 @@ import {
   Target, Info, Trash2, BookOpen, Zap, Clock, Award
 } from 'lucide-react';
 import axios from 'axios';
+import { getAuthHeaders, getToken, safeStorageGet, safeStorageRemove, safeStorageSet } from '../lib/auth';
 
 const API_URL = 'https://prepodmgy.ru/api';
 
@@ -47,7 +48,7 @@ export default function Settings() {
   };
 
   useEffect(() => {
-    const saved = localStorage.getItem('settings');
+    const saved = safeStorageGet('settings');
     if (saved) {
       try {
         const s = JSON.parse(saved);
@@ -61,8 +62,8 @@ export default function Settings() {
   }, []);
 
   const saveLocal = (patch: object) => {
-    const saved = JSON.parse(localStorage.getItem('settings') || '{}');
-    localStorage.setItem('settings', JSON.stringify({ ...saved, ...patch }));
+    const saved = JSON.parse(safeStorageGet('settings') || '{}');
+    safeStorageSet('settings', JSON.stringify({ ...saved, ...patch }));
   };
 
   const handleToggle = (type: string, val: boolean) => {
@@ -78,9 +79,9 @@ export default function Settings() {
 
     setIsSavingPassword(true);
     try {
-      const token = localStorage.getItem('token');
+      const token = getToken();
       await axios.patch(`${API_URL}/auth/change-password`, { oldPassword, newPassword }, {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: getAuthHeaders(),
       });
       setShowPasswordModal(false);
       setOldPassword(''); setNewPassword(''); setConfirmPassword('');
@@ -93,9 +94,9 @@ export default function Settings() {
   };
 
   const handleClearCache = () => {
-    localStorage.removeItem('demo_answers');
-    localStorage.removeItem('demo_results');
-    localStorage.removeItem('demo_attempts');
+    safeStorageRemove('demo_answers');
+    safeStorageRemove('demo_results');
+    safeStorageRemove('demo_attempts');
     showToast('Локальные данные очищены', 'info');
   };
 

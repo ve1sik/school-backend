@@ -18,6 +18,7 @@ import {
   getOptionLetterClass,
   LESSON_TEST_STYLES,
 } from '../components/LessonTestUI';
+import { getToken, getTokenConfig } from '../lib/auth';
 
 const API_URL = 'https://prepodmgy.ru/api';
 
@@ -532,7 +533,7 @@ export default function CourseView() {
   useEffect(() => {
     const fetchCourseData = async () => {
       try {
-        const token = localStorage.getItem('token');
+        const token = getToken();
         const headers = { Authorization: `Bearer ${token}` };
 
         const [coursesRes, subsRes] = await Promise.all([
@@ -681,7 +682,7 @@ export default function CourseView() {
 
       if (isSuccess || isNowExhausted) {
         try {
-          const token = localStorage.getItem('token');
+          const token = getToken();
           const finalScore = isSuccess ? (block.maxScore || 100) : 0;
           const res = await axios.post(`${API_URL}/submissions`, {
             lessonId: activeLesson.id,
@@ -712,7 +713,7 @@ export default function CourseView() {
           question: questionWithImage,
           answer: finalAnswerString,
           maxScore: block.maxScore || 10
-        }, { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } });
+        }, { headers: { Authorization: `Bearer ${getToken()}` } });
         
         setSubmissions(prev => [
           ...prev.filter(s => s.blockId !== block.id && s.block_id !== block.id),

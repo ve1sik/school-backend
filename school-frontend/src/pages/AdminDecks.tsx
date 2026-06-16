@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { BookOpen, Plus, Trash2, Edit3, ChevronRight, Layers, X, Check, GripVertical, Loader2, Save, Image as ImageIcon, UploadCloud } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
+import { getTokenConfig } from '../lib/auth';
 import { useNavigate } from 'react-router-dom';
 
 const API_URL = 'https://prepodmgy.ru/api';
@@ -42,7 +43,7 @@ export default function AdminDecks() {
   const [editingDeck, setEditingDeck] = useState<Deck | null>(null);
   const [form, setForm] = useState({ title: '', description: '', lesson_id: '' });
 
-  const cfg = () => ({ headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } });
+  const cfg = () => getTokenConfig();
 
   const showToast = (text: string, type: 'success' | 'error' = 'success') => {
     setToast({ text, type });
@@ -87,7 +88,7 @@ export default function AdminDecks() {
     formData.append('file', file);
     try {
       const res = await axios.post(`${API_URL}/upload`, formData, {
-        headers: { 'Content-Type': 'multipart/form-data', Authorization: `Bearer ${localStorage.getItem('token')}` },
+        headers: { 'Content-Type': 'multipart/form-data', ...getTokenConfig().headers },
       });
       const url = res.data.url;
       handleCardChange(idx, field, url);

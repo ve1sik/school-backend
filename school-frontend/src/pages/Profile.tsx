@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { User, MapPin, Calendar, Copy, CheckCircle2, Loader2, Mail, Save, X, Camera, BookOpen, Flame, Star, Trophy, Zap, Target, Medal, Send } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
+import { getToken } from '../lib/auth';
 
 const API_URL = 'https://prepodmgy.ru/api';
 
@@ -41,7 +42,7 @@ export default function Profile() {
   useEffect(() => {
     const fetchProfile = async () => {
       try {
-        const token = localStorage.getItem('token');
+        const token = getToken();
         const res = await axios.get(`${API_URL}/auth/me`, {
           headers: { Authorization: `Bearer ${token}` }
         });
@@ -103,7 +104,7 @@ export default function Profile() {
   };
 
   const fetchTelegram = async () => {
-    const token = localStorage.getItem('token');
+    const token = getToken();
     if (!token) return;
     const tgRes = await axios.get(`${API_URL}/telegram/link-code`, {
       headers: { Authorization: `Bearer ${token}` },
@@ -114,7 +115,7 @@ export default function Profile() {
   const unlinkTelegram = async () => {
     setIsUnlinkingTelegram(true);
     try {
-      const token = localStorage.getItem('token');
+      const token = getToken();
       const res = await axios.delete(`${API_URL}/telegram/link`, {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -131,7 +132,7 @@ export default function Profile() {
   const handleSave = async () => {
     setIsSaving(true);
     try {
-      const token = localStorage.getItem('token');
+      const token = getToken();
       const res = await axios.patch(`${API_URL}/auth/profile`, editData, {
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -157,7 +158,7 @@ export default function Profile() {
     formData.append('file', file);
 
     try {
-      const token = localStorage.getItem('token');
+      const token = getToken();
       
       // 1. Загружаем файл на сервер
       const uploadRes = await axios.post(`${API_URL}/upload`, formData, {

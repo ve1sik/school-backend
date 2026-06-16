@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { ShoppingCart, CheckCircle2, Sparkles, GraduationCap, CreditCard, Loader2, ShieldCheck, Target, UserCircle, Calendar, Zap, Star, Search, X, AlertCircle, Clock, Send, Upload, BookOpen, ChevronDown, ChevronUp, QrCode } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
+import { getTokenConfig } from '../lib/auth';
 
 const API_URL = 'https://prepodmgy.ru/api';
 
@@ -63,8 +64,6 @@ export default function Shop() {
     setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 3500);
   };
 
-  const getTokenConfig = () => ({ headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } });
-
   useEffect(() => {
     fetchData();
   }, []);
@@ -97,7 +96,7 @@ export default function Shop() {
       const formData = new FormData();
       formData.append('file', file);
       const res = await axios.post(`${API_URL}/upload`, formData, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}`, 'Content-Type': 'multipart/form-data' },
+        headers: { ...getTokenConfig().headers, 'Content-Type': 'multipart/form-data' },
       });
       setPaymentProof(res.data.url || res.data.path || '');
     } catch {

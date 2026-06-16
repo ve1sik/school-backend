@@ -17,6 +17,7 @@ import {
   getOptionLetterClass,
   LESSON_TEST_STYLES,
 } from '../components/LessonTestUI';
+import { getToken, getTokenConfig } from '../lib/auth';
 
 const API_URL = 'https://prepodmgy.ru/api';
 
@@ -560,7 +561,7 @@ export default function HomeworkView() {
   useEffect(() => {
     const fetchHomework = async () => {
       try {
-        const token = localStorage.getItem('token');
+        const token = getToken();
         if (!token) return navigate('/login');
 
         const [coursesRes, subsRes] = await Promise.all([
@@ -740,7 +741,7 @@ export default function HomeworkView() {
 
       if (isSuccess || isNowExhausted) {
         try {
-          const token = localStorage.getItem('token');
+          const token = getToken();
           const finalScore = isSuccess ? (block.maxScore || 100) : 0;
           const res = await axios.post(`${API_URL}/submissions`, {
             lessonId: homework.id,
@@ -771,7 +772,7 @@ export default function HomeworkView() {
           question: questionWithImage,
           answer: finalAnswerString,
           maxScore: block.maxScore || 10
-        }, { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } });
+        }, { headers: { Authorization: `Bearer ${getToken()}` } });
         
         setSubmissions(prev => [
           ...prev.filter(s => s.blockId !== block.id && s.block_id !== block.id),

@@ -7,7 +7,8 @@ WEB_ROOT="/var/www/prepodmgy"
 
 echo "→ Pull latest code..."
 cd "$REPO_DIR"
-git pull origin main
+git fetch origin main
+git reset --hard origin/main
 
 echo "→ Install frontend deps..."
 cd "$FRONTEND_DIR"
@@ -16,16 +17,27 @@ npm install
 echo "→ Building frontend..."
 npm run build
 
-echo "→ Verify build (must NOT contain legacy plugin)..."
+echo "→ Verify build (legacy plugin intentionally disabled — broke prod before)..."
 if grep -q 'vite-legacy' dist/index.html; then
-  echo "❌ ERROR: dist/index.html still has vite-legacy — old broken build!"
-  echo "   Run: rm -rf node_modules && npm install && npm run build"
+  echo "❌ ERROR: dist/index.html has vite-legacy — do not enable @vitejs/plugin-legacy without iPhone testing!"
   exit 1
 fi
 
 if grep -q 'quill' dist/index.html; then
   echo "⚠️  WARNING: quill referenced in index.html (should be lazy-loaded only)"
 fi
+
+INDEX_HTML_BYTES=$(wc -c < dist/index.html | tr -d ' ')
+INDEX_JS_KB=$(ls -l dist/assets/index-*.js | awk '{print int($5/1024)}')
+if [ "$INDEX_HTML_BYTES" -lt 2000 ]; then
+  echo "❌ ERROR: dist/index.html is only ${INDEX_HTML_BYTES} bytes — source code is outdated!"
+  exit 1
+fi
+if [ "$INDEX_JS_KB" -gt 50 ]; then
+  echo "❌ ERROR: main index chunk is ${INDEX_JS_KB} KB — lazy routes not applied!"
+  exit 1
+fi
+echo "✓ Build sanity: index.html=${INDEX_HTML_BYTES}B, index.js≈${INDEX_JS_KB}KB"
 
 echo "→ Deploying to $WEB_ROOT ..."
 sudo mkdir -p "$WEB_ROOT"

@@ -28,6 +28,7 @@ const flashcard_module_1 = require("./flashcard/flashcard.module");
 const gamification_module_1 = require("./gamification/gamification.module");
 const telegram_module_1 = require("./telegram/telegram.module");
 const upload_controller_1 = require("./upload/upload.controller");
+const client_log_controller_1 = require("./client-log/client-log.controller");
 let AppModule = class AppModule {
 };
 exports.AppModule = AppModule;
@@ -58,6 +59,7 @@ exports.AppModule = AppModule = __decorate([
         ],
         controllers: [
             upload_controller_1.UploadController,
+            client_log_controller_1.ClientLogController,
         ],
         providers: [],
     })

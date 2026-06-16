@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 import { ChevronLeft, ChevronRight, Video, Clock, Link as LinkIcon, Plus, X, Trash2, CalendarDays, Loader2, MapPin, AlertCircle, Sparkles, ExternalLink, ArrowRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
-import { decodeToken } from '../lib/auth';
+import { decodeToken, getToken } from '../lib/auth';
+import { parseSafeDate } from '../lib/parseDate';
 
 const API_URL = 'https://prepodmgy.ru/api';
 
@@ -16,7 +17,7 @@ export default function Schedule() {
 
   useEffect(() => {
     try {
-      const token = localStorage.getItem('token');
+      const token = getToken();
       if (token) {
         const payload = decodeToken();
         if (payload?.role === 'ADMIN') {
@@ -43,7 +44,7 @@ export default function Schedule() {
 
   const fetchEvents = async () => {
     try {
-      const token = localStorage.getItem('token');
+      const token = getToken();
       const res = await axios.get(`${API_URL}/schedule`, { headers: { Authorization: `Bearer ${token}` } });
       setEvents(res.data);
     } catch (err) { console.error('Ошибка загрузки расписания', err); }
@@ -53,7 +54,7 @@ export default function Schedule() {
   const handleCreateEvent = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const token = localStorage.getItem('token');
+      const token = getToken();
       const eventDateTime = new Date(`${formData.date}T${formData.time}:00`).toISOString();
       
       await axios.post(`${API_URL}/schedule`, {
@@ -72,7 +73,7 @@ export default function Schedule() {
 
   const handleDeleteEvent = async (id: string) => {
     try {
-      const token = localStorage.getItem('token');
+      const token = getToken();
       await axios.delete(`${API_URL}/schedule/${id}`, { headers: { Authorization: `Bearer ${token}` } });
       fetchEvents();
       setShowDayModal(false);
@@ -92,7 +93,7 @@ export default function Schedule() {
 
   const handleDayClick = (day: number, thisDate: Date) => {
     const clickedDate = thisDate.toDateString();
-    const dayEvents = events.filter(e => new Date(e.date).toDateString() === clickedDate);
+    const dayEvents = events.filter(e => parseSafeDate(e.date).toDateString() === clickedDate);
     if (dayEvents.length > 0) {
       setSelectedDayEvents(dayEvents);
       setSelectedDateTitle(`${day} ${monthNames[currentDate.getMonth()].toLowerCase()}`);
@@ -103,11 +104,11 @@ export default function Schedule() {
   // Ближайшие события (сегодня + будущие, максимум 3)
   const now = new Date();
   const upcomingEvents = events
-    .filter(e => new Date(e.date) >= now)
-    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+    .filter(e => parseSafeDate(e.date) >= now)
+    .sort((a, b) => parseSafeDate(a.date).getTime() - parseSafeDate(b.date).getTime())
     .slice(0, 3);
 
-  const isToday = (d: string) => new Date(d).toDateString() === now.toDateString();
+  const isToday = (d: string) => parseSafeDate(d).toDateString() === now.toDateString();
 
   if (isLoading) return <div className="h-screen flex items-center justify-center bg-[#F4F7FE]"><Loader2 className="w-12 h-12 animate-spin text-[#5A4BFF]" /></div>;
 
@@ -122,7 +123,7 @@ export default function Schedule() {
         <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}
           className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {upcomingEvents.map(ev => {
-            const evDate = new Date(ev.date);
+            const evDate = parseSafeDate(ev.date);
             const today = isToday(ev.date);
             const typeColors: Record<string, string> = {
               WEBINAR: 'from-[#5A4BFF] to-violet-600',
@@ -204,7 +205,7 @@ export default function Schedule() {
           {Array.from({ length: daysInMonth }, (_, i) => i + 1).map(day => {
             const thisDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), day);
             const isToday = thisDate.toDateString() === new Date().toDateString();
-            const dayEvents = events.filter(e => new Date(e.date).toDateString() === thisDate.toDateString());
+            const dayEvents = events.filter(e => parseSafeDate(e.date).toDateString() === thisDate.toDateString());
             
             return (
               <div 
@@ -234,7 +235,7 @@ export default function Schedule() {
                     
                     return (
                       <div key={idx} className={`text-[10px] font-bold px-2 py-1.5 rounded-lg truncate transition-all ${pillClass}`}>
-                        {new Date(ev.date).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })} • {ev.title}
+                        {parseSafeDate(ev.date).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })} • {ev.title}
                       </div>
                     )
                   })}
@@ -272,7 +273,7 @@ export default function Schedule() {
                       {ev.type === 'WEBINAR' && <span className="px-3 py-1.5 bg-purple-50 text-purple-700 text-[10px] font-black uppercase tracking-widest rounded-xl border border-purple-100 flex items-center gap-1.5"><Video className="w-3.5 h-3.5"/> Вебинар</span>}
                       {ev.type === 'DEADLINE' && <span className="px-3 py-1.5 bg-rose-50 text-rose-700 text-[10px] font-black uppercase tracking-widest rounded-xl border border-rose-100 flex items-center gap-1.5"><AlertCircle className="w-3.5 h-3.5"/> Дедлайн</span>}
                       {ev.type === 'OFFLINE' && <span className="px-3 py-1.5 bg-emerald-50 text-emerald-700 text-[10px] font-black uppercase tracking-widest rounded-xl border border-emerald-100 flex items-center gap-1.5"><MapPin className="w-3.5 h-3.5"/> Офлайн</span>}
-                      <span className="text-sm font-bold text-gray-500 bg-gray-50 px-3 py-1.5 rounded-xl flex items-center gap-1.5"><Clock className="w-3.5 h-3.5"/> {new Date(ev.date).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}</span>
+                      <span className="text-sm font-bold text-gray-500 bg-gray-50 px-3 py-1.5 rounded-xl flex items-center gap-1.5"><Clock className="w-3.5 h-3.5"/> {parseSafeDate(ev.date).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}</span>
                     </div>
                     
                     <h4 className="text-xl font-black text-gray-900 mb-2">{ev.title}</h4>

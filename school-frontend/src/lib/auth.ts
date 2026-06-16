@@ -126,3 +126,12 @@ export function homePathForRole(role: Role | null): string {
   if (role === 'CURATOR' || role === 'TEACHER') return '/curator';
   return '/';
 }
+
+export function getAuthHeaders(): Record<string, string> {
+  const token = getToken();
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
+export function getTokenConfig() {
+  return { headers: getAuthHeaders() };
+}

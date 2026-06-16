@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import { getToken } from '../lib/auth';
 import {
   AlertCircle,
   ArrowLeft,
@@ -71,7 +72,7 @@ export default function CuratorDashboard() {
   const loadDashboard = async () => {
     setIsLoading(true);
     try {
-      const token = localStorage.getItem('token');
+      const token = getToken();
       if (!token) {
         navigate('/login');
         return;
@@ -174,7 +175,7 @@ export default function CuratorDashboard() {
 
     const loadOralScore = async () => {
       try {
-        const token = localStorage.getItem('token');
+        const token = getToken();
         const res = await axios.get(`${API_URL}/submissions/oral/${activeStudentId}/${selectedLesson.id}`, {
           headers: { Authorization: `Bearer ${token}` },
         });
@@ -225,7 +226,7 @@ export default function CuratorDashboard() {
     }
 
     try {
-      const token = localStorage.getItem('token');
+      const token = getToken();
       await axios.patch(
         `${API_URL}/submissions/${subId}/grade`,
         { score: Number(currentScore), comment: comments[subId] || '' },
@@ -254,7 +255,7 @@ export default function CuratorDashboard() {
     }
 
     try {
-      const token = localStorage.getItem('token');
+      const token = getToken();
       await axios.patch(
         `${API_URL}/submissions/${subId}/grade`,
         { comment: comments[subId], status: 'REVISION' },
@@ -275,7 +276,7 @@ export default function CuratorDashboard() {
     }
 
     try {
-      const token = localStorage.getItem('token');
+      const token = getToken();
       await axios.post(
         `${API_URL}/submissions/oral`,
         {

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, BrainCircuit, AlertTriangle, BookOpen } from 'lucide-react';
 import axios from 'axios';
+import { getToken } from '../lib/auth';
 
 const API_URL = 'https://prepodmgy.ru/api';
 
@@ -12,7 +13,7 @@ export default function Mistakes() {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const token = localStorage.getItem('token');
+    const token = getToken();
     if (token) {
       axios.get(`${API_URL}/dashboard/mistakes/${themeId}`, {
         headers: { Authorization: `Bearer ${token}` }
