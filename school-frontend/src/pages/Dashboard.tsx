@@ -308,6 +308,31 @@ function buildCourseStats(course: any, mySubs: any[]): CourseStats | null {
         });
       });
 
+      if (blocks.length === 0) {
+        gradedSubs
+          .filter((s: any) => (s.lesson_id || s.lessonId) === lesson.id)
+          .forEach((sub: any) => {
+            if (usedSubIds.has(sub.id)) return;
+            const bid = String(sub.block_id || sub.blockId || '');
+            const comment = String(sub.comment || '');
+            const blockType = bid.startsWith('oral-')
+              ? 'oral'
+              : comment.includes('Автоматическая проверка') || comment.includes('🤖')
+                ? 'tests'
+                : 'written';
+            usedSubIds.add(sub.id);
+            addScore({
+              sub,
+              type: blockType,
+              maxScore: Number(sub.max_score) || 100,
+              title: blockType === 'oral' ? 'Устный ответ' : 'Задание',
+              lesson,
+              theme,
+              target: lessonTarget,
+            });
+          });
+      }
+
       if (lessonTarget.taskCount > 0) {
         const lessonTestsScore = safePercent(l_tests.e, l_tests.m);
         const lessonWrittenScore = safePercent(l_written.e, l_written.m);

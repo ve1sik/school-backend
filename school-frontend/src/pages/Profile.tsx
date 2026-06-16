@@ -3,6 +3,7 @@ import { User, MapPin, Calendar, Copy, CheckCircle2, Loader2, Mail, Save, X, Cam
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 import { getToken } from '../lib/auth';
+import { api } from '../lib/api';
 
 const API_URL = 'https://prepodmgy.ru/api';
 
@@ -43,18 +44,14 @@ export default function Profile() {
     const fetchProfile = async () => {
       try {
         const token = getToken();
-        const res = await axios.get(`${API_URL}/auth/me`, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
+        const res = await api.get('/auth/me');
         
         let userData = res.data;
 
         // Если кода нет, генерируем тихо
         if (!userData.invite_code) {
           try {
-            const codeRes = await axios.post(`${API_URL}/auth/invite-code`, {}, {
-              headers: { Authorization: `Bearer ${token}` }
-            });
+            const codeRes = await api.post('/auth/invite-code', {});
             userData.invite_code = codeRes.data.invite_code;
           } catch (e) {
             console.error('Не удалось сгенерировать код');
@@ -71,9 +68,7 @@ export default function Profile() {
 
         // Загружаем статистику
         try {
-          const statsRes = await axios.get(`${API_URL}/dashboard/analytics`, {
-            headers: { Authorization: `Bearer ${token}` }
-          });
+          const statsRes = await api.get('/dashboard/analytics');
           setStats(statsRes.data);
         } catch { /* silent */ }
 

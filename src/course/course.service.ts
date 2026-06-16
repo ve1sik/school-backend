@@ -1,9 +1,48 @@
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service'; 
 
+const LESSON_LIGHT_SELECT = {
+  id: true,
+  title: true,
+  type: true,
+  theme_id: true,
+  order_index: true,
+  is_visible: true,
+  is_homework: true,
+  include_in_analytics: true,
+  deadline: true,
+  unlock_date: true,
+  video_url: true,
+  created_at: true,
+} as const;
+
+const THEMES_WITH_FULL_LESSONS = {
+  orderBy: { order_index: 'asc' as const },
+  include: {
+    lessons: { orderBy: { order_index: 'asc' as const } },
+  },
+};
+
+const THEMES_WITH_LIGHT_LESSONS = {
+  orderBy: { order_index: 'asc' as const },
+  include: {
+    lessons: {
+      orderBy: { order_index: 'asc' as const },
+      select: LESSON_LIGHT_SELECT,
+    },
+  },
+};
+
 @Injectable()
 export class CourseService {
   constructor(private prisma: PrismaService) {}
+
+  /** Полный контент уроков нужен только в админке; на телефонах Safari падает от мегабайт JSON. */
+  private themesInclude(role?: string) {
+    return role === 'ADMIN' || role === 'CURATOR' || role === 'TEACHER'
+      ? THEMES_WITH_FULL_LESSONS
+      : THEMES_WITH_LIGHT_LESSONS;
+  }
 
   async findOne(id: string) {
     const course = await this.prisma.course.findUnique({
@@ -25,17 +64,12 @@ export class CourseService {
   }
 
   async getAllCourses(userId?: string, userRole?: string) {
+    const themes = this.themesInclude(userRole);
+
     if (userRole === 'ADMIN') {
       return this.prisma.course.findMany({
-        include: {
-          themes: {
-            orderBy: { order_index: 'asc' },
-            include: {
-              lessons: { orderBy: { order_index: 'asc' } },
-            },
-          },
-        },
-        orderBy: { title: 'asc' }, 
+        include: { themes },
+        orderBy: { title: 'asc' },
       });
     }
 
@@ -49,14 +83,7 @@ export class CourseService {
             },
           },
         },
-        include: {
-          themes: {
-            orderBy: { order_index: 'asc' },
-            include: {
-              lessons: { orderBy: { order_index: 'asc' } },
-            },
-          },
-        },
+        include: { themes },
         orderBy: { title: 'asc' },
       });
     }
@@ -70,14 +97,7 @@ export class CourseService {
             },
           },
         },
-        include: {
-          themes: {
-            orderBy: { order_index: 'asc' },
-            include: {
-              lessons: { orderBy: { order_index: 'asc' } },
-            },
-          },
-        },
+        include: { themes },
         orderBy: { title: 'asc' },
       });
     }
@@ -104,14 +124,7 @@ export class CourseService {
 
     return this.prisma.course.findMany({
       where: { id: { in: [...courseIdSet] } },
-      include: {
-        themes: {
-          orderBy: { order_index: 'asc' },
-          include: {
-            lessons: { orderBy: { order_index: 'asc' } },
-          },
-        },
-      },
+      include: { themes: this.themesInclude(userRole) },
       orderBy: { title: 'asc' },
     });
   }

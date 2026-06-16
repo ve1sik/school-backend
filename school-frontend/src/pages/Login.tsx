@@ -1,10 +1,8 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Mail, Lock, LogIn, Loader2, GraduationCap, Users, MessageCircle, Share2, User } from 'lucide-react';
-import axios from 'axios';
 import { decodeJwtPayload, setAuthTokens } from '../lib/auth';
-
-const API_URL = 'https://prepodmgy.ru/api';
+import { publicApi } from '../lib/api';
 
 type Mode = 'login' | 'register_student' | 'register_parent';
 
@@ -35,16 +33,16 @@ export default function Login() {
     try {
       let res;
       if (mode === 'login') {
-        res = await axios.post(`${API_URL}/auth/login`, { email: formData.email, password: formData.password });
+        res = await publicApi.post('/auth/login', { email: formData.email, password: formData.password });
       } else if (mode === 'register_student') {
-        res = await axios.post(`${API_URL}/auth/register`, {
+        res = await publicApi.post('/auth/register', {
           email: formData.email,
           password: formData.password,
           name: formData.name,
           surname: formData.surname,
         });
       } else {
-        res = await axios.post(`${API_URL}/auth/register-parent`, formData);
+        res = await publicApi.post('/auth/register-parent', formData);
       }
       
       setAuthTokens(res.data.access_token, res.data.refresh_token);

@@ -142,6 +142,24 @@ export function buildCourseStats(course: any, mySubs: any[]): CourseStats | null
         addScore(sub, 'oral', 100, lessonTarget);
       });
 
+      // Без content (лёгкий /courses для мобилок) — считаем только по submissions
+      if (blocks.length === 0) {
+        gradedSubs
+          .filter((s: any) => (s.lesson_id || s.lessonId) === lesson.id)
+          .forEach((sub: any) => {
+            if (usedSubIds.has(sub.id)) return;
+            const bid = String(sub.block_id || sub.blockId || '');
+            const comment = String(sub.comment || '');
+            const blockType = bid.startsWith('oral-')
+              ? 'oral'
+              : comment.includes('Автоматическая проверка') || comment.includes('🤖')
+                ? 'tests'
+                : 'written';
+            usedSubIds.add(sub.id);
+            addScore(sub, blockType, Number(sub.max_score) || 100, lessonTarget);
+          });
+      }
+
       if (lessonTarget.taskCount > 0) {
         themeTaskCount += lessonTarget.taskCount;
         t_tests.e += l_tests.e; t_tests.m += l_tests.m; t_tests.count += l_tests.count;

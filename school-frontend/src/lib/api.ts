@@ -6,6 +6,9 @@ export const API_URL = 'https://prepodmgy.ru/api';
 // Единый axios-инстанс: сам подставляет токен и обновляет сессию при 401
 export const api = axios.create({ baseURL: API_URL, timeout: 20000 });
 
+/** Публичные запросы (логин/регистрация) — с таймаутом, без auth interceptor loop */
+export const publicApi = axios.create({ baseURL: API_URL, timeout: 20000 });
+
 api.interceptors.request.use((config) => {
   const token = getToken();
   if (token) {
@@ -23,7 +26,7 @@ async function refreshAccessToken() {
 
   if (!refreshPromise) {
     refreshPromise = axios
-      .post(`${API_URL}/auth/refresh`, { refresh_token: refreshToken })
+      .post(`${API_URL}/auth/refresh`, { refresh_token: refreshToken }, { timeout: 15000 })
       .then((res) => {
         setAuthTokens(res.data.access_token, res.data.refresh_token);
         return res.data.access_token as string;

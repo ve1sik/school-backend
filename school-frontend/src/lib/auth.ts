@@ -8,6 +8,10 @@ export type AdminPermission =
   | 'MANAGE_DECKS'
   | 'CURATOR_DASHBOARD';
 
+// Fallback когда Safari/iOS блокирует localStorage (приватный режим, WebView)
+let memoryToken: string | null = null;
+let memoryRefreshToken: string | null = null;
+
 function safeGetItem(key: string): string | null {
   try {
     return localStorage.getItem(key);
@@ -46,7 +50,7 @@ export function decodeJwtPayload<T = JwtPayload>(token: string): T | null {
 }
 
 export function getToken(): string | null {
-  return safeGetItem('token');
+  return safeGetItem('token') || memoryToken;
 }
 
 export function safeStorageGet(key: string): string | null {
@@ -62,12 +66,18 @@ export function safeStorageRemove(key: string) {
 }
 
 export function getRefreshToken(): string | null {
-  return safeGetItem('refresh_token');
+  return safeGetItem('refresh_token') || memoryRefreshToken;
 }
 
 export function setAuthTokens(accessToken?: string, refreshToken?: string) {
-  if (accessToken) safeSetItem('token', accessToken);
-  if (refreshToken) safeSetItem('refresh_token', refreshToken);
+  if (accessToken) {
+    memoryToken = accessToken;
+    safeSetItem('token', accessToken);
+  }
+  if (refreshToken) {
+    memoryRefreshToken = refreshToken;
+    safeSetItem('refresh_token', refreshToken);
+  }
 }
 
 interface JwtPayload {
@@ -116,6 +126,8 @@ export function isTokenValid(): boolean {
 }
 
 export function logout() {
+  memoryToken = null;
+  memoryRefreshToken = null;
   safeRemoveItem('token');
   safeRemoveItem('refresh_token');
 }
