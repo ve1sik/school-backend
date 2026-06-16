@@ -17,6 +17,7 @@ export declare class TelegramController {
         preparedCodes: number;
         linkedChats: number;
         architecture: string;
+        outboundProxy: string;
     }>;
     testSend(chatId: string): Promise<{
         ok: boolean;

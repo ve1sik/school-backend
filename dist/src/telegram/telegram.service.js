@@ -18,6 +18,53 @@ const crypto_1 = require("crypto");
 const fs_1 = require("fs");
 const https_1 = require("https");
 const path_1 = require("path");
+function telegramProxyUrl() {
+    return process.env.HTTPS_PROXY || process.env.HTTP_PROXY || '';
+}
+function parseTelegramProxy(proxyUrl) {
+    try {
+        const u = new URL(proxyUrl);
+        return {
+            protocol: (u.protocol.replace(':', '') || 'http'),
+            host: u.hostname,
+            port: Number(u.port) || 8080,
+            auth: u.username
+                ? {
+                    username: decodeURIComponent(u.username),
+                    password: decodeURIComponent(u.password),
+                }
+                : undefined,
+        };
+    }
+    catch {
+        return null;
+    }
+}
+function maskTelegramProxy(proxyUrl) {
+    try {
+        const u = new URL(proxyUrl);
+        return `${u.hostname}:${u.port || '8080'}`;
+    }
+    catch {
+        return 'invalid';
+    }
+}
+function createTelegramHttpClient() {
+    const config = {
+        baseURL: process.env.TELEGRAM_API_BASE_URL || 'https://api.telegram.org',
+        timeout: 12000,
+    };
+    const proxyUrl = telegramProxyUrl();
+    const proxy = proxyUrl ? parseTelegramProxy(proxyUrl) : null;
+    if (proxy) {
+        config.proxy = proxy;
+        return { client: axios_1.default.create(config), proxyHost: maskTelegramProxy(proxyUrl) };
+    }
+    config.proxy = false;
+    config.httpsAgent = new https_1.Agent({ keepAlive: true, maxSockets: 20 });
+    return { client: axios_1.default.create(config), proxyHost: null };
+}
+const TG_HTTP = createTelegramHttpClient();
 const MAIN_KEYBOARD = {
     keyboard: [
         [{ text: '📊 Статистика' }, { text: '📅 Дедлайны' }],
@@ -59,15 +106,15 @@ let TelegramService = TelegramService_1 = class TelegramService {
         this._coursesCache = new Map();
         this._chatStudentCache = new Map();
         this._gradedDataCache = new Map();
-        this.httpsAgent = new https_1.Agent({ keepAlive: true, maxSockets: 20 });
-        this.tg = axios_1.default.create({
-            baseURL: process.env.TELEGRAM_API_BASE_URL || 'https://api.telegram.org',
-            timeout: 12000,
-            proxy: false,
-            httpsAgent: this.httpsAgent,
-        });
+        this.tg = TG_HTTP.client;
     }
     onModuleInit() {
+        if (TG_HTTP.proxyHost) {
+            this.logger.log(`Telegram outbound proxy: ${TG_HTTP.proxyHost}`);
+        }
+        else {
+            this.logger.warn('Telegram outbound: direct connection (HTTPS_PROXY not set)');
+        }
         this.migrateLegacyLinks().catch((e) => this.logger.warn(`Legacy TG links migration: ${e?.message}`));
         const scheduleDaily = () => {
             const now = new Date();
@@ -729,6 +776,7 @@ let TelegramService = TelegramService_1 = class TelegramService {
             preparedCodes: prepared,
             linkedChats: linked,
             architecture: 'webhook-reply + db-links',
+            outboundProxy: TG_HTTP.proxyHost || null,
         };
     }
     generateLinkCode() {

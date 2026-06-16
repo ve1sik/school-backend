@@ -1,10 +1,60 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import axios from 'axios';
+import axios, { type AxiosProxyConfig, type CreateAxiosDefaults } from 'axios';
 import { randomBytes } from 'crypto';
 import { existsSync, readFileSync } from 'fs';
 import { Agent as HttpsAgent } from 'https';
 import { join } from 'path';
+
+function telegramProxyUrl() {
+  return process.env.HTTPS_PROXY || process.env.HTTP_PROXY || '';
+}
+
+function parseTelegramProxy(proxyUrl: string): AxiosProxyConfig | null {
+  try {
+    const u = new URL(proxyUrl);
+    return {
+      protocol: (u.protocol.replace(':', '') || 'http') as 'http' | 'https',
+      host: u.hostname,
+      port: Number(u.port) || 8080,
+      auth: u.username
+        ? {
+            username: decodeURIComponent(u.username),
+            password: decodeURIComponent(u.password),
+          }
+        : undefined,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function maskTelegramProxy(proxyUrl: string) {
+  try {
+    const u = new URL(proxyUrl);
+    return `${u.hostname}:${u.port || '8080'}`;
+  } catch {
+    return 'invalid';
+  }
+}
+
+function createTelegramHttpClient() {
+  const config: CreateAxiosDefaults = {
+    baseURL: process.env.TELEGRAM_API_BASE_URL || 'https://api.telegram.org',
+    timeout: 12000,
+  };
+  const proxyUrl = telegramProxyUrl();
+  const proxy = proxyUrl ? parseTelegramProxy(proxyUrl) : null;
+  if (proxy) {
+    config.proxy = proxy;
+    return { client: axios.create(config), proxyHost: maskTelegramProxy(proxyUrl) };
+  }
+  config.proxy = false;
+  config.httpsAgent = new HttpsAgent({ keepAlive: true, maxSockets: 20 });
+  return { client: axios.create(config), proxyHost: null as string | null };
+}
+
+const TG_HTTP = createTelegramHttpClient();
 
 type GradedSubRow = {
   score: number | null;
@@ -66,19 +116,17 @@ export class TelegramService implements OnModuleInit {
   private _chatStudentCache = new Map<string, { student: any; exp: number }>();
   private _gradedDataCache = new Map<string, { subs: GradedSubRow[]; attempts: any[]; exp: number }>();
 
-  private readonly httpsAgent = new HttpsAgent({ keepAlive: true, maxSockets: 20 });
-
-  // HTTP-клиент для ПРОАКТИВНЫХ уведомлений (grade alerts, deadline reminders)
-  private readonly tg = axios.create({
-    baseURL: process.env.TELEGRAM_API_BASE_URL || 'https://api.telegram.org',
-    timeout: 12000,
-    proxy: false,
-    httpsAgent: this.httpsAgent,
-  });
+  // HTTP-клиент для исходящих запросов (уведомления, answerCallbackQuery, setMyCommands)
+  private readonly tg = TG_HTTP.client;
 
   constructor(private prisma: PrismaService) {}
 
   onModuleInit() {
+    if (TG_HTTP.proxyHost) {
+      this.logger.log(`Telegram outbound proxy: ${TG_HTTP.proxyHost}`);
+    } else {
+      this.logger.warn('Telegram outbound: direct connection (HTTPS_PROXY not set)');
+    }
     this.migrateLegacyLinks().catch((e) => this.logger.warn(`Legacy TG links migration: ${e?.message}`));
     const scheduleDaily = () => {
       const now = new Date();
@@ -879,6 +927,7 @@ export class TelegramService implements OnModuleInit {
       preparedCodes: prepared,
       linkedChats: linked,
       architecture: 'webhook-reply + db-links',
+      outboundProxy: TG_HTTP.proxyHost || null,
     };
   }
 

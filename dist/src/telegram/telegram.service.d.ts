@@ -8,7 +8,6 @@ export declare class TelegramService implements OnModuleInit {
     private _coursesCache;
     private _chatStudentCache;
     private _gradedDataCache;
-    private readonly httpsAgent;
     private readonly tg;
     constructor(prisma: PrismaService);
     onModuleInit(): void;
@@ -55,6 +54,7 @@ export declare class TelegramService implements OnModuleInit {
         preparedCodes: number;
         linkedChats: number;
         architecture: string;
+        outboundProxy: string;
     }>;
     private generateLinkCode;
     private buildLegacyCode;
