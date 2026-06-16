@@ -21,6 +21,7 @@ export default function Profile() {
   const [isLoading, setIsLoading] = useState(true);
   const [copied, setCopied] = useState(false);
   const [telegram, setTelegram] = useState<any>(null);
+  const [isUnlinkingTelegram, setIsUnlinkingTelegram] = useState(false);
 
   // Стейты для редактирования
   const [isEditing, setIsEditing] = useState(false);
@@ -76,10 +77,7 @@ export default function Profile() {
         } catch { /* silent */ }
 
         try {
-          const tgRes = await axios.get(`${API_URL}/telegram/link-code`, {
-            headers: { Authorization: `Bearer ${token}` }
-          });
-          setTelegram(tgRes.data);
+          await fetchTelegram();
         } catch { /* silent */ }
       } catch (err) {
         console.error('Ошибка загрузки профиля', err);
@@ -102,6 +100,31 @@ export default function Profile() {
     if (!telegram?.code) return;
     navigator.clipboard.writeText(telegram.code);
     showToast('Код Telegram скопирован');
+  };
+
+  const fetchTelegram = async () => {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    const tgRes = await axios.get(`${API_URL}/telegram/link-code`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    setTelegram(tgRes.data);
+  };
+
+  const unlinkTelegram = async () => {
+    setIsUnlinkingTelegram(true);
+    try {
+      const token = localStorage.getItem('token');
+      const res = await axios.delete(`${API_URL}/telegram/link`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setTelegram(res.data);
+      showToast('Telegram отвязан. Скопируйте новый код и отправьте его боту.');
+    } catch {
+      showToast('Не удалось отвязать Telegram', 'error');
+    } finally {
+      setIsUnlinkingTelegram(false);
+    }
   };
 
   // 🔥 СОХРАНЕНИЕ ПРОФИЛЯ
@@ -334,16 +357,47 @@ export default function Profile() {
               <div className="bg-white rounded-xl p-4 border border-sky-100 flex items-center justify-between gap-3">
                 <div>
                   <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Код для Telegram</p>
-                  <p className="text-xl font-black text-gray-900 tracking-[0.18em]">{telegram?.code || '...'}</p>
+                  <p className="text-xl font-black text-gray-900 tracking-[0.18em]">
+                    {telegram?.linked ? '—' : (telegram?.code || '...')}
+                  </p>
+                  {telegram?.linked && (
+                    <p className="text-[11px] font-bold text-gray-400 mt-1">
+                      Отвяжите Telegram, чтобы получить новый код
+                    </p>
+                  )}
                 </div>
-                <button onClick={copyTelegramCode} className="p-3 bg-sky-100 hover:bg-sky-200 text-sky-700 rounded-xl transition-colors">
+                <button
+                  onClick={copyTelegramCode}
+                  disabled={!telegram?.code}
+                  className="p-3 bg-sky-100 hover:bg-sky-200 text-sky-700 rounded-xl transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                >
                   <Copy className="w-5 h-5" />
                 </button>
               </div>
-              <a href={telegram?.botUrl || 'https://t.me/prepodmgybot'} target="_blank" rel="noreferrer" className="mt-3 w-full py-3 bg-sky-500 hover:bg-sky-600 text-white rounded-xl font-black text-sm flex items-center justify-center gap-2 transition-colors">
+              <a
+                href={telegram?.botUrl || 'https://t.me/prepodmgybot'}
+                target="_blank"
+                rel="noreferrer"
+                className="mt-3 w-full py-3 bg-sky-500 hover:bg-sky-600 text-white rounded-xl font-black text-sm flex items-center justify-center gap-2 transition-colors"
+              >
                 <Send className="w-4 h-4" /> Открыть Telegram бота
               </a>
-              {telegram?.linked && <p className="text-xs font-bold text-emerald-600 mt-3">Telegram уже привязан</p>}
+              {telegram?.linked ? (
+                <div className="mt-3 flex items-center justify-between gap-3">
+                  <p className="text-xs font-bold text-emerald-600">Telegram уже привязан</p>
+                  <button
+                    onClick={unlinkTelegram}
+                    disabled={isUnlinkingTelegram}
+                    className="text-xs font-black text-rose-500 hover:text-rose-600 disabled:opacity-50"
+                  >
+                    {isUnlinkingTelegram ? 'Отвязка...' : 'Отвязать Telegram'}
+                  </button>
+                </div>
+              ) : (
+                <p className="text-xs font-bold text-sky-700 mt-3">
+                  Скопируйте код и отправьте его боту или нажмите «Открыть Telegram бота»
+                </p>
+              )}
             </div>
           </div>
         </motion.div>

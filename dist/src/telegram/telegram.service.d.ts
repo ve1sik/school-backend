@@ -72,6 +72,11 @@ export declare class TelegramService implements OnModuleInit {
         botUrl: string;
         linked: boolean;
     }>;
+    unlinkTelegram(userId: string): Promise<{
+        code: string;
+        botUrl: string;
+        linked: boolean;
+    }>;
     private getChatIdForUser;
     private findUserByChatId;
     private migrateLegacyLinks;

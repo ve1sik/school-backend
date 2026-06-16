@@ -21,6 +21,7 @@ export default function ParentDashboard() {
   const [codeError, setCodeError] = useState('');
   const [data, setData] = useState<any>(null);
   const [telegram, setTelegram] = useState<any>(null);
+  const [isUnlinkingTelegram, setIsUnlinkingTelegram] = useState(false);
 
   const fetchData = async (silent = false) => {
     if (!silent) setIsLoading(true);
@@ -77,6 +78,20 @@ export default function ParentDashboard() {
   const copyTelegramCode = () => {
     if (!telegram?.code) return;
     navigator.clipboard.writeText(telegram.code);
+  };
+
+  const unlinkTelegram = async () => {
+    setIsUnlinkingTelegram(true);
+    try {
+      const token = localStorage.getItem('token');
+      const res = await axios.delete(`${API_URL}/telegram/link`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setTelegram(res.data);
+    } catch { /* silent */ }
+    finally {
+      setIsUnlinkingTelegram(false);
+    }
   };
 
   const scoreColor = (s: number) => s >= 80 ? '#10b981' : s >= 60 ? '#f59e0b' : '#ef4444';
@@ -195,14 +210,46 @@ export default function ParentDashboard() {
                 <div className="bg-white rounded-2xl p-4 border border-sky-100 min-w-[260px]">
                   <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Код</p>
                   <div className="flex items-center justify-between gap-3">
-                    <p className="text-xl font-black tracking-[0.18em] text-gray-900">{telegram?.code || '...'}</p>
-                    <button onClick={copyTelegramCode} className="p-2 bg-sky-100 hover:bg-sky-200 rounded-xl text-sky-700">
+                    <p className="text-xl font-black tracking-[0.18em] text-gray-900">
+                      {telegram?.linked ? '—' : (telegram?.code || '...')}
+                    </p>
+                    <button
+                      onClick={copyTelegramCode}
+                      disabled={!telegram?.code}
+                      className="p-2 bg-sky-100 hover:bg-sky-200 rounded-xl text-sky-700 disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
                       <Copy className="w-4 h-4" />
                     </button>
                   </div>
-                  <a href={telegram?.botUrl || 'https://t.me/prepodmgybot'} target="_blank" rel="noreferrer" className="mt-3 py-3 bg-sky-500 hover:bg-sky-600 text-white rounded-xl font-black text-sm flex items-center justify-center gap-2">
+                  {telegram?.linked && (
+                    <p className="text-[11px] font-bold text-gray-400 mt-2">
+                      Отвяжите Telegram, чтобы получить новый код
+                    </p>
+                  )}
+                  <a
+                    href={telegram?.botUrl || 'https://t.me/prepodmgybot'}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="mt-3 py-3 bg-sky-500 hover:bg-sky-600 text-white rounded-xl font-black text-sm flex items-center justify-center gap-2"
+                  >
                     <Send className="w-4 h-4" /> Открыть бота
                   </a>
+                  {telegram?.linked ? (
+                    <div className="mt-3 flex items-center justify-between gap-2">
+                      <p className="text-xs font-bold text-emerald-600">Telegram привязан</p>
+                      <button
+                        onClick={unlinkTelegram}
+                        disabled={isUnlinkingTelegram}
+                        className="text-xs font-black text-rose-500 hover:text-rose-600 disabled:opacity-50"
+                      >
+                        {isUnlinkingTelegram ? '...' : 'Отвязать'}
+                      </button>
+                    </div>
+                  ) : (
+                    <p className="text-xs font-bold text-sky-700 mt-3">
+                      Скопируйте код и отправьте его боту
+                    </p>
+                  )}
                 </div>
               </div>
 

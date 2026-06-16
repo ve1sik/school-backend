@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, Query, Request, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Post, Query, Request, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { TelegramService } from './telegram.service';
 
@@ -26,6 +26,12 @@ export class TelegramController {
   @Get('link-code')
   getLinkCode(@Request() req) {
     return this.telegramService.ensureTelegramCode(req.user.sub);
+  }
+
+  @UseGuards(AuthGuard('jwt'))
+  @Delete('link')
+  unlinkTelegram(@Request() req) {
+    return this.telegramService.unlinkTelegram(req.user.sub);
   }
 
   @Get('register-commands')

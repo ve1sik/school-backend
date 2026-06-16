@@ -846,6 +846,32 @@ let TelegramService = TelegramService_1 = class TelegramService {
             linked: false,
         };
     }
+    async unlinkTelegram(userId) {
+        const user = await this.prisma.user.findUnique({
+            where: { id: userId },
+            select: { id: true, telegram_chat_id: true },
+        });
+        if (!user)
+            return { code: null, botUrl: this.botUrl, linked: false };
+        const code = this.generateLinkCode();
+        await this.prisma.user.update({
+            where: { id: userId },
+            data: {
+                telegram_chat_id: null,
+                telegram_linked_at: null,
+                telegram_link_code: code,
+            },
+        });
+        if (user.telegram_chat_id) {
+            this._chatStudentCache.delete(user.telegram_chat_id);
+        }
+        this.invalidateUserCache(userId);
+        return {
+            code,
+            botUrl: `${this.botUrl}?start=${code}`,
+            linked: false,
+        };
+    }
     async getChatIdForUser(userId) {
         const user = await this.prisma.user.findUnique({
             where: { id: userId },

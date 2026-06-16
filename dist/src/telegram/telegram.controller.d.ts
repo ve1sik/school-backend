@@ -10,6 +10,11 @@ export declare class TelegramController {
         botUrl: string;
         linked: boolean;
     }>;
+    unlinkTelegram(req: any): Promise<{
+        code: string;
+        botUrl: string;
+        linked: boolean;
+    }>;
     registerCommands(): Promise<void>;
     health(): Promise<{
         tokenConfigured: boolean;

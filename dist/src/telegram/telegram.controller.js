@@ -26,6 +26,9 @@ let TelegramController = class TelegramController {
     getLinkCode(req) {
         return this.telegramService.ensureTelegramCode(req.user.sub);
     }
+    unlinkTelegram(req) {
+        return this.telegramService.unlinkTelegram(req.user.sub);
+    }
     registerCommands() {
         return this.telegramService.registerBotCommands();
     }
@@ -52,6 +55,14 @@ __decorate([
     __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", void 0)
 ], TelegramController.prototype, "getLinkCode", null);
+__decorate([
+    (0, common_1.UseGuards)((0, passport_1.AuthGuard)('jwt')),
+    (0, common_1.Delete)('link'),
+    __param(0, (0, common_1.Request)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", void 0)
+], TelegramController.prototype, "unlinkTelegram", null);
 __decorate([
     (0, common_1.Get)('register-commands'),
     __metadata("design:type", Function),
