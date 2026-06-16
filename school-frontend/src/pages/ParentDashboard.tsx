@@ -6,10 +6,9 @@ import {
   TrendingUp, Flame, BookOpen, CheckSquare,
   AlertTriangle, Star, RefreshCw, PenTool, Mic, Send, Copy
 } from 'lucide-react';
-import axios from 'axios';
 import { buildParentView } from '../lib/courseStats';
-
-const API_URL = 'https://prepodmgy.ru/api';
+import { getToken, logout } from '../lib/auth';
+import { api } from '../lib/api';
 
 export default function ParentDashboard() {
   const navigate = useNavigate();
@@ -27,12 +26,10 @@ export default function ParentDashboard() {
     if (!silent) setIsLoading(true);
     else setIsRefreshing(true);
     try {
-      const token = localStorage.getItem('token');
+      const token = getToken();
       if (!token) { navigate('/login'); return; }
 
-      const res = await axios.get(`${API_URL}/dashboard/parent-data`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await api.get('/dashboard/parent-data');
       const raw = res.data || {};
       if (raw.isLinked === false) {
         setIsLinked(false);
@@ -43,9 +40,7 @@ export default function ParentDashboard() {
         setIsLinked(true);
       }
       try {
-        const tgRes = await axios.get(`${API_URL}/telegram/link-code`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        const tgRes = await api.get('/telegram/link-code');
         setTelegram(tgRes.data);
       } catch { /* silent */ }
     } catch { /* silent */ }
@@ -63,10 +58,7 @@ export default function ParentDashboard() {
     setCodeError('');
     setIsSubmitting(true);
     try {
-      const token = localStorage.getItem('token');
-      await axios.post(`${API_URL}/auth/link-student`, { invite_code: code.trim().toUpperCase() }, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      await api.post('/auth/link-student', { invite_code: code.trim().toUpperCase() });
       await fetchData();
     } catch {
       setCodeError('Неверный код. Попросите ребёнка проверить код в разделе «Мой профиль».');
@@ -74,7 +66,7 @@ export default function ParentDashboard() {
     }
   };
 
-  const handleLogout = () => { localStorage.removeItem('token'); navigate('/login'); };
+  const handleLogout = () => { logout(); navigate('/login'); };
   const copyTelegramCode = () => {
     if (!telegram?.code) return;
     navigator.clipboard.writeText(telegram.code);
@@ -83,10 +75,7 @@ export default function ParentDashboard() {
   const unlinkTelegram = async () => {
     setIsUnlinkingTelegram(true);
     try {
-      const token = localStorage.getItem('token');
-      const res = await axios.delete(`${API_URL}/telegram/link`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const res = await api.delete('/telegram/link');
       setTelegram(res.data);
     } catch { /* silent */ }
     finally {

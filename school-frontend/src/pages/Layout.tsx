@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef, useMemo } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { api } from '../lib/api';
-import { decodeToken } from '../lib/auth';
+import { decodeToken, getToken, logout, safeStorageGet, safeStorageRemove, safeStorageSet } from '../lib/auth';
 import { motion, AnimatePresence } from 'framer-motion';
 import { DEFAULT_ROLE_PERMISSIONS, type AdminPermission, type Role } from '../lib/auth';
 import { 
@@ -50,8 +50,11 @@ export default function Layout() {
 
   // Прочитанные уведомления (по сигнатуре id+text — чтобы при изменении содержимого снова загорались)
   const [seenSignatures, setSeenSignatures] = useState<Set<string>>(() => {
-    try { return new Set(JSON.parse(localStorage.getItem('notif_seen') || '[]')); }
-    catch { return new Set(); }
+    try {
+      return new Set(JSON.parse(safeStorageGet('notif_seen') || '[]'));
+    } catch {
+      return new Set();
+    }
   });
   const sigOf = (n: { id: string; text: string }) => `${n.id}::${n.text}`;
 
@@ -73,7 +76,7 @@ export default function Layout() {
     setSeenSignatures(prev => {
       const next = new Set(prev);
       notifications.forEach(n => next.add(sigOf(n)));
-      localStorage.setItem('notif_seen', JSON.stringify([...next]));
+      safeStorageSet('notif_seen', JSON.stringify([...next]));
       return next;
     });
   };
@@ -90,7 +93,7 @@ export default function Layout() {
   }, []);
 
   useEffect(() => {
-    const token = localStorage.getItem('token');
+    const token = getToken();
     if (!token) {
       navigate('/login');
       return;
@@ -122,8 +125,7 @@ export default function Layout() {
   useEffect(() => {
     const fetchUnread = async () => {
       try {
-        const token = localStorage.getItem('token');
-        if (!token) return;
+        if (!getToken()) return;
         const unreadRes = await api.get('/messages/unread').catch(() => ({ data: { count: 0 } }));
         setUnreadCount(unreadRes.data.count || 0);
       } catch { /* silent */ }
@@ -131,8 +133,7 @@ export default function Layout() {
 
     const fetchNotifs = async () => {
       try {
-        const token = localStorage.getItem('token');
-        if (!token) return;
+        if (!getToken()) return;
         const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
 
         const [schedRes, subsRes, cardsRes] = await Promise.all([
@@ -184,7 +185,7 @@ export default function Layout() {
           const liveSigs = new Set(notifs.map(n => `${n.id}::${n.text}`));
           const next = new Set([...prev].filter(s => liveSigs.has(s)));
           if (next.size !== prev.size) {
-            localStorage.setItem('notif_seen', JSON.stringify([...next]));
+            safeStorageSet('notif_seen', JSON.stringify([...next]));
             return next;
           }
           return prev;
@@ -214,10 +215,10 @@ export default function Layout() {
   }, [mobileNavOpen]);
 
   const handleLogout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('demo_answers');
-    localStorage.removeItem('demo_results');
-    localStorage.removeItem('demo_attempts');
+    logout();
+    safeStorageRemove('demo_answers');
+    safeStorageRemove('demo_results');
+    safeStorageRemove('demo_attempts');
     navigate('/login');
   };
 

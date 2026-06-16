@@ -1,14 +1,64 @@
 <!doctype html>
-<html lang="en">
+<html lang="ru">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>school-frontend</title>
-    <script type="module" crossorigin src="/assets/index-D5OJpjOT.js"></script>
-    <link rel="stylesheet" crossorigin href="/assets/index-DpF72T0F.css">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="format-detection" content="telephone=no" />
+    <meta name="theme-color" content="#5A4BFF" />
+    <title>Препод из МГУ</title>
+    <style>
+      #root:empty {
+        min-height: 100vh;
+        min-height: -webkit-fill-available;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #f4f7fe;
+      }
+      #root:empty::before {
+        content: '';
+        width: 40px;
+        height: 40px;
+        border: 3px solid #e5e7eb;
+        border-top-color: #5a4bff;
+        border-radius: 50%;
+        animation: app-spin 0.8s linear infinite;
+      }
+      @keyframes app-spin {
+        to { transform: rotate(360deg); }
+      }
+    </style>
+    <script type="module" crossorigin src="/assets/index-CTz_NQX7.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-COnpUsM8.js">
+    <link rel="modulepreload" crossorigin href="/assets/icons-DPBWFfx2.js">
+    <link rel="modulepreload" crossorigin href="/assets/lib-Dy-ZKjbP.js">
+    <link rel="modulepreload" crossorigin href="/assets/motion-2k61_BJ1.js">
+    <link rel="modulepreload" crossorigin href="/assets/quill-JilVzR19.js">
+    <link rel="modulepreload" crossorigin href="/assets/vendor-CCOsphf8.js">
+    <link rel="stylesheet" crossorigin href="/assets/quill-DVB7LGv8.css">
+    <link rel="stylesheet" crossorigin href="/assets/index-DyDR2Zli.css">
   </head>
   <body>
     <div id="root"></div>
+    <script>
+      window.addEventListener(
+        'error',
+        function (ev) {
+          var t = ev.target;
+          if (!t || t.tagName !== 'SCRIPT' || !t.src) return;
+          var root = document.getElementById('root');
+          if (!root || root.childNodes.length) return;
+          root.innerHTML =
+            '<div style="padding:24px;font-family:system-ui,sans-serif;text-align:center;max-width:360px;margin:0 auto">' +
+            '<p style="font-weight:800;font-size:18px;margin:0 0 12px">Не удалось загрузить сайт</p>' +
+            '<p style="color:#6b7280;font-size:14px;line-height:1.5;margin:0 0 16px">Обновите страницу или откройте prepodmgy.ru в Safari (не во встроенном браузере Telegram).</p>' +
+            '<button onclick="location.reload()" style="padding:12px 20px;border:0;border-radius:12px;background:#5a4bff;color:#fff;font-weight:700">Обновить</button>' +
+            '</div>';
+        },
+        true,
+      );
+    </script>
   </body>
 </html>

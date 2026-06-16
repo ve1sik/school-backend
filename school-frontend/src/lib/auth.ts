@@ -49,6 +49,18 @@ export function getToken(): string | null {
   return safeGetItem('token');
 }
 
+export function safeStorageGet(key: string): string | null {
+  return safeGetItem(key);
+}
+
+export function safeStorageSet(key: string, value: string) {
+  safeSetItem(key, value);
+}
+
+export function safeStorageRemove(key: string) {
+  safeRemoveItem(key);
+}
+
 export function getRefreshToken(): string | null {
   return safeGetItem('refresh_token');
 }

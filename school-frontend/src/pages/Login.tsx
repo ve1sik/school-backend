@@ -17,10 +17,15 @@ export default function Login() {
   const [error, setError] = useState('');
   const navigate = useNavigate();
 
-  const showSafariHint =
+  const showTelegramHint =
     typeof navigator !== 'undefined' &&
     /iPhone|iPad|iPod/i.test(navigator.userAgent) &&
     /Telegram/i.test(navigator.userAgent);
+
+  const showIosHint =
+    typeof navigator !== 'undefined' &&
+    /iPhone|iPad|iPod/i.test(navigator.userAgent) &&
+    !showTelegramHint;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -73,7 +78,7 @@ export default function Login() {
           Платформа <span className="text-[#5A4BFF] font-black">Препод из МГУ</span>
         </p>
 
-        {showSafariHint && (
+        {showTelegramHint && (
           <div className="mb-6 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
             <p className="font-bold mb-2">На iPhone сайт лучше открывать в Safari</p>
             <p className="mb-3 leading-relaxed">
@@ -87,6 +92,15 @@ export default function Login() {
             >
               Открыть в Safari
             </a>
+          </div>
+        )}
+
+        {showIosHint && (
+          <div className="mb-6 rounded-2xl border border-sky-200 bg-sky-50 p-4 text-sm text-sky-900">
+            <p className="font-bold mb-1">Если страница не загружается</p>
+            <p className="leading-relaxed">
+              Обновите iOS до последней версии и перезагрузите Safari. Не открывайте сайт из Telegram — только через Safari.
+            </p>
           </div>
         )}
 
