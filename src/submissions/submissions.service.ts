@@ -1,4 +1,4 @@
-import { ForbiddenException, Injectable } from '@nestjs/common';
+import { ForbiddenException, Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { TelegramService } from '../telegram/telegram.service';
 
@@ -6,6 +6,8 @@ export const AUTO_GRADE_COMMENT_PREFIX = '🤖 Автоматическая пр
 
 @Injectable()
 export class SubmissionsService {
+  private readonly logger = new Logger(SubmissionsService.name);
+
   constructor(
     private prisma: PrismaService,
     private telegramService: TelegramService,
@@ -154,12 +156,18 @@ export class SubmissionsService {
         where: { id: existing.id },
         data,
       });
-      await this.telegramService.notifySubmissionGraded(updated.id, 'oral');
+      this.notifyTelegram(
+        this.telegramService.notifySubmissionGraded(updated.id, 'oral'),
+        'Oral grade notify',
+      );
       return updated;
     }
 
     const created = await this.prisma.submission.create({ data });
-    await this.telegramService.notifySubmissionGraded(created.id, 'oral');
+    this.notifyTelegram(
+      this.telegramService.notifySubmissionGraded(created.id, 'oral'),
+      'Oral grade notify',
+    );
     return created;
   }
 
@@ -234,6 +242,15 @@ export class SubmissionsService {
     return subs.map((sub) => this.mapSubmissionForCurator(sub));
   }
 
+  private notifyTelegram(
+    promise: Promise<{ sent: boolean; reason?: string }>,
+    label: string,
+  ) {
+    promise.catch((e) =>
+      this.logger.error(`${label} error: ${e?.message || e}`),
+    );
+  }
+
   // Куратор ставит оценку или возвращает на доработку
   async gradeSubmission(id: string, score: number, comment: string, status?: string) {
     const finalStatus = status === 'REVISION' ? 'REVISION' : 'GRADED';
@@ -261,7 +278,15 @@ export class SubmissionsService {
     }
 
     if (finalStatus === 'GRADED') {
-      await this.telegramService.notifySubmissionGraded(updated.id, 'written');
+      this.notifyTelegram(
+        this.telegramService.notifySubmissionGraded(updated.id, 'written'),
+        'Written grade notify',
+      );
+    } else if (finalStatus === 'REVISION') {
+      this.notifyTelegram(
+        this.telegramService.notifySubmissionRevision(updated.id),
+        'Revision notify',
+      );
     }
 
     return updated;

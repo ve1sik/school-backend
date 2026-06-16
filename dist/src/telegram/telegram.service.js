@@ -107,6 +107,25 @@ let TelegramService = TelegramService_1 = class TelegramService {
         this._chatStudentCache = new Map();
         this._gradedDataCache = new Map();
         this.tg = TG_HTTP.client;
+        this.submissionNotifyInclude = {
+            user: {
+                select: {
+                    id: true,
+                    email: true,
+                    name: true,
+                    surname: true,
+                    telegram_chat_id: true,
+                    parent: {
+                        select: {
+                            id: true,
+                            email: true,
+                            telegram_chat_id: true,
+                        },
+                    },
+                },
+            },
+            lesson: { include: { theme: { include: { course: true } } } },
+        };
     }
     onModuleInit() {
         if (TG_HTTP.proxyHost) {
@@ -623,28 +642,40 @@ let TelegramService = TelegramService_1 = class TelegramService {
             buttons: [[{ text: '← Назад к статистике', callback_data: 'stats' }]],
         });
     }
+    getSubmissionNotifyTargets(student) {
+        return [
+            student.telegram_chat_id ? { chatId: student.telegram_chat_id, who: 'student' } : null,
+            student.parent?.telegram_chat_id
+                ? { chatId: student.parent.telegram_chat_id, who: 'parent' }
+                : null,
+        ].filter(Boolean);
+    }
+    submissionCourseButtons(courseId) {
+        return courseId
+            ? [[{ text: '📊 Посмотреть статистику курса', callback_data: `course:${courseId}` }]]
+            : [];
+    }
+    async pushSubmissionNotify(targets, text, buttons, logLabel, submissionId, student) {
+        if (!targets.length) {
+            this.logger.warn(`${logLabel} skipped: no telegram_chat_id for student ${student.id} (${student.email}), submission ${submissionId}`);
+            return { sent: false, reason: 'no_telegram_linked' };
+        }
+        const results = await Promise.all(targets.map(async (target) => {
+            const ok = await this.pushNotification(target.chatId, text, { buttons });
+            if (ok) {
+                this.logger.log(`${logLabel} sent to ${target.who} chat ${target.chatId}, submission ${submissionId}`);
+            }
+            return ok;
+        }));
+        if (!results.some(Boolean)) {
+            return { sent: false, reason: 'telegram_api_failed' };
+        }
+        return { sent: true };
+    }
     async notifySubmissionGraded(submissionId, kind = 'written') {
         const sub = await this.prisma.submission.findUnique({
             where: { id: submissionId },
-            include: {
-                user: {
-                    select: {
-                        id: true,
-                        email: true,
-                        name: true,
-                        surname: true,
-                        telegram_chat_id: true,
-                        parent: {
-                            select: {
-                                id: true,
-                                email: true,
-                                telegram_chat_id: true,
-                            },
-                        },
-                    },
-                },
-                lesson: { include: { theme: { include: { course: true } } } },
-            },
+            include: this.submissionNotifyInclude,
         });
         if (!sub || sub.status !== 'GRADED') {
             return { sent: false, reason: 'submission_not_graded' };
@@ -664,33 +695,27 @@ let TelegramService = TelegramService_1 = class TelegramService {
             `${medal(scorePct)} <b>Балл: ${sub.score ?? 0} / ${sub.max_score || 100}</b>  (${scorePct}/100)\n` +
             `${bar(scorePct)}\n\n` +
             `💬 <i>${esc(sub.comment || 'Без комментария')}</i>`;
-        const courseId = sub.lesson?.theme?.course_id;
-        const buttons = courseId
-            ? [[{ text: '📊 Посмотреть статистику курса', callback_data: `course:${courseId}` }]]
-            : [];
-        const targets = [
-            student.telegram_chat_id ? { chatId: student.telegram_chat_id, who: 'student' } : null,
-            student.parent?.telegram_chat_id
-                ? { chatId: student.parent.telegram_chat_id, who: 'parent' }
-                : null,
-        ].filter(Boolean);
-        if (!targets.length) {
-            this.logger.warn(`Grade notify skipped: no telegram_chat_id for student ${student.id} (${student.email}), submission ${submissionId}`);
-            return { sent: false, reason: 'no_telegram_linked' };
+        const result = await this.pushSubmissionNotify(this.getSubmissionNotifyTargets(student), text, this.submissionCourseButtons(sub.lesson?.theme?.course_id), 'Grade notify', submissionId, student);
+        if (result.sent)
+            this.invalidateGradedCache(student.id);
+        return result;
+    }
+    async notifySubmissionRevision(submissionId) {
+        const sub = await this.prisma.submission.findUnique({
+            where: { id: submissionId },
+            include: this.submissionNotifyInclude,
+        });
+        if (!sub || sub.status !== 'REVISION') {
+            return { sent: false, reason: 'submission_not_revision' };
         }
-        let sentAny = false;
-        for (const target of targets) {
-            const ok = await this.pushNotification(target.chatId, text, { buttons });
-            if (ok) {
-                sentAny = true;
-                this.logger.log(`Grade notify sent to ${target.who} chat ${target.chatId}, submission ${submissionId}`);
-            }
-        }
-        if (!sentAny) {
-            return { sent: false, reason: 'telegram_api_failed' };
-        }
-        this.invalidateGradedCache(student.id);
-        return { sent: true };
+        const student = sub.user;
+        const text = `🔄 <b>Задание отправлено на доработку</b>\n` +
+            `${'─'.repeat(26)}\n\n` +
+            `👤 <b>${esc(this.userName(student))}</b>\n` +
+            `📖 ${esc(sub.lesson?.theme?.course?.title ?? '—')}\n` +
+            `📌 ${esc(sub.lesson?.title ?? '—')}\n\n` +
+            `💬 <i>${esc(sub.comment || 'Без комментария')}</i>`;
+        return this.pushSubmissionNotify(this.getSubmissionNotifyTargets(student), text, this.submissionCourseButtons(sub.lesson?.theme?.course_id), 'Revision notify', submissionId, student);
     }
     async sendDeadlineReminders() {
         const linkedUsers = await this.prisma.user.findMany({

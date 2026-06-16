@@ -36,7 +36,15 @@ export declare class TelegramService implements OnModuleInit {
     private showCourseStats;
     private showThemeStats;
     private showDeadlines;
+    private submissionNotifyInclude;
+    private getSubmissionNotifyTargets;
+    private submissionCourseButtons;
+    private pushSubmissionNotify;
     notifySubmissionGraded(submissionId: string, kind?: 'written' | 'oral'): Promise<{
+        sent: boolean;
+        reason?: string;
+    }>;
+    notifySubmissionRevision(submissionId: string): Promise<{
         sent: boolean;
         reason?: string;
     }>;

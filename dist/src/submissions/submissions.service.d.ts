@@ -4,6 +4,7 @@ export declare const AUTO_GRADE_COMMENT_PREFIX = "\uD83E\uDD16 \u0410\u0432\u044
 export declare class SubmissionsService {
     private prisma;
     private telegramService;
+    private readonly logger;
     constructor(prisma: PrismaService, telegramService: TelegramService);
     private canGradeStudentLesson;
     private mapSubmissionForCurator;
@@ -83,6 +84,7 @@ export declare class SubmissionsService {
         created_at: any;
         date: string;
     }[]>;
+    private notifyTelegram;
     gradeSubmission(id: string, score: number, comment: string, status?: string): Promise<{
         id: string;
         created_at: Date;

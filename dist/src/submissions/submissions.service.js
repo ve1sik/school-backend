@@ -8,16 +8,18 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
+var SubmissionsService_1;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.SubmissionsService = exports.AUTO_GRADE_COMMENT_PREFIX = void 0;
 const common_1 = require("@nestjs/common");
 const prisma_service_1 = require("../prisma/prisma.service");
 const telegram_service_1 = require("../telegram/telegram.service");
 exports.AUTO_GRADE_COMMENT_PREFIX = '🤖 Автоматическая проверка';
-let SubmissionsService = class SubmissionsService {
+let SubmissionsService = SubmissionsService_1 = class SubmissionsService {
     constructor(prisma, telegramService) {
         this.prisma = prisma;
         this.telegramService = telegramService;
+        this.logger = new common_1.Logger(SubmissionsService_1.name);
     }
     async canGradeStudentLesson(studentId, lessonId, requesterId, requesterRole) {
         if (requesterRole === 'ADMIN')
@@ -142,11 +144,11 @@ let SubmissionsService = class SubmissionsService {
                 where: { id: existing.id },
                 data,
             });
-            await this.telegramService.notifySubmissionGraded(updated.id, 'oral');
+            this.notifyTelegram(this.telegramService.notifySubmissionGraded(updated.id, 'oral'), 'Oral grade notify');
             return updated;
         }
         const created = await this.prisma.submission.create({ data });
-        await this.telegramService.notifySubmissionGraded(created.id, 'oral');
+        this.notifyTelegram(this.telegramService.notifySubmissionGraded(created.id, 'oral'), 'Oral grade notify');
         return created;
     }
     async getOralSubmission(studentId, lessonId, requesterId, requesterRole) {
@@ -207,6 +209,9 @@ let SubmissionsService = class SubmissionsService {
         });
         return subs.map((sub) => this.mapSubmissionForCurator(sub));
     }
+    notifyTelegram(promise, label) {
+        promise.catch((e) => this.logger.error(`${label} error: ${e?.message || e}`));
+    }
     async gradeSubmission(id, score, comment, status) {
         const finalStatus = status === 'REVISION' ? 'REVISION' : 'GRADED';
         const existing = await this.prisma.submission.findUnique({ where: { id } });
@@ -227,7 +232,10 @@ let SubmissionsService = class SubmissionsService {
             await this.awardPoints(updated.user_id, pts);
         }
         if (finalStatus === 'GRADED') {
-            await this.telegramService.notifySubmissionGraded(updated.id, 'written');
+            this.notifyTelegram(this.telegramService.notifySubmissionGraded(updated.id, 'written'), 'Written grade notify');
+        }
+        else if (finalStatus === 'REVISION') {
+            this.notifyTelegram(this.telegramService.notifySubmissionRevision(updated.id), 'Revision notify');
         }
         return updated;
     }
@@ -250,7 +258,7 @@ let SubmissionsService = class SubmissionsService {
     }
 };
 exports.SubmissionsService = SubmissionsService;
-exports.SubmissionsService = SubmissionsService = __decorate([
+exports.SubmissionsService = SubmissionsService = SubmissionsService_1 = __decorate([
     (0, common_1.Injectable)(),
     __metadata("design:paramtypes", [prisma_service_1.PrismaService,
         telegram_service_1.TelegramService])
