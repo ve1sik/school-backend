@@ -18,7 +18,7 @@ import {
   getOptionLetterClass,
   LESSON_TEST_STYLES,
 } from '../components/LessonTestUI';
-import { getToken, getTokenConfig } from '../lib/auth';
+import { getToken, getTokenConfig, safeStorageGet, safeStorageSet } from '../lib/auth';
 
 const API_URL = 'https://prepodmgy.ru/api';
 
@@ -51,10 +51,18 @@ const safeHtml = (text: any) => {
 
 const getSafeLocal = (key: string, fallback: any) => {
   try {
-    const item = localStorage.getItem(key);
+    const item = safeStorageGet(key);
     return item ? JSON.parse(item) || fallback : fallback;
-  } catch (e) {
+  } catch {
     return fallback;
+  }
+};
+
+const setSafeLocal = (key: string, value: unknown) => {
+  try {
+    safeStorageSet(key, JSON.stringify(value));
+  } catch {
+    /* Safari private mode */
   }
 };
 
@@ -584,26 +592,26 @@ export default function CourseView() {
     const updated = current.includes(answerText) ? current.filter((a: string) => a !== answerText) : [...current, answerText];
     const newAnswers = { ...testAnswers, [blockId]: updated };
     setTestAnswers(newAnswers);
-    localStorage.setItem('demo_answers', JSON.stringify(newAnswers));
+    setSafeLocal('demo_answers', newAnswers);
 
     if (testResults?.[blockId] === 'ERROR') {
       const newResults = { ...testResults };
       delete newResults[blockId];
       setTestResults(newResults);
-      localStorage.setItem('demo_results', JSON.stringify(newResults));
+      setSafeLocal('demo_results', newResults);
     }
   };
 
   const handleTextAnswerChange = (blockId: string, text: string) => {
     const newAnswers = { ...testAnswers, [blockId]: [text] };
     setTestAnswers(newAnswers);
-    localStorage.setItem('demo_answers', JSON.stringify(newAnswers));
+    setSafeLocal('demo_answers', newAnswers);
 
     if (testResults?.[blockId] === 'ERROR') {
       const newResults = { ...testResults };
       delete newResults[blockId];
       setTestResults(newResults);
-      localStorage.setItem('demo_results', JSON.stringify(newResults));
+      setSafeLocal('demo_results', newResults);
     }
   };
 
@@ -614,13 +622,13 @@ export default function CourseView() {
     
     const newAnswers = { ...testAnswers, [blockId]: filtered };
     setTestAnswers(newAnswers);
-    localStorage.setItem('demo_answers', JSON.stringify(newAnswers));
+    setSafeLocal('demo_answers', newAnswers);
 
     if (testResults?.[blockId] === 'ERROR') {
       const newResults = { ...testResults };
       delete newResults[blockId];
       setTestResults(newResults);
-      localStorage.setItem('demo_results', JSON.stringify(newResults));
+      setSafeLocal('demo_results', newResults);
     }
   };
 
@@ -676,7 +684,7 @@ export default function CourseView() {
       currentAttempts += 1;
       const newAttempts = { ...attemptsUsed, [block.id]: currentAttempts };
       setAttemptsUsed(newAttempts);
-      localStorage.setItem('demo_attempts', JSON.stringify(newAttempts));
+      setSafeLocal('demo_attempts', newAttempts);
 
       const isNowExhausted = currentAttempts >= maxAttempts;
 
@@ -724,7 +732,7 @@ export default function CourseView() {
 
     const newResults = { ...testResults, [block.id]: newResultState };
     setTestResults(newResults);
-    localStorage.setItem('demo_results', JSON.stringify(newResults));
+    setSafeLocal('demo_results', newResults);
   };
 
   const filteredThemes = course?.themes?.map((theme: any) => {
