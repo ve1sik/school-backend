@@ -7,27 +7,10 @@ import { json, urlencoded } from 'express';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
-  const allowedOrigins = [
-    'https://prepodmgy.ru',
-    'https://www.prepodmgy.ru',
-    ...(process.env.NODE_ENV !== 'production'
-      ? ['http://localhost:5173', 'http://127.0.0.1:5173']
-      : []),
-  ];
-
   app.enableCors({
-    origin(origin, callback) {
-      if (!origin || allowedOrigins.includes(origin)) {
-        callback(null, true);
-      } else {
-        callback(new Error(`CORS blocked: ${origin}`), false);
-      }
-    },
-    methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
-    exposedHeaders: ['Content-Disposition'],
+    origin: true,
+    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
     credentials: true,
-    maxAge: 86400,
   });
 
   app.use(json({ limit: '50mb' }));

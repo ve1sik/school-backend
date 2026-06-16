@@ -8,9 +8,6 @@
     <meta name="format-detection" content="telephone=no" />
     <meta name="theme-color" content="#5A4BFF" />
     <meta name="color-scheme" content="light" />
-    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
-    <meta http-equiv="Pragma" content="no-cache" />
-    <meta http-equiv="Expires" content="0" />
     <title>Препод из МГУ</title>
     <style>
       html {
@@ -46,75 +43,24 @@
     </style>
   </head>
   <body>
-    <noscript>
-      <p style="padding:24px;font-family:system-ui,sans-serif;text-align:center">
-        Для работы сайта нужен JavaScript. Включите его в настройках Safari.
-      </p>
-    </noscript>
-    <div id="root">
-      <p
-        id="app-boot"
-        style="
-          margin: 0;
-          padding: 24px;
-          min-height: 100vh;
-          min-height: -webkit-fill-available;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          background: #f4f7fe;
-          color: #6b7280;
-          font-family: system-ui, -apple-system, sans-serif;
-          font-weight: 700;
-          font-size: 14px;
-          text-align: center;
-        "
-      >
-        Загрузка…
-      </p>
-    </div>
+    <div id="root"></div>
     <script>
-      function showBootError(detail) {
-        var root = document.getElementById('root');
-        if (!root) return;
-        root.innerHTML =
-          '<div style="padding:24px;font-family:system-ui,sans-serif;text-align:center;max-width:360px;margin:0 auto;background:#f4f7fe;min-height:100vh;min-height:-webkit-fill-available;box-sizing:border-box">' +
-          '<p style="font-weight:800;font-size:18px;margin:0 0 12px;color:#111827">Не удалось загрузить сайт</p>' +
-          '<p style="color:#6b7280;font-size:14px;line-height:1.5;margin:0 0 12px">Очистите кэш Safari (Настройки → Safari → «Очистить историю и данные») или откройте <strong>https://prepodmgy.ru/login</strong> не из Telegram.</p>' +
-          (detail
-            ? '<p style="color:#991b1b;font-size:12px;line-height:1.4;margin:0 0 16px;word-break:break-word">' +
-              detail +
-              '</p>'
-            : '') +
-          '<button onclick="location.reload()" style="padding:12px 20px;border:0;border-radius:12px;background:#5a4bff;color:#fff;font-weight:700">Обновить</button>' +
-          '</div>';
-      }
-
       window.addEventListener(
         'error',
         function (ev) {
           var t = ev.target;
-          if (t && t.tagName === 'SCRIPT' && t.src) {
-            showBootError('Файл: ' + t.src);
-            return;
-          }
-          if (ev.message) {
-            showBootError(ev.message + (ev.filename ? ' (' + ev.filename + ')' : ''));
-          }
+          if (!t || t.tagName !== 'SCRIPT' || !t.src) return;
+          var root = document.getElementById('root');
+          if (!root || root.childNodes.length) return;
+          root.innerHTML =
+            '<div style="padding:24px;font-family:system-ui,sans-serif;text-align:center;max-width:360px;margin:0 auto">' +
+            '<p style="font-weight:800;font-size:18px;margin:0 0 12px">Не удалось загрузить сайт</p>' +
+            '<p style="color:#6b7280;font-size:14px;line-height:1.5;margin:0 0 16px">Обновите страницу. Если не помогло — очистите кэш браузера.</p>' +
+            '<button onclick="location.reload()" style="padding:12px 20px;border:0;border-radius:12px;background:#5a4bff;color:#fff;font-weight:700">Обновить</button>' +
+            '</div>';
         },
         true,
       );
-
-      window.addEventListener('unhandledrejection', function (ev) {
-        var reason = ev.reason;
-        var msg =
-          reason && typeof reason === 'object' && reason.message
-            ? reason.message
-            : reason
-              ? String(reason)
-              : 'Неизвестная ошибка';
-        showBootError(msg);
-      });
     </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
