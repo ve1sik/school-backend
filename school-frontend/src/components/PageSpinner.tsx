@@ -1,4 +1,4 @@
-export default function PageSpinner() {
+export default function PageSpinner({ message = 'Загрузка…' }: { message?: string }) {
   return (
     <div
       style={{
@@ -11,9 +11,11 @@ export default function PageSpinner() {
         color: '#6b7280',
         fontWeight: 700,
         fontSize: 14,
+        padding: 24,
+        textAlign: 'center',
       }}
     >
-      Загрузка…
+      {message}
     </div>
   );
 }

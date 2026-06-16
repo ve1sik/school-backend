@@ -1,32 +1,40 @@
-import { Suspense, lazy } from 'react';
+import { Suspense, lazy, type ComponentType } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import ProtectedRoute from './components/ProtectedRoute';
 import PageSpinner from './components/PageSpinner';
+import Login from './pages/Login';
 
-const Login = lazy(() => import('./pages/Login'));
-const Layout = lazy(() => import('./pages/Layout'));
-const Dashboard = lazy(() => import('./pages/Dashboard'));
-const StudentCourses = lazy(() => import('./pages/StudentCourses'));
-const CourseThemes = lazy(() => import('./pages/CourseThemes'));
-const CourseView = lazy(() => import('./pages/CourseView'));
-const Mistakes = lazy(() => import('./pages/Mistakes'));
-const AdminCourses = lazy(() => import('./pages/AdminCourses'));
-const Profile = lazy(() => import('./pages/Profile'));
-const Schedule = lazy(() => import('./pages/Schedule'));
-const Homework = lazy(() => import('./pages/Homework'));
-const HomeworkView = lazy(() => import('./pages/HomeworkView'));
-const Cards = lazy(() => import('./pages/Cards'));
-const Messages = lazy(() => import('./pages/Messages'));
-const Settings = lazy(() => import('./pages/Settings'));
-const ParentDashboard = lazy(() => import('./pages/ParentDashboard'));
-const CuratorDashboard = lazy(() => import('./pages/CuratorDashboard'));
-const CuratorMessages = lazy(() => import('./pages/CuratorMessages'));
-const Shop = lazy(() => import('./pages/Shop'));
-const AdminGroups = lazy(() => import('./pages/AdminGroups'));
-const AdminUsers = lazy(() => import('./pages/AdminUsers'));
-const AdminDecks = lazy(() => import('./pages/AdminDecks'));
-const FlashcardStudy = lazy(() => import('./pages/FlashcardStudy'));
-const Achievements = lazy(() => import('./pages/Achievements'));
+const lazyPage = (loader: () => Promise<{ default: ComponentType }>) =>
+  lazy(() =>
+    loader().catch((err) => {
+      console.error('Failed to load page chunk', err);
+      return { default: () => <PageSpinner message="Не удалось загрузить страницу. Обновите." /> };
+    }),
+  );
+
+const Layout = lazyPage(() => import('./pages/Layout'));
+const Dashboard = lazyPage(() => import('./pages/Dashboard'));
+const StudentCourses = lazyPage(() => import('./pages/StudentCourses'));
+const CourseThemes = lazyPage(() => import('./pages/CourseThemes'));
+const CourseView = lazyPage(() => import('./pages/CourseView'));
+const Mistakes = lazyPage(() => import('./pages/Mistakes'));
+const AdminCourses = lazyPage(() => import('./pages/AdminCourses'));
+const Profile = lazyPage(() => import('./pages/Profile'));
+const Schedule = lazyPage(() => import('./pages/Schedule'));
+const Homework = lazyPage(() => import('./pages/Homework'));
+const HomeworkView = lazyPage(() => import('./pages/HomeworkView'));
+const Cards = lazyPage(() => import('./pages/Cards'));
+const Messages = lazyPage(() => import('./pages/Messages'));
+const Settings = lazyPage(() => import('./pages/Settings'));
+const ParentDashboard = lazyPage(() => import('./pages/ParentDashboard'));
+const CuratorDashboard = lazyPage(() => import('./pages/CuratorDashboard'));
+const CuratorMessages = lazyPage(() => import('./pages/CuratorMessages'));
+const Shop = lazyPage(() => import('./pages/Shop'));
+const AdminGroups = lazyPage(() => import('./pages/AdminGroups'));
+const AdminUsers = lazyPage(() => import('./pages/AdminUsers'));
+const AdminDecks = lazyPage(() => import('./pages/AdminDecks'));
+const FlashcardStudy = lazyPage(() => import('./pages/FlashcardStudy'));
+const Achievements = lazyPage(() => import('./pages/Achievements'));
 
 const NON_PARENT: any = ['ADMIN', 'CURATOR', 'TEACHER', 'STUDENT'];
 
