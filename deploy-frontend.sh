@@ -33,11 +33,15 @@ if [ "$INDEX_HTML_BYTES" -lt 2000 ]; then
   echo "❌ ERROR: dist/index.html is only ${INDEX_HTML_BYTES} bytes — source code is outdated!"
   exit 1
 fi
-if [ "$INDEX_JS_KB" -gt 50 ]; then
-  echo "❌ ERROR: main index chunk is ${INDEX_JS_KB} KB — lazy routes not applied!"
+if ls dist/assets/lib-*.js >/dev/null 2>&1; then
+  echo "❌ ERROR: lib-*.js chunk found — manualChunks split breaks React load order!"
   exit 1
 fi
-echo "✓ Build sanity: index.html=${INDEX_HTML_BYTES}B, index.js≈${INDEX_JS_KB}KB"
+if [ "$INDEX_JS_KB" -lt 100 ]; then
+  echo "❌ ERROR: main index chunk is only ${INDEX_JS_KB} KB — React may be missing from entry!"
+  exit 1
+fi
+echo "✓ Build sanity: index.html=${INDEX_HTML_BYTES}B, index.js≈${INDEX_JS_KB}KB, no lib chunk"
 
 echo "→ Deploying to $WEB_ROOT ..."
 sudo mkdir -p "$WEB_ROOT"
