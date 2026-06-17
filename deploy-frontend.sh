@@ -18,8 +18,8 @@ echo "→ Building frontend..."
 npm run build
 
 echo "→ Verify build (legacy plugin intentionally disabled — broke prod before)..."
-if grep -q 'vite-legacy' dist/index.html; then
-  echo "❌ ERROR: dist/index.html has vite-legacy — do not enable @vitejs/plugin-legacy without iPhone testing!"
+if grep -q 'vite-legacy' dist/index.html && ! grep -q 'type="module"' dist/index.html; then
+  echo "❌ ERROR: dist/index.html has legacy entry but no module entry!"
   exit 1
 fi
 

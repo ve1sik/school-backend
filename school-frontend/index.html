@@ -64,47 +64,54 @@
     <p id="boot-msg">Загрузка…</p>
     <script>
       (function () {
+        function clearBootOverlay() {
+          var nodes = document.querySelectorAll('#boot-msg,[data-boot-overlay]');
+          for (var i = 0; i < nodes.length; i++) nodes[i].remove();
+        }
+
         function bootDone() {
           document.documentElement.setAttribute('data-app-ready', '1');
-          var m = document.getElementById('boot-msg');
-          if (m) m.remove();
+          clearBootOverlay();
         }
         window.__APP_BOOT_DONE__ = bootDone;
 
-        function showFail(hint) {
+        function showFail(hint, detail) {
           if (document.documentElement.getAttribute('data-app-ready')) return;
-          document.documentElement.setAttribute('data-app-ready', '1');
+          document.documentElement.setAttribute('data-app-failed', '1');
           var extra =
             hint === 'timeout'
-              ? 'Сайт не ответил. Скорее всего закэширована старая версия — очистите кэш браузера или откройте в режиме инкогнито.'
-              : 'Не удалось загрузить приложение. Обновите страницу или очистите кэш браузера.';
+              ? 'Сайт не ответил за 20 секунд. Очистите кэш Safari или откройте в режиме инкогнито.'
+              : 'Не удалось запустить приложение. Обновите страницу или очистите кэш браузера.';
           var tg = /Telegram/i.test(navigator.userAgent);
           if (tg) {
-            extra += ' Не открывайте сайт из Telegram — скопируйте ссылку и откройте в Safari или Chrome.';
+            extra += ' Не открывайте сайт из Telegram — скопируйте ссылку и откройте в Safari.';
+          }
+          if (detail) {
+            extra += ' (' + String(detail).slice(0, 120) + ')';
           }
           var html =
-            '<div id="boot-msg" style="position:fixed;inset:0;z-index:9999;padding:24px;font-family:system-ui,sans-serif;text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#f4f7fe">' +
+            '<div id="boot-msg" data-boot-overlay="1" style="position:fixed;inset:0;z-index:9999;padding:24px;font-family:system-ui,sans-serif;text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#f4f7fe">' +
             '<p style="font-weight:800;font-size:18px;margin:0 0 12px;color:#111827">Не удалось загрузить сайт</p>' +
             '<p style="color:#6b7280;font-size:14px;line-height:1.5;margin:0 0 16px;max-width:340px">' +
             extra +
             '</p>' +
-            '<button onclick="location.reload(true)" style="padding:12px 20px;border:0;border-radius:12px;background:#5a4bff;color:#fff;font-weight:700;cursor:pointer">Обновить</button>' +
+            '<button type="button" onclick="location.href=location.pathname+\'?v=\'+Date.now()" style="padding:12px 20px;border:0;border-radius:12px;background:#5a4bff;color:#fff;font-weight:700;cursor:pointer">Обновить</button>' +
             '</div>';
-          var m = document.getElementById('boot-msg');
-          if (m) m.outerHTML = html;
-          else document.body.insertAdjacentHTML('beforeend', html);
+          clearBootOverlay();
+          document.body.insertAdjacentHTML('beforeend', html);
         }
 
         window.addEventListener(
           'error',
           function (ev) {
+            if (document.documentElement.getAttribute('data-app-ready')) return;
             var t = ev.target;
-            if (t && t.tagName === 'SCRIPT' && t.src) {
-              showFail('script');
+            if (t && t.tagName === 'SCRIPT') {
+              showFail('script', ev.message || t.src || 'script');
               return;
             }
-            if (!document.documentElement.getAttribute('data-app-ready')) {
-              showFail('runtime');
+            if ((!t || t === window) && ev.message) {
+              showFail('runtime', ev.message);
             }
           },
           true,
@@ -112,7 +119,7 @@
 
         setTimeout(function () {
           if (!document.documentElement.getAttribute('data-app-ready')) showFail('timeout');
-        }, 15000);
+        }, 20000);
       })();
     </script>
     <script type="module" src="/src/main.tsx"></script>

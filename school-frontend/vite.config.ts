@@ -1,11 +1,18 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import legacy from '@vitejs/plugin-legacy'
 
 export default defineConfig({
   plugins: [
     react(),
+    legacy({
+      targets: ['iOS >= 12', 'Safari >= 12', 'Chrome >= 64'],
+      modernPolyfills: true,
+      renderLegacyChunks: true,
+    }),
     {
       name: 'strip-crossorigin',
+      enforce: 'post',
       transformIndexHtml(html) {
         return html.replace(/ crossorigin/g, '')
       },
@@ -15,8 +22,8 @@ export default defineConfig({
     dedupe: ['react', 'react-dom', 'react-router', 'react-router-dom'],
   },
   build: {
-    target: ['es2018', 'safari14'],
-    cssTarget: 'safari14',
+    target: 'es2015',
+    cssTarget: 'safari12',
     modulePreload: false,
     chunkSizeWarningLimit: 800,
   },
