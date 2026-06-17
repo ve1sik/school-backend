@@ -1,4 +1,11 @@
+import { useEffect } from 'react';
+import { clearBootOverlay } from '../lib/boot';
+
 export default function PageSpinner({ message = 'Загрузка…' }: { message?: string }) {
+  useEffect(() => {
+    clearBootOverlay();
+  }, []);
+
   return (
     <div
       style={{

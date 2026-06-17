@@ -1,10 +1,11 @@
-import { Suspense, lazy, type ComponentType } from 'react';
+import { Suspense, lazy, useEffect, type ComponentType } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import ProtectedRoute from './components/ProtectedRoute';
 import PageSpinner from './components/PageSpinner';
 import ErrorBoundary from './components/ErrorBoundary';
 import BootGate from './components/BootGate';
 import Login from './pages/Login';
+import { clearBootOverlay } from './lib/boot';
 
 const lazyPage = (loader: () => Promise<{ default: ComponentType }>) =>
   lazy(() =>
@@ -41,6 +42,11 @@ const Achievements = lazyPage(() => import('./pages/Achievements'));
 const NON_PARENT: any = ['ADMIN', 'CURATOR', 'TEACHER', 'STUDENT'];
 
 export default function App() {
+  // React уже запущен — убираем HTML-оверлей даже если lazy-чанк ещё грузится (BootGate не смонтирован).
+  useEffect(() => {
+    clearBootOverlay();
+  }, []);
+
   return (
     <ErrorBoundary>
       <Suspense fallback={<PageSpinner />}>

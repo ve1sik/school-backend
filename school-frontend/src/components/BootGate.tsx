@@ -1,7 +1,7 @@
 import { useEffect, type ReactNode } from 'react'
 import { markBootDone } from '../lib/boot'
 
-/** Снимает HTML-оверлей только когда реальный экран (не Suspense fallback) смонтирован. */
+/** Отключает HTML-таймаут и boot-обработчики ошибок после монтирования экрана. */
 export default function BootGate({ children }: { children: ReactNode }) {
   useEffect(() => {
     markBootDone()
