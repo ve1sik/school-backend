@@ -1,41 +1,67 @@
-import * as React from 'react';
+import * as React from 'react'
 
 interface Props {
-  children: React.ReactNode;
+  children: React.ReactNode
 }
 
 interface State {
-  error: Error | null;
+  error: Error | null
 }
 
-/** Явный ReactNS — иначе Vite 8/Rolldown может перепутать React с lucide в entry-чанке */
 export default class ErrorBoundary extends React.Component<Props, State> {
   constructor(props: Props) {
-    super(props);
-    this.state = { error: null };
+    super(props)
+    this.state = { error: null }
   }
 
   static getDerivedStateFromError(error: Error): State {
-    return { error };
+    return { error }
+  }
+
+  componentDidCatch(error: Error, info: React.ErrorInfo) {
+    console.error('React error boundary:', error, info.componentStack)
   }
 
   render() {
     if (this.state.error) {
+      const msg = this.state.error.message || 'Неизвестная ошибка'
       return (
         <div
           style={{
-            minHeight: '100vh',
+            minHeight: '-webkit-fill-available',
             padding: '24px',
             background: '#f4f7fe',
             color: '#111827',
             fontFamily: 'system-ui, -apple-system, sans-serif',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            textAlign: 'center',
           }}
         >
-          <h1 style={{ fontSize: '20px', fontWeight: 700, marginBottom: '12px' }}>
-            Не удалось загрузить страницу
+          <h1 style={{ fontSize: '20px', fontWeight: 800, marginBottom: '12px', color: '#dc2626' }}>
+            Упс, ошибка в интерфейсе
           </h1>
-          <p style={{ marginBottom: '16px', lineHeight: 1.5 }}>
-            Обновите страницу. На iPhone открывайте сайт в Safari, не во встроенном браузере Telegram.
+          <p
+            style={{
+              marginBottom: '16px',
+              lineHeight: 1.5,
+              maxWidth: '360px',
+              fontSize: '13px',
+              fontFamily: 'ui-monospace, monospace',
+              background: '#fff',
+              border: '1px solid #fecaca',
+              borderRadius: '12px',
+              padding: '12px 16px',
+              color: '#374151',
+              wordBreak: 'break-word',
+            }}
+          >
+            {msg}
+          </p>
+          <p style={{ marginBottom: '16px', lineHeight: 1.5, maxWidth: '340px', color: '#6b7280', fontSize: '14px' }}>
+            На iPhone открывайте сайт в Safari, не во встроенном браузере Telegram.
           </p>
           <button
             type="button"
@@ -47,13 +73,14 @@ export default class ErrorBoundary extends React.Component<Props, State> {
               background: '#5A4BFF',
               color: '#fff',
               fontWeight: 700,
+              cursor: 'pointer',
             }}
           >
-            Обновить
+            Обновить страницу
           </button>
         </div>
-      );
+      )
     }
-    return this.props.children;
+    return this.props.children
   }
 }

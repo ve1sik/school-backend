@@ -2,6 +2,7 @@ import { Suspense, lazy, type ComponentType } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import ProtectedRoute from './components/ProtectedRoute';
 import PageSpinner from './components/PageSpinner';
+import BootComplete from './components/BootComplete';
 import Login from './pages/Login';
 
 const lazyPage = (loader: () => Promise<{ default: ComponentType }>) =>
@@ -40,7 +41,9 @@ const NON_PARENT: any = ['ADMIN', 'CURATOR', 'TEACHER', 'STUDENT'];
 
 export default function App() {
   return (
-    <Suspense fallback={<PageSpinner />}>
+    <>
+      <BootComplete />
+      <Suspense fallback={<PageSpinner />}>
       <Routes>
         <Route path="/login" element={<Login />} />
 
@@ -118,5 +121,6 @@ export default function App() {
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
     </Suspense>
+    </>
   );
 }
