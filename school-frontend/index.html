@@ -117,6 +117,12 @@
           true,
         );
 
+        window.addEventListener('unhandledrejection', function (ev) {
+          if (document.documentElement.getAttribute('data-app-ready')) return;
+          var reason = ev.reason ? (ev.reason.message || String(ev.reason)) : 'Асинхронная ошибка';
+          showFail('promise', reason);
+        });
+
         setTimeout(function () {
           if (!document.documentElement.getAttribute('data-app-ready')) showFail('timeout');
         }, 20000);

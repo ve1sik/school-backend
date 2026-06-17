@@ -10,13 +10,6 @@ export default defineConfig({
       modernPolyfills: true,
       renderLegacyChunks: true,
     }),
-    {
-      name: 'strip-crossorigin',
-      enforce: 'post',
-      transformIndexHtml(html) {
-        return html.replace(/ crossorigin/g, '')
-      },
-    },
   ],
   resolve: {
     dedupe: ['react', 'react-dom', 'react-router', 'react-router-dom'],
