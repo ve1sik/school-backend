@@ -8,6 +8,9 @@
     <meta name="format-detection" content="telephone=no" />
     <meta name="theme-color" content="#5A4BFF" />
     <meta name="color-scheme" content="light" />
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Expires" content="0" />
     <title>Препод из МГУ</title>
     <style>
       html {
@@ -40,31 +43,77 @@
       @keyframes app-spin {
         to { transform: rotate(360deg); }
       }
+      #boot-msg {
+        position: fixed;
+        inset: 0;
+        z-index: 9999;
+        margin: 0;
+        padding: 24px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        font-family: system-ui, sans-serif;
+        color: #6b7280;
+        background: #f4f7fe;
+      }
     </style>
   </head>
   <body>
-    <div id="root">
-      <p id="boot-msg" style="margin:0;padding:24px;text-align:center;font-family:system-ui,sans-serif;color:#6b7280;background:#f4f7fe;min-height:100vh;display:flex;align-items:center;justify-content:center">
-        Загрузка…
-      </p>
-    </div>
+    <div id="root"></div>
+    <p id="boot-msg">Загрузка…</p>
     <script>
-      window.addEventListener(
-        'error',
-        function (ev) {
-          var t = ev.target;
-          if (!t || t.tagName !== 'SCRIPT' || !t.src) return;
-          var root = document.getElementById('root');
-          if (!root || root.childNodes.length) return;
-          root.innerHTML =
-            '<div style="padding:24px;font-family:system-ui,sans-serif;text-align:center;max-width:360px;margin:0 auto">' +
-            '<p style="font-weight:800;font-size:18px;margin:0 0 12px">Не удалось загрузить сайт</p>' +
-            '<p style="color:#6b7280;font-size:14px;line-height:1.5;margin:0 0 16px">Обновите страницу. Если не помогло — очистите кэш браузера.</p>' +
-            '<button onclick="location.reload()" style="padding:12px 20px;border:0;border-radius:12px;background:#5a4bff;color:#fff;font-weight:700">Обновить</button>' +
+      (function () {
+        function bootDone() {
+          document.documentElement.setAttribute('data-app-ready', '1');
+          var m = document.getElementById('boot-msg');
+          if (m) m.remove();
+        }
+        window.__APP_BOOT_DONE__ = bootDone;
+
+        function showFail(hint) {
+          if (document.documentElement.getAttribute('data-app-ready')) return;
+          document.documentElement.setAttribute('data-app-ready', '1');
+          var extra =
+            hint === 'timeout'
+              ? 'Сайт не ответил. Скорее всего закэширована старая версия — очистите кэш браузера или откройте в режиме инкогнито.'
+              : 'Не удалось загрузить приложение. Обновите страницу или очистите кэш браузера.';
+          var tg = /Telegram/i.test(navigator.userAgent);
+          if (tg) {
+            extra += ' Не открывайте сайт из Telegram — скопируйте ссылку и откройте в Safari или Chrome.';
+          }
+          var html =
+            '<div id="boot-msg" style="position:fixed;inset:0;z-index:9999;padding:24px;font-family:system-ui,sans-serif;text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#f4f7fe">' +
+            '<p style="font-weight:800;font-size:18px;margin:0 0 12px;color:#111827">Не удалось загрузить сайт</p>' +
+            '<p style="color:#6b7280;font-size:14px;line-height:1.5;margin:0 0 16px;max-width:340px">' +
+            extra +
+            '</p>' +
+            '<button onclick="location.reload(true)" style="padding:12px 20px;border:0;border-radius:12px;background:#5a4bff;color:#fff;font-weight:700;cursor:pointer">Обновить</button>' +
             '</div>';
-        },
-        true,
-      );
+          var m = document.getElementById('boot-msg');
+          if (m) m.outerHTML = html;
+          else document.body.insertAdjacentHTML('beforeend', html);
+        }
+
+        window.addEventListener(
+          'error',
+          function (ev) {
+            var t = ev.target;
+            if (t && t.tagName === 'SCRIPT' && t.src) {
+              showFail('script');
+              return;
+            }
+            if (!document.documentElement.getAttribute('data-app-ready')) {
+              showFail('runtime');
+            }
+          },
+          true,
+        );
+
+        setTimeout(function () {
+          if (!document.documentElement.getAttribute('data-app-ready')) showFail('timeout');
+        }, 15000);
+      })();
     </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>

@@ -2,7 +2,6 @@ import { Suspense, lazy, type ComponentType } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import ProtectedRoute from './components/ProtectedRoute';
 import PageSpinner from './components/PageSpinner';
-import Login from './pages/Login';
 
 const lazyPage = (loader: () => Promise<{ default: ComponentType }>) =>
   lazy(() =>
@@ -12,6 +11,7 @@ const lazyPage = (loader: () => Promise<{ default: ComponentType }>) =>
     }),
   );
 
+const Login = lazyPage(() => import('./pages/Login'));
 const Layout = lazyPage(() => import('./pages/Layout'));
 const Dashboard = lazyPage(() => import('./pages/Dashboard'));
 const StudentCourses = lazyPage(() => import('./pages/StudentCourses'));
