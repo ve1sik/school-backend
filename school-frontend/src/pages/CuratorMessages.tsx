@@ -4,6 +4,7 @@ import { Search, Send, User, ShieldCheck, Inbox, X, Loader2, ArrowLeft } from 'l
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 import { decodeToken, getToken, getTokenConfig } from '../lib/auth';
+import { parseSafeDate, parseSafeDateMs } from '../lib/parseDate';
 
 const API_URL = 'https://prepodmgy.ru/api';
 
@@ -187,7 +188,7 @@ export default function CuratorMessages() {
                 ) : (
                   messages.map((msg: any) => {
                     const isMe = msg.sender_id === myId;
-                    const timeString = new Date(msg.created_at).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+                    const timeString = parseSafeDate(msg.created_at).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
                     
                     return (
                       <motion.div key={msg.id} initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className={`flex w-full ${isMe ? 'justify-end' : 'justify-start'}`}>

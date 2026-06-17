@@ -2,7 +2,8 @@ import { Suspense, lazy, type ComponentType } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import ProtectedRoute from './components/ProtectedRoute';
 import PageSpinner from './components/PageSpinner';
-import BootComplete from './components/BootComplete';
+import ErrorBoundary from './components/ErrorBoundary';
+import BootGate from './components/BootGate';
 import Login from './pages/Login';
 
 const lazyPage = (loader: () => Promise<{ default: ComponentType }>) =>
@@ -41,44 +42,51 @@ const NON_PARENT: any = ['ADMIN', 'CURATOR', 'TEACHER', 'STUDENT'];
 
 export default function App() {
   return (
-    <>
-      <BootComplete />
+    <ErrorBoundary>
       <Suspense fallback={<PageSpinner />}>
-      <Routes>
-        <Route path="/login" element={<Login />} />
+        <Routes>
+        <Route path="/login" element={<BootGate><Login /></BootGate>} />
 
         <Route
           path="/parent-dashboard"
           element={
-            <ProtectedRoute roles={['PARENT', 'ADMIN']}>
-              <ParentDashboard />
-            </ProtectedRoute>
+            <BootGate>
+              <ProtectedRoute roles={['PARENT', 'ADMIN']}>
+                <ParentDashboard />
+              </ProtectedRoute>
+            </BootGate>
           }
         />
 
         <Route
           path="/curator"
           element={
-            <ProtectedRoute permissions={['CURATOR_DASHBOARD']}>
-              <CuratorDashboard />
-            </ProtectedRoute>
+            <BootGate>
+              <ProtectedRoute permissions={['CURATOR_DASHBOARD']}>
+                <CuratorDashboard />
+              </ProtectedRoute>
+            </BootGate>
           }
         />
         <Route
           path="/curator/messages"
           element={
-            <ProtectedRoute permissions={['CURATOR_DASHBOARD']}>
-              <CuratorMessages />
-            </ProtectedRoute>
+            <BootGate>
+              <ProtectedRoute permissions={['CURATOR_DASHBOARD']}>
+                <CuratorMessages />
+              </ProtectedRoute>
+            </BootGate>
           }
         />
 
         <Route
           path="/"
           element={
-            <ProtectedRoute roles={NON_PARENT}>
-              <Layout />
-            </ProtectedRoute>
+            <BootGate>
+              <ProtectedRoute roles={NON_PARENT}>
+                <Layout />
+              </ProtectedRoute>
+            </BootGate>
           }
         >
           <Route index element={<Dashboard />} />
@@ -119,8 +127,8 @@ export default function App() {
         />
 
         <Route path="*" element={<Navigate to="/login" replace />} />
-      </Routes>
-    </Suspense>
-    </>
+        </Routes>
+      </Suspense>
+    </ErrorBoundary>
   );
 }

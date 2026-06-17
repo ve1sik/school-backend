@@ -3,6 +3,7 @@ import { FileText, AlertCircle, Clock, CheckCircle2, Loader2, FolderOpen, Chevro
 import { motion, AnimatePresence, type Variants } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { cachedGet } from '../lib/api';
+import { parseSafeDate, parseSafeDateMs } from '../lib/parseDate';
 
 type TabType = 'TODO' | 'OVERDUE' | 'REVISION' | 'REVIEW' | 'GRADED';
 
@@ -68,7 +69,7 @@ export default function Homework() {
                 let maxScore = hwMaxScore || lesson.max_score || 100;
 
                 const deadline = findDeadline(lesson.title);
-                const isOverdue = status === 'TODO' && deadline && new Date(deadline) < new Date();
+                const isOverdue = status === 'TODO' && deadline && parseSafeDateMs(deadline) < Date.now();
 
                 let comment: string | null = null;
                 if (submission) {
@@ -230,7 +231,7 @@ export default function Homework() {
                         buttonStyle = 'bg-gray-50 text-emerald-600 hover:bg-emerald-50 border border-emerald-100'; buttonText = 'ПОСМОТРЕТЬ ОЦЕНКУ';
                       }
 
-                      const deadlineDate = hw.deadline ? new Date(hw.deadline) : null;
+                      const deadlineDate = hw.deadline ? parseSafeDate(hw.deadline) : null;
                       const daysLeft = deadlineDate ? Math.ceil((deadlineDate.getTime() - Date.now()) / 86400000) : null;
 
                       return (

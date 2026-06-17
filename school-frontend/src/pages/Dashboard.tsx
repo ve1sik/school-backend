@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
+import { parseSafeDateMs } from '../lib/parseDate';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Activity, Loader2, PenTool, AlertCircle, CheckSquare, Mic,
@@ -163,8 +164,8 @@ function buildCourseStats(course: any, mySubs: any[]): CourseStats | null {
   const gradedSubs = [...courseSubs]
     .filter((s: any) => s.status === 'GRADED')
     .sort((a: any, b: any) => {
-      const bTime = new Date(b.updated_at || b.created_at || 0).getTime();
-      const aTime = new Date(a.updated_at || a.created_at || 0).getTime();
+      const bTime = parseSafeDateMs(b.updated_at || b.created_at || 0);
+      const aTime = parseSafeDateMs(a.updated_at || a.created_at || 0);
       return bTime - aTime;
     });
 

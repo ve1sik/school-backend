@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { parseSafeDate, parseSafeDateMs } from '../lib/parseDate';
 import axios from 'axios';
 import { 
   ArrowLeft, Loader2, CheckCircle2, Clock, PenTool, CheckSquare, 
@@ -974,8 +975,8 @@ export default function CourseView() {
                     <span className="text-sm font-bold text-gray-800 line-clamp-1 break-words">{theme.title}</span>
                     {(() => {
                       const now = Date.now();
-                      const dlDate = theme.deadline ? new Date(theme.deadline) : null;
-                      const ulDate = theme.unlock_date ? new Date(theme.unlock_date) : null;
+                      const dlDate = theme.deadline ? parseSafeDate(theme.deadline) : null;
+                      const ulDate = theme.unlock_date ? parseSafeDate(theme.unlock_date) : null;
                       const daysLeft = dlDate ? Math.ceil((dlDate.getTime() - now) / 86400000) : null;
                       if (!dlDate && !ulDate) return null;
                       return (
@@ -1020,7 +1021,7 @@ export default function CourseView() {
                             <div className="flex-1 min-w-0">
                               <span className="leading-snug line-clamp-2 break-words w-full overflow-hidden block">{lesson.title}</span>
                               {lesson.deadline && (() => {
-                                const days = Math.ceil((new Date(lesson.deadline).getTime() - Date.now()) / 86400000);
+                                const days = Math.ceil((parseSafeDateMs(lesson.deadline) - Date.now()) / 86400000);
                                 return (
                                   <span className={`text-[10px] font-bold mt-0.5 inline-block px-1.5 py-0.5 rounded ${isActive ? 'bg-white/20 text-white' : days < 0 ? 'bg-red-50 text-red-500' : days <= 3 ? 'bg-orange-50 text-orange-600' : 'bg-rose-50 text-rose-500'}`}>
                                     ⏰ {days < 0 ? 'Просрочено' : days === 0 ? 'Сегодня!' : `${days} дн.`}

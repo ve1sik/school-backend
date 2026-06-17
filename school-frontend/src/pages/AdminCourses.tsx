@@ -3,6 +3,7 @@ import { GraduationCap, X, PlayCircle, Trash2, ArrowLeft, FileText, CheckSquare,
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 import { getTokenConfig } from '../lib/auth';
+import { parseSafeDate, parseSafeDateMs } from '../lib/parseDate';
 import { useNavigate } from 'react-router-dom';
 
 import ReactQuill from 'react-quill-new';
@@ -1571,8 +1572,8 @@ export default function AdminCourses() {
                                 </button>
                                 {(theme.unlock_date || theme.deadline) && (
                                   <div className="w-full flex flex-wrap gap-2 text-xs text-gray-500 font-medium">
-                                    {theme.unlock_date && <span className="bg-amber-100 text-amber-700 px-2 py-1 rounded-lg">Сохранено: откр. {new Date(theme.unlock_date).toLocaleString('ru', {day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}</span>}
-                                    {theme.deadline && <span className="bg-rose-100 text-rose-700 px-2 py-1 rounded-lg">Сохранено: дедл. {new Date(theme.deadline).toLocaleString('ru', {day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}</span>}
+                                    {theme.unlock_date && <span className="bg-amber-100 text-amber-700 px-2 py-1 rounded-lg">Сохранено: откр. {parseSafeDate(theme.unlock_date).toLocaleString('ru', {day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}</span>}
+                                    {theme.deadline && <span className="bg-rose-100 text-rose-700 px-2 py-1 rounded-lg">Сохранено: дедл. {parseSafeDate(theme.deadline).toLocaleString('ru', {day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}</span>}
                                   </div>
                                 )}
                               </div>
@@ -1644,8 +1645,8 @@ export default function AdminCourses() {
                                         <span className="truncate">{lesson.title}</span> <Pencil className="w-3 h-3 text-gray-300 opacity-0 group-hover/title:opacity-100 transition-opacity shrink-0" />
                                       </span>
                                       <div className="flex gap-2 mt-1 flex-wrap">
-                                        {lesson.deadline && (() => { const d = new Date(lesson.deadline); const days = Math.ceil((d.getTime() - Date.now()) / 86400000); return <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${days < 0 ? 'bg-red-50 text-red-500' : days <= 3 ? 'bg-orange-50 text-orange-600' : 'bg-rose-50 text-rose-500'}`}>⏰ {days < 0 ? 'Просрочено' : days === 0 ? 'Сегодня!' : `${days} дн.`} · {d.toLocaleDateString('ru',{day:'numeric',month:'short'})}</span>; })()}
-                                        {lesson.unlock_date && new Date(lesson.unlock_date).getTime() > Date.now() && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-600">📅 {new Date(lesson.unlock_date).toLocaleDateString('ru',{day:'numeric',month:'short'})}</span>}
+                                        {lesson.deadline && (() => { const d = parseSafeDate(lesson.deadline); const days = Math.ceil((d.getTime() - Date.now()) / 86400000); return <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${days < 0 ? 'bg-red-50 text-red-500' : days <= 3 ? 'bg-orange-50 text-orange-600' : 'bg-rose-50 text-rose-500'}`}>⏰ {days < 0 ? 'Просрочено' : days === 0 ? 'Сегодня!' : `${days} дн.`} · {d.toLocaleDateString('ru',{day:'numeric',month:'short'})}</span>; })()}
+                                        {lesson.unlock_date && parseSafeDateMs(lesson.unlock_date) > Date.now() && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-600">📅 {parseSafeDate(lesson.unlock_date).toLocaleDateString('ru',{day:'numeric',month:'short'})}</span>}
                                       </div>
                                     </div>
                                   )}
