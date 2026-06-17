@@ -17,16 +17,7 @@ npm install
 echo "→ Building frontend..."
 npm run build
 
-echo "→ Verify build (legacy plugin intentionally disabled — broke prod before)..."
-if grep -q 'vite-legacy' dist/index.html && ! grep -q 'type="module"' dist/index.html; then
-  echo "❌ ERROR: dist/index.html has legacy entry but no module entry!"
-  exit 1
-fi
-
-if grep -q 'quill' dist/index.html; then
-  echo "⚠️  WARNING: quill referenced in index.html (should be lazy-loaded only)"
-fi
-
+echo "→ Verify build..."
 INDEX_HTML_BYTES=$(wc -c < dist/index.html | tr -d ' ')
 INDEX_JS_KB=$(ls -l dist/assets/index-*.js | awk '{print int($5/1024)}')
 if [ "$INDEX_HTML_BYTES" -lt 2000 ]; then
@@ -37,11 +28,15 @@ if ls dist/assets/lib-*.js >/dev/null 2>&1; then
   echo "❌ ERROR: lib-*.js chunk found — manualChunks split breaks React load order!"
   exit 1
 fi
+if ls dist/assets/*legacy* >/dev/null 2>&1; then
+  echo "❌ ERROR: legacy chunks found — remove @vitejs/plugin-legacy from vite.config.ts"
+  exit 1
+fi
 if [ "$INDEX_JS_KB" -lt 100 ]; then
   echo "❌ ERROR: main index chunk is only ${INDEX_JS_KB} KB — React may be missing from entry!"
   exit 1
 fi
-echo "✓ Build sanity: index.html=${INDEX_HTML_BYTES}B, index.js≈${INDEX_JS_KB}KB, no lib chunk"
+echo "✓ Build sanity: index.html=${INDEX_HTML_BYTES}B, index.js≈${INDEX_JS_KB}KB"
 
 echo "→ Deploying to $WEB_ROOT ..."
 sudo mkdir -p "$WEB_ROOT"
