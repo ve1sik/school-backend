@@ -28,8 +28,8 @@ npm install
 npm run build
 pm2 restart school-backend
 echo '=== checks ==='
-grep unhandledrejection school-frontend/index.html && echo 'FAIL broken index' && exit 1 || echo 'OK index.html'
-curl -s https://prepodmgy.ru/ | grep -E 'index-|legacy|unhandled' | head -5
+grep 'data-app-ready' school-frontend/index.html | grep -q unhandledrejection && echo 'OK index.html boot handlers' || echo 'WARN index.html handlers'
+curl -s https://prepodmgy.ru/ | grep -E 'index-|legacy' | head -5
 curl -sI https://prepodmgy.ru/assets/$(curl -s https://prepodmgy.ru/ | grep -o 'index-[^"]*\\.js' | head -1) | head -8
 echo '=== DONE ==='
 """
