@@ -19,7 +19,7 @@ npm run build
 
 echo "→ Verify build..."
 INDEX_HTML_BYTES=$(wc -c < dist/index.html | tr -d ' ')
-INDEX_JS_KB=$(ls -l dist/assets/index-*.js | awk '{print int($5/1024)}')
+INDEX_JS_KB=$(ls -l dist/assets/index-*.js | awk '{print int($5/1024)}' | sort -n | tail -1)
 if [ "$INDEX_HTML_BYTES" -lt 2000 ]; then
   echo "❌ ERROR: dist/index.html is only ${INDEX_HTML_BYTES} bytes — source code is outdated!"
   exit 1
