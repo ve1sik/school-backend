@@ -1,4 +1,5 @@
 import * as React from 'react'
+import { reportClientError } from '../lib/clientLog'
 
 interface Props {
   children: React.ReactNode
@@ -20,6 +21,7 @@ export default class ErrorBoundary extends React.Component<Props, State> {
 
   componentDidCatch(error: Error, info: React.ErrorInfo) {
     console.error('React error boundary:', error, info.componentStack)
+    reportClientError(error, info.componentStack ?? 'ErrorBoundary')
   }
 
   render() {

@@ -5,6 +5,9 @@ import './index.css'
 import { BrowserRouter } from 'react-router-dom'
 import ErrorBoundary from './components/ErrorBoundary'
 import { showBootError } from './lib/boot'
+import { installClientErrorReporting } from './lib/clientLog'
+
+installClientErrorReporting()
 
 const rootEl = document.getElementById('root')
 

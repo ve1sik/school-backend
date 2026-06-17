@@ -12,6 +12,11 @@ export function clearBootOverlay() {
 export function markBootDone() {
   document.documentElement.setAttribute('data-app-ready', '1')
   document.documentElement.removeAttribute('data-app-failed')
+  try {
+    sessionStorage.removeItem('boot-script-retry')
+  } catch {
+    /* ignore */
+  }
   if (typeof window.__APP_BOOT_DONE__ === 'function') {
     window.__APP_BOOT_DONE__()
   } else {

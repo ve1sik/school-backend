@@ -71,17 +71,39 @@
 
         function bootDone() {
           document.documentElement.setAttribute('data-app-ready', '1');
+          try { sessionStorage.removeItem('boot-script-retry'); } catch (e) {}
           clearBootOverlay();
         }
         window.__APP_BOOT_DONE__ = bootDone;
+
+        function hardReload() {
+          var base = location.pathname.split('?')[0] || '/';
+          location.replace(base + '?v=' + Date.now());
+        }
+
+        function tryRecoverFromStaleCache(detail) {
+          try {
+            if (sessionStorage.getItem('boot-script-retry')) return false;
+            sessionStorage.setItem('boot-script-retry', '1');
+          } catch (e) {
+            return false;
+          }
+          if (window.caches && window.caches.keys) {
+            window.caches.keys().then(function (keys) {
+              keys.forEach(function (k) { window.caches.delete(k); });
+            });
+          }
+          hardReload();
+          return true;
+        }
 
         function showFail(hint, detail) {
           if (document.documentElement.getAttribute('data-app-ready')) return;
           document.documentElement.setAttribute('data-app-failed', '1');
           var extra =
             hint === 'timeout'
-              ? 'Сайт не ответил за 20 секунд. Очистите кэш Safari или откройте в режиме инкогнито.'
-              : 'Не удалось запустить приложение. Обновите страницу или очистите кэш браузера.';
+              ? 'Сайт не ответил за 20 секунд. Нажмите «Обновить» или очистите данные Safari для prepodmgy.ru.'
+              : 'Не удалось загрузить приложение. Старый кэш Safari часто блокирует загрузку после смены сети (VPN/Wi‑Fi).';
           var tg = /Telegram/i.test(navigator.userAgent);
           if (tg) {
             extra += ' Не открывайте сайт из Telegram — скопируйте ссылку и откройте в Safari.';
@@ -95,7 +117,7 @@
             '<p style="color:#6b7280;font-size:14px;line-height:1.5;margin:0 0 16px;max-width:340px">' +
             extra +
             '</p>' +
-            '<button type="button" onclick="location.href=location.pathname+\'?v=\'+Date.now()" style="padding:12px 20px;border:0;border-radius:12px;background:#5a4bff;color:#fff;font-weight:700;cursor:pointer">Обновить</button>' +
+            '<button type="button" onclick="location.href=location.pathname.split(\'?\')[0]+\'?v=\'+Date.now()" style="padding:12px 20px;border:0;border-radius:12px;background:#5a4bff;color:#fff;font-weight:700;cursor:pointer">Обновить</button>' +
             '</div>';
           clearBootOverlay();
           document.body.insertAdjacentHTML('beforeend', html);
@@ -107,6 +129,7 @@
             if (document.documentElement.getAttribute('data-app-ready')) return;
             var t = ev.target;
             if (t && t.tagName === 'SCRIPT') {
+              if (tryRecoverFromStaleCache(ev.message || t.src || 'script')) return;
               showFail('script', ev.message || t.src || 'script');
               return;
             }
