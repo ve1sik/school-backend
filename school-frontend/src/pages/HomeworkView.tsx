@@ -618,7 +618,7 @@ export default function HomeworkView() {
                 foundLesson = lesson;
                 foundLesson.themeTitle = theme.title;
                 setSourceCourseId(course.id);
-                setCourseSpellCheck(!!course.spell_check);
+                setCourseSpellCheck(course.spell_check === true);
               }
             });
           });

@@ -7,9 +7,11 @@ import {
   PanelRightOpen, Star, ChevronDown, Send,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { cachedGet } from '../lib/api';
+import { api, cachedGet, invalidateCache } from '../lib/api';
 import { getToken } from '../lib/auth';
 import { checkSpelling, type SpellError } from '../utils/spellCheck';
+
+const isSpellCheckEnabled = (course: any) => course?.spell_check === true;
 
 const COURSE_INLINE_LIMIT = 3;
 const PASS_SCORE = 70;
@@ -141,6 +143,7 @@ type CourseStats = {
   totalSubmissions: number;
   counts: { tests: number; written: number; oral: number };
   aiReport: string;
+  spellCheckEnabled: boolean;
 };
 
 function buildCourseStats(course: any, mySubs: any[]): CourseStats | null {
@@ -152,7 +155,7 @@ function buildCourseStats(course: any, mySubs: any[]): CourseStats | null {
   const globalProgressData: ScoreChartRow[] = [];
   const courseWeakSpots: WeakSpot[] = [];
   const courseSpellWeakSpots: WeakSpot[] = [];
-  const spellCheckEnabled = !!course.spell_check;
+  const spellCheckEnabled = isSpellCheckEnabled(course);
   let courseEarned = 0;
   let courseMax = 0;
 
@@ -543,6 +546,7 @@ function buildCourseStats(course: any, mySubs: any[]): CourseStats | null {
     progressData: globalProgressData,
     weakSpots: courseWeakSpots.slice(0, 12),
     spellWeakSpots: spellCheckEnabled ? courseSpellWeakSpots.slice(0, 12) : [],
+    spellCheckEnabled,
     aiReport,
   };
 }
@@ -556,7 +560,10 @@ function WeakSpotsList({
   onOpen: (s: WeakSpot) => void;
   limit?: number;
 }) {
-  const list = spots.slice(0, limit);
+  const list = spots
+    .filter((s) => s.type === 'spell' && (s.spellErrors?.length ?? 0) > 0)
+    .slice(0, limit);
+
   if (list.length === 0) {
     return (
       <div className="p-8 rounded-2xl bg-emerald-50 border border-emerald-100 text-center">
@@ -574,59 +581,27 @@ function WeakSpotsList({
           onClick={() => onOpen(spot)}
           className="w-full text-left p-4 md:p-5 rounded-2xl border-2 border-rose-100 bg-white hover:border-rose-300 hover:shadow-md transition-all group flex items-center gap-4"
         >
-          {spot.type === 'spell' && spot.spellErrors?.length ? (
-            <>
-              <div className="w-14 h-14 rounded-2xl flex flex-col items-center justify-center shrink-0 font-black bg-rose-100 text-rose-600">
-                <span className="text-lg leading-none">{spot.spellErrors.length}</span>
-                <span className="text-[9px] uppercase tracking-wider opacity-70 mt-0.5">ошиб.</span>
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">
-                  {spot.themeTitle} · {blockTypeLabel(spot.type, spot.isHomework)}
-                </p>
-                <p className="font-black text-gray-900 truncate">{spot.blockTitle}</p>
-                <p className="text-sm font-medium text-gray-500 truncate mt-0.5">{spot.lessonTitle}</p>
-                <div className="flex flex-wrap gap-1.5 mt-2">
-                  {spot.spellErrors.slice(0, 3).map((err, i) => (
-                    <span key={i} className="text-[11px] bg-rose-50 text-rose-700 px-2 py-0.5 rounded-lg font-bold">
-                      {err.word} → {err.suggestion}
-                    </span>
-                  ))}
-                  {spot.spellErrors.length > 3 && (
-                    <span className="text-[11px] text-gray-400 font-bold">+{spot.spellErrors.length - 3}</span>
-                  )}
-                </div>
-              </div>
-            </>
-          ) : (
-            <>
-              <div className={`w-14 h-14 rounded-2xl flex flex-col items-center justify-center shrink-0 font-black ${
-                spot.percent === 0 ? 'bg-rose-100 text-rose-600' : 'bg-amber-50 text-amber-600'
-              }`}>
-                <span className="text-lg leading-none">{spot.percent}%</span>
-                <span className="text-[9px] uppercase tracking-wider opacity-70 mt-0.5">балл</span>
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">
-                  {spot.themeTitle} · {blockTypeLabel(spot.type, spot.isHomework)}
-                </p>
-                <p className="font-black text-gray-900 truncate">{spot.blockTitle}</p>
-                <p className="text-sm font-medium text-gray-500 truncate mt-0.5">{spot.lessonTitle}</p>
-                <p className="text-xs text-gray-400 mt-1">
-                  {spot.score} из {spot.maxScore} баллов
-                </p>
-                {spot.spellErrors?.length ? (
-                  <div className="flex flex-wrap gap-1.5 mt-2">
-                    {spot.spellErrors.slice(0, 2).map((err, i) => (
-                      <span key={i} className="text-[11px] bg-rose-50 text-rose-700 px-2 py-0.5 rounded-lg font-bold">
-                        {err.word} → {err.suggestion}
-                      </span>
-                    ))}
-                  </div>
-                ) : null}
-              </div>
-            </>
-          )}
+          <div className="w-14 h-14 rounded-2xl flex flex-col items-center justify-center shrink-0 font-black bg-rose-100 text-rose-600">
+            <span className="text-lg leading-none">{spot.spellErrors!.length}</span>
+            <span className="text-[9px] uppercase tracking-wider opacity-70 mt-0.5">ошиб.</span>
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">
+              {spot.themeTitle} · {blockTypeLabel(spot.type, spot.isHomework)}
+            </p>
+            <p className="font-black text-gray-900 truncate">{spot.blockTitle}</p>
+            <p className="text-sm font-medium text-gray-500 truncate mt-0.5">{spot.lessonTitle}</p>
+            <div className="flex flex-wrap gap-1.5 mt-2">
+              {spot.spellErrors!.slice(0, 3).map((err, i) => (
+                <span key={i} className="text-[11px] bg-rose-50 text-rose-700 px-2 py-0.5 rounded-lg font-bold">
+                  {err.word} → {err.suggestion}
+                </span>
+              ))}
+              {spot.spellErrors!.length > 3 && (
+                <span className="text-[11px] text-gray-400 font-bold">+{spot.spellErrors!.length - 3}</span>
+              )}
+            </div>
+          </div>
           <ChevronRight className="w-5 h-5 text-gray-300 group-hover:text-[#5A4BFF] shrink-0 transition-colors" />
         </button>
       ))}
@@ -656,10 +631,12 @@ export default function Dashboard() {
           return;
         }
 
-        const [coursesData, subsData] = await Promise.all([
-          cachedGet('/courses').catch(() => []),
+        invalidateCache('/courses');
+        const [coursesResFresh, subsData] = await Promise.all([
+          api.get('/courses').then((r) => r.data).catch(() => []),
           cachedGet('/submissions/my', 30000).catch(() => []),
         ]);
+        const coursesData = coursesResFresh;
         const coursesRes = { data: coursesData };
         const subsRes = { data: subsData };
 
@@ -716,12 +693,15 @@ export default function Dashboard() {
     return activeModule ?? selectedStats;
   })();
 
-  const currentSpellWeakSpots =
-    selectedCourse?.spell_check
-      ? activeTab === 'all'
+  const spellAnalyticsEnabled =
+    isSpellCheckEnabled(selectedCourse) && selectedStats?.spellCheckEnabled === true;
+
+  const currentSpellWeakSpots = spellAnalyticsEnabled
+    ? (activeTab === 'all'
         ? selectedStats?.spellWeakSpots ?? []
         : activeModule?.spellWeakSpots ?? []
-      : [];
+      ).filter((s) => s.type === 'spell' && (s.spellErrors?.length ?? 0) > 0)
+    : [];
 
   const handleOpenWeakSpot = (spot: WeakSpot) => {
     if (spot.isHomework) {
@@ -1163,7 +1143,7 @@ export default function Dashboard() {
           )}
 
           {/* ГДЕ ОШИБСЯ — показываем только если на курсе включена проверка орфографии */}
-          {selectedCourse?.spell_check && currentSpellWeakSpots.length > 0 && (
+          {spellAnalyticsEnabled && currentSpellWeakSpots.length > 0 && (
             <motion.div
               variants={itemVariants}
               initial="hidden"
