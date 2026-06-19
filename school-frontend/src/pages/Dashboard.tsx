@@ -17,79 +17,99 @@ const isSpellCheckEnabled = (course: any) => {
   return value === true;
 };
 
+const SPELL_CHECK_BLOCK_TYPES = new Set(['written', 'homework', 'test_short']);
+
+function parseLessonBlocks(lesson: any): any[] {
+  try {
+    const parsed = JSON.parse(lesson.content || '[]');
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function isSpellCheckableSubmissionAnswer(answer: string, blockId: string): boolean {
+  const plain = (answer || '').trim();
+  if (plain.length < 3) return false;
+  const bid = String(blockId || '');
+  if (bid.startsWith('oral-')) return false;
+  if (plain.includes('|||')) return false;
+  return true;
+}
+
 function collectSpellWeakSpotsForCourse(course: any, mySubs: any[], themeId?: string): WeakSpot[] {
   if (!isSpellCheckEnabled(course)) return [];
 
-  const spots: WeakSpot[] = [];
-  const courseLessonIds = new Set<string>();
+  const lessonMeta = new Map<string, { lesson: any; theme: any; blocksById: Map<string, any> }>();
   course.themes?.forEach((theme: any) => {
+    if (themeId && theme.id !== themeId) return;
     theme.lessons?.forEach((lesson: any) => {
-      if (lesson.include_in_analytics !== false) courseLessonIds.add(lesson.id);
+      if (lesson.include_in_analytics === false) return;
+      const blocks = parseLessonBlocks(lesson);
+      lessonMeta.set(lesson.id, {
+        lesson,
+        theme,
+        blocksById: new Map(blocks.map((b: any) => [String(b.id), b])),
+      });
     });
   });
 
-  const courseSubs = mySubs.filter((s: any) => courseLessonIds.has(s.lesson_id || s.lessonId));
+  const courseSubs = mySubs.filter((s: any) => lessonMeta.has(s.lesson_id || s.lessonId));
+  const latestByBlock = new Map<string, any>();
 
-  const latestSubAnyStatus = (lessonId: string, blockId: string) =>
-    [...courseSubs]
-      .filter((s: any) => {
-        const subLessonId = s.lesson_id || s.lessonId;
-        const subBlockId = String(s.block_id || s.blockId || '');
-        return subLessonId === lessonId && subBlockId === String(blockId);
-      })
-      .sort((a: any, b: any) => {
-        const bTime = parseSafeDateMs(b.updated_at || b.created_at || 0);
-        const aTime = parseSafeDateMs(a.updated_at || a.created_at || 0);
-        return bTime - aTime;
-      })[0];
+  courseSubs.forEach((sub: any) => {
+    const lessonId = sub.lesson_id || sub.lessonId;
+    const blockId = String(sub.block_id || sub.blockId || '');
+    const key = `${lessonId}:${blockId}`;
+    const existing = latestByBlock.get(key);
+    if (!existing) {
+      latestByBlock.set(key, sub);
+      return;
+    }
+    const subTime = parseSafeDateMs(sub.updated_at || sub.created_at || 0);
+    const exTime = parseSafeDateMs(existing.updated_at || existing.created_at || 0);
+    if (subTime > exTime) latestByBlock.set(key, sub);
+  });
 
-  course.themes?.forEach((theme: any) => {
-    if (themeId && theme.id !== themeId) return;
+  const spots: WeakSpot[] = [];
 
-    theme.lessons?.forEach((lesson: any) => {
-      if (lesson.include_in_analytics === false) return;
+  latestByBlock.forEach((sub) => {
+    const lessonId = sub.lesson_id || sub.lessonId;
+    const blockId = String(sub.block_id || sub.blockId || '');
+    const meta = lessonMeta.get(lessonId);
+    if (!meta) return;
 
-      let blocks: any[] = [];
-      try {
-        const parsed = JSON.parse(lesson.content || '[]');
-        if (Array.isArray(parsed)) blocks = parsed;
-      } catch {
-        /* ignore */
-      }
+    const block = meta.blocksById.get(blockId);
+    if (block && !SPELL_CHECK_BLOCK_TYPES.has(block.type)) return;
+    if (!isSpellCheckableSubmissionAnswer(sub.answer, blockId)) return;
 
-      blocks.forEach((block: any) => {
-        if (!['written', 'homework', 'test_short'].includes(block.type)) return;
-        const sub = latestSubAnyStatus(lesson.id, block.id);
-        if (!sub?.answer?.trim()) return;
-        const errs = checkSpelling(sub.answer);
-        if (!errs.length) return;
+    const errs = checkSpelling(sub.answer);
+    if (!errs.length) return;
 
-        const title =
-          stripHtml(block.title || block.question || '') ||
-          blockTypeLabel(block.type, block.isHomework);
+    const title =
+      stripHtml(block?.title || block?.question || sub.question || '') ||
+      blockTypeLabel(block?.type || 'written', meta.lesson.is_homework);
 
-        const existing = spots.find((s) => s.lessonId === lesson.id && s.blockTitle === title);
-        if (existing) {
-          existing.spellErrors = errs;
-          return;
-        }
+    const existing = spots.find((s) => s.lessonId === lessonId && s.blockTitle === title);
+    if (existing) {
+      existing.spellErrors = errs;
+      return;
+    }
 
-        spots.push({
-          id: `spell-${lesson.id}-${block.id}-${sub.id}`,
-          blockTitle: title,
-          lessonTitle: lesson.title,
-          themeTitle: theme.title,
-          themeId: theme.id,
-          courseId: course.id,
-          lessonId: lesson.id,
-          isHomework: !!lesson.is_homework,
-          percent: 0,
-          score: 0,
-          maxScore: 0,
-          type: 'spell',
-          spellErrors: errs,
-        });
-      });
+    spots.push({
+      id: `spell-${lessonId}-${blockId}-${sub.id}`,
+      blockTitle: title,
+      lessonTitle: meta.lesson.title,
+      themeTitle: meta.theme.title,
+      themeId: meta.theme.id,
+      courseId: course.id,
+      lessonId,
+      isHomework: !!meta.lesson.is_homework,
+      percent: 0,
+      score: 0,
+      maxScore: 0,
+      type: 'spell',
+      spellErrors: errs,
     });
   });
 
