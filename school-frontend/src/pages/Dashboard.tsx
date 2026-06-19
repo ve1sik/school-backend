@@ -693,6 +693,7 @@ export default function Dashboard() {
   }, [navigate]);
 
   const selectedStats = courseStatsMap[selectedCourseId];
+  const selectedCourse = courses.find((c) => c.id === selectedCourseId);
   const availableModules = selectedStats?.modules ?? [];
   const activeModule = activeTab !== 'all' ? availableModules.find((m) => m.id === activeTab) ?? null : null;
 
@@ -757,7 +758,6 @@ export default function Dashboard() {
   }, [courseStatsMap]);
 
   const isCourseView = activeTab === 'all';
-  const selectedCourse = courses.find((c) => c.id === selectedCourseId);
   const useCourseDrawer = courses.length > COURSE_INLINE_LIMIT;
 
   const itemVariants = {

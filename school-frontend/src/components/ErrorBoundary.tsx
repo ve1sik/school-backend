@@ -63,7 +63,7 @@ export default class ErrorBoundary extends React.Component<Props, State> {
             {msg}
           </p>
           <p style={{ marginBottom: '16px', lineHeight: 1.5, maxWidth: '340px', color: '#6b7280', fontSize: '14px' }}>
-            На iPhone открывайте сайт в Safari, не во встроенном браузере Telegram.
+            Попробуйте обновить страницу. Если ошибка повторяется — напишите куратору или в поддержку.
           </p>
           <button
             type="button"
