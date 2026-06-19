@@ -3,6 +3,7 @@ import { GraduationCap, X, PlayCircle, Trash2, ArrowLeft, FileText, CheckSquare,
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 import { getTokenConfig } from '../lib/auth';
+import { invalidateCache } from '../lib/api';
 import { parseSafeDate, parseSafeDateMs } from '../lib/parseDate';
 import { useNavigate } from 'react-router-dom';
 
@@ -431,6 +432,31 @@ export default function AdminCourses() {
       showToast('Раздел курса обновлен');
     } catch (err) {
       showToast('Раздел привязан (локально)', 'success');
+    }
+  };
+
+  const handleToggleSpellCheck = async (courseId: string, newVal: boolean) => {
+    const prevVal = !newVal;
+
+    setSelectedCourseForThemes((prev: any) =>
+      prev?.id === courseId ? { ...prev, spell_check: newVal } : prev,
+    );
+    setItems((prev) =>
+      prev.map((c) => (c.id === courseId ? { ...c, spell_check: newVal } : c)),
+    );
+
+    try {
+      await axios.patch(`${API_URL}/courses/${courseId}`, { spell_check: newVal }, getTokenConfig());
+      invalidateCache('/courses');
+      showToast(newVal ? 'Орфографическая аналитика включена' : 'Орфографическая аналитика выключена');
+    } catch {
+      setSelectedCourseForThemes((prev: any) =>
+        prev?.id === courseId ? { ...prev, spell_check: prevVal } : prev,
+      );
+      setItems((prev) =>
+        prev.map((c) => (c.id === courseId ? { ...c, spell_check: prevVal } : c)),
+      );
+      showToast('Не удалось сохранить настройку орфографии', 'error');
     }
   };
 
@@ -1495,12 +1521,7 @@ export default function AdminCourses() {
                    {/* Чекбокс проверки правописания */}
                    <label className="flex items-center gap-2 cursor-pointer ml-1 select-none group shrink-0" title="Система будет проверять ответы учеников на правописание">
                      <div className={`w-9 h-5 rounded-full transition-colors relative ${selectedCourseForThemes.spell_check ? 'bg-[#5A4BFF]' : 'bg-gray-200'}`}
-                       onClick={async () => {
-                         const newVal = !selectedCourseForThemes.spell_check;
-                         setSelectedCourseForThemes((prev: any) => ({ ...prev, spell_check: newVal }));
-                         setItems(prev => prev.map(c => c.id === selectedCourseForThemes.id ? { ...c, spell_check: newVal } : c));
-                         try { await axios.patch(`${API_URL}/courses/${selectedCourseForThemes.id}`, { spell_check: newVal }, getTokenConfig()); } catch {}
-                       }}>
+                       onClick={() => handleToggleSpellCheck(selectedCourseForThemes.id, !selectedCourseForThemes.spell_check)}>
                        <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-all ${selectedCourseForThemes.spell_check ? 'left-4' : 'left-0.5'}`} />
                      </div>
                      <span className="text-[11px] font-black text-gray-500 group-hover:text-gray-700 transition-colors uppercase tracking-widest">Орфография</span>

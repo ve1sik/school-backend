@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { parseSafeDateMs } from '../lib/parseDate';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -6,12 +6,95 @@ import {
   Target, X, BookOpen, ChevronRight, TrendingDown, Layers, List, BarChart2,
   PanelRightOpen, Star, ChevronDown, Send,
 } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
-import { api, cachedGet, invalidateCache } from '../lib/api';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { api, invalidateCache } from '../lib/api';
 import { getToken } from '../lib/auth';
 import { checkSpelling, type SpellError } from '../utils/spellCheck';
 
-const isSpellCheckEnabled = (course: any) => course?.spell_check === true;
+const isSpellCheckEnabled = (course: any) => {
+  if (!course) return false;
+  const value = course.spell_check ?? course.spellCheck;
+  return value === true;
+};
+
+function collectSpellWeakSpotsForCourse(course: any, mySubs: any[], themeId?: string): WeakSpot[] {
+  if (!isSpellCheckEnabled(course)) return [];
+
+  const spots: WeakSpot[] = [];
+  const courseLessonIds = new Set<string>();
+  course.themes?.forEach((theme: any) => {
+    theme.lessons?.forEach((lesson: any) => {
+      if (lesson.include_in_analytics !== false) courseLessonIds.add(lesson.id);
+    });
+  });
+
+  const courseSubs = mySubs.filter((s: any) => courseLessonIds.has(s.lesson_id || s.lessonId));
+
+  const latestSubAnyStatus = (lessonId: string, blockId: string) =>
+    [...courseSubs]
+      .filter((s: any) => {
+        const subLessonId = s.lesson_id || s.lessonId;
+        const subBlockId = String(s.block_id || s.blockId || '');
+        return subLessonId === lessonId && subBlockId === String(blockId);
+      })
+      .sort((a: any, b: any) => {
+        const bTime = parseSafeDateMs(b.updated_at || b.created_at || 0);
+        const aTime = parseSafeDateMs(a.updated_at || a.created_at || 0);
+        return bTime - aTime;
+      })[0];
+
+  course.themes?.forEach((theme: any) => {
+    if (themeId && theme.id !== themeId) return;
+
+    theme.lessons?.forEach((lesson: any) => {
+      if (lesson.include_in_analytics === false) return;
+
+      let blocks: any[] = [];
+      try {
+        const parsed = JSON.parse(lesson.content || '[]');
+        if (Array.isArray(parsed)) blocks = parsed;
+      } catch {
+        /* ignore */
+      }
+
+      blocks.forEach((block: any) => {
+        if (!['written', 'homework', 'test_short'].includes(block.type)) return;
+        const sub = latestSubAnyStatus(lesson.id, block.id);
+        if (!sub?.answer?.trim()) return;
+        const errs = checkSpelling(sub.answer);
+        if (!errs.length) return;
+
+        const title =
+          stripHtml(block.title || block.question || '') ||
+          blockTypeLabel(block.type, block.isHomework);
+
+        const existing = spots.find((s) => s.lessonId === lesson.id && s.blockTitle === title);
+        if (existing) {
+          existing.spellErrors = errs;
+          return;
+        }
+
+        spots.push({
+          id: `spell-${lesson.id}-${block.id}-${sub.id}`,
+          blockTitle: title,
+          lessonTitle: lesson.title,
+          themeTitle: theme.title,
+          themeId: theme.id,
+          courseId: course.id,
+          lessonId: lesson.id,
+          isHomework: !!lesson.is_homework,
+          percent: 0,
+          score: 0,
+          maxScore: 0,
+          type: 'spell',
+          spellErrors: errs,
+        });
+      });
+    });
+  });
+
+  return spots.sort((a, b) => (b.spellErrors?.length ?? 0) - (a.spellErrors?.length ?? 0));
+};
 
 const COURSE_INLINE_LIMIT = 3;
 const PASS_SCORE = 70;
@@ -611,8 +694,10 @@ function WeakSpotsList({
 
 export default function Dashboard() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [isLoading, setIsLoading] = useState(true);
   const [courses, setCourses] = useState<any[]>([]);
+  const [mySubs, setMySubs] = useState<any[]>([]);
   const [courseStatsMap, setCourseStatsMap] = useState<Record<string, CourseStats>>({});
   const [selectedCourseId, setSelectedCourseId] = useState<string>('');
   const [activeTab, setActiveTab] = useState<string>('all');
@@ -622,52 +707,67 @@ export default function Dashboard() {
   // drill-down: выбранный урок внутри модуля
   const [selectedLessonRow, setSelectedLessonRow] = useState<ScoreChartRow | null>(null);
 
-  useEffect(() => {
-    const fetchRealStats = async () => {
-      try {
-        const token = getToken();
-        if (!token) {
-          navigate('/login');
-          return;
-        }
-
-        invalidateCache('/courses');
-        const [coursesResFresh, subsData] = await Promise.all([
-          api.get('/courses').then((r) => r.data).catch(() => []),
-          cachedGet('/submissions/my', 30000).catch(() => []),
-        ]);
-        const coursesData = coursesResFresh;
-        const coursesRes = { data: coursesData };
-        const subsRes = { data: subsData };
-
-        const rawCourses = Array.isArray(coursesRes.data) ? coursesRes.data : [];
-        const mySubs = Array.isArray(subsRes.data) ? subsRes.data : [];
-
-        setCourses(rawCourses);
-
-        const map: Record<string, CourseStats> = {};
-        rawCourses.forEach((course: any) => {
-          const stats = buildCourseStats(course, mySubs);
-          if (stats) map[course.id] = stats;
-        });
-
-        setCourseStatsMap(map);
-
-        const withStats = rawCourses.filter((c: any) => map[c.id]);
-        if (withStats.length > 0) {
-          setSelectedCourseId(withStats[0].id);
-        } else if (rawCourses.length > 0) {
-          setSelectedCourseId(rawCourses[0].id);
-        }
-      } catch (error) { 
-        console.error('Ошибка загрузки дашборда', error); 
-      } finally { 
-        setIsLoading(false); 
+  const reloadDashboard = useCallback(async (keepCourseId?: string) => {
+    try {
+      const token = getToken();
+      if (!token) {
+        navigate('/login');
+        return;
       }
-    };
-    
-    fetchRealStats();
+
+      invalidateCache('/courses');
+      invalidateCache('/submissions/my');
+
+      const [coursesData, subsData] = await Promise.all([
+        api.get('/courses').then((r) => r.data).catch(() => []),
+        api.get('/submissions/my').then((r) => r.data).catch(() => []),
+      ]);
+
+      const rawCourses = Array.isArray(coursesData) ? coursesData : [];
+      const subs = Array.isArray(subsData) ? subsData : [];
+
+      setCourses(rawCourses);
+      setMySubs(subs);
+
+      const map: Record<string, CourseStats> = {};
+      rawCourses.forEach((course: any) => {
+        const stats = buildCourseStats(course, subs);
+        if (stats) map[course.id] = stats;
+      });
+      setCourseStatsMap(map);
+
+      setSelectedCourseId((prev) => {
+        const preferred = keepCourseId || prev;
+        if (preferred && rawCourses.some((c: any) => c.id === preferred)) return preferred;
+        const withStats = rawCourses.filter((c: any) => map[c.id]);
+        if (withStats.length > 0) return withStats[0].id;
+        if (rawCourses.length > 0) return rawCourses[0].id;
+        return '';
+      });
+    } catch (error) {
+      console.error('Ошибка загрузки дашборда', error);
+    } finally {
+      setIsLoading(false);
+    }
   }, [navigate]);
+
+  useEffect(() => {
+    setIsLoading(true);
+    reloadDashboard();
+  }, [reloadDashboard, location.key]);
+
+  useEffect(() => {
+    const refreshIfVisible = () => {
+      if (document.visibilityState !== 'visible') return;
+      reloadDashboard(selectedCourseId);
+    };
+    window.addEventListener('focus', refreshIfVisible);
+    document.addEventListener('visibilitychange', refreshIfVisible);
+    return () => {
+      window.removeEventListener('focus', refreshIfVisible);
+      document.removeEventListener('visibilitychange', refreshIfVisible);
+    };
+  }, [reloadDashboard, selectedCourseId]);
 
   const selectedStats = courseStatsMap[selectedCourseId];
   const selectedCourse = courses.find((c) => c.id === selectedCourseId);
@@ -693,15 +793,13 @@ export default function Dashboard() {
     return activeModule ?? selectedStats;
   })();
 
-  const spellAnalyticsEnabled =
-    isSpellCheckEnabled(selectedCourse) && selectedStats?.spellCheckEnabled === true;
+  const spellAnalyticsEnabled = isSpellCheckEnabled(selectedCourse);
 
-  const currentSpellWeakSpots = spellAnalyticsEnabled
-    ? (activeTab === 'all'
-        ? selectedStats?.spellWeakSpots ?? []
-        : activeModule?.spellWeakSpots ?? []
-      ).filter((s) => s.type === 'spell' && (s.spellErrors?.length ?? 0) > 0)
-    : [];
+  const currentSpellWeakSpots = useMemo(() => {
+    if (!spellAnalyticsEnabled || !selectedCourse) return [];
+    const themeId = activeTab === 'all' ? undefined : activeTab;
+    return collectSpellWeakSpotsForCourse(selectedCourse, mySubs, themeId);
+  }, [spellAnalyticsEnabled, selectedCourse, mySubs, activeTab]);
 
   const handleOpenWeakSpot = (spot: WeakSpot) => {
     if (spot.isHomework) {
@@ -1143,7 +1241,7 @@ export default function Dashboard() {
           )}
 
           {/* ГДЕ ОШИБСЯ — показываем только если на курсе включена проверка орфографии */}
-          {spellAnalyticsEnabled && currentSpellWeakSpots.length > 0 && (
+          {spellAnalyticsEnabled && (
             <motion.div
               variants={itemVariants}
               initial="hidden"
