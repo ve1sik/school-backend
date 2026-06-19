@@ -724,18 +724,18 @@ export default function Dashboard() {
     [courses, courseStatsMap],
   );
 
-  // Модули для повторения (<50% по всем курсам)
+  // Модули для повторения (<50%) — только выбранный курс
   const weakModules = useMemo(() => {
-    const result: { courseTitle: string; courseId: string; module: ModuleStats }[] = [];
-    Object.values(courseStatsMap).forEach(cs => {
-      cs.modules.forEach(m => {
-        if (m.averageScore < 50) {
-          result.push({ courseTitle: cs.title, courseId: cs.id, module: m });
-        }
-      });
-    });
-    return result.sort((a, b) => a.module.averageScore - b.module.averageScore);
-  }, [courseStatsMap]);
+    if (!selectedCourseId || !selectedStats) return [];
+    return selectedStats.modules
+      .filter((m) => m.averageScore < 50)
+      .sort((a, b) => a.averageScore - b.averageScore)
+      .map((module) => ({
+        courseTitle: selectedStats.title,
+        courseId: selectedStats.id,
+        module,
+      }));
+  }, [selectedCourseId, selectedStats]);
 
   const isCourseView = activeTab === 'all';
   const useCourseDrawer = courses.length > COURSE_INLINE_LIMIT;
@@ -1165,7 +1165,7 @@ export default function Dashboard() {
             </motion.div>
           )}
 
-          {/* НУЖНО ПОВТОРИТЬ — модули <50% по всем курсам */}
+          {/* НУЖНО ПОВТОРИТЬ — модули <50% по выбранному курсу */}
           {weakModules.length > 0 && (
             <motion.div
               variants={itemVariants}
@@ -1180,23 +1180,22 @@ export default function Dashboard() {
                 <div>
                   <h3 className="text-2xl font-black text-amber-900">Нужно повторить</h3>
                   <p className="text-sm font-medium text-amber-700 mt-1">
-                    Модули, где набрано менее 50% — вернись и подтяни результат.
+                    Модули этого курса, где набрано менее 50% — вернись и подтяни результат.
                   </p>
                 </div>
               </div>
               <div className="space-y-3">
-                {weakModules.map(({ courseTitle, courseId, module }) => (
+                {weakModules.map(({ module }) => (
                   <button
-                    key={`${courseId}-${module.id}`}
+                    key={`${selectedCourseId}-${module.id}`}
                     type="button"
-                    onClick={() => { handleCourseChange(courseId); setActiveTab(module.id); }}
+                    onClick={() => { setActiveTab(module.id); setSelectedLessonRow(null); }}
                     className="w-full text-left p-4 bg-white rounded-2xl border-2 border-amber-100 hover:border-amber-300 hover:shadow-md transition-all flex items-center gap-4"
                   >
                     <div className="text-2xl font-black text-rose-500 w-14 text-center shrink-0">
                       {module.averageScore}%
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 truncate">{courseTitle}</p>
                       <p className="font-black text-gray-900 truncate">{module.title}</p>
                       <p className="text-xs text-gray-500 mt-0.5">{module.earned} / {module.max} баллов</p>
                     </div>
