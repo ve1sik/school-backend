@@ -137,10 +137,19 @@ function tokenize(text: string): string[] {
   return text.toLowerCase().match(/[а-яёa-z]+/gi) || [];
 }
 
-export function checkSpelling(text: string): SpellError[] {
-  if (!text || text.trim().length < 3) return [];
+export function stripHtmlForSpellCheck(html: string): string {
+  return (html || '')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
 
-  const words = tokenize(text);
+export function checkSpelling(text: string): SpellError[] {
+  const plain = text.includes('<') ? stripHtmlForSpellCheck(text) : text;
+  if (!plain || plain.trim().length < 3) return [];
+
+  const words = tokenize(plain);
   const errors: SpellError[] = [];
   const seen = new Set<string>();
 

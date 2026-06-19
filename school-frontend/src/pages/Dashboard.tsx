@@ -9,6 +9,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { cachedGet } from '../lib/api';
 import { getToken } from '../lib/auth';
+import { checkSpelling, type SpellError } from '../utils/spellCheck';
 
 const COURSE_INLINE_LIMIT = 3;
 const PASS_SCORE = 70;
@@ -23,6 +24,7 @@ const stripHtml = (html: string) =>
   (html || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
 
 const blockTypeLabel = (type: string, isHomework?: boolean) => {
+  if (type === 'spell') return 'Орфография';
   if (isHomework) return 'Домашнее задание';
   if (type === 'test' || type === 'test_short') return 'Тест';
   if (type === 'written') return 'Развёрнутый ответ';
@@ -105,6 +107,7 @@ type WeakSpot = {
   score: number;
   maxScore: number;
   type: string;
+  spellErrors?: SpellError[];
 };
 
 type ModuleStats = {
@@ -119,6 +122,7 @@ type ModuleStats = {
   maxByType: { tests: number; written: number; oral: number };
   progressData: ScoreChartRow[];
   weakSpots: WeakSpot[];
+  spellWeakSpots: WeakSpot[];
 };
 
 type CourseStats = {
@@ -133,6 +137,7 @@ type CourseStats = {
   modules: ModuleStats[];
   progressData: ScoreChartRow[];
   weakSpots: WeakSpot[];
+  spellWeakSpots: WeakSpot[];
   totalSubmissions: number;
   counts: { tests: number; written: number; oral: number };
   aiReport: string;
@@ -146,6 +151,8 @@ function buildCourseStats(course: any, mySubs: any[]): CourseStats | null {
   const modulesList: ModuleStats[] = [];
   const globalProgressData: ScoreChartRow[] = [];
   const courseWeakSpots: WeakSpot[] = [];
+  const courseSpellWeakSpots: WeakSpot[] = [];
+  const spellCheckEnabled = !!course.spell_check;
   let courseEarned = 0;
   let courseMax = 0;
 
@@ -175,6 +182,65 @@ function buildCourseStats(course: any, mySubs: any[]): CourseStats | null {
       const subBlockId = s.block_id || s.blockId;
       return subLessonId === lessonId && subBlockId === blockId;
     });
+
+  const latestSubAnyStatus = (lessonId: string, blockId: string) =>
+    [...courseSubs]
+      .filter((s: any) => {
+        const subLessonId = s.lesson_id || s.lessonId;
+        const subBlockId = String(s.block_id || s.blockId || '');
+        return subLessonId === lessonId && subBlockId === String(blockId);
+      })
+      .sort((a: any, b: any) => {
+        const bTime = parseSafeDateMs(b.updated_at || b.created_at || 0);
+        const aTime = parseSafeDateMs(a.updated_at || a.created_at || 0);
+        return bTime - aTime;
+      })[0];
+
+  const addSpellWeakSpot = ({
+    lesson,
+    theme,
+    block,
+    sub,
+    spellErrors,
+    target,
+  }: {
+    lesson: any;
+    theme: any;
+    block: any;
+    sub: any;
+    spellErrors: SpellError[];
+    target: { spellWeakSpots: WeakSpot[] };
+  }) => {
+    const title =
+      stripHtml(block.title || block.question || '') ||
+      blockTypeLabel(block.type, block.isHomework);
+
+    const existing = target.spellWeakSpots.find(
+      (s) => s.lessonId === lesson.id && s.blockTitle === title,
+    );
+    if (existing) {
+      existing.spellErrors = spellErrors;
+      return;
+    }
+
+    const spot: WeakSpot = {
+      id: `spell-${lesson.id}-${block.id}-${sub.id}`,
+      blockTitle: title,
+      lessonTitle: lesson.title,
+      themeTitle: theme.title,
+      themeId: theme.id,
+      courseId: course.id,
+      lessonId: lesson.id,
+      isHomework: !!lesson.is_homework,
+      percent: 0,
+      score: 0,
+      maxScore: 0,
+      type: 'spell',
+      spellErrors,
+    };
+    target.spellWeakSpots.push(spot);
+    courseSpellWeakSpots.push(spot);
+  };
 
   const oralSubsForLesson = (lessonId: string) =>
     gradedSubs.filter((s: any) => {
@@ -244,6 +310,7 @@ function buildCourseStats(course: any, mySubs: any[]): CourseStats | null {
     let themeTaskCount = 0;
     const themeLessonsProgress: ScoreChartRow[] = [];
     const themeWeakSpots: WeakSpot[] = [];
+    const themeSpellWeakSpots: WeakSpot[] = [];
 
     theme.lessons?.forEach((lesson: any) => {
       if (lesson.include_in_analytics === false) return;
@@ -265,6 +332,7 @@ function buildCourseStats(course: any, mySubs: any[]): CourseStats | null {
         taskCount: 0,
         byType: { tests: l_tests, written: l_written, oral: l_oral },
         weakSpots: themeWeakSpots,
+        spellWeakSpots: themeSpellWeakSpots,
       };
       const usedSubIds = new Set<string>();
 
@@ -334,6 +402,24 @@ function buildCourseStats(course: any, mySubs: any[]): CourseStats | null {
           });
       }
 
+      if (spellCheckEnabled) {
+        blocks.forEach((block: any) => {
+          if (!['written', 'homework', 'test_short'].includes(block.type)) return;
+          const sub = latestSubAnyStatus(lesson.id, block.id);
+          if (!sub?.answer?.trim()) return;
+          const errs = checkSpelling(sub.answer);
+          if (!errs.length) return;
+          addSpellWeakSpot({
+            lesson,
+            theme,
+            block,
+            sub,
+            spellErrors: errs,
+            target: lessonTarget,
+          });
+        });
+      }
+
       if (lessonTarget.taskCount > 0) {
         const lessonTestsScore = safePercent(l_tests.e, l_tests.m);
         const lessonWrittenScore = safePercent(l_written.e, l_written.m);
@@ -378,6 +464,7 @@ function buildCourseStats(course: any, mySubs: any[]): CourseStats | null {
       g_oral.e += t_oral.e; g_oral.m += t_oral.m; g_oral.count += t_oral.count;
 
       themeWeakSpots.sort((a, b) => a.percent - b.percent);
+      themeSpellWeakSpots.sort((a, b) => (b.spellErrors?.length ?? 0) - (a.spellErrors?.length ?? 0));
 
       modulesList.push({
         id: theme.id,
@@ -395,6 +482,7 @@ function buildCourseStats(course: any, mySubs: any[]): CourseStats | null {
         maxByType: { tests: t_tests.m, written: t_written.m, oral: t_oral.m },
         progressData: themeLessonsProgress,
         weakSpots: themeWeakSpots,
+        spellWeakSpots: themeSpellWeakSpots,
       });
 
       globalProgressData.push({
@@ -425,6 +513,7 @@ function buildCourseStats(course: any, mySubs: any[]): CourseStats | null {
   const coursePercent = averageOfThreeSections(globalPTests, globalPWritten, globalPOral);
 
   courseWeakSpots.sort((a, b) => a.percent - b.percent);
+  courseSpellWeakSpots.sort((a, b) => (b.spellErrors?.length ?? 0) - (a.spellErrors?.length ?? 0));
 
   const existingCategories = [
     g_tests.m > 0 ? { label: 'тесты', value: globalPTests } : null,
@@ -453,6 +542,7 @@ function buildCourseStats(course: any, mySubs: any[]): CourseStats | null {
     modules: modulesList,
     progressData: globalProgressData,
     weakSpots: courseWeakSpots.slice(0, 12),
+    spellWeakSpots: spellCheckEnabled ? courseSpellWeakSpots.slice(0, 12) : [],
     aiReport,
   };
 }
@@ -470,7 +560,7 @@ function WeakSpotsList({
   if (list.length === 0) {
     return (
       <div className="p-8 rounded-2xl bg-emerald-50 border border-emerald-100 text-center">
-        <p className="font-bold text-emerald-700">Отлично! Слабых мест ниже 70% не найдено.</p>
+        <p className="font-bold text-emerald-700">Отлично! Ошибок в словарных словах и приставках не найдено.</p>
       </div>
     );
   }
@@ -484,22 +574,59 @@ function WeakSpotsList({
           onClick={() => onOpen(spot)}
           className="w-full text-left p-4 md:p-5 rounded-2xl border-2 border-rose-100 bg-white hover:border-rose-300 hover:shadow-md transition-all group flex items-center gap-4"
         >
-          <div className={`w-14 h-14 rounded-2xl flex flex-col items-center justify-center shrink-0 font-black ${
-            spot.percent === 0 ? 'bg-rose-100 text-rose-600' : 'bg-amber-50 text-amber-600'
-          }`}>
-            <span className="text-lg leading-none">{spot.percent}%</span>
-            <span className="text-[9px] uppercase tracking-wider opacity-70 mt-0.5">балл</span>
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">
-              {spot.themeTitle} · {blockTypeLabel(spot.type, spot.isHomework)}
-            </p>
-            <p className="font-black text-gray-900 truncate">{spot.blockTitle}</p>
-            <p className="text-sm font-medium text-gray-500 truncate mt-0.5">{spot.lessonTitle}</p>
-            <p className="text-xs text-gray-400 mt-1">
-              {spot.score} из {spot.maxScore} баллов
-            </p>
-          </div>
+          {spot.type === 'spell' && spot.spellErrors?.length ? (
+            <>
+              <div className="w-14 h-14 rounded-2xl flex flex-col items-center justify-center shrink-0 font-black bg-rose-100 text-rose-600">
+                <span className="text-lg leading-none">{spot.spellErrors.length}</span>
+                <span className="text-[9px] uppercase tracking-wider opacity-70 mt-0.5">ошиб.</span>
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">
+                  {spot.themeTitle} · {blockTypeLabel(spot.type, spot.isHomework)}
+                </p>
+                <p className="font-black text-gray-900 truncate">{spot.blockTitle}</p>
+                <p className="text-sm font-medium text-gray-500 truncate mt-0.5">{spot.lessonTitle}</p>
+                <div className="flex flex-wrap gap-1.5 mt-2">
+                  {spot.spellErrors.slice(0, 3).map((err, i) => (
+                    <span key={i} className="text-[11px] bg-rose-50 text-rose-700 px-2 py-0.5 rounded-lg font-bold">
+                      {err.word} → {err.suggestion}
+                    </span>
+                  ))}
+                  {spot.spellErrors.length > 3 && (
+                    <span className="text-[11px] text-gray-400 font-bold">+{spot.spellErrors.length - 3}</span>
+                  )}
+                </div>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className={`w-14 h-14 rounded-2xl flex flex-col items-center justify-center shrink-0 font-black ${
+                spot.percent === 0 ? 'bg-rose-100 text-rose-600' : 'bg-amber-50 text-amber-600'
+              }`}>
+                <span className="text-lg leading-none">{spot.percent}%</span>
+                <span className="text-[9px] uppercase tracking-wider opacity-70 mt-0.5">балл</span>
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-1">
+                  {spot.themeTitle} · {blockTypeLabel(spot.type, spot.isHomework)}
+                </p>
+                <p className="font-black text-gray-900 truncate">{spot.blockTitle}</p>
+                <p className="text-sm font-medium text-gray-500 truncate mt-0.5">{spot.lessonTitle}</p>
+                <p className="text-xs text-gray-400 mt-1">
+                  {spot.score} из {spot.maxScore} баллов
+                </p>
+                {spot.spellErrors?.length ? (
+                  <div className="flex flex-wrap gap-1.5 mt-2">
+                    {spot.spellErrors.slice(0, 2).map((err, i) => (
+                      <span key={i} className="text-[11px] bg-rose-50 text-rose-700 px-2 py-0.5 rounded-lg font-bold">
+                        {err.word} → {err.suggestion}
+                      </span>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            </>
+          )}
           <ChevronRight className="w-5 h-5 text-gray-300 group-hover:text-[#5A4BFF] shrink-0 transition-colors" />
         </button>
       ))}
@@ -588,10 +715,12 @@ export default function Dashboard() {
     return activeModule ?? selectedStats;
   })();
 
-  const currentWeakSpots =
-    activeTab === 'all'
-      ? selectedStats?.weakSpots ?? []
-      : activeModule?.weakSpots ?? [];
+  const currentSpellWeakSpots =
+    selectedCourse?.spell_check
+      ? activeTab === 'all'
+        ? selectedStats?.spellWeakSpots ?? []
+        : activeModule?.spellWeakSpots ?? []
+      : [];
 
   const handleOpenWeakSpot = (spot: WeakSpot) => {
     if (spot.isHomework) {
@@ -1034,7 +1163,7 @@ export default function Dashboard() {
           )}
 
           {/* ГДЕ ОШИБСЯ — показываем только если на курсе включена проверка орфографии */}
-          {selectedCourse?.spell_check && currentWeakSpots.length > 0 && (
+          {selectedCourse?.spell_check && currentSpellWeakSpots.length > 0 && (
             <motion.div
               variants={itemVariants}
               initial="hidden"
@@ -1048,11 +1177,11 @@ export default function Dashboard() {
                 <div>
                   <h3 className="text-2xl font-black text-gray-900">Где стоит подтянуть</h3>
                   <p className="text-sm font-medium text-gray-500 mt-1">
-                    Показываем этот блок только для курсов, где включена проверка орфографии.
+                    Ошибки в словарных словах и приставках пре- и при- по этому курсу.
                   </p>
                 </div>
               </div>
-              <WeakSpotsList spots={currentWeakSpots} onOpen={handleOpenWeakSpot} />
+              <WeakSpotsList spots={currentSpellWeakSpots} onOpen={handleOpenWeakSpot} />
             </motion.div>
           )}
 

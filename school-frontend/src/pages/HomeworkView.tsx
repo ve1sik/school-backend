@@ -18,6 +18,23 @@ import {
   LESSON_TEST_STYLES,
 } from '../components/LessonTestUI';
 import { getToken, getTokenConfig, safeStorageGet, safeStorageSet } from '../lib/auth';
+import { invalidateCache } from '../lib/api';
+import { checkSpelling, type SpellError } from '../utils/spellCheck';
+
+const SpellErrorsPanel = ({ errors }: { errors: SpellError[] }) => (
+  <div className="mt-2 bg-rose-50 border border-rose-200 rounded-2xl p-4">
+    <p className="text-xs font-black text-rose-600 uppercase tracking-widest mb-2">⚠️ Возможные ошибки правописания</p>
+    <div className="flex flex-wrap gap-2">
+      {errors.map((err, i) => (
+        <div key={i} className="bg-white border border-rose-200 rounded-xl px-3 py-1.5 text-xs">
+          <span className="font-black text-rose-600 line-through mr-1">{err.word}</span>
+          <span className="text-emerald-600 font-black">→ {err.suggestion}</span>
+          {err.rule && <span className="block text-gray-400 text-[10px] mt-0.5">{err.rule}</span>}
+        </div>
+      ))}
+    </div>
+  </div>
+);
 
 const API_URL = 'https://prepodmgy.ru/api';
 
@@ -407,6 +424,9 @@ const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswer
                  <CheckCircle2 className="w-5 h-5" /> Правильный ответ: {block.correctAnswers?.join(' / ')}
                </motion.div>
             )}
+            {courseSpellCheck && spellErrors?.[block.id]?.length > 0 && (
+              <SpellErrorsPanel errors={spellErrors[block.id]} />
+            )}
           </div>
         )}
 
@@ -511,19 +531,8 @@ const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswer
               placeholder="Введите развернутый ответ..." 
               className={`bg-white rounded-2xl overflow-hidden border transition-all ${isLocked ? 'border-gray-100 opacity-80' : 'border-gray-200 focus-within:border-[#A855F7] focus-within:ring-2 focus-within:ring-[#A855F7]/20'}`}
             />
-            {courseSpellCheck && spellErrors?.[block.id]?.length > 0 && !isLocked && (
-              <div className="mt-2 bg-rose-50 border border-rose-200 rounded-2xl p-4">
-                <p className="text-xs font-black text-rose-600 uppercase tracking-widest mb-2">⚠️ Возможные ошибки правописания</p>
-                <div className="flex flex-wrap gap-2">
-                  {spellErrors[block.id].map((err: any, i: number) => (
-                    <div key={i} className="bg-white border border-rose-200 rounded-xl px-3 py-1.5 text-xs">
-                      <span className="font-black text-rose-600 line-through mr-1">{err.word}</span>
-                      <span className="text-emerald-600 font-black">→ {err.suggestion}</span>
-                      {err.rule && <span className="block text-gray-400 text-[10px] mt-0.5">{err.rule}</span>}
-                    </div>
-                  ))}
-                </div>
-              </div>
+            {courseSpellCheck && spellErrors?.[block.id]?.length > 0 && (
+              <SpellErrorsPanel errors={spellErrors[block.id]} />
             )}
           </div>
         )}
@@ -564,7 +573,29 @@ export default function HomeworkView() {
   
   const [submissions, setSubmissions] = useState<any[]>([]);
   const [courseSpellCheck, setCourseSpellCheck] = useState(false);
-  const [spellErrors, setSpellErrors] = useState<Record<string, import('../utils/spellCheck').SpellError[]>>({});
+  const [spellErrors, setSpellErrors] = useState<Record<string, SpellError[]>>({});
+
+  const syncSpellErrorsFromAnswer = (blockId: string, text: string) => {
+    if (!courseSpellCheck || !text || text.replace(/<[^>]+>/g, '').trim().length < 3) {
+      setSpellErrors((prev) => {
+        if (!prev[blockId]) return prev;
+        const next = { ...prev };
+        delete next[blockId];
+        return next;
+      });
+      return;
+    }
+    const errs = checkSpelling(text);
+    setSpellErrors((prev) => {
+      if (!errs.length) {
+        if (!prev[blockId]) return prev;
+        const next = { ...prev };
+        delete next[blockId];
+        return next;
+      }
+      return { ...prev, [blockId]: errs };
+    });
+  };
 
   useEffect(() => {
     const fetchHomework = async () => {
@@ -636,6 +667,25 @@ export default function HomeworkView() {
     fetchHomework();
   }, [id, navigate]);
 
+  useEffect(() => {
+    if (!courseSpellCheck || !homework?.id || !submissions.length) return;
+    const lessonSubs = submissions.filter(
+      (s: any) => (s.lesson_id || s.lessonId) === homework.id && s.answer,
+    );
+    if (!lessonSubs.length) return;
+
+    const next: Record<string, SpellError[]> = {};
+    lessonSubs.forEach((sub: any) => {
+      const blockId = sub.block_id || sub.blockId;
+      if (!blockId) return;
+      const errs = checkSpelling(sub.answer);
+      if (errs.length) next[blockId] = errs;
+    });
+    if (Object.keys(next).length) {
+      setSpellErrors((prev) => ({ ...prev, ...next }));
+    }
+  }, [courseSpellCheck, homework?.id, submissions]);
+
   const handleAnswerToggle = (blockId: string, answerText: string) => {
     const current = Array.isArray(testAnswers?.[blockId]) ? testAnswers[blockId] : [];
     const updated = current.includes(answerText) ? current.filter((a: string) => a !== answerText) : [...current, answerText];
@@ -664,10 +714,7 @@ export default function HomeworkView() {
     }
 
     if (courseSpellCheck && text.length > 5) {
-      import('../utils/spellCheck').then(({ checkSpelling }) => {
-        const errs = checkSpelling(text);
-        setSpellErrors(prev => ({ ...prev, [blockId]: errs }));
-      });
+      syncSpellErrorsFromAnswer(blockId, text);
     } else {
       setSpellErrors(prev => { const n = { ...prev }; delete n[blockId]; return n; });
     }
@@ -769,6 +816,8 @@ export default function HomeworkView() {
               ...prev.filter(s => s.blockId !== block.id && s.block_id !== block.id),
               { blockId: block.id, status: 'GRADED', score: finalScore, answer: finalAnswerString, comment },
             ]);
+            invalidateCache('/submissions/my');
+            if (courseSpellCheck) syncSpellErrorsFromAnswer(block.id, finalAnswerString);
           }
         } catch (error) {}
       }
@@ -786,6 +835,8 @@ export default function HomeworkView() {
           ...prev.filter(s => s.blockId !== block.id && s.block_id !== block.id),
           { blockId: block.id, status: newResultState, answer: finalAnswerString }
         ]);
+        invalidateCache('/submissions/my');
+        if (courseSpellCheck) syncSpellErrorsFromAnswer(block.id, finalAnswerString);
       } catch (err) {}
     }
 
