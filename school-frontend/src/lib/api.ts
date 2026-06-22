@@ -1,13 +1,16 @@
 import axios from 'axios';
 import { getRefreshToken, getToken, logout, setAuthTokens } from './auth';
+import { isMobileViewport, shouldDeferHeavyLoads } from './defer';
 
 export const API_URL = 'https://prepodmgy.ru/api';
 
+const requestTimeout = typeof window !== 'undefined' && isMobileViewport() ? 35000 : 20000;
+
 // Единый axios-инстанс: сам подставляет токен и обновляет сессию при 401
-export const api = axios.create({ baseURL: API_URL, timeout: 20000 });
+export const api = axios.create({ baseURL: API_URL, timeout: requestTimeout });
 
 /** Публичные запросы (логин/регистрация) — с таймаутом, без auth interceptor loop */
-export const publicApi = axios.create({ baseURL: API_URL, timeout: 20000 });
+export const publicApi = axios.create({ baseURL: API_URL, timeout: requestTimeout });
 
 api.interceptors.request.use((config) => {
   const token = getToken();

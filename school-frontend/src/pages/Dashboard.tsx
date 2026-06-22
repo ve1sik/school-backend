@@ -7,8 +7,9 @@ import {
   PanelRightOpen, Star, ChevronDown, Send,
 } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { api, invalidateCache } from '../lib/api';
+import { api, cachedGet, invalidateCache } from '../lib/api';
 import { getToken } from '../lib/auth';
+import { isMobileViewport, runWhenIdle } from '../lib/defer';
 import { checkSpelling, type SpellError } from '../utils/spellCheck';
 
 const isSpellCheckEnabled = (course: any) => {
@@ -716,6 +717,7 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const location = useLocation();
   const [isLoading, setIsLoading] = useState(true);
+  const [statsLoading, setStatsLoading] = useState(true);
   const [courses, setCourses] = useState<any[]>([]);
   const [mySubs, setMySubs] = useState<any[]>([]);
   const [courseStatsMap, setCourseStatsMap] = useState<Record<string, CourseStats>>({});
@@ -735,48 +737,56 @@ export default function Dashboard() {
         return;
       }
 
+      setIsLoading(true);
+      setStatsLoading(true);
       invalidateCache('/courses');
       invalidateCache('/submissions/my');
 
-      const [coursesData, subsData] = await Promise.all([
-        api.get('/courses').then((r) => r.data).catch(() => []),
-        api.get('/submissions/my').then((r) => r.data).catch(() => []),
-      ]);
-
+      const coursesData = await cachedGet<any[]>('/courses', 30000).catch(() => []);
       const rawCourses = Array.isArray(coursesData) ? coursesData : [];
-      const subs = Array.isArray(subsData) ? subsData : [];
-
       setCourses(rawCourses);
+      setIsLoading(false);
+
+      const subsData = await cachedGet<any[]>('/submissions/my/summary', 30000).catch(() => []);
+      const subs = Array.isArray(subsData) ? subsData : [];
       setMySubs(subs);
 
-      const map: Record<string, CourseStats> = {};
-      rawCourses.forEach((course: any) => {
-        const stats = buildCourseStats(course, subs);
-        if (stats) map[course.id] = stats;
-      });
-      setCourseStatsMap(map);
+      const applyStats = () => {
+        const map: Record<string, CourseStats> = {};
+        rawCourses.forEach((course: any) => {
+          const stats = buildCourseStats(course, subs);
+          if (stats) map[course.id] = stats;
+        });
+        setCourseStatsMap(map);
+        setSelectedCourseId((prev) => {
+          const preferred = keepCourseId || prev;
+          if (preferred && rawCourses.some((c: any) => c.id === preferred)) return preferred;
+          const withStats = rawCourses.filter((c: any) => map[c.id]);
+          if (withStats.length > 0) return withStats[0].id;
+          if (rawCourses.length > 0) return rawCourses[0].id;
+          return '';
+        });
+        setStatsLoading(false);
+      };
 
-      setSelectedCourseId((prev) => {
-        const preferred = keepCourseId || prev;
-        if (preferred && rawCourses.some((c: any) => c.id === preferred)) return preferred;
-        const withStats = rawCourses.filter((c: any) => map[c.id]);
-        if (withStats.length > 0) return withStats[0].id;
-        if (rawCourses.length > 0) return rawCourses[0].id;
-        return '';
-      });
+      if (isMobileViewport()) {
+        runWhenIdle(applyStats, 800);
+      } else {
+        applyStats();
+      }
     } catch (error) {
       console.error('Ошибка загрузки дашборда', error);
-    } finally {
       setIsLoading(false);
+      setStatsLoading(false);
     }
   }, [navigate]);
 
   useEffect(() => {
-    setIsLoading(true);
     reloadDashboard();
   }, [reloadDashboard, location.key]);
 
   useEffect(() => {
+    if (isMobileViewport()) return;
     const refreshIfVisible = () => {
       if (document.visibilityState !== 'visible') return;
       reloadDashboard(selectedCourseId);
@@ -881,8 +891,8 @@ export default function Dashboard() {
 
   if (isLoading) {
     return (
-      <div className="h-screen w-full flex items-center justify-center bg-[#F4F7FE]">
-        <Loader2 className="w-12 h-12 animate-spin text-[#5A4BFF]" />
+      <div className="min-h-[50vh] w-full flex items-center justify-center bg-[#F4F7FE]">
+        <Loader2 className="w-10 h-10 animate-spin text-[#5A4BFF]" />
       </div>
     );
   }
@@ -905,6 +915,13 @@ export default function Dashboard() {
   }
 
   if (!selectedStats) {
+    if (statsLoading) {
+      return (
+        <div className="max-w-7xl mx-auto p-8 bg-[#F4F7FE] min-h-[40vh] flex items-center justify-center">
+          <Loader2 className="w-10 h-10 animate-spin text-[#5A4BFF]" />
+        </div>
+      );
+    }
     return (
       <div className="max-w-7xl mx-auto p-8 bg-[#F4F7FE] min-h-screen">
         <div className="text-center py-12">

@@ -148,7 +148,7 @@
 
         setTimeout(function () {
           if (!document.documentElement.getAttribute('data-app-ready')) showFail('timeout');
-        }, 20000);
+        }, /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) ? 35000 : 20000);
       })();
     </script>
     <script type="module" src="/src/main.tsx"></script>

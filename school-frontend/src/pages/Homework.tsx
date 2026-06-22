@@ -20,7 +20,7 @@ export default function Homework() {
         // 🚀 Общий кеш: переходы между ДЗ/курсами/дашбордом не дёргают бэкенд заново
         const [coursesData, subsData, schedData] = await Promise.all([
           cachedGet('/courses').catch(() => []),
-          cachedGet('/submissions/my').catch(() => []),
+          cachedGet('/submissions/my/summary').catch(() => []),
           cachedGet('/schedule').catch(() => []),
         ]);
         const coursesRes = { data: Array.isArray(coursesData) ? coursesData : [] };

@@ -312,4 +312,22 @@ export class SubmissionsService {
       orderBy: { updated_at: 'desc' },
     });
   }
+
+  async getMySubmissionsSummary(userId: string) {
+    return this.prisma.submission.findMany({
+      where: { user_id: userId },
+      select: {
+        id: true,
+        lesson_id: true,
+        block_id: true,
+        status: true,
+        score: true,
+        max_score: true,
+        comment: true,
+        updated_at: true,
+        created_at: true,
+      },
+      orderBy: { updated_at: 'desc' },
+    });
+  }
 }

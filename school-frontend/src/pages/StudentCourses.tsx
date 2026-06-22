@@ -15,7 +15,7 @@ export default function StudentCourses() {
         // 🚀 Общий кеш: повторная навигация не дёргает бэкенд заново
         const [coursesData, subsData] = await Promise.all([
           cachedGet('/courses').catch(() => []),
-          cachedGet('/submissions/my').catch(() => []),
+          cachedGet('/submissions/my/summary').catch(() => []),
         ]);
 
         // 🔥 ЖЕЛЕЗОБЕТОННАЯ ПРОВЕРКА ДАННЫХ

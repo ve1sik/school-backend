@@ -6,6 +6,7 @@ import ErrorBoundary from './components/ErrorBoundary';
 import BootGate from './components/BootGate';
 import Login from './pages/Login';
 import { clearBootOverlay } from './lib/boot';
+import { deferNonCritical } from './lib/defer';
 
 const lazyPage = (loader: () => Promise<{ default: ComponentType }>) =>
   lazy(() =>
@@ -46,6 +47,15 @@ export default function App() {
   // React уже запущен — убираем HTML-оверлей даже если lazy-чанк ещё грузится (BootGate не смонтирован).
   useEffect(() => {
     clearBootOverlay();
+  }, []);
+
+  // На телефоне заранее подгружаем частые вкладки, когда браузер простаивает.
+  useEffect(() => {
+    deferNonCritical(() => {
+      void import('./pages/StudentCourses');
+      void import('./pages/Homework');
+      void import('./pages/Messages');
+    }, 6000);
   }, []);
 
   return (

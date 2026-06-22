@@ -20,6 +20,20 @@ export default defineConfig({
     cssTarget: 'safari12',
     modulePreload: false,
     chunkSizeWarningLimit: 800,
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (!id.includes('node_modules')) return;
+          if (id.includes('react-dom') || id.includes('/react/') || id.includes('react-router')) {
+            return 'vendor-react';
+          }
+          if (id.includes('framer-motion')) return 'vendor-motion';
+          if (id.includes('lucide-react')) return 'vendor-icons';
+          if (id.includes('axios')) return 'vendor-http';
+          if (id.includes('react-quill')) return 'vendor-quill';
+        },
+      },
+    },
   },
   preview: {
     host: '0.0.0.0',

@@ -2,8 +2,7 @@ import { useEffect, useState, useRef, useMemo } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { api } from '../lib/api';
 import { decodeToken, getToken, logout, safeStorageGet, safeStorageRemove, safeStorageSet } from '../lib/auth';
-import { parseSafeDate } from '../lib/parseDate';
-import { motion, AnimatePresence } from 'framer-motion';
+import { runWhenIdle, shouldDeferHeavyLoads } from '../lib/defer';
 import { DEFAULT_ROLE_PERMISSIONS, type AdminPermission, type Role } from '../lib/auth';
 import { 
   Home, 
@@ -50,6 +49,7 @@ export default function Layout() {
   // Уведомления
   const [showNotifPanel, setShowNotifPanel] = useState(false);
   const [notifications, setNotifications] = useState<{id: string; type: 'message'|'graded'|'deadline'|'cards'; text: string; sub?: string; link?: string}[]>([]);
+  const [notifsLoading, setNotifsLoading] = useState(false);
   const notifRef = useRef<HTMLDivElement>(null);
 
   // Прочитанные уведомления (по сигнатуре id+text — чтобы при изменении содержимого снова загорались)
@@ -74,15 +74,24 @@ export default function Layout() {
     return [...notifications].sort((a, b) => Number(isNew(b)) - Number(isNew(a)));
   }, [notifications, seenSignatures]);
 
-  const openNotifPanel = () => {
+  const openNotifPanel = async () => {
     setShowNotifPanel(true);
-    // помечаем всё текущее как прочитанное
-    setSeenSignatures(prev => {
-      const next = new Set(prev);
-      notifications.forEach(n => next.add(sigOf(n)));
-      safeStorageSet('notif_seen', JSON.stringify([...next]));
-      return next;
-    });
+    setNotifsLoading(true);
+    try {
+      const res = await api.get('/app/notifications');
+      const items = (res.data?.items || []) as typeof notifications;
+      setNotifications(items);
+      setSeenSignatures((prev) => {
+        const next = new Set(prev);
+        items.forEach((n) => next.add(sigOf(n)));
+        safeStorageSet('notif_seen', JSON.stringify([...next]));
+        return next;
+      });
+    } catch {
+      /* silent */
+    } finally {
+      setNotifsLoading(false);
+    }
   };
 
   // Закрытие панели кликом вне
@@ -109,135 +118,74 @@ export default function Layout() {
       if (payload?.role === 'ADMIN' || payload?.role === 'CURATOR') {
         setIsAdmin(true);
       }
-    } catch (e) {
-      console.error("Ошибка парсинга токена");
+    } catch {
+      console.error('Ошибка парсинга токена');
     }
 
-    const fetchUserData = async () => {
+    const loadShell = async () => {
       try {
-        const res = await api.get('/auth/me');
-        setUserData(res.data);
-      } catch (err) {
-        console.error("Ошибка загрузки данных пользователя в шапку");
+        const res = await api.get('/app/shell');
+        setUserData(res.data.user);
+        setUnreadCount(res.data.badges?.messages || 0);
+        setRonCount(res.data.badges?.ron || 0);
+        setPendingApplicationsCount(res.data.badges?.pendingApplications || 0);
+      } catch {
+        try {
+          const res = await api.get('/auth/me');
+          setUserData(res.data);
+        } catch (err) {
+          console.error('Ошибка загрузки данных пользователя в шапку');
+        }
       }
     };
 
-    fetchUserData();
+    loadShell();
+
+    let unreadInterval: ReturnType<typeof setInterval> | undefined;
+    const pollUnread = async () => {
+      if (!getToken()) return;
+      const unreadRes = await api.get('/messages/unread').catch(() => ({ data: { count: 0 } }));
+      setUnreadCount(unreadRes.data.count || 0);
+    };
+    const startUnreadPoll = () => {
+      pollUnread();
+      unreadInterval = setInterval(pollUnread, 90000);
+    };
+
+    if (shouldDeferHeavyLoads()) {
+      runWhenIdle(startUnreadPoll, 5000);
+    } else {
+      startUnreadPoll();
+    }
+
+    return () => {
+      if (unreadInterval) clearInterval(unreadInterval);
+    };
   }, [navigate]);
 
-  // Поллинг: лёгкие сообщения отдельно, тяжёлые уведомления редко.
   useEffect(() => {
-    const fetchUnread = async () => {
-      try {
-        if (!getToken()) return;
-        const unreadRes = await api.get('/messages/unread').catch(() => ({ data: { count: 0 } }));
-        setUnreadCount(unreadRes.data.count || 0);
-      } catch { /* silent */ }
-    };
-
-    const fetchNotifs = async () => {
-      try {
-        if (!getToken()) return;
-        const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
-
-        const [schedRes, subsRes, cardsRes] = await Promise.all([
-          api.get('/schedule').catch(() => ({ data: [] })),
-          api.get('/submissions/my').catch(() => ({ data: [] })),
-          api.get('/flashcards/stats').catch(() => ({ data: { dueTodayCount: 0, newCount: 0 } })),
-        ]);
-
-        const notifs: typeof notifications = [];
-
-        // 2. Проверенные домашки (за последние 7 дней)
-        const graded = (subsRes.data as any[]).filter(
-          s => s.status === 'GRADED' && parseSafeDate(s.updated_at || s.created_at).getTime() > weekAgo
-        );
-        if (graded.length > 0) {
-          notifs.push({ id: 'graded', type: 'graded', text: `${graded.length} домашних работ проверено`, sub: 'Посмотреть оценку', link: '/homework' });
-        }
-
-        // 3. Дедлайны завтра
-        const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1);
-        const tomorrowStr = tomorrow.toDateString();
-        const deadlines = (schedRes.data as any[]).filter(
-          e => e.type === 'DEADLINE' && parseSafeDate(e.date).toDateString() === tomorrowStr
-        );
-        deadlines.forEach(d => {
-          notifs.push({ id: `dl-${d.id}`, type: 'deadline', text: `Дедлайн завтра: ${d.title}`, sub: parseSafeDate(d.date).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }), link: '/schedule' });
-        });
-
-        // 4. Занятие сегодня с ссылкой
-        const todayStr = new Date().toDateString();
-        const todayEvents = (schedRes.data as any[]).filter(
-          e => e.type === 'WEBINAR' && parseSafeDate(e.date).toDateString() === todayStr && e.link
-        );
-        todayEvents.forEach(e => {
-          notifs.push({ id: `ev-${e.id}`, type: 'deadline', text: `Занятие сегодня: ${e.title}`, sub: `в ${parseSafeDate(e.date).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}`, link: e.link });
-        });
-
-        // 5. Карточки на повтор
-        const cardsDue = (cardsRes.data.dueTodayCount || 0) + (cardsRes.data.newCount || 0);
-        if (cardsDue > 0) {
-          notifs.push({ id: 'cards', type: 'cards', text: `${cardsDue} карточек ждут повторения`, sub: 'Учить сейчас', link: '/flashcards' });
-        }
-
-        setNotifications(notifs);
-
-        // Чистим прочитанные сигнатуры, которых больше нет среди актуальных уведомлений
-        setSeenSignatures(prev => {
-          if (prev.size === 0) return prev;
-          const liveSigs = new Set(notifs.map(n => `${n.id}::${n.text}`));
-          const next = new Set([...prev].filter(s => liveSigs.has(s)));
-          if (next.size !== prev.size) {
-            safeStorageSet('notif_seen', JSON.stringify([...next]));
-            return next;
-          }
-          return prev;
-        });
-      } catch { /* silent */ }
-    };
-
-    fetchUnread();
-    fetchNotifs();
-    const unreadInterval = setInterval(fetchUnread, 60000);
-    const notifInterval = setInterval(fetchNotifs, 5 * 60 * 1000);
-    return () => {
-      clearInterval(unreadInterval);
-      clearInterval(notifInterval);
-    };
-  }, []);
+    if (location.pathname !== '/ron') return;
+    api.get('/ron/tasks/count')
+      .then((r) => setRonCount(r.data?.count || 0))
+      .catch(() => setRonCount(0));
+  }, [location.pathname]);
 
   useEffect(() => {
-    const fetchExtraCounts = async () => {
-      if (!getToken()) return;
-      try {
-        const ronRes = await api.get('/ron/tasks/count');
-        setRonCount(ronRes.data?.count || 0);
-      } catch {
-        setRonCount(0);
-      }
+    const role = (userData?.role || userRole) as Role | undefined;
+    const perms = new Set<AdminPermission>([
+      ...((role ? DEFAULT_ROLE_PERMISSIONS[role] : []) || []),
+      ...((userData?.admin_permissions || []) as AdminPermission[]),
+    ]);
+    const onAdminRoute =
+      location.pathname.startsWith('/admin/users') ||
+      location.pathname.startsWith('/admin/groups');
+    if (!onAdminRoute) return;
+    if (!(role === 'ADMIN' || perms.has('MANAGE_USERS') || perms.has('MANAGE_GROUPS'))) return;
 
-      const role = (userData?.role || userRole) as Role | undefined;
-      const perms = new Set<AdminPermission>([
-        ...((role ? DEFAULT_ROLE_PERMISSIONS[role] : []) || []),
-        ...((userData?.admin_permissions || []) as AdminPermission[]),
-      ]);
-      if (role === 'ADMIN' || perms.has('MANAGE_USERS') || perms.has('MANAGE_GROUPS')) {
-        try {
-          const appsRes = await api.get('/groups/applications/pending');
-          setPendingApplicationsCount(appsRes.data?.count || 0);
-        } catch {
-          setPendingApplicationsCount(0);
-        }
-      } else {
-        setPendingApplicationsCount(0);
-      }
-    };
-
-    fetchExtraCounts();
-    const interval = setInterval(fetchExtraCounts, 60000);
-    return () => clearInterval(interval);
-  }, [userData, userRole]);
+    api.get('/groups/applications/pending')
+      .then((r) => setPendingApplicationsCount(r.data?.count || 0))
+      .catch(() => setPendingApplicationsCount(0));
+  }, [location.pathname, userData, userRole]);
 
   // Закрываем мобильное меню при переходе на другую страницу
   useEffect(() => {
@@ -470,15 +418,8 @@ export default function Layout() {
                 )}
               </button>
 
-              <AnimatePresence>
-                {showNotifPanel && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 8, scale: 0.97 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, y: 8, scale: 0.97 }}
-                    transition={{ duration: 0.15 }}
-                    className="absolute right-0 top-10 w-80 bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden z-50"
-                  >
+              {showNotifPanel && (
+                  <div className="absolute right-0 top-10 w-80 bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden z-50">
                     <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
                       <span className="font-black text-gray-900">Уведомления</span>
                       <button onClick={() => setShowNotifPanel(false)} className="p-1 text-gray-400 hover:text-gray-700 transition-colors">
@@ -486,7 +427,11 @@ export default function Layout() {
                       </button>
                     </div>
 
-                    {notifications.length === 0 ? (
+                    {notifsLoading ? (
+                      <div className="py-10 text-center text-gray-400">
+                        <p className="font-bold text-sm">Загрузка…</p>
+                      </div>
+                    ) : notifications.length === 0 ? (
                       <div className="py-10 text-center text-gray-400">
                         <Bell className="w-8 h-8 mx-auto mb-2 opacity-20" />
                         <p className="font-bold text-sm">Всё спокойно</p>
@@ -523,9 +468,8 @@ export default function Layout() {
                         })}
                       </div>
                     )}
-                  </motion.div>
-                )}
-              </AnimatePresence>
+                  </div>
+              )}
             </div>
             
             <Link to="/profile" className="flex items-center gap-3 cursor-pointer group hover:opacity-80 transition-opacity">
@@ -555,23 +499,13 @@ export default function Layout() {
       </div>
 
       {/* ───────── МОБИЛЬНОЕ ВЫДВИЖНОЕ МЕНЮ ───────── */}
-      <AnimatePresence>
-        {mobileNavOpen && (
+      {mobileNavOpen && (
           <>
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
+            <div
               onClick={() => setMobileNavOpen(false)}
               className="fixed inset-0 bg-black/40 z-40 md:hidden"
             />
-            <motion.aside
-              initial={{ x: '-100%' }}
-              animate={{ x: 0 }}
-              exit={{ x: '-100%' }}
-              transition={{ type: 'tween', duration: 0.25, ease: 'easeOut' }}
-              className="fixed inset-y-0 left-0 w-[280px] max-w-[82vw] bg-white z-50 md:hidden flex flex-col shadow-2xl"
-            >
+            <aside className="fixed inset-y-0 left-0 w-[280px] max-w-[82vw] bg-white z-50 md:hidden flex flex-col shadow-2xl">
               <div className="flex items-center justify-between p-5 border-b border-gray-50">
                 <div className="flex items-center gap-3">
                   <div className="w-9 h-9 bg-[#5A4BFF] rounded-xl flex items-center justify-center shrink-0">
@@ -645,10 +579,9 @@ export default function Layout() {
                   <span className="text-sm font-bold">Выйти</span>
                 </button>
               </div>
-            </motion.aside>
+            </aside>
           </>
         )}
-      </AnimatePresence>
 
       {/* ───────── МОБИЛЬНАЯ НИЖНЯЯ НАВИГАЦИЯ ───────── */}
       <nav className="fixed bottom-0 inset-x-0 z-30 md:hidden bg-white/95 backdrop-blur border-t border-gray-100 flex items-stretch justify-around pb-[env(safe-area-inset-bottom)]">

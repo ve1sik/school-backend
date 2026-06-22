@@ -79,6 +79,12 @@ export class SubmissionsController {
     return this.submissionsService.getSubmissionForStudent(lessonId, req.user.sub);
   }
 
+  // Студент: лёгкий список работ для дашборда (без длинных answer/question)
+  @Get('my/summary')
+  getMySubmissionsSummary(@Request() req) {
+    return this.submissionsService.getMySubmissionsSummary(req.user.sub);
+  }
+
   // Студент запрашивает все свои работы
   @Get('my')
   getMySubmissions(@Request() req) {
