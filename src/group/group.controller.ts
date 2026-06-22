@@ -35,6 +35,16 @@ export class GroupController {
     return this.groupService.getMyApplications(userId);
   }
 
+  @Permissions('MANAGE_USERS', 'MANAGE_GROUPS')
+  @Get('applications/pending')
+  getPendingApplications(@Request() req) {
+    return this.groupService.getPendingApplications(
+      req.user.sub,
+      req.user.role,
+      req.user.admin_permissions || [],
+    );
+  }
+
   @Roles('ADMIN', 'CURATOR', 'TEACHER', 'STUDENT')
   @Get('my-theme-access')
   getMyThemeAccess(@Request() req) {
@@ -92,24 +102,39 @@ export class GroupController {
     return this.groupService.applyForGroup(id, userId, body);
   }
 
-  @Roles('ADMIN', 'CURATOR')
+  @Permissions('MANAGE_USERS', 'MANAGE_GROUPS')
   @Get(':id/applications')
   getApplications(@Param('id') id: string, @Request() req) {
-    return this.groupService.getApplications(id, req.user.sub, req.user.role);
+    return this.groupService.getApplications(
+      id,
+      req.user.sub,
+      req.user.role,
+      req.user.admin_permissions || [],
+    );
   }
 
-  @Roles('ADMIN', 'CURATOR')
+  @Permissions('MANAGE_USERS', 'MANAGE_GROUPS')
   @Patch('applications/:appId/approve')
   approveApplication(@Param('appId') appId: string, @Request() req) {
     const reviewerId = req.user.sub || req.user.id;
-    return this.groupService.approveApplication(appId, reviewerId, req.user.role);
+    return this.groupService.approveApplication(
+      appId,
+      reviewerId,
+      req.user.role,
+      req.user.admin_permissions || [],
+    );
   }
 
-  @Roles('ADMIN', 'CURATOR')
+  @Permissions('MANAGE_USERS', 'MANAGE_GROUPS')
   @Patch('applications/:appId/reject')
   rejectApplication(@Param('appId') appId: string, @Request() req) {
     const reviewerId = req.user.sub || req.user.id;
-    return this.groupService.rejectApplication(appId, reviewerId, req.user.role);
+    return this.groupService.rejectApplication(
+      appId,
+      reviewerId,
+      req.user.role,
+      req.user.admin_permissions || [],
+    );
   }
 
   @Permissions('MANAGE_GROUPS', 'MANAGE_USERS')

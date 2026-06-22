@@ -20,6 +20,7 @@ import { DeckModule } from './deck/deck.module';
 import { FlashcardModule } from './flashcard/flashcard.module';
 import { GamificationModule } from './gamification/gamification.module';
 import { TelegramModule } from './telegram/telegram.module';
+import { RonModule } from './ron/ron.module';
 
 // Контроллер загрузки
 import { UploadController } from './upload/upload.controller';
@@ -50,6 +51,7 @@ import { ClientLogController } from './client-log/client-log.controller';
     FlashcardModule,
     GamificationModule,
     TelegramModule,
+    RonModule,
   ],
   controllers: [
     UploadController,

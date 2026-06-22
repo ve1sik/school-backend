@@ -126,14 +126,14 @@ export default function FlashcardStudy() {
   const progress = queue.length ? Math.round((currentIdx / queue.length) * 100) : 0;
 
   if (isLoading) return (
-    <div className="h-screen flex items-center justify-center bg-gradient-to-br from-indigo-50 to-purple-50">
+    <div className="flex items-center justify-center min-h-[50vh] bg-[#F4F7FE]">
       <Loader2 className="w-12 h-12 animate-spin text-indigo-500" />
     </div>
   );
 
   // ── DONE SCREEN ──
   if (phase === 'done') return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-purple-50 to-pink-50 flex items-center justify-center p-4">
+    <div className="bg-[#F4F7FE] flex items-center justify-center p-4 min-h-[60vh]">
       <motion.div initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
         className="bg-white rounded-[2.5rem] p-12 max-w-md w-full text-center shadow-2xl shadow-indigo-100">
         <div className="text-7xl mb-6">🔥</div>
@@ -169,7 +169,7 @@ export default function FlashcardStudy() {
           </button>
           <button onClick={() => { setPhase('home'); fetchHome(); }}
             className="w-full py-4 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl font-black transition-all">
-            На главную
+            К колодам
           </button>
         </div>
       </motion.div>
@@ -178,15 +178,11 @@ export default function FlashcardStudy() {
 
   // ── HOME SCREEN ──
   if (phase === 'home') return (
-    <div className="min-h-screen lg:h-screen bg-[#F4F7FE] flex flex-col lg:flex-row gap-3 lg:gap-6 p-3 md:p-6 overflow-visible lg:overflow-hidden">
+    <div className="bg-[#F4F7FE] flex flex-col lg:flex-row gap-3 lg:gap-6 p-3 md:p-4 min-h-full">
 
       {/* БОКОВАЯ ПАНЕЛЬ — как в CourseView */}
       <aside className="w-full lg:w-[280px] xl:w-[320px] bg-white rounded-3xl lg:rounded-[2rem] border border-gray-100 flex flex-col h-auto max-h-[50vh] lg:max-h-none lg:h-full shrink-0 shadow-sm overflow-hidden">
         <div className="p-6 border-b border-gray-100 shrink-0">
-          <button onClick={() => navigate(-1)}
-            className="flex items-center gap-2 text-gray-400 hover:text-indigo-600 font-black text-[11px] uppercase tracking-wider transition-colors mb-6">
-            <ChevronLeft className="w-4 h-4" /> Назад
-          </button>
           <div className="flex items-center gap-3 mb-2">
             <div className="w-12 h-12 bg-indigo-600 rounded-2xl flex items-center justify-center shadow-md shadow-indigo-200 shrink-0">
               <Layers className="w-6 h-6 text-white" />
@@ -295,7 +291,7 @@ export default function FlashcardStudy() {
 
   // ── STUDY SCREEN ──
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 to-indigo-950 flex flex-col">
+    <div className="min-h-[70vh] bg-gradient-to-br from-slate-900 to-indigo-950 flex flex-col rounded-[2rem] overflow-hidden">
 
       {/* TOP BAR */}
       <div className="flex items-center gap-4 p-4 md:p-6">

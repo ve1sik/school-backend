@@ -322,17 +322,28 @@ export class GroupService {
     });
   }
 
-  private async ensureCanReviewGroupApplications(groupId: string, reviewerId?: string, reviewerRole?: string) {
-    if (reviewerRole === 'ADMIN') return;
+  private async ensureCanReviewGroupApplications(
+    groupId: string,
+    reviewerId?: string,
+    reviewerRole?: string,
+    permissions: string[] = [],
+  ) {
+    if (reviewerRole === 'ADMIN' || permissions.includes('MANAGE_USERS')) return;
     const group = await this.prisma.group.findFirst({
-      where: { id: groupId, curator_id: reviewerId },
+      where: {
+        id: groupId,
+        OR: [
+          { curator_id: reviewerId },
+          ...(reviewerRole === 'TEACHER' ? [{ teacher_id: reviewerId }] : []),
+        ],
+      },
       select: { id: true },
     });
     if (!group) throw new ForbiddenException('Можно смотреть заявки только своей группы');
   }
 
-  async getApplications(groupId: string, reviewerId?: string, reviewerRole?: string) {
-    await this.ensureCanReviewGroupApplications(groupId, reviewerId, reviewerRole);
+  async getApplications(groupId: string, reviewerId?: string, reviewerRole?: string, permissions: string[] = []) {
+    await this.ensureCanReviewGroupApplications(groupId, reviewerId, reviewerRole, permissions);
 
     return this.prisma.groupApplication.findMany({
       where: { group_id: groupId },
@@ -351,10 +362,53 @@ export class GroupService {
     });
   }
 
-  async approveApplication(appId: string, reviewerId: string, reviewerRole?: string) {
+  async getPendingApplications(reviewerId?: string, reviewerRole?: string, permissions: string[] = []) {
+    const canSeeAll =
+      reviewerRole === 'ADMIN' ||
+      permissions.includes('MANAGE_USERS') ||
+      permissions.includes('MANAGE_GROUPS');
+
+    if (!canSeeAll) {
+      throw new ForbiddenException('Нет доступа к заявкам');
+    }
+
+    const where: any = { status: 'PENDING' as const };
+
+    if (
+      reviewerRole !== 'ADMIN' &&
+      !permissions.includes('MANAGE_USERS') &&
+      permissions.includes('MANAGE_GROUPS')
+    ) {
+      where.group = { curator_id: reviewerId };
+    }
+
+    const apps = await this.prisma.groupApplication.findMany({
+      where,
+      include: {
+        user: { select: { id: true, name: true, surname: true, email: true, avatar: true } },
+        group: { select: { id: true, title: true, price: true } },
+      },
+      orderBy: { created_at: 'desc' },
+    });
+
+    return {
+      count: apps.length,
+      applications: apps.map((app) => ({
+        id: app.id,
+        status: app.status,
+        comment: app.comment,
+        proof_image: app.proof_image,
+        created_at: app.created_at,
+        user: app.user,
+        group: app.group,
+      })),
+    };
+  }
+
+  async approveApplication(appId: string, reviewerId: string, reviewerRole?: string, permissions: string[] = []) {
     const existing = await this.prisma.groupApplication.findUnique({ where: { id: appId } });
     if (!existing) throw new NotFoundException('Заявка не найдена');
-    await this.ensureCanReviewGroupApplications(existing.group_id, reviewerId, reviewerRole);
+    await this.ensureCanReviewGroupApplications(existing.group_id, reviewerId, reviewerRole, permissions);
 
     const app = await this.prisma.groupApplication.update({
       where: { id: appId },
@@ -364,10 +418,10 @@ export class GroupService {
     return app;
   }
 
-  async rejectApplication(appId: string, reviewerId: string, reviewerRole?: string) {
+  async rejectApplication(appId: string, reviewerId: string, reviewerRole?: string, permissions: string[] = []) {
     const existing = await this.prisma.groupApplication.findUnique({ where: { id: appId } });
     if (!existing) throw new NotFoundException('Заявка не найдена');
-    await this.ensureCanReviewGroupApplications(existing.group_id, reviewerId, reviewerRole);
+    await this.ensureCanReviewGroupApplications(existing.group_id, reviewerId, reviewerRole, permissions);
 
     return this.prisma.groupApplication.update({
       where: { id: appId },

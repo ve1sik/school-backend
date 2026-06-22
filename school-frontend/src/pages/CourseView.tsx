@@ -20,6 +20,8 @@ import {
   LESSON_TEST_STYLES,
 } from '../components/LessonTestUI';
 import { getToken, getTokenConfig, safeStorageGet, safeStorageSet } from '../lib/auth';
+import { isAutoGradableBlockType } from '../utils/autoGrade';
+import { useRonSync } from '../lib/ron';
 
 const API_URL = 'https://prepodmgy.ru/api';
 
@@ -538,6 +540,7 @@ export default function CourseView() {
   const [attemptsUsed, setAttemptsUsed] = useState<Record<string, number>>(() => getSafeLocal('demo_attempts', {}));
 
   const [submissions, setSubmissions] = useState<any[]>([]);
+  const { addRonTask, removeRonTask } = useRonSync();
 
   useEffect(() => {
     const fetchCourseData = async () => {
@@ -677,6 +680,25 @@ export default function CourseView() {
         return studentAns === correctAns;
       });
       finalAnswerString = Object.entries(userAnswersMap).map(([k, v]) => `${k} - ${v}`).join(', ');
+    }
+
+    if (isAutoGradableBlockType(block.type) && activeLesson) {
+      const activeTheme = course?.themes?.find((t: any) => String(t.id) === String(themeId));
+      if (!isSuccess) {
+        await addRonTask({
+          lessonId: activeLesson.id,
+          blockId: block.id,
+          block,
+          courseId,
+          themeId,
+          courseTitle: course?.title,
+          themeTitle: activeTheme?.title,
+          lessonTitle: activeLesson.title,
+          blockTitle: (block.title || block.question || 'Задание').replace(/<[^>]+>/g, ' ').trim() || 'Задание',
+        });
+      } else {
+        await removeRonTask(activeLesson.id, block.id);
+      }
     }
     
     let newResultState = isPending ? 'PENDING' : (isSuccess ? 'SUCCESS' : 'ERROR');

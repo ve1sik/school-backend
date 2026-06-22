@@ -80,6 +80,7 @@ model User {
   test_attempts TestAttempt[]
   enrollments   Enrollment[]
   submissions   Submission[]
+  ron_tasks     RonTask[]
 
   groups          Group[] @relation("StudentGroups")
   curated_groups  Group[] @relation("CuratorGroups")
@@ -196,6 +197,7 @@ model Lesson {
   created_at DateTime @default(now())
 
   submissions Submission[]
+  ron_tasks   RonTask[]
   decks       Deck[]
 
   is_homework Boolean @default(false)
@@ -316,6 +318,29 @@ model Submission {
   @@index([lesson_id])
   @@index([status])
   @@map("submissions")
+}
+
+model RonTask {
+  id           String   @id @default(uuid())
+  user_id      String
+  lesson_id    String
+  block_id     String
+  block_data   String   @db.Text
+  course_id    String?
+  theme_id     String?
+  course_title String?
+  theme_title  String?
+  lesson_title String?
+  block_title  String?
+  created_at   DateTime @default(now())
+  updated_at   DateTime @updatedAt
+
+  user   User   @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  lesson Lesson @relation(fields: [lesson_id], references: [id], onDelete: Cascade)
+
+  @@unique([user_id, lesson_id, block_id])
+  @@index([user_id])
+  @@map("ron_tasks")
 }
 
 model Event {

@@ -81,6 +81,7 @@ export default function AdminUsers() {
   const [assignCuratorId, setAssignCuratorId] = useState('');
   const [assignTeacherId, setAssignTeacherId] = useState('');
   const [currentRole, setCurrentRole] = useState<Role>('STUDENT');
+  const [pendingApplications, setPendingApplications] = useState<any[]>([]);
 
   const showToast = (text: string, type: 'success' | 'error' = 'success') => {
     setToast({ text, type });
@@ -94,12 +95,13 @@ export default function AdminUsers() {
   const fetchData = async () => {
     setIsLoading(true);
     try {
-      const [usersRes, coursesRes, groupsRes, subjectsRes, meRes] = await Promise.all([
+      const [usersRes, coursesRes, groupsRes, subjectsRes, meRes, appsRes] = await Promise.all([
         axios.get(`${API_URL}/users`, getTokenConfig()),
         axios.get(`${API_URL}/courses`, getTokenConfig()),
         axios.get(`${API_URL}/groups`, getTokenConfig()),
         axios.get(`${API_URL}/subjects`, getTokenConfig()).catch(() => ({ data: [] })),
         axios.get(`${API_URL}/auth/me`, getTokenConfig()).catch(() => ({ data: null })),
+        axios.get(`${API_URL}/groups/applications/pending`, getTokenConfig()).catch(() => ({ data: { applications: [] } })),
       ]);
       
       setUsers(usersRes.data);
@@ -107,10 +109,21 @@ export default function AdminUsers() {
       setGroups(groupsRes.data);
       setSubjects(subjectsRes.data);
       setCurrentRole(meRes.data?.role || 'STUDENT');
+      setPendingApplications(appsRes.data?.applications || []);
     } catch (err) {
       showToast('Ошибка загрузки данных', 'error');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleReviewApplication = async (appId: string, action: 'approve' | 'reject') => {
+    try {
+      await axios.patch(`${API_URL}/groups/applications/${appId}/${action}`, {}, getTokenConfig());
+      showToast(action === 'approve' ? 'Заявка одобрена' : 'Заявка отклонена');
+      fetchData();
+    } catch {
+      showToast('Не удалось обработать заявку', 'error');
     }
   };
 
@@ -357,8 +370,13 @@ export default function AdminUsers() {
           <button type="button" onClick={() => navigate('/admin')} className="w-full flex items-center gap-4 px-5 py-4 rounded-2xl font-bold transition-all text-gray-600 hover:bg-gray-50">
             <BookOpen className="w-5 h-5" /> Курсы и Уроки
           </button>
-          <button type="button" className="w-full flex items-center gap-4 px-5 py-4 rounded-2xl font-bold transition-all bg-[#5A4BFF] text-white shadow-lg shadow-indigo-500/20">
+          <button type="button" className="w-full flex items-center gap-4 px-5 py-4 rounded-2xl font-bold transition-all bg-[#5A4BFF] text-white shadow-lg shadow-indigo-500/20 relative">
             <Users className="w-5 h-5" /> Пользователи
+            {pendingApplications.length > 0 && (
+              <span className="ml-auto bg-red-500 text-white text-[11px] font-black px-2 py-0.5 rounded-full">
+                {pendingApplications.length}
+              </span>
+            )}
           </button>
           {currentRole === 'ADMIN' && (
             <button type="button" onClick={() => navigate('/admin/groups')} className="w-full flex items-center gap-4 px-5 py-4 rounded-2xl font-bold transition-all text-gray-600 hover:bg-gray-50">
@@ -376,6 +394,41 @@ export default function AdminUsers() {
 
       {/* MAIN CONTENT */}
       <main className="flex-1 p-4 md:p-8 overflow-y-auto flex flex-col gap-5 min-w-0">
+
+        {pendingApplications.length > 0 && (
+          <div className="bg-amber-50 border-2 border-amber-200 rounded-[2rem] p-5 md:p-6">
+            <div className="flex items-center justify-between gap-4 mb-4">
+              <div>
+                <h3 className="text-lg font-black text-amber-900">Новые заявки на курсы</h3>
+                <p className="text-sm font-medium text-amber-700">Ожидают рассмотрения: {pendingApplications.length}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => navigate('/admin/groups')}
+                className="px-4 py-2 rounded-xl bg-white border border-amber-200 text-amber-800 font-black text-sm hover:bg-amber-100"
+              >
+                К потокам
+              </button>
+            </div>
+            <div className="space-y-3">
+              {pendingApplications.slice(0, 5).map((app: any) => (
+                <div key={app.id} className="bg-white rounded-2xl border border-amber-100 p-4 flex flex-col md:flex-row md:items-center gap-3">
+                  <div className="flex-1 min-w-0">
+                    <p className="font-black text-gray-900 truncate">
+                      {(app.user?.name || '')} {(app.user?.surname || '')} · {app.user?.email}
+                    </p>
+                    <p className="text-sm text-gray-500 truncate">Поток: {app.group?.title}</p>
+                    {app.comment && <p className="text-sm text-gray-600 mt-1 line-clamp-2">{app.comment}</p>}
+                  </div>
+                  <div className="flex gap-2 shrink-0">
+                    <button type="button" onClick={() => handleReviewApplication(app.id, 'approve')} className="px-4 py-2 rounded-xl bg-emerald-500 text-white font-black text-sm">Одобрить</button>
+                    <button type="button" onClick={() => handleReviewApplication(app.id, 'reject')} className="px-4 py-2 rounded-xl bg-rose-500 text-white font-black text-sm">Отклонить</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
         
         {/* HEADER */}
         <div className="flex flex-wrap justify-between items-center gap-4">

@@ -20,6 +20,8 @@ import {
 import { getToken, getTokenConfig, safeStorageGet, safeStorageSet } from '../lib/auth';
 import { invalidateCache } from '../lib/api';
 import { checkSpelling, type SpellError } from '../utils/spellCheck';
+import { isAutoGradableBlockType } from '../utils/autoGrade';
+import { useRonSync } from '../lib/ron';
 
 const SpellErrorsPanel = ({ errors }: { errors: SpellError[] }) => (
   <div className="mt-2 bg-rose-50 border border-rose-200 rounded-2xl p-4">
@@ -557,6 +559,9 @@ export default function HomeworkView() {
   const [isLoading, setIsLoading] = useState(true);
   const [homework, setHomework] = useState<any>(null);
   const [sourceCourseId, setSourceCourseId] = useState<string | null>(null);
+  const [sourceThemeId, setSourceThemeId] = useState<string | null>(null);
+  const [sourceCourseTitle, setSourceCourseTitle] = useState<string>('');
+  const { addRonTask, removeRonTask } = useRonSync();
   
   const [hwBlocks, setHwBlocks] = useState<any[]>([]); 
   const [hwTheoryBlocks, setHwTheoryBlocks] = useState<any[]>([]);
@@ -618,6 +623,8 @@ export default function HomeworkView() {
                 foundLesson = lesson;
                 foundLesson.themeTitle = theme.title;
                 setSourceCourseId(course.id);
+                setSourceThemeId(theme.id);
+                setSourceCourseTitle(course.title || '');
                 setCourseSpellCheck(course.spell_check === true);
               }
             });
@@ -782,6 +789,24 @@ export default function HomeworkView() {
         return studentAns === correctAns;
       });
       finalAnswerString = Object.entries(userAnswersMap).map(([k, v]) => `${k} - ${v}`).join(', ');
+    }
+
+    if (isAutoGradableBlockType(block.type) && homework) {
+      if (!isSuccess) {
+        await addRonTask({
+          lessonId: homework.id,
+          blockId: block.id,
+          block,
+          courseId: sourceCourseId || undefined,
+          themeId: sourceThemeId || undefined,
+          courseTitle: sourceCourseTitle || undefined,
+          themeTitle: homework.themeTitle,
+          lessonTitle: homework.title,
+          blockTitle: (block.title || block.question || 'Задание').replace(/<[^>]+>/g, ' ').trim() || 'Задание',
+        });
+      } else {
+        await removeRonTask(homework.id, block.id);
+      }
     }
     
     let newResultState = isPending ? 'PENDING' : (isSuccess ? 'SUCCESS' : 'ERROR');

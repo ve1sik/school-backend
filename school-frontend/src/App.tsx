@@ -37,6 +37,7 @@ const AdminGroups = lazyPage(() => import('./pages/AdminGroups'));
 const AdminUsers = lazyPage(() => import('./pages/AdminUsers'));
 const AdminDecks = lazyPage(() => import('./pages/AdminDecks'));
 const FlashcardStudy = lazyPage(() => import('./pages/FlashcardStudy'));
+const RonWork = lazyPage(() => import('./pages/RonWork'));
 const Achievements = lazyPage(() => import('./pages/Achievements'));
 
 const NON_PARENT: any = ['ADMIN', 'CURATOR', 'TEACHER', 'STUDENT'];
@@ -108,6 +109,8 @@ export default function App() {
           <Route path="schedule" element={<Schedule />} />
           <Route path="homework" element={<Homework />} />
           <Route path="homework/:courseId/theme/:themeId/lesson/:lessonId" element={<HomeworkView />} />
+          <Route path="flashcards" element={<FlashcardStudy />} />
+          <Route path="ron" element={<RonWork />} />
           <Route path="cards" element={<Cards />} />
           <Route path="achievements" element={<Achievements />} />
           <Route path="messages" element={<Messages />} />
@@ -120,14 +123,6 @@ export default function App() {
           element={
             <ProtectedRoute roles={NON_PARENT}>
               <HomeworkView />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="flashcards"
-          element={
-            <ProtectedRoute roles={NON_PARENT}>
-              <FlashcardStudy />
             </ProtectedRoute>
           }
         />

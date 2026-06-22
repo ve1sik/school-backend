@@ -26,7 +26,8 @@ import {
   Clock,
   X,
   Menu,
-  Trophy
+  Trophy,
+  RotateCcw,
 } from 'lucide-react';
 
 const SITE_URL = 'https://prepodmgy.ru';
@@ -40,6 +41,8 @@ export default function Layout() {
   const [userData, setUserData] = useState<any>(null);
   
   const [unreadCount, setUnreadCount] = useState(0);
+  const [ronCount, setRonCount] = useState(0);
+  const [pendingApplicationsCount, setPendingApplicationsCount] = useState(0);
 
   // Мобильное выдвижное меню
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
@@ -204,6 +207,38 @@ export default function Layout() {
     };
   }, []);
 
+  useEffect(() => {
+    const fetchExtraCounts = async () => {
+      if (!getToken()) return;
+      try {
+        const ronRes = await api.get('/ron/tasks/count');
+        setRonCount(ronRes.data?.count || 0);
+      } catch {
+        setRonCount(0);
+      }
+
+      const role = (userData?.role || userRole) as Role | undefined;
+      const perms = new Set<AdminPermission>([
+        ...((role ? DEFAULT_ROLE_PERMISSIONS[role] : []) || []),
+        ...((userData?.admin_permissions || []) as AdminPermission[]),
+      ]);
+      if (role === 'ADMIN' || perms.has('MANAGE_USERS') || perms.has('MANAGE_GROUPS')) {
+        try {
+          const appsRes = await api.get('/groups/applications/pending');
+          setPendingApplicationsCount(appsRes.data?.count || 0);
+        } catch {
+          setPendingApplicationsCount(0);
+        }
+      } else {
+        setPendingApplicationsCount(0);
+      }
+    };
+
+    fetchExtraCounts();
+    const interval = setInterval(fetchExtraCounts, 60000);
+    return () => clearInterval(interval);
+  }, [userData, userRole]);
+
   // Закрываем мобильное меню при переходе на другую страницу
   useEffect(() => {
     setMobileNavOpen(false);
@@ -252,9 +287,10 @@ export default function Layout() {
     { path: '/courses', icon: BookOpen, label: 'Курсы' },
     { path: '/schedule', icon: Calendar, label: 'Расписание' },
     { path: '/homework', icon: FileText, label: 'Домашнее задание' },
+    { path: '/ron', icon: RotateCcw, label: 'РОН', badge: ronCount },
     { path: '/flashcards', icon: Layers, label: 'Флеш-карточки' },
     { path: '/achievements', icon: Trophy, label: 'Достижения' },
-    { path: '/messages', icon: MessageSquare, label: 'Сообщения' },
+    { path: '/messages', icon: MessageSquare, label: 'Сообщения', badge: unreadCount },
     { path: '/shop', icon: ShoppingCart, label: 'Магазин курсов' },
     { path: '/profile', icon: User, label: 'Мой профиль' },
     { path: '/settings', icon: Settings, label: 'Настройки' },
@@ -263,8 +299,8 @@ export default function Layout() {
   // Админ/куратор-разделы (для мобильного меню)
   const adminItems = [
     { path: '/admin', icon: BookOpen, label: 'Управление курсами', show: can('MANAGE_COURSES') },
-    { path: '/admin/users', icon: Users, label: 'Управление пользователями', show: can('MANAGE_USERS') },
-    { path: '/admin/groups', icon: ShieldCheck, label: 'Управление потоками', show: can('MANAGE_GROUPS') },
+    { path: '/admin/users', icon: Users, label: 'Управление пользователями', show: can('MANAGE_USERS'), badge: pendingApplicationsCount },
+    { path: '/admin/groups', icon: ShieldCheck, label: 'Управление потоками', show: can('MANAGE_GROUPS'), badge: pendingApplicationsCount },
     { path: '/admin/decks', icon: Layers, label: 'Карточки (колоды)', show: can('MANAGE_DECKS') },
     { path: '/curator', icon: Users, label: 'Кабинет куратора', show: can('CURATOR_DASHBOARD') },
   ].filter(item => item.show);
@@ -286,6 +322,7 @@ export default function Layout() {
     if (location.pathname === '/admin/users') return 'Управление пользователями';
     if (location.pathname === '/admin/decks') return 'Флеш-карточки';
     if (location.pathname === '/flashcards') return 'Флеш-карточки';
+    if (location.pathname === '/ron') return 'Работа над ошибками';
     if (location.pathname.startsWith('/curator')) return 'Кабинет куратора';
     if (location.pathname.includes('/mistakes')) return 'Разбор полетов';
     return 'Платформа';
@@ -313,7 +350,7 @@ export default function Layout() {
             {menuItems.map((item) => {
               const isActive = location.pathname === item.path;
               const isShop = item.path === '/shop';
-              const isMessages = item.path === '/messages';
+              const badgeCount = item.badge || 0;
               
               return (
                 <Link
@@ -330,18 +367,18 @@ export default function Layout() {
                   <div className="relative">
                     <item.icon className={`w-6 h-6 shrink-0 ${isActive ? 'text-[#5A4BFF]' : isShop ? 'text-purple-400' : 'text-gray-400'}`} />
                     
-                    {isMessages && unreadCount > 0 && (
+                    {badgeCount > 0 && (
                       <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-[9px] font-black flex items-center justify-center rounded-full border-2 border-white shadow-sm">
-                        {unreadCount > 9 ? '9+' : unreadCount}
+                        {badgeCount > 9 ? '9+' : badgeCount}
                       </span>
                     )}
                   </div>
 
                   <span className="text-sm font-bold whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center gap-2">
                     {item.label}
-                    {isMessages && unreadCount > 0 && (
+                    {badgeCount > 0 && (
                        <span className="bg-red-500 text-white text-[10px] px-1.5 py-0.5 rounded-md leading-none">
-                         {unreadCount}
+                         {badgeCount}
                        </span>
                     )}
                   </span>
@@ -355,6 +392,7 @@ export default function Layout() {
                   const isActive = item.path === '/curator'
                     ? location.pathname.startsWith('/curator')
                     : location.pathname === item.path;
+                  const badgeCount = item.badge || 0;
                   return (
                     <Link
                       key={item.path}
@@ -365,9 +403,21 @@ export default function Layout() {
                           : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'
                       }`}
                     >
-                      <item.icon className={`w-6 h-6 shrink-0 ${isActive ? 'text-[#5A4BFF]' : 'text-gray-400'}`} />
-                      <span className="text-sm font-bold whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                      <div className="relative">
+                        <item.icon className={`w-6 h-6 shrink-0 ${isActive ? 'text-[#5A4BFF]' : 'text-gray-400'}`} />
+                        {badgeCount > 0 && (
+                          <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-[9px] font-black flex items-center justify-center rounded-full border-2 border-white shadow-sm">
+                            {badgeCount > 9 ? '9+' : badgeCount}
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-sm font-bold whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center gap-2">
                         {item.label}
+                        {badgeCount > 0 && (
+                          <span className="bg-red-500 text-white text-[10px] px-1.5 py-0.5 rounded-md leading-none">
+                            {badgeCount}
+                          </span>
+                        )}
                       </span>
                     </Link>
                   );
