@@ -142,7 +142,11 @@
 
         window.addEventListener('unhandledrejection', function (ev) {
           if (document.documentElement.getAttribute('data-app-ready')) return;
-          var reason = ev.reason ? (ev.reason.message || String(ev.reason)) : 'Асинхронная ошибка';
+          var msg = ev.reason ? (ev.reason.message || String(ev.reason)) : '';
+          if (/Failed to fetch dynamically imported module|Importing a module script failed|Loading chunk/i.test(msg)) {
+            if (tryRecoverFromStaleCache(msg)) return;
+          }
+          var reason = msg || 'Асинхронная ошибка';
           showFail('promise', reason);
         });
 

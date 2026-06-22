@@ -40,7 +40,11 @@ if [ "$INDEX_JS_KB" -lt 100 ] && [ "$VENDOR_REACT_KB" -lt 100 ]; then
   echo "❌ ERROR: entry chunks too small (index≈${INDEX_JS_KB}KB, vendor-react≈${VENDOR_REACT_KB}KB) — React may be missing!"
   exit 1
 fi
-echo "✓ Build sanity: index.html=${INDEX_HTML_BYTES}B, index.js≈${INDEX_JS_KB}KB, vendor-react≈${VENDOR_REACT_KB}KB"
+if [ "$INDEX_JS_KB" -ge 100 ]; then
+  echo "✓ Build sanity: index.html=${INDEX_HTML_BYTES}B, index.js≈${INDEX_JS_KB}KB"
+elif [ "$VENDOR_REACT_KB" -ge 100 ]; then
+  echo "✓ Build sanity: index.html=${INDEX_HTML_BYTES}B, split entry index.js≈${INDEX_JS_KB}KB, vendor-react≈${VENDOR_REACT_KB}KB"
+fi
 
 echo "→ Deploying to $WEB_ROOT ..."
 sudo mkdir -p "$WEB_ROOT"

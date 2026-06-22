@@ -5,7 +5,7 @@ import PageSpinner from './components/PageSpinner';
 import ErrorBoundary from './components/ErrorBoundary';
 import BootGate from './components/BootGate';
 import Login from './pages/Login';
-import { clearBootOverlay } from './lib/boot';
+import { markBootDone } from './lib/boot';
 import { deferNonCritical } from './lib/defer';
 
 const lazyPage = (loader: () => Promise<{ default: ComponentType }>) =>
@@ -44,17 +44,17 @@ const Achievements = lazyPage(() => import('./pages/Achievements'));
 const NON_PARENT: any = ['ADMIN', 'CURATOR', 'TEACHER', 'STUDENT'];
 
 export default function App() {
-  // React уже запущен — убираем HTML-оверлей даже если lazy-чанк ещё грузится (BootGate не смонтирован).
+  // React запущен — отключаем HTML boot-таймаут (BootGate внутри Suspense может не успеть).
   useEffect(() => {
-    clearBootOverlay();
+    markBootDone();
   }, []);
 
   // На телефоне заранее подгружаем частые вкладки, когда браузер простаивает.
   useEffect(() => {
     deferNonCritical(() => {
-      void import('./pages/StudentCourses');
-      void import('./pages/Homework');
-      void import('./pages/Messages');
+      import('./pages/StudentCourses').catch(() => {});
+      import('./pages/Homework').catch(() => {});
+      import('./pages/Messages').catch(() => {});
     }, 6000);
   }, []);
 
