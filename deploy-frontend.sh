@@ -32,11 +32,15 @@ if ls dist/assets/*legacy* >/dev/null 2>&1; then
   echo "❌ ERROR: legacy chunks found — remove @vitejs/plugin-legacy from vite.config.ts"
   exit 1
 fi
-if [ "$INDEX_JS_KB" -lt 100 ]; then
-  echo "❌ ERROR: main index chunk is only ${INDEX_JS_KB} KB — React may be missing from entry!"
+VENDOR_REACT_KB=0
+if ls dist/assets/vendor-react-*.js >/dev/null 2>&1; then
+  VENDOR_REACT_KB=$(ls -l dist/assets/vendor-react-*.js | awk '{print int($5/1024)}' | tail -1)
+fi
+if [ "$INDEX_JS_KB" -lt 100 ] && [ "$VENDOR_REACT_KB" -lt 100 ]; then
+  echo "❌ ERROR: entry chunks too small (index≈${INDEX_JS_KB}KB, vendor-react≈${VENDOR_REACT_KB}KB) — React may be missing!"
   exit 1
 fi
-echo "✓ Build sanity: index.html=${INDEX_HTML_BYTES}B, index.js≈${INDEX_JS_KB}KB"
+echo "✓ Build sanity: index.html=${INDEX_HTML_BYTES}B, index.js≈${INDEX_JS_KB}KB, vendor-react≈${VENDOR_REACT_KB}KB"
 
 echo "→ Deploying to $WEB_ROOT ..."
 sudo mkdir -p "$WEB_ROOT"
