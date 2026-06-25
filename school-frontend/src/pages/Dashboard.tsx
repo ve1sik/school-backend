@@ -11,6 +11,7 @@ import { api, cachedGet, invalidateCache } from '../lib/api';
 import { getToken } from '../lib/auth';
 import { isMobileViewport, runWhenIdle } from '../lib/defer';
 import { checkSpelling, type SpellError } from '../utils/spellCheck';
+import { getSpellRuleRecommendation } from '../utils/spellAnalytics';
 
 const isSpellCheckEnabled = (course: any) => {
   if (!course) return false;
@@ -21,6 +22,7 @@ const isSpellCheckEnabled = (course: any) => {
 const SPELL_CHECK_BLOCK_TYPES = new Set(['written', 'homework', 'test_short']);
 
 function parseLessonBlocks(lesson: any): any[] {
+  if (Array.isArray(lesson?.blocksMeta)) return lesson.blocksMeta;
   try {
     const parsed = JSON.parse(lesson.content || '[]');
     return Array.isArray(parsed) ? parsed : [];
@@ -831,6 +833,12 @@ export default function Dashboard() {
     return collectSpellWeakSpotsForCourse(selectedCourse, mySubs, themeId);
   }, [spellAnalyticsEnabled, selectedCourse, mySubs, activeTab]);
 
+  const spellRuleRec = useMemo(() => {
+    if (!spellAnalyticsEnabled || !selectedCourse) return null;
+    const themeId = activeTab === 'all' ? undefined : activeTab;
+    return getSpellRuleRecommendation(selectedCourse, mySubs, themeId);
+  }, [spellAnalyticsEnabled, selectedCourse, mySubs, activeTab]);
+
   const handleOpenWeakSpot = (spot: WeakSpot) => {
     if (spot.isHomework) {
       navigate(`/homework/${spot.lessonId}`);
@@ -1274,6 +1282,52 @@ export default function Dashboard() {
                 ✅ ≥70% · 🟡 50–69% · 🔴 &lt;50%
               </p>
               <ScoreTable data={(currentData?.progressData ?? []) as ScoreChartRow[]} />
+            </motion.div>
+          )}
+
+          {/* АНАЛИЗ ПО ПРАВИЛАМ ОРФОГРАФИИ */}
+          {spellAnalyticsEnabled && spellRuleRec && spellRuleRec.totalErrors > 0 && (
+            <motion.div
+              variants={itemVariants}
+              initial="hidden"
+              animate="show"
+              className="bg-indigo-50 border-2 border-indigo-100 p-8 md:p-10 rounded-[2.5rem] shadow-sm xl:col-span-3"
+            >
+              <div className="flex items-start gap-4 mb-6">
+                <div className="w-12 h-12 rounded-2xl bg-indigo-100 flex items-center justify-center shrink-0">
+                  <BookOpen className="w-6 h-6 text-indigo-600" />
+                </div>
+                <div>
+                  <h3 className="text-2xl font-black text-indigo-950">Анализ по правилам</h3>
+                  <p className="text-sm font-medium text-indigo-700/80 mt-1">
+                    По заданиям курса — где чаще всего ошибались (пре-/при-, и/ы, з/с и др.).
+                  </p>
+                </div>
+              </div>
+              <p className="text-base font-semibold text-indigo-950 leading-relaxed mb-6">
+                {spellRuleRec.summary}
+              </p>
+              <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {spellRuleRec.stats.map((row) => (
+                  <div
+                    key={row.ruleId}
+                    className={`p-4 rounded-2xl border-2 bg-white ${
+                      spellRuleRec.topRule?.ruleId === row.ruleId
+                        ? 'border-indigo-400 ring-2 ring-indigo-200'
+                        : 'border-indigo-100'
+                    }`}
+                  >
+                    <p className="text-xs font-black text-indigo-400 uppercase tracking-wider mb-1">
+                      {row.shortLabel}
+                    </p>
+                    <p className="font-black text-gray-900 text-sm leading-snug">{row.label}</p>
+                    <p className="mt-2 text-2xl font-black text-indigo-600">{row.errorCount}</p>
+                    <p className="text-[11px] text-gray-500 mt-1 font-medium">
+                      {row.errorCount === 1 ? 'ошибка' : row.errorCount < 5 ? 'ошибки' : 'ошибок'}
+                    </p>
+                  </div>
+                ))}
+              </div>
             </motion.div>
           )}
 

@@ -6,6 +6,7 @@ import { getTokenConfig } from '../lib/auth';
 import { invalidateCache } from '../lib/api';
 import { parseSafeDate, parseSafeDateMs } from '../lib/parseDate';
 import { useNavigate } from 'react-router-dom';
+import { SPELL_RULE_OPTIONS } from '../utils/spellRules';
 
 import ReactQuill from 'react-quill-new';
 import 'react-quill-new/dist/quill.snow.css';
@@ -1098,6 +1099,35 @@ export default function AdminCourses() {
                   <input type="checkbox" checked={block.ignoreTypos !== false} onChange={(e) => updateBlock(block.id, { ignoreTypos: e.target.checked }, isHw)} className="w-5 h-5 rounded border-gray-300 text-amber-500 focus:ring-amber-500 cursor-pointer" />
                   <span className="text-sm font-bold text-gray-700">Игнорировать опечатки, регистр и Ё</span>
                 </label>
+                <div className="mt-4">
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">Правило орфографии (строка задания)</label>
+                  <select
+                    value={block.spellRule || ''}
+                    onChange={(e) => updateBlock(block.id, { spellRule: e.target.value || null }, isHw)}
+                    className="w-full max-w-md p-3 rounded-xl border-2 border-gray-200 outline-none font-bold text-sm text-gray-700 bg-white focus:border-amber-400"
+                  >
+                    <option value="">Не задано — определится автоматически</option>
+                    {SPELL_RULE_OPTIONS.map((r) => (
+                      <option key={r.id} value={r.id}>{r.label}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            )}
+
+            {block.type === 'written' && (
+              <div className="mb-4">
+                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">Правило орфографии</label>
+                <select
+                  value={block.spellRule || ''}
+                  onChange={(e) => updateBlock(block.id, { spellRule: e.target.value || null }, isHw)}
+                  className="w-full max-w-md p-3 rounded-xl border-2 border-gray-200 outline-none font-bold text-sm text-gray-700 bg-white focus:border-purple-400"
+                >
+                  <option value="">Не задано</option>
+                  {SPELL_RULE_OPTIONS.map((r) => (
+                    <option key={r.id} value={r.id}>{r.label}</option>
+                  ))}
+                </select>
               </div>
             )}
 
@@ -1113,6 +1143,21 @@ export default function AdminCourses() {
                       </div>
                       <input value={pair.left} onChange={(e) => { const newPairs = [...block.pairs]; newPairs[idx].left = e.target.value; updateBlock(block.id, { pairs: newPairs }, isHw); }} placeholder="Ключ" className="w-full p-3 bg-gray-50 rounded-xl outline-none font-black text-center text-indigo-700 focus:bg-white focus:ring-2 focus:ring-indigo-400 transition-all border border-transparent" />
                       <input value={pair.right} onChange={(e) => { const newPairs = [...block.pairs]; newPairs[idx].right = e.target.value; updateBlock(block.id, { pairs: newPairs }, isHw); }} placeholder="Значение" className="w-full p-3 bg-gray-50 rounded-xl outline-none font-black text-center text-emerald-700 focus:bg-white focus:ring-2 focus:ring-emerald-400 transition-all border border-transparent" />
+                      <select
+                        value={pair.spellRule || block.spellRule || ''}
+                        onChange={(e) => {
+                          const newPairs = [...block.pairs];
+                          newPairs[idx] = { ...newPairs[idx], spellRule: e.target.value || null };
+                          updateBlock(block.id, { pairs: newPairs }, isHw);
+                        }}
+                        className="w-full p-2 rounded-lg border border-indigo-100 bg-indigo-50/50 text-[10px] font-bold text-indigo-800 outline-none focus:border-indigo-400"
+                        title="Какое правило проверяет эта строка"
+                      >
+                        <option value="">Правило строки</option>
+                        {SPELL_RULE_OPTIONS.map((r) => (
+                          <option key={r.id} value={r.id}>{r.shortLabel}</option>
+                        ))}
+                      </select>
                     </div>
                   ))}
                   <button type="button" onClick={() => { updateBlock(block.id, { pairs: [...(block.pairs || []), { left: '', right: '' }] }, isHw); }} className="w-32 shrink-0 flex flex-col items-center justify-center border-2 border-dashed border-indigo-300 text-indigo-500 hover:bg-indigo-50 hover:border-indigo-400 rounded-2xl font-black transition-all">

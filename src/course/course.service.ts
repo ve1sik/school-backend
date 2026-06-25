@@ -14,6 +14,7 @@ const LESSON_LIGHT_SELECT = {
   unlock_date: true,
   video_url: true,
   created_at: true,
+  content: true,
 } as const;
 
 const THEMES_WITH_FULL_LESSONS = {
@@ -36,6 +37,47 @@ const THEMES_WITH_LIGHT_LESSONS = {
 @Injectable()
 export class CourseService {
   constructor(private prisma: PrismaService) {}
+
+  /** Для учеников: метаданные блоков без тяжёлого content (орфография, аналитика). */
+  private stripLessonContentForClient(lesson: any) {
+    if (!lesson?.content) {
+      return { ...lesson, blocksMeta: [] as any[], content: undefined };
+    }
+    let blocksMeta: any[] = [];
+    try {
+      const parsed = JSON.parse(lesson.content);
+      if (Array.isArray(parsed)) {
+        blocksMeta = parsed.map((b: any) => ({
+          id: String(b.id),
+          type: b.type,
+          title: b.title,
+          spellRule: b.spellRule || null,
+          pairs: Array.isArray(b.pairs)
+            ? b.pairs.map((p: any) => ({
+                left: p.left,
+                right: p.right,
+                spellRule: p.spellRule || null,
+              }))
+            : undefined,
+        }));
+      }
+    } catch {
+      blocksMeta = [];
+    }
+    const { content, ...rest } = lesson;
+    return { ...rest, blocksMeta };
+  }
+
+  private sanitizeCoursesForClient(courses: any[], role?: string) {
+    if (role === 'ADMIN' || role === 'CURATOR' || role === 'TEACHER') return courses;
+    return courses.map((course) => ({
+      ...course,
+      themes: course.themes?.map((theme: any) => ({
+        ...theme,
+        lessons: theme.lessons?.map((lesson: any) => this.stripLessonContentForClient(lesson)),
+      })),
+    }));
+  }
 
   /** Полный контент уроков нужен только в админке; на телефонах Safari падает от мегабайт JSON. */
   private themesInclude(role?: string) {
@@ -64,18 +106,17 @@ export class CourseService {
   }
 
   async getAllCourses(userId?: string, userRole?: string) {
-    const themes = this.themesInclude(userRole);
-
     if (userRole === 'ADMIN') {
-      return this.prisma.course.findMany({
-        include: { themes },
+      const courses = await this.prisma.course.findMany({
+        include: { themes: this.themesInclude(userRole) },
         orderBy: { title: 'asc' },
       });
+      return this.sanitizeCoursesForClient(courses, userRole);
     }
 
     // Куратор видит только курсы своих кураторских групп, преподаватель — своих преподавательских групп.
     if (userRole === 'CURATOR' && userId) {
-      return this.prisma.course.findMany({
+      const courses = await this.prisma.course.findMany({
         where: {
           groups: {
             some: {
@@ -83,13 +124,14 @@ export class CourseService {
             },
           },
         },
-        include: { themes },
+        include: { themes: this.themesInclude(userRole) },
         orderBy: { title: 'asc' },
       });
+      return this.sanitizeCoursesForClient(courses, userRole);
     }
 
     if (userRole === 'TEACHER' && userId) {
-      return this.prisma.course.findMany({
+      const courses = await this.prisma.course.findMany({
         where: {
           groups: {
             some: {
@@ -97,9 +139,10 @@ export class CourseService {
             },
           },
         },
-        include: { themes },
+        include: { themes: this.themesInclude(userRole) },
         orderBy: { title: 'asc' },
       });
+      return this.sanitizeCoursesForClient(courses, userRole);
     }
 
     // Получаем курсы из прямых enrollments И из групп
@@ -122,11 +165,12 @@ export class CourseService {
       return [];
     }
 
-    return this.prisma.course.findMany({
+    const courses = await this.prisma.course.findMany({
       where: { id: { in: [...courseIdSet] } },
       include: { themes: this.themesInclude(userRole) },
       orderBy: { title: 'asc' },
     });
+    return this.sanitizeCoursesForClient(courses, userRole);
   }
 
   async create(dto: any) {
