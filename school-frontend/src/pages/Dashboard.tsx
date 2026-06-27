@@ -1300,7 +1300,7 @@ export default function Dashboard() {
                 <div>
                   <h3 className="text-2xl font-black text-indigo-950">Анализ по правилам</h3>
                   <p className="text-sm font-medium text-indigo-700/80 mt-1">
-                    По заданиям курса — где чаще всего ошибались (пре-/при-, и/ы, з/с и др.).
+                    Орфография, грамматика, пунктуация, слитно-раздельное, спряжение и др.
                   </p>
                 </div>
               </div>

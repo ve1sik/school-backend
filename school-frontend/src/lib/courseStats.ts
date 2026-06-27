@@ -121,7 +121,7 @@ export function buildCourseStats(course: any, mySubs: any[]): CourseStats | null
         const blockType =
           block.type === 'test' || block.type === 'test_short' || block.type === 'matching'
             ? 'tests'
-            : block.type === 'written' || block.type === 'homework' || block.isHomework
+            : block.type === 'written' || block.type === 'essay' || block.type === 'homework' || block.isHomework
               ? 'written'
               : block.type === 'oral'
                 ? 'oral'

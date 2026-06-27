@@ -70,7 +70,16 @@ export class SubmissionsController {
   @Permissions('CURATOR_DASHBOARD')
   @Patch(':id/grade')
   gradeSubmission(@Param('id') id: string, @Body() body: any) {
-    return this.submissionsService.gradeSubmission(id, body.score, body.comment, body.status);
+    return this.submissionsService.gradeSubmission(
+      id,
+      body.score,
+      body.comment,
+      body.status,
+      {
+        criteriaScores: body.criteriaScores,
+        errorAnnotations: body.errorAnnotations,
+      },
+    );
   }
 
   // Студент запрашивает свою сданную работу (в конкретном уроке)

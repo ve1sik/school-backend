@@ -176,6 +176,7 @@ export function collectSpellRuleStats(
         label: info.label,
         shortLabel: info.shortLabel,
         review: info.review,
+        group: info.group,
         errorCount: row.count,
         taskExamples: [...row.examples].slice(0, 5),
       } satisfies SpellRuleStat;

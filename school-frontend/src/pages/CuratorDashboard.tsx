@@ -27,6 +27,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import ReactQuill from 'react-quill-new';
 import 'react-quill-new/dist/quill.snow.css';
 import { invalidateCache } from '../lib/api';
+import EssayGradingPanel from '../components/EssayGradingPanel';
+import { EGE_ESSAY_MAX_SCORE } from '../utils/essayCriteria';
 
 const API_URL = 'https://prepodmgy.ru/api';
 
@@ -323,9 +325,96 @@ export default function CuratorDashboard() {
     </button>
   );
 
+  const isEssaySubmission = (sub: any) =>
+    sub.blockType === 'essay' || sub.maxScore === EGE_ESSAY_MAX_SCORE || sub.maxScore === 22;
+
+  const handleEssaySave = async (
+    subId: string,
+    payload: {
+      score: number;
+      comment: string;
+      criteriaScores: unknown;
+      errorAnnotations: unknown;
+    },
+  ) => {
+    try {
+      const token = getToken();
+      await axios.patch(
+        `${API_URL}/submissions/${subId}/grade`,
+        {
+          score: payload.score,
+          comment: payload.comment,
+          criteriaScores: payload.criteriaScores,
+          errorAnnotations: payload.errorAnnotations,
+        },
+        { headers: { Authorization: `Bearer ${token}` } },
+      );
+      setSubmissions(prev =>
+        prev.map(sub =>
+          sub.id === subId
+            ? {
+                ...sub,
+                score: payload.score,
+                comment: payload.comment,
+                criteriaScores: payload.criteriaScores,
+                errorAnnotations: payload.errorAnnotations,
+                status: 'GRADED',
+              }
+            : sub,
+        ),
+      );
+      setRecentlyGradedIds(prev => new Set(prev).add(subId));
+      invalidateCache('/submissions');
+      showToast('Оценка сочинения сохранена');
+    } catch {
+      showToast('Ошибка при сохранении оценки', 'error');
+    }
+  };
+
   const renderSubmissionCard = (sub: any, index: number) => {
     const [questionText, questionImage] = String(sub.question || '').split('|||IMG|||');
     const isGraded = sub.status === 'GRADED';
+    const isEssay = isEssaySubmission(sub);
+
+    if (isEssay && !sub.isAutoGraded) {
+      return (
+        <div key={sub.id} className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
+          <div className="p-6 md:p-8 bg-gradient-to-br from-purple-50 to-indigo-50 border-b border-gray-100">
+            <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
+              <span className="font-black text-xs uppercase tracking-widest text-purple-700 flex items-center gap-2">
+                <FileText className="w-4 h-4" /> Сочинение (ЕГЭ) {index + 1}
+              </span>
+              <span className={`px-3 py-1 rounded-xl text-[10px] font-black uppercase ${isGraded ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+                {isGraded ? 'Оценено' : 'На проверке'}
+              </span>
+            </div>
+            <div className="text-gray-900 font-black theory-read-only mb-4">
+              <ReactQuill theme="snow" value={questionText || ''} readOnly modules={{ toolbar: false }} />
+            </div>
+            {questionImage && (
+              <img src={getFullUrl(questionImage)} alt="Задание" className="max-h-80 rounded-3xl border border-gray-200 shadow-sm object-contain" />
+            )}
+          </div>
+          <div className="p-6 md:p-8">
+            <EssayGradingPanel
+              submissionId={sub.id}
+              answer={sub.answer || ''}
+              maxScore={sub.maxScore || EGE_ESSAY_MAX_SCORE}
+              initialCriteria={sub.criteriaScores}
+              initialErrors={sub.errorAnnotations}
+              initialComment={comments[sub.id] ?? sub.comment ?? ''}
+              initialScore={sub.score}
+              isGraded={isGraded}
+              onSave={(payload) => handleEssaySave(sub.id, payload)}
+              onRevision={async (c) => {
+                setComments(prev => ({ ...prev, [sub.id]: c }));
+                await handleReturnForRevision(sub.id);
+              }}
+            />
+          </div>
+        </div>
+      );
+    }
 
     return (
       <div key={sub.id} className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden">

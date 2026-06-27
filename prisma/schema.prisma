@@ -302,11 +302,14 @@ model Submission {
   user_id    String
   lesson_id  String
   block_id   String
+  block_type String?
   question   String           @db.Text
   answer     String           @db.Text
   max_score  Int              @default(3)
   score      Int?
   comment    String?          @db.Text
+  criteria_scores     Json?
+  error_annotations   Json?
   status     SubmissionStatus @default(PENDING)
   created_at DateTime         @default(now())
   updated_at DateTime         @updatedAt

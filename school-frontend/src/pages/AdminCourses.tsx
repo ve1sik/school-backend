@@ -7,6 +7,7 @@ import { invalidateCache } from '../lib/api';
 import { parseSafeDate, parseSafeDateMs } from '../lib/parseDate';
 import { useNavigate } from 'react-router-dom';
 import { SPELL_RULE_OPTIONS } from '../utils/spellRules';
+import { EGE_ESSAY_MAX_SCORE } from '../utils/essayCriteria';
 
 import ReactQuill from 'react-quill-new';
 import 'react-quill-new/dist/quill.snow.css';
@@ -630,6 +631,7 @@ export default function AdminCourses() {
     if (type === 'test') { newBlock.question = ''; newBlock.maxAttempts = 3; newBlock.maxScore = 3; newBlock.options = [{ text: '', isCorrect: false }]; newBlock.explanation = ''; newBlock.source = ''; newBlock.title = 'Тест'; }
     if (type === 'test_short') { newBlock.question = ''; newBlock.correctAnswers = []; newBlock.ignoreTypos = true; newBlock.maxAttempts = 3; newBlock.maxScore = 3; newBlock.explanation = ''; newBlock.source = ''; newBlock.title = 'Тест с кратким ответом'; }
     if (type === 'written') { newBlock.question = ''; newBlock.maxScore = 3; newBlock.explanation = ''; newBlock.source = ''; newBlock.title = 'Развернутый ответ'; }
+    if (type === 'essay') { newBlock.question = ''; newBlock.maxScore = 22; newBlock.explanation = ''; newBlock.source = ''; newBlock.title = 'Сочинение (ЕГЭ)'; }
     if (type === 'matching') { newBlock.question = ''; newBlock.maxAttempts = 3; newBlock.maxScore = 3; newBlock.pairs = [{ left: '', right: '' }]; newBlock.explanation = ''; newBlock.source = ''; newBlock.title = 'Таблица (Впиши ответ)'; }
     
     if (isHw) { setHwBlocks(prev => [...prev, newBlock]); setTimeout(() => document.getElementById('hw-section-end')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 100); } 
@@ -758,7 +760,7 @@ export default function AdminCourses() {
 
     const validateArr = (arr: any[]) => {
       arr.forEach(b => {
-        if (['test', 'test_short', 'written', 'matching'].includes(b.type)) {
+        if (['test', 'test_short', 'written', 'essay', 'matching'].includes(b.type)) {
           if (isQuillEmpty(b.question)) newErrors[b.id] = true;
           
           if (b.type === 'test') {
@@ -1115,6 +1117,23 @@ export default function AdminCourses() {
               </div>
             )}
 
+            {block.type === 'essay' && (
+              <div className="mb-4 space-y-3">
+                <p className="text-sm font-bold text-fuchsia-800 bg-fuchsia-50 border border-fuchsia-100 rounded-xl px-4 py-3">
+                  Блок сочинения: ученик пишет в поле без автокоррекции (max {EGE_ESSAY_MAX_SCORE} баллов). Куратор проверяет по критериям K1–K10.
+                </p>
+                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">Максимальный балл</label>
+                <input
+                  type="number"
+                  min={1}
+                  max={22}
+                  value={block.maxScore ?? 22}
+                  onChange={(e) => updateBlock(block.id, { maxScore: Number(e.target.value) || 22 }, isHw)}
+                  className="w-32 p-3 rounded-xl border-2 border-gray-200 outline-none font-black text-center focus:border-fuchsia-400"
+                />
+              </div>
+            )}
+
             {block.type === 'written' && (
               <div className="mb-4">
                 <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">Правило орфографии</label>
@@ -1211,6 +1230,7 @@ export default function AdminCourses() {
           <button type="button" onClick={() => addBlock('test', isHw)} className={`${btnClass} !flex-row !justify-start px-4`}><CheckSquare className="w-5 h-5 text-rose-500" /> Тест (Варианты)</button>
           <button type="button" onClick={() => addBlock('test_short', isHw)} className={`${btnClass} !flex-row !justify-start px-4`}><Type className="w-5 h-5 text-amber-500" /> Краткий ответ</button>
           <button type="button" onClick={() => addBlock('matching', isHw)} className={`${btnClass} !flex-row !justify-start px-4`}><List className="w-5 h-5 text-indigo-500" /> Таблица (впиши ответ)</button>
+          <button type="button" onClick={() => addBlock('essay', isHw)} className={`${btnClass} !flex-row !justify-start px-4`}><FileSignature className="w-5 h-5 text-fuchsia-500" /> Сочинение (ЕГЭ)</button>
           <button type="button" onClick={() => addBlock('written', isHw)} className={`${btnClass} !flex-row !justify-start px-4`}><PenTool className="w-5 h-5 text-purple-500" /> Развернутый ответ</button>
         </div>
       </div>

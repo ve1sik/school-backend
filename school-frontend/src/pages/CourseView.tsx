@@ -22,6 +22,10 @@ import {
 import { getToken, getTokenConfig, safeStorageGet, safeStorageSet } from '../lib/auth';
 import { isAutoGradableBlockType } from '../utils/autoGrade';
 import { useRonSync } from '../lib/ron';
+import EssayPlainEditor from '../components/EssayPlainEditor';
+import EssayResultView from '../components/EssayResultView';
+import { EGE_ESSAY_MAX_SCORE } from '../utils/essayCriteria';
+import { isManualGradeBlock, isUnlimitedAttempts } from '../utils/lessonBlockTypes';
 
 const API_URL = 'https://prepodmgy.ru/api';
 
@@ -227,7 +231,7 @@ const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswer
         <div className="px-3 py-1.5 rounded-lg bg-purple-50 text-purple-600 text-[10px] font-black uppercase tracking-widest border border-purple-100">
           Вопрос {activeStep + 1}
         </div>
-        {block.type !== 'written' && (
+        {block.type !== 'written' && block.type !== 'essay' && (
           <div className={`px-3 py-1.5 rounded-md text-[10px] font-black uppercase tracking-widest ${isExhausted && result !== 'SUCCESS' ? 'bg-rose-100 text-rose-600' : 'bg-gray-100 text-gray-500'}`}>
             Попыток: {attemptsLeft} из {maxAttempts}
           </div>
@@ -267,7 +271,19 @@ const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswer
             <span className="text-sm bg-white px-3 py-1 rounded-lg shadow-sm border border-purple-50">Ожидает проверки ⏳</span>
           </motion.div>
         )}
-        {result === 'GRADED' && serverSubmission && (
+        {result === 'GRADED' && serverSubmission && block.type === 'essay' && (
+          <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="mb-6">
+            <EssayResultView
+              answer={serverSubmission.answer || ''}
+              score={Number(serverSubmission.score) || 0}
+              maxScore={Number(serverSubmission.max_score || block.maxScore || EGE_ESSAY_MAX_SCORE)}
+              comment={serverSubmission.comment}
+              criteriaScores={serverSubmission.criteria_scores || serverSubmission.criteriaScores}
+              errorAnnotations={serverSubmission.error_annotations || serverSubmission.errorAnnotations}
+            />
+          </motion.div>
+        )}
+        {result === 'GRADED' && serverSubmission && block.type !== 'essay' && (
            <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="bg-emerald-50 border-2 border-emerald-200 p-5 rounded-xl mb-6 shadow-sm">
              <div className="flex flex-col sm:flex-row sm:items-center justify-between font-black text-emerald-600 gap-3 mb-4">
                <span className="flex items-center gap-2 text-xl"><CheckCircle2 className="w-7 h-7" /> Работа проверена!</span>
@@ -468,6 +484,24 @@ const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswer
           </div>
         )}
 
+        {block.type === 'essay' && (
+          <div className="flex flex-col gap-3 relative">
+            {isLocked && serverSubmission && (
+              <div className="absolute inset-0 z-10 bg-transparent cursor-not-allowed" />
+            )}
+            <p className="text-xs font-bold text-gray-500 bg-gray-50 border border-gray-100 rounded-xl px-4 py-2">
+              Сочинение без автокоррекции — ошибки не подчёркиваются автоматически.
+            </p>
+            <EssayPlainEditor
+              value={serverSubmission?.answer || selected[0] || ''}
+              onChange={(val) => {
+                if (!isLocked) handleTextAnswerChange(block.id, val);
+              }}
+              readOnly={isLocked}
+            />
+          </div>
+        )}
+
         {block.type === 'written' && (
           <div className="flex flex-col gap-2 relative">
             {isLocked && serverSubmission && (
@@ -495,9 +529,9 @@ const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswer
           type="button"
           onClick={(e) => { e.preventDefault(); handleSubmitTest(block); }} 
           disabled={block.type === 'matching' ? (!isMatchingReady || isLocked) : (selected.length === 0 || selected[0] === '' || selected[0] === '<p><br></p>' || isLocked)} 
-          className={`w-full sm:w-auto px-10 py-4 rounded-xl font-black text-sm transition-all active:scale-95 disabled:opacity-50 tracking-wide uppercase ${isExhausted && block.type !== 'written' ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : result === 'ERROR' ? 'bg-[#FF4A6B] hover:bg-red-500 text-white shadow-lg shadow-red-500/30' : result === 'GRADED' ? 'bg-emerald-500 text-white cursor-not-allowed' : 'bg-[#A855F7] hover:bg-[#9333EA] text-white shadow-lg shadow-purple-500/30'}`}
+          className={`w-full sm:w-auto px-10 py-4 rounded-xl font-black text-sm transition-all active:scale-95 disabled:opacity-50 tracking-wide uppercase ${isExhausted && !isUnlimitedAttempts(block.type) ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : result === 'ERROR' ? 'bg-[#FF4A6B] hover:bg-red-500 text-white shadow-lg shadow-red-500/30' : result === 'GRADED' ? 'bg-emerald-500 text-white cursor-not-allowed' : 'bg-[#A855F7] hover:bg-[#9333EA] text-white shadow-lg shadow-purple-500/30'}`}
         >
-          {result === 'PENDING' ? 'НА ПРОВЕРКЕ' : result === 'GRADED' ? 'ОЦЕНЕНО' : (isExhausted && block.type !== 'written' ? 'ЛИМИТ ИСЧЕРПАН' : result === 'ERROR' ? 'ЕЩЕ РАЗ' : 'ОТВЕТИТЬ')}
+          {result === 'PENDING' ? 'НА ПРОВЕРКЕ' : result === 'GRADED' ? 'ОЦЕНЕНО' : (isExhausted && !isUnlimitedAttempts(block.type) ? 'ЛИМИТ ИСЧЕРПАН' : result === 'ERROR' ? 'ЕЩЕ РАЗ' : 'ОТВЕТИТЬ')}
         </button>
         
         <div className="flex-1 w-full flex justify-end gap-3">
@@ -640,7 +674,7 @@ export default function CourseView() {
     let currentAttempts = attemptsUsed?.[block.id] || 0;
     const maxAttempts = block.maxAttempts || 3;
     
-    if (!['written', 'homework'].includes(block.type) && currentAttempts >= maxAttempts) return; 
+    if (!isManualGradeBlock(block.type) && currentAttempts >= maxAttempts) return; 
 
     const selected = Array.isArray(testAnswers?.[block.id]) ? testAnswers[block.id] : [];
     let isSuccess = false;
@@ -650,7 +684,7 @@ export default function CourseView() {
     const img = block.questionImage || block.image;
     const questionWithImage = img ? `${block.question}|||IMG|||${img}` : block.question;
 
-    if (['written', 'homework'].includes(block.type)) {
+    if (isManualGradeBlock(block.type)) {
       isPending = true;
       finalAnswerString = selected[0] || '';
     } else if (block.type === 'test') {
@@ -703,7 +737,7 @@ export default function CourseView() {
     
     let newResultState = isPending ? 'PENDING' : (isSuccess ? 'SUCCESS' : 'ERROR');
 
-    if (!['written', 'homework'].includes(block.type)) {
+    if (!isManualGradeBlock(block.type)) {
       currentAttempts += 1;
       const newAttempts = { ...attemptsUsed, [block.id]: currentAttempts };
       setAttemptsUsed(newAttempts);
@@ -741,9 +775,10 @@ export default function CourseView() {
         await axios.post(`${API_URL}/submissions`, {
           lessonId: activeLesson.id,
           blockId: block.id,
+          blockType: block.type,
           question: questionWithImage,
           answer: finalAnswerString,
-          maxScore: block.maxScore || 10
+          maxScore: block.maxScore || (block.type === 'essay' ? EGE_ESSAY_MAX_SCORE : 10),
         }, { headers: { Authorization: `Bearer ${getToken()}` } });
         
         setSubmissions(prev => [
@@ -778,19 +813,22 @@ export default function CourseView() {
     }
   }
 
-  const theoryBlocks = blocks.filter(b => !['test', 'test_short', 'written', 'matching'].includes(b.type) && !b.isHomework);
-  const practiceBlocks = blocks.filter(b => ['test', 'test_short', 'written', 'matching'].includes(b.type) && !b.isHomework);
+  const theoryBlocks = blocks.filter(b => !['test', 'test_short', 'written', 'matching', 'essay'].includes(b.type) && !b.isHomework);
+  const practiceBlocks = blocks.filter(b => ['test', 'test_short', 'written', 'matching', 'essay'].includes(b.type) && !b.isHomework);
   const homeworkBlocks = blocks.filter(b => b.isHomework);
 
   const groupInteractiveBlocks = (blocksToGroup: any[]) => {
     const groups = [
       { type: 'tests', title: 'Тесты', blocks: [] as any[], Icon: CheckSquare, iconColor: 'bg-indigo-50 text-indigo-600' },
+      { type: 'essay', title: 'Сочинение (ЕГЭ)', blocks: [] as any[], Icon: FileSignature, iconColor: 'bg-fuchsia-50 text-fuchsia-600' },
       { type: 'written', title: 'Развернутый ответ', blocks: [] as any[], Icon: PenTool, iconColor: 'bg-purple-50 text-purple-600' }
     ];
 
     blocksToGroup.forEach(b => {
       if (['test', 'test_short', 'matching'].includes(b.type)) {
         groups.find(g => g.type === 'tests')?.blocks.push(b);
+      } else if (b.type === 'essay') {
+        groups.find(g => g.type === 'essay')?.blocks.push(b);
       } else if (b.type === 'written') {
         groups.find(g => g.type === 'written')?.blocks.push(b);
       }

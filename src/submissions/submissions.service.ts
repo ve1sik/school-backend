@@ -53,11 +53,14 @@ export class SubmissionsService {
       lessonTitle: sub.lesson?.title || 'Неизвестный урок',
       lessonId: sub.lesson_id || sub.lesson?.id || null,
       blockId: sub.block_id,
+      blockType: sub.block_type || null,
       question: sub.question,
       answer: sub.answer,
       maxScore: sub.max_score,
       score: sub.score,
       comment: sub.comment,
+      criteriaScores: sub.criteria_scores || null,
+      errorAnnotations: sub.error_annotations || null,
       status: sub.status,
       isAutoGraded,
       updated_at: sub.updated_at,
@@ -78,6 +81,7 @@ export class SubmissionsService {
         user_id: userId,
         lesson_id: body.lessonId,
         block_id: body.blockId,
+        block_type: body.blockType || body.block_type || null,
         question: body.question,
         answer: body.answer,
         max_score: body.maxScore || 3,
@@ -252,17 +256,42 @@ export class SubmissionsService {
   }
 
   // Куратор ставит оценку или возвращает на доработку
-  async gradeSubmission(id: string, score: number, comment: string, status?: string) {
+  async gradeSubmission(
+    id: string,
+    score: number,
+    comment: string,
+    status?: string,
+    extras?: { criteriaScores?: unknown; errorAnnotations?: unknown },
+  ) {
     const finalStatus = status === 'REVISION' ? 'REVISION' : 'GRADED';
     const existing = await this.prisma.submission.findUnique({ where: { id } });
     const finalComment = comment?.trim() ? comment : existing?.comment || '';
 
+    let finalScore = score;
+    if (
+      finalStatus === 'GRADED' &&
+      Array.isArray(extras?.criteriaScores) &&
+      extras.criteriaScores.length > 0
+    ) {
+      const sum = extras.criteriaScores.reduce(
+        (acc: number, row: any) => acc + (Number(row?.score) || 0),
+        0,
+      );
+      if (Number.isFinite(sum)) finalScore = sum;
+    }
+
     const updated = await this.prisma.submission.update({
       where: { id },
       data: {
-        score: finalStatus === 'REVISION' ? null : score,
+        score: finalStatus === 'REVISION' ? null : finalScore,
         comment: finalComment,
         status: finalStatus as any,
+        ...(extras?.criteriaScores !== undefined
+          ? { criteria_scores: extras.criteriaScores as any }
+          : {}),
+        ...(extras?.errorAnnotations !== undefined
+          ? { error_annotations: extras.errorAnnotations as any }
+          : {}),
       },
     });
 
