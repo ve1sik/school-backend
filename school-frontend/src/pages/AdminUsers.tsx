@@ -379,9 +379,14 @@ export default function AdminUsers() {
             )}
           </button>
           {currentRole === 'ADMIN' && (
+            <>
             <button type="button" onClick={() => navigate('/admin/groups')} className="w-full flex items-center gap-4 px-5 py-4 rounded-2xl font-bold transition-all text-gray-600 hover:bg-gray-50">
-              <Building2 className="w-5 h-5" /> Группы
+              <Building2 className="w-5 h-5" /> Учебные группы
             </button>
+            <button type="button" onClick={() => navigate('/admin/groups?mode=streams')} className="w-full flex items-center gap-4 px-5 py-4 rounded-2xl font-bold transition-all text-gray-600 hover:bg-gray-50">
+              <BookOpen className="w-5 h-5" /> Потоки (магазин)
+            </button>
+            </>
           )}
         </div>
         

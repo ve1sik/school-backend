@@ -24,7 +24,7 @@ type RonTask = {
   block: any;
 };
 
-export default function RonWork() {
+export default function RonWork({ embedded = false }: { embedded?: boolean }) {
   const navigate = useNavigate();
   const [tasks, setTasks] = useState<RonTask[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -124,10 +124,11 @@ export default function RonWork() {
   }
 
   return (
-    <div className="p-4 md:p-8 lg:p-10 bg-[#F4F7FE] min-h-full">
+    <div className={`${embedded ? '' : 'p-4 md:p-8 lg:p-10'} bg-[#F4F7FE] min-h-full`}>
       <style>{LESSON_TEST_STYLES}</style>
 
       <div className="max-w-5xl mx-auto space-y-6">
+        {!embedded && (
         <div className="bg-white rounded-[2rem] border border-gray-100 p-6 md:p-8 shadow-sm">
           <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-amber-100 text-amber-700 rounded-lg text-xs font-black uppercase tracking-widest mb-4">
             <RotateCcw className="w-4 h-4" /> РОН
@@ -137,6 +138,7 @@ export default function RonWork() {
             Здесь задания, где ты ошибся в тестах с автопроверкой. Исправь ответ — задание исчезнет из списка. Баллы за эти задания не начисляются.
           </p>
         </div>
+        )}
 
         {tasks.length === 0 ? (
           <div className="bg-white rounded-[2rem] border border-emerald-100 p-10 text-center shadow-sm">

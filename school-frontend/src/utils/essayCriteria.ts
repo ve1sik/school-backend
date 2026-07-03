@@ -1,16 +1,8 @@
-/** Критерии оценивания сочинения ЕГЭ по русскому языку (22 балла) */
+/** Критерии оценивания сочинений */
 
-export type EssayCriterionId =
-  | 'K1'
-  | 'K2'
-  | 'K3'
-  | 'K4'
-  | 'K5'
-  | 'K6'
-  | 'K7'
-  | 'K8'
-  | 'K9'
-  | 'K10';
+export type EssayCriterionId = string;
+
+export type EssayCriteriaKind = 'ege' | 'final';
 
 export type EssayCriterionDef = {
   id: EssayCriterionId;
@@ -28,83 +20,137 @@ export type EssayCriterionScore = {
   comment: string;
 };
 
+/** Сочинение ЕГЭ (задание 27) — 22 балла */
 export const EGE_ESSAY_CRITERIA: EssayCriterionDef[] = [
   {
     id: 'K1',
-    label: 'K1 — Формулировка проблемы',
-    shortLabel: 'Проблема',
-    maxScore: 1,
-    hint: 'Проблема сформулирована верно и соответствует тексту.',
-  },
-  {
-    id: 'K2',
-    label: 'K2 — Комментарий к проблеме',
-    shortLabel: 'Комментарий',
-    maxScore: 3,
-    hint: 'Пояснение проблемы с опорой на текст, примеры и пояснения к ним.',
-  },
-  {
-    id: 'K3',
-    label: 'K3 — Позиция автора',
+    label: 'K1 — Отражение позиции автора по проблеме исходного текста',
     shortLabel: 'Позиция автора',
-    maxScore: 2,
+    maxScore: 1,
     hint: 'Верно определена позиция автора по проблеме.',
   },
   {
-    id: 'K4',
-    label: 'K4 — Отношение к позиции автора',
+    id: 'K2',
+    label: 'K2 — Комментарий к позиции автора',
+    shortLabel: 'Комментарий',
+    maxScore: 3,
+    hint: 'Комментарий с опорой на текст, примеры и пояснения.',
+  },
+  {
+    id: 'K3',
+    label: 'K3 — Отношение к позиции автора',
     shortLabel: 'Своё мнение',
-    maxScore: 1,
+    maxScore: 2,
     hint: 'Сформулировано собственное отношение к позиции автора.',
   },
   {
+    id: 'K4',
+    label: 'K4 — Фактическая точность речи',
+    shortLabel: 'Фактическая точность',
+    maxScore: 1,
+    hint: 'Нет фактических ошибок в речи.',
+  },
+  {
     id: 'K5',
-    label: 'K5 — Смысловая целостность и логика',
-    shortLabel: 'Логика',
+    label: 'K5 — Логичность речи',
+    shortLabel: 'Логичность',
     maxScore: 2,
-    hint: 'Нет логических ошибок, нарушений последовательности изложения.',
+    hint: 'Нет логических ошибок и нарушений последовательности.',
   },
   {
     id: 'K6',
-    label: 'K6 — Точность и выразительность речи',
-    shortLabel: 'Речь',
-    maxScore: 2,
-    hint: 'Нет речевых ошибок, текст выразителен.',
+    label: 'K6 — Соблюдение этических норм',
+    shortLabel: 'Этика',
+    maxScore: 1,
+    hint: 'Соблюдены этические нормы изложения.',
   },
   {
     id: 'K7',
-    label: 'K7 — Орфография',
+    label: 'K7 — Соблюдение орфографических норм',
     shortLabel: 'Орфография',
     maxScore: 3,
     hint: 'Орфографические ошибки не допускаются или минимальны.',
   },
   {
     id: 'K8',
-    label: 'K8 — Пунктуация',
+    label: 'K8 — Соблюдение пунктуационных норм',
     shortLabel: 'Пунктуация',
     maxScore: 3,
-    hint: 'Пунктуационные ошибки, в т.ч. в причастных оборотах.',
+    hint: 'Пунктуационные ошибки, в т.ч. при причастных оборотах.',
   },
   {
     id: 'K9',
-    label: 'K9 — Грамматика',
+    label: 'K9 — Соблюдение грамматических норм',
     shortLabel: 'Грамматика',
     maxScore: 3,
     hint: 'Грамматические ошибки (спряжение, согласование и др.).',
   },
   {
     id: 'K10',
-    label: 'K10 — Речевые нормы',
+    label: 'K10 — Соблюдение речевых норм',
     shortLabel: 'Речевые нормы',
     maxScore: 3,
-    hint: 'Нет нарушений речевых норм, тавтологии, канцеляризмов.',
+    hint: 'Нет нарушений речевых норм.',
+  },
+];
+
+/** Итоговое сочинение — 5 критериев */
+export const FINAL_ESSAY_CRITERIA: EssayCriterionDef[] = [
+  {
+    id: 'K1',
+    label: 'K1 — Соответствие теме',
+    shortLabel: 'Тема',
+    maxScore: 3,
+    hint: 'Сочинение соответствует заданной теме.',
+  },
+  {
+    id: 'K2',
+    label: 'K2 — Аргументация. Привлечение литературного материала',
+    shortLabel: 'Аргументация',
+    maxScore: 6,
+    hint: 'Убедительная аргументация с примерами из литературы.',
+  },
+  {
+    id: 'K3',
+    label: 'K3 — Композиция и логика рассуждения',
+    shortLabel: 'Композиция',
+    maxScore: 6,
+    hint: 'Логичная композиция, связность частей.',
+  },
+  {
+    id: 'K4',
+    label: 'K4 — Качество письменной речи',
+    shortLabel: 'Качество речи',
+    maxScore: 4,
+    hint: 'Точность, выразительность, стиль.',
+  },
+  {
+    id: 'K5',
+    label: 'K5 — Грамотность',
+    shortLabel: 'Грамотность',
+    maxScore: 11,
+    hint: 'Орфография, пунктуация, грамматика и речевые нормы.',
   },
 ];
 
 export const EGE_ESSAY_MAX_SCORE = EGE_ESSAY_CRITERIA.reduce((s, c) => s + c.maxScore, 0);
+export const FINAL_ESSAY_MAX_SCORE = FINAL_ESSAY_CRITERIA.reduce((s, c) => s + c.maxScore, 0);
 
-export function buildEmptyCriteriaScores(): EssayCriterionScore[] {
-  return EGE_ESSAY_CRITERIA.map((c) => ({
+export function criteriaKindFromBlockType(blockType?: string | null): EssayCriteriaKind {
+  if (blockType === 'essay_final') return 'final';
+  return 'ege';
+}
+
+export function getCriteriaDefs(kind: EssayCriteriaKind): EssayCriterionDef[] {
+  return kind === 'final' ? FINAL_ESSAY_CRITERIA : EGE_ESSAY_CRITERIA;
+}
+
+export function getMaxScoreForKind(kind: EssayCriteriaKind): number {
+  return kind === 'final' ? FINAL_ESSAY_MAX_SCORE : EGE_ESSAY_MAX_SCORE;
+}
+
+export function buildEmptyCriteriaScores(kind: EssayCriteriaKind = 'ege'): EssayCriterionScore[] {
+  return getCriteriaDefs(kind).map((c) => ({
     id: c.id,
     label: c.label,
     maxScore: c.maxScore,
@@ -113,8 +159,8 @@ export function buildEmptyCriteriaScores(): EssayCriterionScore[] {
   }));
 }
 
-export function normalizeCriteriaScores(raw: unknown): EssayCriterionScore[] {
-  const base = buildEmptyCriteriaScores();
+export function normalizeCriteriaScores(raw: unknown, kind: EssayCriteriaKind = 'ege'): EssayCriterionScore[] {
+  const base = buildEmptyCriteriaScores(kind);
   if (!Array.isArray(raw)) return base;
   return base.map((row) => {
     const found = raw.find((r: any) => r?.id === row.id);
@@ -130,4 +176,20 @@ export function normalizeCriteriaScores(raw: unknown): EssayCriterionScore[] {
 
 export function sumCriteriaScores(rows: EssayCriterionScore[]): number {
   return rows.reduce((s, r) => s + (Number(r.score) || 0), 0);
+}
+
+export function formatCriterionScore(row: EssayCriterionScore): string {
+  return `${row.id}: ${row.score} из ${row.maxScore}`;
+}
+
+export function detectCriteriaKindFromSubmission(sub: any): EssayCriteriaKind {
+  if (sub?.blockType === 'essay_final') return 'final';
+  if (sub?.block_type === 'essay_final') return 'final';
+  const max = Number(sub?.maxScore ?? sub?.max_score);
+  if (max === FINAL_ESSAY_MAX_SCORE) return 'final';
+  if (Array.isArray(sub?.criteriaScores) || Array.isArray(sub?.criteria_scores)) {
+    const arr = sub.criteriaScores || sub.criteria_scores;
+    if (Array.isArray(arr) && arr.length <= 5) return 'final';
+  }
+  return 'ege';
 }

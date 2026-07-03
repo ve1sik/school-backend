@@ -28,7 +28,7 @@ import ReactQuill from 'react-quill-new';
 import 'react-quill-new/dist/quill.snow.css';
 import { invalidateCache } from '../lib/api';
 import EssayGradingPanel from '../components/EssayGradingPanel';
-import { EGE_ESSAY_MAX_SCORE } from '../utils/essayCriteria';
+import { EGE_ESSAY_MAX_SCORE, FINAL_ESSAY_MAX_SCORE, criteriaKindFromBlockType, detectCriteriaKindFromSubmission } from '../utils/essayCriteria';
 
 const API_URL = 'https://prepodmgy.ru/api';
 
@@ -325,8 +325,12 @@ export default function CuratorDashboard() {
     </button>
   );
 
-  const isEssaySubmission = (sub: any) =>
-    sub.blockType === 'essay' || sub.maxScore === EGE_ESSAY_MAX_SCORE || sub.maxScore === 22;
+  const isEssaySubmission = (sub: any) => {
+    const bt = sub.blockType || sub.block_type;
+    if (bt === 'essay' || bt === 'essay_final') return true;
+    const max = Number(sub.maxScore ?? sub.max_score);
+    return max === EGE_ESSAY_MAX_SCORE || max === FINAL_ESSAY_MAX_SCORE;
+  };
 
   const handleEssaySave = async (
     subId: string,
@@ -405,6 +409,7 @@ export default function CuratorDashboard() {
               initialComment={comments[sub.id] ?? sub.comment ?? ''}
               initialScore={sub.score}
               isGraded={isGraded}
+              criteriaKind={criteriaKindFromBlockType(sub.blockType || sub.block_type) || detectCriteriaKindFromSubmission(sub)}
               onSave={(payload) => handleEssaySave(sub.id, payload)}
               onRevision={async (c) => {
                 setComments(prev => ({ ...prev, [sub.id]: c }));

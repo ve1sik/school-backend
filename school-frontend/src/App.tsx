@@ -120,9 +120,9 @@ export default function App() {
           <Route path="homework" element={<Homework />} />
           <Route path="homework/:courseId/theme/:themeId/lesson/:lessonId" element={<HomeworkView />} />
           <Route path="flashcards" element={<FlashcardStudy />} />
-          <Route path="ron" element={<RonWork />} />
+          <Route path="ron" element={<Navigate to="/homework?tab=ron" replace />} />
           <Route path="cards" element={<Cards />} />
-          <Route path="achievements" element={<Achievements />} />
+          <Route path="achievements" element={<Navigate to="/profile" replace />} />
           <Route path="messages" element={<Messages />} />
           <Route path="settings" element={<Settings />} />
           <Route path="shop" element={<Shop />} />

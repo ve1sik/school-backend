@@ -20,6 +20,7 @@ const getFullUrl = (url: string) => {
 export default function Profile() {
   const [user, setUser] = useState<any>(null);
   const [stats, setStats] = useState<any>(null);
+  const [gamification, setGamification] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [copied, setCopied] = useState(false);
   const [telegram, setTelegram] = useState<any>(null);
@@ -70,6 +71,11 @@ export default function Profile() {
         try {
           const statsRes = await api.get('/dashboard/analytics');
           setStats(statsRes.data);
+        } catch { /* silent */ }
+
+        try {
+          const gRes = await api.get('/gamification/profile');
+          setGamification(gRes.data);
         } catch { /* silent */ }
 
         try {
@@ -419,18 +425,30 @@ export default function Profile() {
           {/* Достижения */}
           <div className="bg-white rounded-[2.5rem] p-6 shadow-sm border border-gray-100 flex-1">
             <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-5">Достижения</p>
-            <div className="grid grid-cols-3 gap-3">
-              {[
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+              {(gamification?.achievements || []).map((a: any) => (
+                <div
+                  key={a.code}
+                  className={`flex flex-col items-center p-3 rounded-2xl border-2 transition-all text-center ${
+                    a.earned ? 'border-amber-200 bg-amber-50' : 'border-gray-100 bg-gray-50 opacity-50 grayscale'
+                  }`}
+                >
+                  <span className="text-2xl mb-1">{a.icon || '🏅'}</span>
+                  <span className="text-[11px] font-black text-gray-800 leading-tight">{a.title}</span>
+                  {a.description && <span className="text-[10px] text-gray-500 mt-1 line-clamp-2">{a.description}</span>}
+                  {!a.earned && a.target > 0 && (
+                    <span className="text-[10px] font-bold text-gray-400 mt-1">{a.progress}/{a.target}</span>
+                  )}
+                </div>
+              ))}
+              {!gamification?.achievements?.length && [
                 { icon: '🎯', label: 'Первый тест', unlocked: (stats?.totalTests ?? 0) >= 1 },
                 { icon: '🔥', label: '3 дня подряд', unlocked: (stats?.streakDays ?? 0) >= 3 },
                 { icon: '📚', label: '10 заданий', unlocked: (stats?.totalTests ?? 0) >= 10 },
-                { icon: '⭐', label: 'Балл 80+', unlocked: (stats?.averageScore ?? 0) >= 80 },
-                { icon: '🚀', label: '7 дней подряд', unlocked: (stats?.streakDays ?? 0) >= 7 },
-                { icon: '🏆', label: 'Балл 95+', unlocked: (stats?.averageScore ?? 0) >= 95 },
               ].map(({ icon, label, unlocked }) => (
-                <div key={label} className={`flex flex-col items-center p-3 rounded-2xl border-2 transition-all ${unlocked ? 'border-amber-200 bg-amber-50' : 'border-gray-100 bg-gray-50 opacity-40 grayscale'}`}>
+                <div key={label} className={`flex flex-col items-center p-3 rounded-2xl border-2 ${unlocked ? 'border-amber-200 bg-amber-50' : 'border-gray-100 bg-gray-50 opacity-40 grayscale'}`}>
                   <span className="text-2xl mb-1">{icon}</span>
-                  <span className="text-[10px] font-bold text-gray-600 text-center leading-tight">{label}</span>
+                  <span className="text-[10px] font-bold text-gray-600 text-center">{label}</span>
                 </div>
               ))}
             </div>

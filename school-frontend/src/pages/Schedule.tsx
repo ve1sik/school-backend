@@ -113,7 +113,7 @@ export default function Schedule() {
   if (isLoading) return <div className="h-screen flex items-center justify-center bg-[#F4F7FE]"><Loader2 className="w-12 h-12 animate-spin text-[#5A4BFF]" /></div>;
 
   return (
-    <div className="max-w-7xl mx-auto space-y-8 pb-10 px-6 pt-8 relative min-h-screen">
+    <div className="max-w-6xl mx-auto space-y-4 pb-6 px-4 pt-4 relative">
       
       <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-[#5A4BFF]/10 rounded-full blur-[120px] pointer-events-none -z-10"></div>
       <div className="absolute bottom-0 left-0 w-[400px] h-[400px] bg-purple-500/10 rounded-full blur-[100px] pointer-events-none -z-10"></div>
@@ -121,7 +121,7 @@ export default function Schedule() {
       {/* ── СТРИП БЛИЖАЙШИХ ЗАНЯТИЙ ── */}
       {upcomingEvents.length > 0 && (
         <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}
-          className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          className="grid grid-cols-1 md:grid-cols-3 gap-3 hidden lg:grid">
           {upcomingEvents.map(ev => {
             const evDate = parseSafeDate(ev.date);
             const today = isToday(ev.date);
@@ -159,15 +159,14 @@ export default function Schedule() {
         </motion.div>
       )}
 
-      <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col md:flex-row md:justify-between md:items-end gap-4">
+      <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col md:flex-row md:justify-between md:items-center gap-3 mb-2">
         <div>
-          <h1 className="text-4xl md:text-5xl font-black tracking-tight text-gray-900 mb-2 flex items-center gap-4">
-            <div className="p-3 bg-white rounded-2xl shadow-sm border border-gray-100">
-              <CalendarDays className="w-8 h-8 text-[#5A4BFF]" />
+          <h1 className="text-2xl md:text-3xl font-black tracking-tight text-gray-900 mb-1 flex items-center gap-3">
+            <div className="p-2 bg-white rounded-xl shadow-sm border border-gray-100">
+              <CalendarDays className="w-6 h-6 text-[#5A4BFF]" />
             </div>
             Расписание
           </h1>
-          <p className="text-gray-500 font-medium text-lg ml-1">Планируй своё время и не пропускай дедлайны. ⏳</p>
         </div>
         {isAdmin && (
           <button 
@@ -179,11 +178,11 @@ export default function Schedule() {
         )}
       </motion.div>
 
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="bg-white/80 backdrop-blur-xl rounded-[3rem] shadow-xl shadow-indigo-500/5 border border-white p-8 relative overflow-hidden">
+      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="bg-white/80 backdrop-blur-xl rounded-[2rem] shadow-lg shadow-indigo-500/5 border border-white p-4 md:p-5 relative overflow-hidden">
         
-        <div className="flex justify-between items-center mb-10">
-          <h2 className="text-3xl font-black text-gray-900 capitalize tracking-tight flex items-center gap-3">
-            {monthNames[currentDate.getMonth()]} <span className="text-gray-400 font-bold">{currentDate.getFullYear()}</span>
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-xl md:text-2xl font-black text-gray-900 capitalize tracking-tight flex items-center gap-2">
+            {monthNames[currentDate.getMonth()]} <span className="text-gray-400 font-bold text-lg">{currentDate.getFullYear()}</span>
           </h2>
           <div className="flex gap-2 bg-gray-50 p-1.5 rounded-2xl border border-gray-100">
             <button onClick={prevMonth} className="p-3 bg-transparent hover:bg-white rounded-xl transition-all hover:shadow-sm"><ChevronLeft className="w-6 h-6 text-gray-700" /></button>
@@ -191,15 +190,15 @@ export default function Schedule() {
           </div>
         </div>
 
-        <div className="grid grid-cols-7 gap-4 mb-4">
+        <div className="grid grid-cols-7 gap-1.5 md:gap-2 mb-2">
           {dayNames.map(day => (
-            <div key={day} className="text-center font-black text-gray-400 text-xs uppercase tracking-widest">{day}</div>
+            <div key={day} className="text-center font-black text-gray-400 text-[10px] md:text-xs uppercase tracking-widest py-1">{day}</div>
           ))}
         </div>
 
-        <div className="grid grid-cols-7 gap-3 md:gap-4">
+        <div className="grid grid-cols-7 gap-1.5 md:gap-2 auto-rows-fr" style={{ minHeight: 'min(52vh, 420px)' }}>
           {Array(firstDayOfMonth).fill(null).map((_, i) => (
-            <div key={`empty-${i}`} className="h-32 rounded-[1.5rem] bg-gray-50/50 border border-gray-100/50 border-dashed"></div>
+            <div key={`empty-${i}`} className="min-h-[3.25rem] md:min-h-[3.75rem] rounded-xl bg-gray-50/50 border border-gray-100/50 border-dashed"></div>
           ))}
           
           {Array.from({ length: daysInMonth }, (_, i) => i + 1).map(day => {
@@ -211,31 +210,27 @@ export default function Schedule() {
               <div 
                 key={day} 
                 onClick={() => handleDayClick(day, thisDate)}
-                className={`h-32 rounded-[1.5rem] p-3 transition-all duration-300 flex flex-col relative group overflow-hidden
+                className={`min-h-[3.25rem] md:min-h-[3.75rem] rounded-xl p-1.5 md:p-2 transition-all duration-200 flex flex-col relative group overflow-hidden
                   ${isToday 
-                    ? 'bg-gradient-to-br from-[#5A4BFF] to-[#8c52ff] shadow-xl shadow-indigo-500/30 scale-[1.02] cursor-pointer' 
+                    ? 'bg-gradient-to-br from-[#5A4BFF] to-[#8c52ff] shadow-md shadow-indigo-500/20 cursor-pointer' 
                     : dayEvents.length > 0 
-                      ? 'bg-white border-2 border-gray-100 hover:-translate-y-1 hover:shadow-xl hover:shadow-indigo-500/10 hover:border-[#5A4BFF] cursor-pointer' 
-                      : 'bg-white border-2 border-transparent hover:bg-gray-50'}`}
+                      ? 'bg-white border border-gray-100 hover:border-[#5A4BFF] cursor-pointer' 
+                      : 'bg-white border border-transparent hover:bg-gray-50'}`}
               >
-                <div className={`font-black text-xl mb-2 ${isToday ? 'text-white' : 'text-gray-900 group-hover:text-[#5A4BFF] transition-colors'}`}>
+                <div className={`font-black text-sm md:text-base leading-none ${isToday ? 'text-white' : 'text-gray-900 group-hover:text-[#5A4BFF] transition-colors'}`}>
                   {day}
                 </div>
 
-                <div className="flex-1 overflow-y-auto space-y-1.5 custom-scrollbar pr-1">
-                  {dayEvents.map((ev, idx) => {
-                    let pillClass = 'bg-indigo-50 text-indigo-700 border border-indigo-100';
-                    
-                    if (isToday) {
-                      pillClass = 'bg-white/20 text-white border border-white/30 backdrop-blur-md';
-                    } else {
-                      if (ev.type === 'DEADLINE') pillClass = 'bg-rose-50 text-rose-700 border border-rose-100';
-                      if (ev.type === 'OFFLINE') pillClass = 'bg-emerald-50 text-emerald-700 border border-emerald-100';
-                    }
+                <div className="flex-1 overflow-hidden mt-1 space-y-0.5">
+                  {dayEvents.slice(0, 2).map((ev, idx) => {
+                    let pillClass = 'bg-indigo-50 text-indigo-700';
+                    if (isToday) pillClass = 'bg-white/25 text-white';
+                    else if (ev.type === 'DEADLINE') pillClass = 'bg-rose-50 text-rose-700';
+                    else if (ev.type === 'OFFLINE') pillClass = 'bg-emerald-50 text-emerald-700';
                     
                     return (
-                      <div key={idx} className={`text-[10px] font-bold px-2 py-1.5 rounded-lg truncate transition-all ${pillClass}`}>
-                        {parseSafeDate(ev.date).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })} • {ev.title}
+                      <div key={idx} className={`text-[8px] md:text-[9px] font-bold px-1 py-0.5 rounded truncate ${pillClass}`}>
+                        {ev.title}
                       </div>
                     )
                   })}

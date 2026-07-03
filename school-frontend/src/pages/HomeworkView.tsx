@@ -24,7 +24,8 @@ import { isAutoGradableBlockType } from '../utils/autoGrade';
 import { useRonSync } from '../lib/ron';
 import EssayPlainEditor from '../components/EssayPlainEditor';
 import EssayResultView from '../components/EssayResultView';
-import { EGE_ESSAY_MAX_SCORE } from '../utils/essayCriteria';
+import { getHomeworkBlocksFromLesson, lessonHasHomework } from '../utils/lessonHomework';
+import { EGE_ESSAY_MAX_SCORE, FINAL_ESSAY_MAX_SCORE, criteriaKindFromBlockType } from '../utils/essayCriteria';
 import { isManualGradeBlock, isUnlimitedAttempts } from '../utils/lessonBlockTypes';
 
 const SpellErrorsPanel = ({ errors }: { errors: SpellError[] }) => (
@@ -199,9 +200,9 @@ const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswer
   }
 
   return (
-    <div className="bg-white border border-gray-100 rounded-[2rem] relative shadow-lg shadow-indigo-100/40 mb-8 overflow-hidden">
+    <div className="bg-white border border-gray-100 rounded-[2rem] relative shadow-lg shadow-indigo-100/40 mb-8 overflow-hidden max-h-[calc(100dvh-7rem)] flex flex-col">
       {/* STICKY HEADER — кнопки всегда видны */}
-      <div className="sticky top-0 z-20 bg-white border-b border-gray-100 px-6 py-4 flex items-center justify-between gap-3 shadow-sm">
+      <div className="sticky top-0 z-20 bg-white border-b border-gray-100 px-4 py-3 flex items-center justify-between gap-2 shadow-sm shrink-0">
         <div className="flex items-center gap-3 min-w-0">
           <group.Icon className={`w-5 h-5 shrink-0 ${group.iconColor?.split(' ')[1] || ''}`} />
           <span className="font-black text-gray-900 truncate">{group.title}</span>
@@ -230,7 +231,7 @@ const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswer
         </div>
       </div>
 
-      <div className="p-6 md:p-8">
+      <div className="p-4 md:p-5 overflow-y-auto flex-1 min-h-0">
       <div className="flex flex-wrap gap-2.5 mb-8">
         {group.blocks.map((b: any, i: number) => {
           const sSub = submissions?.find((s: any) => s.blockId === b.id || s.block_id === b.id);
@@ -275,7 +276,7 @@ const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswer
         <div className="px-3 py-1.5 rounded-lg bg-purple-50 text-purple-600 text-[10px] font-black uppercase tracking-widest border border-purple-100">
           Вопрос {activeStep + 1}
         </div>
-        {block.type !== 'written' && block.type !== 'essay' && (
+        {block.type !== 'written' && block.type !== 'essay' && block.type !== 'essay_final' && (
           <div className={`px-3 py-1.5 rounded-md text-[10px] font-black uppercase tracking-widest ${isExhausted && result !== 'SUCCESS' ? 'bg-rose-100 text-rose-600' : 'bg-gray-100 text-gray-500'}`}>
             Попыток: {attemptsLeft} из {maxAttempts}
           </div>
@@ -315,7 +316,7 @@ const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswer
             <span className="text-sm bg-white px-3 py-1 rounded-lg shadow-sm border border-purple-50">Ожидает проверки ⏳</span>
           </motion.div>
         )}
-        {result === 'GRADED' && serverSubmission && block.type === 'essay' && (
+        {result === 'GRADED' && serverSubmission && (block.type === 'essay' || block.type === 'essay_final') && (
           <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="mb-6">
             <EssayResultView
               answer={serverSubmission.answer || ''}
@@ -324,10 +325,11 @@ const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswer
               comment={serverSubmission.comment}
               criteriaScores={serverSubmission.criteria_scores || serverSubmission.criteriaScores}
               errorAnnotations={serverSubmission.error_annotations || serverSubmission.errorAnnotations}
+              criteriaKind={criteriaKindFromBlockType(block.type)}
             />
           </motion.div>
         )}
-        {result === 'GRADED' && serverSubmission && block.type !== 'essay' && (
+        {result === 'GRADED' && serverSubmission && block.type !== 'essay' && block.type !== 'essay_final' && (
            <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="bg-emerald-50 border-2 border-emerald-200 p-5 rounded-xl mb-6 shadow-sm">
              <div className="flex flex-col sm:flex-row sm:items-center justify-between font-black text-emerald-600 gap-3 mb-4">
                <span className="flex items-center gap-2 text-xl"><CheckCircle2 className="w-7 h-7" /> Работа проверена!</span>
@@ -357,7 +359,7 @@ const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswer
         )}
         {block.type === 'test' && Array.isArray(block.options) && block.options.map((opt: any, idx: number) => {
           const isChecked = selected.includes(opt.text) || (typeof serverSubmission?.answer === 'string' && serverSubmission.answer.includes(opt.text));
-          let optClass = "group flex items-center gap-3 md:gap-4 p-4 md:p-5 rounded-2xl border-2 transition-all cursor-pointer relative ";
+          let optClass = "group flex items-center gap-2 md:gap-3 p-3 md:p-3.5 rounded-xl border-2 transition-all cursor-pointer relative ";
           let textClass = "";
           
           let showGreenCheck = false;
@@ -531,13 +533,15 @@ const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswer
           </div>
         )}
 
-        {block.type === 'essay' && (
+        {(block.type === 'essay' || block.type === 'essay_final') && (
           <div className="flex flex-col gap-3 relative">
             {isLocked && serverSubmission && (
               <div className="absolute inset-0 z-10 bg-transparent cursor-not-allowed" />
             )}
             <p className="text-xs font-bold text-gray-500 bg-gray-50 border border-gray-100 rounded-xl px-4 py-2">
-              Пишите сочинение здесь. Автокоррекция отключена — ошибки не подчёркиваются автоматически.
+              {block.type === 'essay_final'
+                ? 'Итоговое сочинение — без автокоррекции. После проверки увидите баллы K1–K5.'
+                : 'Сочинение ЕГЭ — без автокоррекции. После проверки увидите баллы K1–K10.'}
             </p>
             <EssayPlainEditor
               value={serverSubmission?.answer || selected[0] || ''}
@@ -546,6 +550,7 @@ const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswer
               }}
               readOnly={isLocked}
               placeholder="Напишите сочинение по заданию…"
+              minRows={14}
             />
           </div>
         )}
@@ -668,38 +673,36 @@ export default function HomeworkView() {
 
         if (foundLesson) {
           setHomework(foundLesson);
-          
-          if (foundLesson.content) {
-            try {
-              const parsed = JSON.parse(foundLesson.content.trim());
-              if (Array.isArray(parsed)) {
-                const homeworkContent = parsed.filter(b => b.isHomework);
-                setHwBlocks(homeworkContent);
 
-                const theory = homeworkContent.filter(b => !['test', 'test_short', 'written', 'matching', 'essay'].includes(b.type));
-                const interactive = homeworkContent.filter(b => ['test', 'test_short', 'written', 'matching', 'essay'].includes(b.type));
+          const homeworkContent = getHomeworkBlocksFromLesson(foundLesson);
+          if (homeworkContent.length > 0) {
+            setHwBlocks(homeworkContent);
 
-                setHwTheoryBlocks(theory);
+            const theory = homeworkContent.filter(b => !['test', 'test_short', 'written', 'matching', 'essay', 'essay_final'].includes(b.type));
+            const interactive = homeworkContent.filter(b => ['test', 'test_short', 'written', 'matching', 'essay', 'essay_final'].includes(b.type));
 
-                const groups = [
-                  { type: 'tests', title: 'Тесты', blocks: [] as any[], Icon: CheckSquare, iconColor: 'bg-indigo-50 text-indigo-600' },
-                  { type: 'essay', title: 'Сочинение (ЕГЭ)', blocks: [] as any[], Icon: FileSignature, iconColor: 'bg-fuchsia-50 text-fuchsia-600' },
-                  { type: 'written', title: 'Развернутый ответ', blocks: [] as any[], Icon: PenTool, iconColor: 'bg-purple-50 text-purple-600' }
-                ];
+            setHwTheoryBlocks(theory);
 
-                interactive.forEach(b => {
-                  if (['test', 'test_short', 'matching'].includes(b.type)) {
-                    groups.find(g => g.type === 'tests')?.blocks.push(b);
-                  } else if (b.type === 'essay') {
-                    groups.find(g => g.type === 'essay')?.blocks.push(b);
-                  } else if (b.type === 'written') {
-                    groups.find(g => g.type === 'written')?.blocks.push(b);
-                  }
-                });
+            const groups = [
+              { type: 'tests', title: 'Тесты', blocks: [] as any[], Icon: CheckSquare, iconColor: 'bg-indigo-50 text-indigo-600' },
+              { type: 'essay', title: 'Сочинение (ЕГЭ)', blocks: [] as any[], Icon: FileSignature, iconColor: 'bg-fuchsia-50 text-fuchsia-600' },
+              { type: 'essay_final', title: 'Итоговое сочинение', blocks: [] as any[], Icon: FileSignature, iconColor: 'bg-violet-50 text-violet-600' },
+              { type: 'written', title: 'Развернутый ответ', blocks: [] as any[], Icon: PenTool, iconColor: 'bg-purple-50 text-purple-600' },
+            ];
 
-                setHwGroups(groups.filter(g => g.blocks.length > 0));
+            interactive.forEach(b => {
+              if (['test', 'test_short', 'matching'].includes(b.type)) {
+                groups.find(g => g.type === 'tests')?.blocks.push(b);
+              } else if (b.type === 'essay_final') {
+                groups.find(g => g.type === 'essay_final')?.blocks.push(b);
+              } else if (b.type === 'essay') {
+                groups.find(g => g.type === 'essay')?.blocks.push(b);
+              } else if (b.type === 'written') {
+                groups.find(g => g.type === 'written')?.blocks.push(b);
               }
-            } catch(e) {}
+            });
+
+            setHwGroups(groups.filter(g => g.blocks.length > 0));
           }
         }
       } catch (error) {
@@ -892,7 +895,7 @@ export default function HomeworkView() {
           blockType: block.type,
           question: questionWithImage,
           answer: finalAnswerString,
-          maxScore: block.maxScore || (block.type === 'essay' ? EGE_ESSAY_MAX_SCORE : 10),
+          maxScore: block.maxScore || (block.type === 'essay_final' ? FINAL_ESSAY_MAX_SCORE : block.type === 'essay' ? EGE_ESSAY_MAX_SCORE : 10),
         }, { headers: { Authorization: `Bearer ${getToken()}` } });
         
         setSubmissions(prev => [

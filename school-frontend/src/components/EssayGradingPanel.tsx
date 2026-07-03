@@ -1,11 +1,12 @@
 import { useMemo, useRef, useState } from 'react';
 import { AlertCircle, ArrowRight, Plus, Trash2 } from 'lucide-react';
 import {
-  EGE_ESSAY_CRITERIA,
-  EGE_ESSAY_MAX_SCORE,
   buildEmptyCriteriaScores,
+  getCriteriaDefs,
+  getMaxScoreForKind,
   normalizeCriteriaScores,
   sumCriteriaScores,
+  type EssayCriteriaKind,
   type EssayCriterionScore,
 } from '../utils/essayCriteria';
 import {
@@ -28,6 +29,7 @@ type Props = {
   initialErrors?: unknown;
   initialComment?: string;
   initialScore?: number | null;
+  criteriaKind?: EssayCriteriaKind;
   onSave: (payload: {
     score: number;
     comment: string;
@@ -48,10 +50,12 @@ export default function EssayGradingPanel({
   onSave,
   onRevision,
   isGraded,
+  criteriaKind = 'ege',
 }: Props) {
   const plainText = useMemo(() => stripHtmlToPlain(answer), [answer]);
+  const criteriaDefs = getCriteriaDefs(criteriaKind);
   const [criteria, setCriteria] = useState<EssayCriterionScore[]>(() =>
-    normalizeCriteriaScores(initialCriteria),
+    normalizeCriteriaScores(initialCriteria, criteriaKind),
   );
   const [errors, setErrors] = useState<EssayErrorAnnotation[]>(() =>
     normalizeErrorAnnotations(initialErrors),
@@ -209,14 +213,16 @@ export default function EssayGradingPanel({
       <div className="bg-white rounded-3xl border border-gray-100 overflow-hidden">
         <div className="p-5 md:p-6 bg-gradient-to-r from-purple-50 to-indigo-50 border-b border-gray-100 flex flex-wrap items-center justify-between gap-4">
           <div>
-            <h4 className="text-xl font-black text-gray-900">Критерии ЕГЭ (K1–K10)</h4>
+            <h4 className="text-xl font-black text-gray-900">
+              {criteriaKind === 'final' ? 'Критерии итогового сочинения (K1–K5)' : 'Критерии ЕГЭ (K1–K10)'}
+            </h4>
             <p className="text-sm text-gray-500 font-medium mt-1">Поставьте балл и комментарий по каждому критерию</p>
           </div>
           <div className="text-right">
             <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Итого</p>
             <p className="text-3xl font-black text-purple-600">
               {totalFromCriteria}
-              <span className="text-lg text-gray-400 font-bold"> / {maxScore || EGE_ESSAY_MAX_SCORE}</span>
+              <span className="text-lg text-gray-400 font-bold"> / {maxScore || getMaxScoreForKind(criteriaKind)}</span>
             </p>
             {initialScore != null && isGraded && (
               <p className="text-xs text-gray-400 mt-1">Было: {initialScore}</p>
@@ -225,18 +231,19 @@ export default function EssayGradingPanel({
         </div>
         <div className="divide-y divide-gray-100">
           {criteria.map((row) => {
-            const def = EGE_ESSAY_CRITERIA.find((c) => c.id === row.id);
+            const def = criteriaDefs.find((c) => c.id === row.id);
             return (
               <div key={row.id} className="p-4 md:p-5 grid md:grid-cols-[minmax(0,1.2fr)_100px_minmax(0,1fr)] gap-4 items-start">
                 <div>
                   <p className="font-black text-gray-900 text-sm">{row.label}</p>
+                  <p className="text-xs font-bold text-purple-600 mt-1">{row.id}: 0 – {row.maxScore} баллов</p>
                   {def?.hint && (
                     <p className="text-xs text-gray-400 mt-1 font-medium">{def.hint}</p>
                   )}
                 </div>
                 <div>
                   <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1">
-                    0 – {row.maxScore}
+                    {row.id} из {row.maxScore}
                   </label>
                   <input
                     type="number"

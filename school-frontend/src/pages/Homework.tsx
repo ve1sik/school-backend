@@ -1,17 +1,23 @@
 import { useState, useEffect } from 'react';
 import { FileText, AlertCircle, Clock, CheckCircle2, Loader2, FolderOpen, ChevronRight, Search, Book, Calendar, XCircle } from 'lucide-react';
 import { motion, AnimatePresence, type Variants } from 'framer-motion';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { cachedGet } from '../lib/api';
+import { getHomeworkBlocksFromLesson, lessonHasHomework } from '../utils/lessonHomework';
 import { parseSafeDate, parseSafeDateMs } from '../lib/parseDate';
+import RonWork from './RonWork';
 
-type TabType = 'TODO' | 'OVERDUE' | 'REVISION' | 'REVIEW' | 'GRADED';
+type TabType = 'TODO' | 'OVERDUE' | 'REVISION' | 'REVIEW' | 'GRADED' | 'RON';
 
 export default function Homework() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [isLoading, setIsLoading] = useState(true);
   const [homeworks, setHomeworks] = useState<any[]>([]);
-  const [activeTab, setActiveTab] = useState<TabType>('TODO');
+  const initialTab = (searchParams.get('tab')?.toUpperCase() || 'TODO') as TabType;
+  const [activeTab, setActiveTab] = useState<TabType>(
+    ['TODO', 'OVERDUE', 'REVISION', 'REVIEW', 'GRADED', 'RON'].includes(initialTab) ? initialTab : 'TODO',
+  );
   const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
@@ -43,25 +49,16 @@ export default function Homework() {
         coursesRes.data.forEach((course: any) => {
           course.themes?.forEach((theme: any) => {
             theme.lessons?.forEach((lesson: any) => {
-              let isHw = false;
+              let isHw = lessonHasHomework(lesson);
               let hwMaxScore = 0;
 
-              if (lesson.content) {
-                try {
-                  const parsed = JSON.parse(lesson.content.trim());
-                  if (Array.isArray(parsed)) {
-                    // 🔥 ФИКС: Теперь мы проверяем, есть ли В ПРИНЦИПЕ блоки с пометкой isHomework!
-                    const hwBlocks = parsed.filter(b => b.isHomework);
-                    
-                    if (hwBlocks.length > 0) {
-                      isHw = true;
-                      hwMaxScore = hwBlocks.reduce((acc, b) => acc + (Number(b.maxScore) || 10), 0);
-                    }
-                  }
-                } catch(e) {}
+              const hwBlocks = getHomeworkBlocksFromLesson(lesson);
+              if (hwBlocks.length > 0) {
+                isHw = true;
+                hwMaxScore = hwBlocks.reduce((acc, b) => acc + (Number(b.maxScore) || 10), 0);
               }
 
-              if (isHw || lesson.is_homework) {
+              if (isHw) {
                 const submission = mySubs.find((s: any) => s.lesson_id === lesson.id || s.lessonId === lesson.id);
                 
                 let status = 'TODO';
@@ -163,13 +160,14 @@ export default function Homework() {
               { key: 'REVISION', label: '📝 На доработку', activeClass: 'bg-orange-500 text-white shadow-lg shadow-orange-500/20' },
               { key: 'REVIEW', label: '⏳ На проверке', activeClass: 'bg-amber-500 text-white shadow-lg shadow-amber-500/20' },
               { key: 'GRADED', label: '✅ Оценено', activeClass: 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20' },
+              { key: 'RON', label: '↩ Работа над ошибками', activeClass: 'bg-violet-600 text-white shadow-lg shadow-violet-500/20' },
             ] as const).map(({ key, label, activeClass }) => (
-              <button key={key} onClick={() => setActiveTab(key)}
+              <button key={key} onClick={() => { setActiveTab(key); setSearchParams(key === 'RON' ? { tab: 'ron' } : {}); }}
                 className={`px-5 py-3 rounded-2xl font-bold transition-all whitespace-nowrap flex items-center gap-2 ${activeTab === key ? activeClass : 'bg-white text-gray-500 hover:bg-gray-50 border border-gray-100'}`}>
                 {label}
-                {counts[key] > 0 && (
+                {key !== 'RON' && counts[key as keyof typeof counts] > 0 && (
                   <span className={`text-[10px] font-black px-1.5 py-0.5 rounded-md ${activeTab === key ? 'bg-white/20' : 'bg-gray-100 text-gray-500'}`}>
-                    {counts[key]}
+                    {counts[key as keyof typeof counts]}
                   </span>
                 )}
               </button>
@@ -189,6 +187,10 @@ export default function Homework() {
         </div>
       </motion.div>
 
+      {activeTab === 'RON' ? (
+        <RonWork embedded />
+      ) : (
+      <>
       {/* 🔥 РЕНДЕР С ГРУППИРОВКОЙ ПО КУРСАМ И МОДУЛЯМ */}
       {Object.entries(groupedHomeworks).map(([courseName, themes]) => (
         <motion.div key={courseName} variants={containerVariants} initial="hidden" animate="show" className="mb-12">
@@ -283,6 +285,8 @@ export default function Homework() {
             {searchQuery ? 'Попробуйте изменить запрос поиска.' : 'Здесь пока нет заданий.'}
           </p>
         </motion.div>
+      )}
+      </>
       )}
     </div>
   );

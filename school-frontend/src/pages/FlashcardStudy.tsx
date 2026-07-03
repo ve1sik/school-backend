@@ -178,11 +178,11 @@ export default function FlashcardStudy() {
 
   // ── HOME SCREEN ──
   if (phase === 'home') return (
-    <div className="bg-[#F4F7FE] flex flex-col lg:flex-row gap-3 lg:gap-6 p-3 md:p-4 min-h-full">
+    <div className="bg-[#F4F7FE] flex flex-col lg:flex-row gap-3 lg:gap-4 p-3 md:p-4 max-h-[calc(100dvh-5.5rem)] overflow-hidden">
 
       {/* БОКОВАЯ ПАНЕЛЬ — как в CourseView */}
-      <aside className="w-full lg:w-[280px] xl:w-[320px] bg-white rounded-3xl lg:rounded-[2rem] border border-gray-100 flex flex-col h-auto max-h-[50vh] lg:max-h-none lg:h-full shrink-0 shadow-sm overflow-hidden">
-        <div className="p-6 border-b border-gray-100 shrink-0">
+      <aside className="w-full lg:w-[260px] xl:w-[280px] bg-white rounded-3xl border border-gray-100 flex flex-col h-auto max-h-[38vh] lg:max-h-full lg:h-full shrink-0 shadow-sm overflow-hidden">
+        <div className="p-4 border-b border-gray-100 shrink-0">
           <div className="flex items-center gap-3 mb-2">
             <div className="w-12 h-12 bg-indigo-600 rounded-2xl flex items-center justify-center shadow-md shadow-indigo-200 shrink-0">
               <Layers className="w-6 h-6 text-white" />

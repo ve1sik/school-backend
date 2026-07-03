@@ -45,6 +45,8 @@ export default function Layout() {
 
   // Мобильное выдвижное меню
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const profileMenuRef = useRef<HTMLDivElement>(null);
 
   // Уведомления
   const [showNotifPanel, setShowNotifPanel] = useState(false);
@@ -231,24 +233,20 @@ export default function Layout() {
   const can = (permission: AdminPermission) => effectivePermissions.has(permission);
 
   const menuItems = [
-    { path: '/', icon: Home, label: 'Главная' },
-    { path: '/courses', icon: BookOpen, label: 'Курсы' },
     { path: '/schedule', icon: Calendar, label: 'Расписание' },
-    { path: '/homework', icon: FileText, label: 'Домашнее задание' },
-    { path: '/ron', icon: RotateCcw, label: 'РОН', badge: ronCount },
+    { path: '/', icon: Home, label: 'Аналитика' },
+    { path: '/courses', icon: BookOpen, label: 'Обучение' },
+    { path: '/homework', icon: FileText, label: 'Домашнее задание', badge: ronCount },
     { path: '/flashcards', icon: Layers, label: 'Флеш-карточки' },
-    { path: '/achievements', icon: Trophy, label: 'Достижения' },
     { path: '/messages', icon: MessageSquare, label: 'Сообщения', badge: unreadCount },
     { path: '/shop', icon: ShoppingCart, label: 'Магазин курсов' },
-    { path: '/profile', icon: User, label: 'Мой профиль' },
-    { path: '/settings', icon: Settings, label: 'Настройки' },
   ];
 
   // Админ/куратор-разделы (для мобильного меню)
   const adminItems = [
     { path: '/admin', icon: BookOpen, label: 'Управление курсами', show: can('MANAGE_COURSES') },
     { path: '/admin/users', icon: Users, label: 'Управление пользователями', show: can('MANAGE_USERS'), badge: pendingApplicationsCount },
-    { path: '/admin/groups', icon: ShieldCheck, label: 'Управление потоками', show: can('MANAGE_GROUPS'), badge: pendingApplicationsCount },
+    { path: '/admin/groups', icon: ShieldCheck, label: 'Потоки (магазин)', show: can('MANAGE_GROUPS'), badge: pendingApplicationsCount },
     { path: '/admin/decks', icon: Layers, label: 'Карточки (колоды)', show: can('MANAGE_DECKS') },
     { path: '/curator', icon: Users, label: 'Кабинет куратора', show: can('CURATOR_DASHBOARD') },
   ].filter(item => item.show);
@@ -256,25 +254,44 @@ export default function Layout() {
 
   // Быстрая навигация снизу на телефоне (самое частое)
   const bottomNavItems = [
-    { path: '/', icon: Home, label: 'Главная' },
-    { path: '/courses', icon: BookOpen, label: 'Курсы' },
+    { path: '/schedule', icon: Calendar, label: 'Расписание' },
+    { path: '/', icon: Home, label: 'Аналитика' },
+    { path: '/courses', icon: BookOpen, label: 'Обучение' },
     { path: '/homework', icon: FileText, label: 'ДЗ' },
     { path: '/messages', icon: MessageSquare, label: 'Чат' },
   ];
 
   const getPageTitle = () => {
+    if (location.pathname === '/' ) return 'Аналитика';
+    if (location.pathname === '/courses') return 'Обучение';
+    if (location.pathname.startsWith('/homework')) {
+      if (new URLSearchParams(location.search).get('tab') === 'ron') return 'Домашнее задание';
+      return location.pathname === '/homework' ? 'Домашнее задание' : 'Домашнее задание';
+    }
     const item = menuItems.find(i => i.path === location.pathname);
     if (item) return item.label;
     if (location.pathname === '/admin') return 'Управление курсами';
-    if (location.pathname === '/admin/groups') return 'Управление потоками';
+    if (location.pathname === '/admin/groups') return 'Потоки (магазин)';
     if (location.pathname === '/admin/users') return 'Управление пользователями';
     if (location.pathname === '/admin/decks') return 'Флеш-карточки';
     if (location.pathname === '/flashcards') return 'Флеш-карточки';
-    if (location.pathname === '/ron') return 'Работа над ошибками';
+    if (location.pathname === '/profile') return 'Мой профиль';
+    if (location.pathname === '/settings') return 'Настройки';
+    if (location.pathname === '/ron') return 'Домашнее задание';
     if (location.pathname.startsWith('/curator')) return 'Кабинет куратора';
     if (location.pathname.includes('/mistakes')) return 'Разбор полетов';
     return 'Платформа';
   };
+
+  useEffect(() => {
+    const onDocClick = (e: MouseEvent) => {
+      if (profileMenuRef.current && !profileMenuRef.current.contains(e.target as Node)) {
+        setShowProfileMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', onDocClick);
+    return () => document.removeEventListener('mousedown', onDocClick);
+  }, []);
 
   return (
     <div className="flex h-screen bg-[#F4F7FE] font-sans">
@@ -374,7 +391,7 @@ export default function Layout() {
             )}
           </nav>
 
-          <div className="mt-auto pr-5 pt-4">
+          <div className="mt-auto pr-5 pt-4 hidden">
             <button 
               onClick={handleLogout}
               className="flex items-center gap-4 p-3 w-full rounded-xl text-red-500 hover:bg-red-50 transition-all group/logout"
@@ -472,13 +489,18 @@ export default function Layout() {
               )}
             </div>
             
-            <Link to="/profile" className="flex items-center gap-3 cursor-pointer group hover:opacity-80 transition-opacity">
+            <div className="relative" ref={profileMenuRef}>
+            <button
+              type="button"
+              onClick={() => setShowProfileMenu(v => !v)}
+              className="flex items-center gap-3 cursor-pointer group hover:opacity-80 transition-opacity"
+            >
               <div className="text-right hidden sm:block">
                 <p className="text-sm font-bold text-gray-900 leading-tight">
                   {getDisplayName()}
                 </p>
                 <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider group-hover:text-[#5A4BFF] transition-colors">
-                  Студент PRO
+                  Личный кабинет
                 </p>
               </div>
 
@@ -489,7 +511,22 @@ export default function Layout() {
                   getInitials()
                 )}
               </div>
-            </Link>
+            </button>
+
+            {showProfileMenu && (
+              <div className="absolute right-0 top-12 w-52 bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden z-50 py-1">
+                <Link to="/profile" onClick={() => setShowProfileMenu(false)} className="flex items-center gap-3 px-4 py-3 text-sm font-bold text-gray-700 hover:bg-gray-50">
+                  <User className="w-4 h-4 text-gray-400" /> Мой профиль
+                </Link>
+                <Link to="/settings" onClick={() => setShowProfileMenu(false)} className="flex items-center gap-3 px-4 py-3 text-sm font-bold text-gray-700 hover:bg-gray-50">
+                  <Settings className="w-4 h-4 text-gray-400" /> Настройки
+                </Link>
+                <button type="button" onClick={() => { setShowProfileMenu(false); handleLogout(); }} className="w-full flex items-center gap-3 px-4 py-3 text-sm font-bold text-red-500 hover:bg-red-50">
+                  <LogOut className="w-4 h-4" /> Выйти
+                </button>
+              </div>
+            )}
+            </div>
           </div>
         </header>
 

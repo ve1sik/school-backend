@@ -1,6 +1,6 @@
-export const MANUAL_GRADE_BLOCK_TYPES = new Set(['written', 'homework', 'essay']);
-export const UNLIMITED_ATTEMPT_TYPES = new Set(['written', 'homework', 'essay']);
-export const INTERACTIVE_BLOCK_TYPES = ['test', 'test_short', 'written', 'matching', 'essay'] as const;
+export const MANUAL_GRADE_BLOCK_TYPES = new Set(['written', 'homework', 'essay', 'essay_final']);
+export const UNLIMITED_ATTEMPT_TYPES = new Set(['written', 'homework', 'essay', 'essay_final']);
+export const INTERACTIVE_BLOCK_TYPES = ['test', 'test_short', 'written', 'matching', 'essay', 'essay_final'] as const;
 
 export function isManualGradeBlock(type?: string): boolean {
   return MANUAL_GRADE_BLOCK_TYPES.has(type || '');

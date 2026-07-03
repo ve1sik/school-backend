@@ -44,13 +44,18 @@ export class CourseService {
       return { ...lesson, blocksMeta: [] as any[], content: undefined };
     }
     let blocksMeta: any[] = [];
+    let homeworkBlocks: any[] = [];
+    let hasHomework = false;
     try {
       const parsed = JSON.parse(lesson.content);
       if (Array.isArray(parsed)) {
+        homeworkBlocks = parsed.filter((b: any) => b.isHomework);
+        hasHomework = homeworkBlocks.length > 0;
         blocksMeta = parsed.map((b: any) => ({
           id: String(b.id),
           type: b.type,
           title: b.title,
+          isHomework: !!b.isHomework,
           spellRule: b.spellRule || null,
           pairs: Array.isArray(b.pairs)
             ? b.pairs.map((p: any) => ({
@@ -63,9 +68,10 @@ export class CourseService {
       }
     } catch {
       blocksMeta = [];
+      homeworkBlocks = [];
     }
     const { content, ...rest } = lesson;
-    return { ...rest, blocksMeta };
+    return { ...rest, blocksMeta, homeworkBlocks, hasHomework };
   }
 
   private sanitizeCoursesForClient(courses: any[], role?: string) {

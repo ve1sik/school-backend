@@ -1,4 +1,11 @@
-import { EGE_ESSAY_CRITERIA, normalizeCriteriaScores, sumCriteriaScores, type EssayCriterionScore } from '../utils/essayCriteria';
+import {
+  formatCriterionScore,
+  getCriteriaDefs,
+  normalizeCriteriaScores,
+  sumCriteriaScores,
+  type EssayCriteriaKind,
+  type EssayCriterionScore,
+} from '../utils/essayCriteria';
 import {
   buildAnnotatedSegments,
   kindColor,
@@ -14,6 +21,7 @@ type Props = {
   comment?: string;
   criteriaScores?: unknown;
   errorAnnotations?: unknown;
+  criteriaKind?: EssayCriteriaKind;
 };
 
 export default function EssayResultView({
@@ -23,9 +31,11 @@ export default function EssayResultView({
   comment,
   criteriaScores,
   errorAnnotations,
+  criteriaKind = 'ege',
 }: Props) {
   const plain = stripHtmlToPlain(answer);
-  const criteria = normalizeCriteriaScores(criteriaScores);
+  const criteria = normalizeCriteriaScores(criteriaScores, criteriaKind);
+  const criteriaDefs = getCriteriaDefs(criteriaKind);
   const errors = normalizeErrorAnnotations(errorAnnotations);
   const segments = buildAnnotatedSegments(plain, errors);
   const hasCriteria = criteria.some((c) => c.score > 0 || c.comment.trim());
@@ -78,7 +88,7 @@ export default function EssayResultView({
           </div>
           <div className="divide-y divide-gray-100">
             {criteria.map((row) => (
-              <CriterionRow key={row.id} row={row} />
+              <CriterionRow key={row.id} row={row} criteriaKind={criteriaKind} />
             ))}
           </div>
           <div className="px-4 py-3 bg-gray-50 text-right text-sm font-black text-gray-600">
@@ -99,12 +109,13 @@ export default function EssayResultView({
   );
 }
 
-function CriterionRow({ row }: { row: EssayCriterionScore }) {
-  const def = EGE_ESSAY_CRITERIA.find((c) => c.id === row.id);
+function CriterionRow({ row, criteriaKind }: { row: EssayCriterionScore; criteriaKind: EssayCriteriaKind }) {
+  const def = getCriteriaDefs(criteriaKind).find((c) => c.id === row.id);
   return (
     <div className="px-4 py-3 grid sm:grid-cols-[1fr_auto] gap-2 items-start">
       <div>
         <p className="font-bold text-gray-900 text-sm">{def?.shortLabel || row.id}</p>
+        <p className="text-xs text-purple-600 font-bold mt-0.5">{formatCriterionScore(row)}</p>
         {row.comment && <p className="text-xs text-gray-500 mt-1">{row.comment}</p>}
       </div>
       <div className="font-black text-purple-600 text-lg whitespace-nowrap">
