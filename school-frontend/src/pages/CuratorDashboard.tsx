@@ -122,6 +122,18 @@ export default function CuratorDashboard() {
   const selectedLesson = selectedTheme?.lessons?.find((lesson: any) => lesson.id === selectedLessonId) || selectedTheme?.lessons?.[0] || null;
   const activeStudent = selectedGroup?.students?.find((student: any) => student.id === activeStudentId) || null;
 
+  useEffect(() => {
+    if (!selectedGroup?.courses?.length) return;
+    const courseStillValid = selectedGroup.courses.some((course: any) => course.id === selectedCourseId);
+    if (courseStillValid) return;
+    const firstCourse = selectedGroup.courses[0];
+    const firstTheme = firstCourse?.themes?.[0];
+    const firstLesson = firstTheme?.lessons?.[0];
+    setSelectedCourseId(firstCourse?.id || null);
+    setSelectedThemeId(firstTheme?.id || null);
+    setSelectedLessonId(firstLesson?.id || null);
+  }, [selectedGroupId, groups, selectedCourseId, selectedGroup]);
+
   const lessonSubmissions = useMemo(() => {
     if (!selectedLesson || !activeStudentId) return [];
     return submissions.filter((sub: any) => sub.studentId === activeStudentId && sub.lessonId === selectedLesson.id);

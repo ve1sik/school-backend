@@ -49,7 +49,16 @@ export class GroupService {
           ? { teacher_id: requesterId }
           : { curator_id: requesterId };
 
-    return this.prisma.group.findMany({
+    const courseInclude = {
+      themes: {
+        orderBy: { order_index: 'asc' as const },
+        include: {
+          lessons: { orderBy: { order_index: 'asc' as const } },
+        },
+      },
+    };
+
+    const groups = await this.prisma.group.findMany({
       where,
       include: {
         curator: { select: { id: true, name: true, surname: true, email: true } },
@@ -59,19 +68,77 @@ export class GroupService {
           orderBy: [{ surname: 'asc' }, { name: 'asc' }],
         },
         courses: {
-          include: {
-            themes: {
-              orderBy: { order_index: 'asc' },
-              include: {
-                lessons: { orderBy: { order_index: 'asc' } },
-              },
-            },
-          },
+          include: courseInclude,
           orderBy: { title: 'asc' },
         },
       },
       orderBy: { title: 'asc' },
     });
+
+    const studentIds = [...new Set(groups.flatMap((g) => g.students.map((s) => s.id)))];
+    if (studentIds.length === 0) return groups;
+
+    const enrollments = await this.prisma.enrollment.findMany({
+      where: { user_id: { in: studentIds } },
+      select: { user_id: true, course_id: true },
+    });
+    if (enrollments.length === 0) return groups;
+
+    const studentGroupIds = new Map<string, string[]>();
+    for (const group of groups) {
+      for (const student of group.students) {
+        const existing = studentGroupIds.get(student.id) || [];
+        existing.push(group.id);
+        studentGroupIds.set(student.id, existing);
+      }
+    }
+
+    const missingByGroup = new Map<string, Set<string>>();
+    for (const enrollment of enrollments) {
+      for (const groupId of studentGroupIds.get(enrollment.user_id) || []) {
+        const group = groups.find((g) => g.id === groupId);
+        if (!group) continue;
+        const alreadyLinked = group.courses.some((course) => course.id === enrollment.course_id);
+        if (alreadyLinked) continue;
+        if (!missingByGroup.has(groupId)) missingByGroup.set(groupId, new Set());
+        missingByGroup.get(groupId)!.add(enrollment.course_id);
+      }
+    }
+
+    const allMissingIds = [
+      ...new Set([...missingByGroup.values()].flatMap((ids) => [...ids])),
+    ];
+    if (allMissingIds.length === 0) return groups;
+
+    const extraCourses = await this.prisma.course.findMany({
+      where: { id: { in: allMissingIds } },
+      include: courseInclude,
+      orderBy: { title: 'asc' },
+    });
+    const courseById = new Map(extraCourses.map((course) => [course.id, course]));
+
+    for (const group of groups) {
+      const missingIds = missingByGroup.get(group.id);
+      if (!missingIds?.size) continue;
+
+      const merged = [...group.courses];
+      for (const courseId of missingIds) {
+        const course = courseById.get(courseId);
+        if (course) merged.push(course);
+      }
+      group.courses = merged.sort((a, b) => a.title.localeCompare(b.title, 'ru'));
+
+      await this.prisma.group.update({
+        where: { id: group.id },
+        data: {
+          courses: {
+            connect: [...missingIds].map((id) => ({ id })),
+          },
+        },
+      });
+    }
+
+    return groups;
   }
 
   async update(id: string, data: any, requesterId?: string, requesterRole?: string, requesterPermissions: string[] = []) {
