@@ -311,9 +311,14 @@ const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswer
           </motion.div>
         )}
         {result === 'PENDING' && (
-          <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="bg-purple-50 border border-purple-100 p-4 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between font-bold mb-6 text-purple-600 gap-2">
-            <span className="flex items-center gap-2 text-lg"><Clock className="w-6 h-6" /> Отправлено</span>
-            <span className="text-sm bg-white px-3 py-1 rounded-lg shadow-sm border border-purple-50">Ожидает проверки ⏳</span>
+          <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="bg-purple-50 border border-purple-100 p-4 rounded-xl flex flex-col gap-3 font-bold mb-6 text-purple-600">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <span className="flex items-center gap-2 text-lg"><Clock className="w-6 h-6" /> Отправлено</span>
+              <span className="text-sm bg-white px-3 py-1 rounded-lg shadow-sm border border-purple-50">Ожидает проверки ⏳</span>
+            </div>
+            {block.type === 'written' && courseSpellCheck && spellErrors?.[block.id]?.length > 0 && (
+              <SpellErrorsPanel errors={spellErrors[block.id]} />
+            )}
           </motion.div>
         )}
         {result === 'GRADED' && serverSubmission && (block.type === 'essay' || block.type === 'essay_final') && (

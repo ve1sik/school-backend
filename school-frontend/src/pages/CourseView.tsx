@@ -24,8 +24,27 @@ import { isAutoGradableBlockType } from '../utils/autoGrade';
 import { useRonSync } from '../lib/ron';
 import EssayPlainEditor from '../components/EssayPlainEditor';
 import EssayResultView from '../components/EssayResultView';
-import { EGE_ESSAY_MAX_SCORE } from '../utils/essayCriteria';
+import { EGE_ESSAY_MAX_SCORE, FINAL_ESSAY_MAX_SCORE, criteriaKindFromBlockType } from '../utils/essayCriteria';
 import { isManualGradeBlock, isUnlimitedAttempts } from '../utils/lessonBlockTypes';
+import { checkSpelling, type SpellError } from '../utils/spellCheck';
+
+const SpellErrorsPanel = ({ errors }: { errors: SpellError[] }) => (
+  <div className="p-4 rounded-2xl bg-amber-50 border-2 border-amber-200 space-y-2">
+    <p className="text-[10px] font-black text-amber-700 uppercase tracking-widest">
+      Орфография — найдено {errors.length}
+    </p>
+    <ul className="space-y-1.5">
+      {errors.map((err, idx) => (
+        <li key={`${err.word}-${idx}`} className="text-sm font-medium text-amber-900">
+          <span className="line-through text-red-600">{err.word}</span>
+          {' → '}
+          <span className="text-emerald-700 font-bold">{err.suggestion}</span>
+          <span className="text-xs text-amber-600 ml-2">({err.rule})</span>
+        </li>
+      ))}
+    </ul>
+  </div>
+);
 
 const API_URL = 'https://prepodmgy.ru/api';
 
@@ -98,7 +117,7 @@ function ExpandableImage({ src, alt, className = '' }: { src: string, alt?: stri
   );
 }
 
-const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswerToggle, handleTextAnswerChange, handleMatchingChange, handleSubmitTest, submissions }: any) => {
+const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswerToggle, handleTextAnswerChange, handleMatchingChange, handleSubmitTest, submissions, courseSpellCheck, spellErrors }: any) => {
   const [isOpen, setIsOpen] = useState(false);
   const [activeStep, setActiveStep] = useState(0);
 
@@ -231,7 +250,7 @@ const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswer
         <div className="px-3 py-1.5 rounded-lg bg-purple-50 text-purple-600 text-[10px] font-black uppercase tracking-widest border border-purple-100">
           Вопрос {activeStep + 1}
         </div>
-        {block.type !== 'written' && block.type !== 'essay' && (
+        {block.type !== 'written' && block.type !== 'essay' && block.type !== 'essay_final' && (
           <div className={`px-3 py-1.5 rounded-md text-[10px] font-black uppercase tracking-widest ${isExhausted && result !== 'SUCCESS' ? 'bg-rose-100 text-rose-600' : 'bg-gray-100 text-gray-500'}`}>
             Попыток: {attemptsLeft} из {maxAttempts}
           </div>
@@ -266,24 +285,30 @@ const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswer
           </motion.div>
         )}
         {result === 'PENDING' && (
-          <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="bg-purple-50 border border-purple-100 p-4 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between font-bold mb-6 text-purple-600 gap-2">
-            <span className="flex items-center gap-2 text-lg"><Clock className="w-6 h-6" /> Отправлено</span>
-            <span className="text-sm bg-white px-3 py-1 rounded-lg shadow-sm border border-purple-50">Ожидает проверки ⏳</span>
+          <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="bg-purple-50 border border-purple-100 p-4 rounded-xl flex flex-col gap-3 font-bold mb-6 text-purple-600">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <span className="flex items-center gap-2 text-lg"><Clock className="w-6 h-6" /> Отправлено</span>
+              <span className="text-sm bg-white px-3 py-1 rounded-lg shadow-sm border border-purple-50">Ожидает проверки ⏳</span>
+            </div>
+            {block.type === 'written' && courseSpellCheck && spellErrors?.[block.id]?.length > 0 && (
+              <SpellErrorsPanel errors={spellErrors[block.id]} />
+            )}
           </motion.div>
         )}
-        {result === 'GRADED' && serverSubmission && block.type === 'essay' && (
+        {result === 'GRADED' && serverSubmission && (block.type === 'essay' || block.type === 'essay_final') && (
           <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="mb-6">
             <EssayResultView
               answer={serverSubmission.answer || ''}
               score={Number(serverSubmission.score) || 0}
-              maxScore={Number(serverSubmission.max_score || block.maxScore || EGE_ESSAY_MAX_SCORE)}
+              maxScore={Number(serverSubmission.max_score || block.maxScore || (block.type === 'essay_final' ? FINAL_ESSAY_MAX_SCORE : EGE_ESSAY_MAX_SCORE))}
               comment={serverSubmission.comment}
               criteriaScores={serverSubmission.criteria_scores || serverSubmission.criteriaScores}
               errorAnnotations={serverSubmission.error_annotations || serverSubmission.errorAnnotations}
+              criteriaKind={criteriaKindFromBlockType(block.type)}
             />
           </motion.div>
         )}
-        {result === 'GRADED' && serverSubmission && block.type !== 'essay' && (
+        {result === 'GRADED' && serverSubmission && block.type !== 'essay' && block.type !== 'essay_final' && (
            <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="bg-emerald-50 border-2 border-emerald-200 p-5 rounded-xl mb-6 shadow-sm">
              <div className="flex flex-col sm:flex-row sm:items-center justify-between font-black text-emerald-600 gap-3 mb-4">
                <span className="flex items-center gap-2 text-xl"><CheckCircle2 className="w-7 h-7" /> Работа проверена!</span>
@@ -490,7 +515,7 @@ const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswer
               <div className="absolute inset-0 z-10 bg-transparent cursor-not-allowed" />
             )}
             <p className="text-xs font-bold text-gray-500 bg-gray-50 border border-gray-100 rounded-xl px-4 py-2">
-              Сочинение без автокоррекции — ошибки не подчёркиваются автоматически.
+              Сочинение ЕГЭ — без автокоррекции. После проверки увидите баллы K1–K10.
             </p>
             <EssayPlainEditor
               value={serverSubmission?.answer || selected[0] || ''}
@@ -498,6 +523,26 @@ const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswer
                 if (!isLocked) handleTextAnswerChange(block.id, val);
               }}
               readOnly={isLocked}
+            />
+          </div>
+        )}
+
+        {block.type === 'essay_final' && (
+          <div className="flex flex-col gap-3 relative">
+            {isLocked && serverSubmission && (
+              <div className="absolute inset-0 z-10 bg-transparent cursor-not-allowed" />
+            )}
+            <p className="text-xs font-bold text-gray-500 bg-gray-50 border border-gray-100 rounded-xl px-4 py-2">
+              Итоговое сочинение — без автокоррекции. После проверки увидите баллы K1–K5.
+            </p>
+            <EssayPlainEditor
+              value={serverSubmission?.answer || selected[0] || ''}
+              onChange={(val) => {
+                if (!isLocked) handleTextAnswerChange(block.id, val);
+              }}
+              readOnly={isLocked}
+              placeholder="Напишите итоговое сочинение…"
+              minRows={14}
             />
           </div>
         )}
@@ -520,6 +565,9 @@ const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswer
               placeholder="Введите развернутый ответ..." 
               className={`bg-white rounded-2xl overflow-hidden border transition-all ${isLocked ? 'border-gray-100 opacity-80' : 'border-gray-200 focus-within:border-[#A855F7] focus-within:ring-2 focus-within:ring-[#A855F7]/20'}`}
             />
+            {courseSpellCheck && spellErrors?.[block.id]?.length > 0 && (
+              <SpellErrorsPanel errors={spellErrors[block.id]} />
+            )}
           </div>
         )}
       </div>
@@ -574,7 +622,31 @@ export default function CourseView() {
   const [attemptsUsed, setAttemptsUsed] = useState<Record<string, number>>(() => getSafeLocal('demo_attempts', {}));
 
   const [submissions, setSubmissions] = useState<any[]>([]);
+  const [courseSpellCheck, setCourseSpellCheck] = useState(false);
+  const [spellErrors, setSpellErrors] = useState<Record<string, SpellError[]>>({});
   const { addRonTask, removeRonTask } = useRonSync();
+
+  const syncSpellErrorsFromAnswer = (blockId: string, text: string) => {
+    if (!courseSpellCheck || !text || text.replace(/<[^>]+>/g, '').trim().length < 3) {
+      setSpellErrors((prev) => {
+        if (!prev[blockId]) return prev;
+        const next = { ...prev };
+        delete next[blockId];
+        return next;
+      });
+      return;
+    }
+    const errs = checkSpelling(text);
+    setSpellErrors((prev) => {
+      if (!errs.length) {
+        if (!prev[blockId]) return prev;
+        const next = { ...prev };
+        delete next[blockId];
+        return next;
+      }
+      return { ...prev, [blockId]: errs };
+    });
+  };
 
   useEffect(() => {
     const fetchCourseData = async () => {
@@ -597,6 +669,7 @@ export default function CourseView() {
         }
         
         setCourse(courseData);
+        setCourseSpellCheck(courseData?.spell_check === true);
 
         if (courseData && courseData.themes) {
           const targetTheme = courseData.themes.find((t: any) => String(t.id) === String(themeId));
@@ -620,6 +693,25 @@ export default function CourseView() {
   useEffect(() => {
     setAreTestsRevealed(false);
   }, [activeLesson?.id]);
+
+  useEffect(() => {
+    if (!courseSpellCheck || !activeLesson?.id || !submissions.length) return;
+    const lessonSubs = submissions.filter(
+      (s: any) => (s.lesson_id || s.lessonId) === activeLesson.id && s.answer,
+    );
+    if (!lessonSubs.length) return;
+
+    const next: Record<string, SpellError[]> = {};
+    lessonSubs.forEach((sub: any) => {
+      const blockId = sub.block_id || sub.blockId;
+      if (!blockId) return;
+      const errs = checkSpelling(sub.answer);
+      if (errs.length) next[blockId] = errs;
+    });
+    if (Object.keys(next).length) {
+      setSpellErrors((prev) => ({ ...prev, ...next }));
+    }
+  }, [courseSpellCheck, activeLesson?.id, submissions]);
 
   const toggleTheme = (tId: string) => {
     setExpandedThemes(prev => ({ ...prev, [tId]: !prev[tId] }));
@@ -650,6 +742,17 @@ export default function CourseView() {
       delete newResults[blockId];
       setTestResults(newResults);
       setSafeLocal('demo_results', newResults);
+    }
+
+    if (courseSpellCheck && text.replace(/<[^>]+>/g, '').trim().length > 5) {
+      syncSpellErrorsFromAnswer(blockId, text);
+    } else {
+      setSpellErrors((prev) => {
+        if (!prev[blockId]) return prev;
+        const next = { ...prev };
+        delete next[blockId];
+        return next;
+      });
     }
   };
 
@@ -772,19 +875,25 @@ export default function CourseView() {
       }
     } else {
       try {
+        if (courseSpellCheck && block.type === 'written') {
+          syncSpellErrorsFromAnswer(block.id, finalAnswerString);
+        }
         await axios.post(`${API_URL}/submissions`, {
           lessonId: activeLesson.id,
           blockId: block.id,
           blockType: block.type,
           question: questionWithImage,
           answer: finalAnswerString,
-          maxScore: block.maxScore || (block.type === 'essay' ? EGE_ESSAY_MAX_SCORE : 10),
+          maxScore: block.maxScore || (block.type === 'essay_final' ? FINAL_ESSAY_MAX_SCORE : block.type === 'essay' ? EGE_ESSAY_MAX_SCORE : 10),
         }, { headers: { Authorization: `Bearer ${getToken()}` } });
         
         setSubmissions(prev => [
           ...prev.filter(s => s.blockId !== block.id && s.block_id !== block.id),
           { blockId: block.id, status: newResultState, answer: finalAnswerString }
         ]);
+        if (courseSpellCheck && block.type === 'written') {
+          syncSpellErrorsFromAnswer(block.id, finalAnswerString);
+        }
       } catch (err) {}
     }
 
@@ -813,14 +922,15 @@ export default function CourseView() {
     }
   }
 
-  const theoryBlocks = blocks.filter(b => !['test', 'test_short', 'written', 'matching', 'essay'].includes(b.type) && !b.isHomework);
-  const practiceBlocks = blocks.filter(b => ['test', 'test_short', 'written', 'matching', 'essay'].includes(b.type) && !b.isHomework);
+  const theoryBlocks = blocks.filter(b => !['test', 'test_short', 'written', 'matching', 'essay', 'essay_final'].includes(b.type) && !b.isHomework);
+  const practiceBlocks = blocks.filter(b => ['test', 'test_short', 'written', 'matching', 'essay', 'essay_final'].includes(b.type) && !b.isHomework);
   const homeworkBlocks = blocks.filter(b => b.isHomework);
 
   const groupInteractiveBlocks = (blocksToGroup: any[]) => {
     const groups = [
       { type: 'tests', title: 'Тесты', blocks: [] as any[], Icon: CheckSquare, iconColor: 'bg-indigo-50 text-indigo-600' },
       { type: 'essay', title: 'Сочинение (ЕГЭ)', blocks: [] as any[], Icon: FileSignature, iconColor: 'bg-fuchsia-50 text-fuchsia-600' },
+      { type: 'essay_final', title: 'Итоговое сочинение', blocks: [] as any[], Icon: FileSignature, iconColor: 'bg-violet-50 text-violet-600' },
       { type: 'written', title: 'Развернутый ответ', blocks: [] as any[], Icon: PenTool, iconColor: 'bg-purple-50 text-purple-600' }
     ];
 
@@ -829,6 +939,8 @@ export default function CourseView() {
         groups.find(g => g.type === 'tests')?.blocks.push(b);
       } else if (b.type === 'essay') {
         groups.find(g => g.type === 'essay')?.blocks.push(b);
+      } else if (b.type === 'essay_final') {
+        groups.find(g => g.type === 'essay_final')?.blocks.push(b);
       } else if (b.type === 'written') {
         groups.find(g => g.type === 'written')?.blocks.push(b);
       }
@@ -1148,6 +1260,8 @@ export default function CourseView() {
                             handleAnswerToggle={handleAnswerToggle} handleTextAnswerChange={handleTextAnswerChange} 
                             handleMatchingChange={handleMatchingChange} handleSubmitTest={handleSubmitTest}
                             submissions={submissions}
+                            courseSpellCheck={courseSpellCheck}
+                            spellErrors={spellErrors}
                           />
                         ))}
                       </div>

@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Activity, Loader2, PenTool, AlertCircle, CheckSquare, Mic,
   Target, X, BookOpen, ChevronRight, TrendingDown, Layers, List, BarChart2,
-  PanelRightOpen, Star, ChevronDown, Send,
+  PanelRightOpen, Star, ChevronDown, Send, FileSignature,
 } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { api, cachedGet, invalidateCache } from '../lib/api';
@@ -12,6 +12,8 @@ import { getToken } from '../lib/auth';
 import { isMobileViewport, runWhenIdle } from '../lib/defer';
 import { checkSpelling, type SpellError } from '../utils/spellCheck';
 import { getSpellRuleRecommendation } from '../utils/spellAnalytics';
+import EssayResultView from '../components/EssayResultView';
+import { criteriaKindFromBlockType, EGE_ESSAY_MAX_SCORE, FINAL_ESSAY_MAX_SCORE } from '../utils/essayCriteria';
 
 const isSpellCheckEnabled = (course: any) => {
   if (!course) return false;
@@ -119,6 +121,88 @@ function collectSpellWeakSpotsForCourse(course: any, mySubs: any[], themeId?: st
   return spots.sort((a, b) => (b.spellErrors?.length ?? 0) - (a.spellErrors?.length ?? 0));
 };
 
+type EssayGradedItem = {
+  id: string;
+  title: string;
+  lessonTitle: string;
+  themeTitle: string;
+  blockType: 'essay' | 'essay_final';
+  answer: string;
+  score: number;
+  maxScore: number;
+  comment?: string;
+  criteriaScores?: unknown;
+  errorAnnotations?: unknown;
+};
+
+function collectEssayGradedItems(course: any, mySubs: any[], themeId?: string): EssayGradedItem[] {
+  const blockMeta = new Map<string, { lesson: any; theme: any; block: any }>();
+  course?.themes?.forEach((theme: any) => {
+    if (themeId && theme.id !== themeId) return;
+    theme.lessons?.forEach((lesson: any) => {
+      if (lesson.include_in_analytics === false) return;
+      parseLessonBlocks(lesson).forEach((block: any) => {
+        if (block.type === 'essay' || block.type === 'essay_final') {
+          blockMeta.set(`${lesson.id}:${String(block.id)}`, { lesson, theme, block });
+        }
+      });
+    });
+  });
+
+  const courseLessonIds = new Set<string>();
+  course?.themes?.forEach((theme: any) => {
+    if (themeId && theme.id !== themeId) return;
+    theme.lessons?.forEach((lesson: any) => {
+      if (lesson.include_in_analytics !== false) courseLessonIds.add(lesson.id);
+    });
+  });
+
+  const latestByBlock = new Map<string, any>();
+  mySubs.forEach((sub: any) => {
+    const lessonId = sub.lesson_id || sub.lessonId;
+    if (!courseLessonIds.has(lessonId)) return;
+    if (sub.status !== 'GRADED') return;
+
+    const blockId = String(sub.block_id || sub.blockId || '');
+    const meta = blockMeta.get(`${lessonId}:${blockId}`);
+    const blockType = meta?.block?.type || sub.block_type || sub.blockType;
+    if (blockType !== 'essay' && blockType !== 'essay_final') return;
+
+    const key = `${lessonId}:${blockId}`;
+    const existing = latestByBlock.get(key);
+    if (!existing) {
+      latestByBlock.set(key, { sub, meta, blockType });
+      return;
+    }
+    const subTime = parseSafeDateMs(sub.updated_at || sub.created_at || 0);
+    const exTime = parseSafeDateMs(existing.sub.updated_at || existing.sub.created_at || 0);
+    if (subTime > exTime) latestByBlock.set(key, { sub, meta, blockType });
+  });
+
+  return [...latestByBlock.values()]
+    .map(({ sub, meta, blockType }) => {
+      const kind = blockType === 'essay_final' ? 'essay_final' : 'essay';
+      const title =
+        stripHtml(meta?.block?.title || meta?.block?.question || sub.question || '') ||
+        blockTypeLabel(kind);
+      return {
+        id: sub.id,
+        title,
+        lessonTitle: meta?.lesson?.title || 'Урок',
+        themeTitle: meta?.theme?.title || 'Модуль',
+        blockType: kind as 'essay' | 'essay_final',
+        answer: String(sub.answer || ''),
+        score: Number(sub.score) || 0,
+        maxScore: Number(sub.max_score || sub.maxScore) ||
+          (kind === 'essay_final' ? FINAL_ESSAY_MAX_SCORE : EGE_ESSAY_MAX_SCORE),
+        comment: sub.comment || undefined,
+        criteriaScores: sub.criteria_scores || sub.criteriaScores,
+        errorAnnotations: sub.error_annotations || sub.errorAnnotations,
+      } satisfies EssayGradedItem;
+    })
+    .sort((a, b) => b.score - a.score);
+}
+
 const COURSE_INLINE_LIMIT = 3;
 const PASS_SCORE = 70;
 
@@ -136,6 +220,8 @@ const blockTypeLabel = (type: string, isHomework?: boolean) => {
   if (isHomework) return 'Домашнее задание';
   if (type === 'test' || type === 'test_short') return 'Тест';
   if (type === 'written') return 'Развёрнутый ответ';
+  if (type === 'essay') return 'Сочинение (ЕГЭ)';
+  if (type === 'essay_final') return 'Итоговое сочинение';
   if (type === 'matching') return 'Таблица';
   if (type === 'oral') return 'Устный опрос';
   return 'Задание';
@@ -424,13 +510,7 @@ function buildCourseStats(course: any, mySubs: any[]): CourseStats | null {
     theme.lessons?.forEach((lesson: any) => {
       if (lesson.include_in_analytics === false) return;
 
-      let blocks: any[] = [];
-      try {
-        const parsed = JSON.parse(lesson.content || '[]');
-        if (Array.isArray(parsed)) blocks = parsed;
-      } catch {
-        /* ignore */
-      }
+      const blocks = parseLessonBlocks(lesson);
 
       const l_tests = { e: 0, m: 0, count: 0 };
       const l_written = { e: 0, m: 0, count: 0 };
@@ -452,7 +532,7 @@ function buildCourseStats(course: any, mySubs: any[]): CourseStats | null {
         const blockType =
           block.type === 'test' || block.type === 'test_short' || block.type === 'matching'
             ? 'tests'
-            : block.type === 'written' || block.type === 'homework' || block.isHomework
+            : block.type === 'written' || block.type === 'homework' || block.type === 'essay' || block.type === 'essay_final' || block.isHomework
               ? 'written'
               : block.type === 'oral'
                 ? 'oral'
@@ -730,6 +810,7 @@ export default function Dashboard() {
   const [modulesExpanded, setModulesExpanded] = useState(false);
   // drill-down: выбранный урок внутри модуля
   const [selectedLessonRow, setSelectedLessonRow] = useState<ScoreChartRow | null>(null);
+  const [expandedEssayId, setExpandedEssayId] = useState<string | null>(null);
 
   const reloadDashboard = useCallback(async (keepCourseId?: string) => {
     try {
@@ -839,6 +920,12 @@ export default function Dashboard() {
     return getSpellRuleRecommendation(selectedCourse, mySubs, themeId);
   }, [spellAnalyticsEnabled, selectedCourse, mySubs, activeTab]);
 
+  const essayGradedItems = useMemo(() => {
+    if (!selectedCourse) return [];
+    const themeId = activeTab === 'all' ? undefined : activeTab;
+    return collectEssayGradedItems(selectedCourse, mySubs, themeId);
+  }, [selectedCourse, mySubs, activeTab]);
+
   const handleOpenWeakSpot = (spot: WeakSpot) => {
     if (spot.isHomework) {
       navigate(`/homework/${spot.lessonId}`);
@@ -851,6 +938,7 @@ export default function Dashboard() {
     setSelectedCourseId(courseId);
     setActiveTab('all');
     setSelectedLessonRow(null);
+    setExpandedEssayId(null);
     setModulesExpanded(false);
     setShowCourseDrawer(false);
   };
@@ -1351,6 +1439,79 @@ export default function Dashboard() {
                 </div>
               </div>
               <WeakSpotsList spots={currentSpellWeakSpots} onOpen={handleOpenWeakSpot} />
+            </motion.div>
+          )}
+
+          {/* СОЧИНЕНИЯ — развёрнутая проверка K1–K10 / K1–K5 */}
+          {essayGradedItems.length > 0 && (
+            <motion.div
+              variants={itemVariants}
+              initial="hidden"
+              animate="show"
+              className="bg-white p-8 md:p-10 rounded-[2.5rem] shadow-sm border border-gray-100 xl:col-span-3"
+            >
+              <div className="flex items-start gap-4 mb-6">
+                <div className="w-12 h-12 rounded-2xl bg-fuchsia-50 flex items-center justify-center shrink-0">
+                  <FileSignature className="w-6 h-6 text-fuchsia-600" />
+                </div>
+                <div>
+                  <h3 className="text-2xl font-black text-gray-900">Мои сочинения</h3>
+                  <p className="text-sm font-medium text-gray-500 mt-1">
+                    Разверните работу, чтобы увидеть баллы по критериям и отмеченные ошибки.
+                  </p>
+                </div>
+              </div>
+              <div className="space-y-3">
+                {essayGradedItems.map((item) => {
+                  const isOpen = expandedEssayId === item.id;
+                  const kindLabel = item.blockType === 'essay_final' ? 'Итоговое сочинение' : 'Сочинение (ЕГЭ)';
+                  return (
+                    <div key={item.id} className="rounded-2xl border-2 border-gray-100 overflow-hidden">
+                      <button
+                        type="button"
+                        onClick={() => setExpandedEssayId(isOpen ? null : item.id)}
+                        className="w-full text-left p-4 md:p-5 bg-gray-50 hover:bg-fuchsia-50/40 transition-colors flex items-center gap-4"
+                      >
+                        <div className={`px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider shrink-0 ${item.blockType === 'essay_final' ? 'bg-violet-100 text-violet-700' : 'bg-fuchsia-100 text-fuchsia-700'}`}>
+                          {kindLabel}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-black text-gray-900 truncate">{item.title}</p>
+                          <p className="text-xs text-gray-500 mt-0.5 truncate">
+                            {item.themeTitle} · {item.lessonTitle}
+                          </p>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <p className="text-xl font-black text-emerald-600">{item.score} / {item.maxScore}</p>
+                        </div>
+                        <ChevronDown className={`w-5 h-5 text-gray-400 shrink-0 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+                      </button>
+                      <AnimatePresence>
+                        {isOpen && (
+                          <motion.div
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: 'auto', opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            className="overflow-hidden"
+                          >
+                            <div className="p-4 md:p-6 border-t border-gray-100 bg-white">
+                              <EssayResultView
+                                answer={item.answer}
+                                score={item.score}
+                                maxScore={item.maxScore}
+                                comment={item.comment}
+                                criteriaScores={item.criteriaScores}
+                                errorAnnotations={item.errorAnnotations}
+                                criteriaKind={criteriaKindFromBlockType(item.blockType)}
+                              />
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>
+                  );
+                })}
+              </div>
             </motion.div>
           )}
 
