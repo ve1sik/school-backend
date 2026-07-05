@@ -1,4 +1,5 @@
 import { checkSpelling } from './spellCheck';
+import { normalizeErrorAnnotations } from './essayErrors';
 import {
   SPELL_RULES,
   buildSpellRuleRecommendation,
@@ -87,6 +88,18 @@ function ruleFromBlock(block: BlockMeta | undefined, pairIndex?: number): SpellR
   return normalizeSpellRuleId(block.spellRule);
 }
 
+function ruleFromAnnotation(ann: { kind?: string; message?: string; snippet?: string }, blockRule: SpellRuleId | null): SpellRuleId {
+  if (blockRule) return blockRule;
+  const msg = `${ann.message || ''} ${ann.snippet || ''}`.toLowerCase();
+  if (ann.kind === 'punctuation') {
+    if (msg.includes('дееприч')) return 'punctuation_deverbative';
+    if (msg.includes('причаст')) return 'punctuation_participle';
+    return 'punctuation_general';
+  }
+  if (ann.kind === 'grammar') return classifySpellRuleFromText(msg);
+  return classifySpellRuleFromText(msg);
+}
+
 function collectFromSubmission(
   sub: any,
   block: BlockMeta | undefined,
@@ -95,6 +108,15 @@ function collectFromSubmission(
 ) {
   const example = taskLabel(lesson, block, sub);
   const answer = String(sub.answer || '');
+  const blockRule = ruleFromBlock(block);
+
+  const curatorMarks = normalizeErrorAnnotations(sub.errorAnnotations || sub.error_annotations);
+  if (curatorMarks.length > 0) {
+    curatorMarks.forEach((ann) => {
+      bump(counts, ruleFromAnnotation(ann, blockRule), `${example}: «${ann.snippet || ann.message}»`);
+    });
+    return;
+  }
 
   if (block?.type === 'matching' && block.pairs?.length) {
     const userMap = parseMatchingAnswer(answer);
@@ -112,16 +134,14 @@ function collectFromSubmission(
   const spellErrors = checkSpelling(answer);
   if (spellErrors.length > 0) {
     spellErrors.forEach((err) => {
-      const fromBlock = ruleFromBlock(block);
-      const ruleId = fromBlock || classifySpellRuleFromText(err.rule);
-      bump(counts, ruleId, example);
+      bump(counts, err.ruleId, `${example}: «${err.word}»`);
     });
     return;
   }
 
-  if (isFailedSubmission(sub)) {
-    const ruleId = ruleFromBlock(block) || 'other';
-    bump(counts, ruleId, example);
+  const blockRuleAfter = ruleFromBlock(block);
+  if (isFailedSubmission(sub) && blockRuleAfter) {
+    bump(counts, blockRuleAfter, example);
   }
 }
 

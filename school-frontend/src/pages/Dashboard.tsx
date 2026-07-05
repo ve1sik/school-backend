@@ -1346,7 +1346,7 @@ export default function Dashboard() {
                 <div>
                   <h3 className="text-2xl font-black text-gray-900">Где стоит подтянуть</h3>
                   <p className="text-sm font-medium text-gray-500 mt-1">
-                    Ошибки в словарных словах и приставках пре- и при- по этому курсу.
+                    Статистика по темам ЕГЭ: корни, удвоение, словарь, пре-/при-, пунктуация и др.
                   </p>
                 </div>
               </div>
