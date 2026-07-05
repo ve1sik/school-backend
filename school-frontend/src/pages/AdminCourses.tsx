@@ -761,7 +761,7 @@ export default function AdminCourses() {
 
     const validateArr = (arr: any[]) => {
       arr.forEach(b => {
-        if (['test', 'test_short', 'written', 'essay', 'matching'].includes(b.type)) {
+        if (['test', 'test_short', 'written', 'essay', 'essay_final', 'matching'].includes(b.type)) {
           if (isQuillEmpty(b.question)) newErrors[b.id] = true;
           
           if (b.type === 'test') {
@@ -1119,22 +1119,75 @@ export default function AdminCourses() {
             )}
 
             {(block.type === 'essay' || block.type === 'essay_final') && (
-              <div className="mb-4 space-y-3">
-                <p className="text-sm font-bold text-fuchsia-800 bg-fuchsia-50 border border-fuchsia-100 rounded-xl px-4 py-3">
+              <>
+                <div className={`flex items-center gap-3 mb-6 group/header p-4 rounded-xl ${block.type === 'essay_final' ? 'bg-violet-50' : 'bg-fuchsia-50'}`}>
+                  <FileSignature className={`w-6 h-6 shrink-0 ${block.type === 'essay_final' ? 'text-violet-600' : 'text-fuchsia-600'}`} />
+                  <input
+                    value={block.title !== undefined ? block.title : (block.type === 'essay_final' ? 'Итоговое сочинение' : 'Сочинение (ЕГЭ)')}
+                    onChange={(e) => updateBlock(block.id, { title: e.target.value }, isHw)}
+                    className={`flex-1 bg-transparent border-b-2 border-dashed border-transparent outline-none font-black text-xl transition-all ${block.type === 'essay_final' ? 'hover:border-violet-300 focus:border-violet-600 text-violet-900 placeholder:text-violet-300' : 'hover:border-fuchsia-300 focus:border-fuchsia-600 text-fuchsia-900 placeholder:text-fuchsia-300'}`}
+                    placeholder="Заголовок блока..."
+                  />
+                </div>
+
+                <p className={`text-sm font-bold mb-6 rounded-xl px-4 py-3 border ${block.type === 'essay_final' ? 'text-violet-800 bg-violet-50 border-violet-100' : 'text-fuchsia-800 bg-fuchsia-50 border-fuchsia-100'}`}>
                   {block.type === 'essay_final'
                     ? `Итоговое сочинение — критерии K1–K5 (max ${FINAL_ESSAY_MAX_SCORE} баллов).`
                     : `Сочинение ЕГЭ — критерии K1–K10 (max ${EGE_ESSAY_MAX_SCORE} баллов).`}
                 </p>
-                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">Максимальный балл</label>
-                <input
-                  type="number"
-                  min={1}
-                  max={22}
-                  value={block.maxScore ?? (block.type === 'essay_final' ? FINAL_ESSAY_MAX_SCORE : 22)}
-                  onChange={(e) => updateBlock(block.id, { maxScore: Number(e.target.value) || (block.type === 'essay_final' ? FINAL_ESSAY_MAX_SCORE : 22) }, isHw)}
-                  className="w-32 p-3 rounded-xl border-2 border-gray-200 outline-none font-black text-center focus:border-fuchsia-400"
-                />
-              </div>
+
+                <div className="flex flex-col sm:flex-row gap-4 mb-6">
+                  <div className="flex-1">
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">Текст задания</label>
+                    <div className={`bg-white rounded-2xl overflow-visible border transition-all z-10 relative ${isError && isQuillEmpty(block.question) ? 'border-red-400 ring-2 ring-red-100' : 'border-gray-200 focus-within:border-fuchsia-400'}`}>
+                      <ReactQuill theme="snow" modules={quillModules} value={block.question || ''} onChange={(val) => updateBlock(block.id, { question: val }, isHw)} placeholder="Сформулируйте задание для сочинения..." className="min-h-[140px] pb-12" />
+                    </div>
+                  </div>
+                  <div className="w-full sm:w-32 shrink-0">
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">Макс. балл</label>
+                    <input
+                      type="number"
+                      min={1}
+                      max={block.type === 'essay_final' ? FINAL_ESSAY_MAX_SCORE : EGE_ESSAY_MAX_SCORE}
+                      value={block.maxScore ?? (block.type === 'essay_final' ? FINAL_ESSAY_MAX_SCORE : EGE_ESSAY_MAX_SCORE)}
+                      onChange={(e) => updateBlock(block.id, { maxScore: Number(e.target.value) || (block.type === 'essay_final' ? FINAL_ESSAY_MAX_SCORE : EGE_ESSAY_MAX_SCORE) }, isHw)}
+                      className="w-full p-4 rounded-xl border border-gray-200 outline-none font-black text-center text-fuchsia-600"
+                    />
+                  </div>
+                </div>
+
+                <div onDragOver={handleDragOver} onDrop={(e) => handleDrop(block.id, e, isHw, 'questionImage', 'questionImageName')} className="mb-8 p-5 bg-gray-50 rounded-2xl border border-dashed border-gray-300 hover:bg-gray-100/50 flex flex-col sm:flex-row sm:items-center gap-4 transition-colors">
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest sm:mb-0 block shrink-0">Картинка к заданию:</label>
+                  <div className="flex items-center gap-4 flex-1">
+                    <label className="cursor-pointer px-5 py-3 bg-white border border-gray-200 rounded-xl hover:border-fuchsia-400 transition-all flex items-center gap-2 font-bold text-gray-500 text-sm shadow-sm">
+                      <UploadCloud className="w-4 h-4" /> Прикрепить
+                      <input type="file" accept="image/*" className="hidden" onChange={(e) => handleFileUpload(block.id, e, isHw, 'questionImage', 'questionImageName')} />
+                    </label>
+                    {block.questionImageName && <span className="text-xs font-bold text-emerald-600"><CheckCircle2 className="w-4 h-4 inline" /> {block.questionImageName}</span>}
+                    {block.questionImage && <button type="button" onClick={() => updateBlock(block.id, { questionImage: '', questionImageName: '' }, isHw)} className="p-2 bg-white rounded-lg shadow-sm text-gray-400 hover:text-red-500"><Trash2 className="w-4 h-4" /></button>}
+                  </div>
+                </div>
+                {block.questionImage && <ExpandableImage src={getFullUrl(block.questionImage)} className="mb-6" />}
+
+                <div className="pt-8 border-t-2 border-dashed border-gray-200 space-y-6">
+                  <div>
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-2">Источник / отрывок</label>
+                    <textarea
+                      value={block.source || ''}
+                      onChange={(e) => updateBlock(block.id, { source: e.target.value }, isHw)}
+                      placeholder="Автор, название произведения или текст отрывка для анализа..."
+                      rows={4}
+                      className="w-full p-4 rounded-xl border-2 border-gray-100 outline-none focus:border-fuchsia-400 font-medium text-gray-700 bg-gray-50 focus:bg-white transition-all resize-y min-h-[100px]"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-black text-fuchsia-500 uppercase tracking-widest flex items-center gap-2 mb-2"><BookOpen className="w-3.5 h-3.5" /> Пояснение / разбор (необязательно)</label>
+                    <div className="bg-fuchsia-50/30 rounded-2xl overflow-hidden border-2 border-fuchsia-100 focus-within:border-fuchsia-400 focus-within:shadow-md transition-all relative z-0">
+                      <ReactQuill theme="snow" modules={quillModules} value={block.explanation || ''} onChange={(val) => updateBlock(block.id, { explanation: val }, isHw)} placeholder="Методические указания для ученика или куратора..." className="min-h-[120px] pb-12" />
+                    </div>
+                  </div>
+                </div>
+              </>
             )}
 
             {block.type === 'written' && (
