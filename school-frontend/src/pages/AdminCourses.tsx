@@ -1156,28 +1156,15 @@ export default function AdminCourses() {
                   </div>
                 </div>
 
-                <div onDragOver={handleDragOver} onDrop={(e) => handleDrop(block.id, e, isHw, 'questionImage', 'questionImageName')} className="mb-8 p-5 bg-gray-50 rounded-2xl border border-dashed border-gray-300 hover:bg-gray-100/50 flex flex-col sm:flex-row sm:items-center gap-4 transition-colors">
-                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest sm:mb-0 block shrink-0">Картинка к заданию:</label>
-                  <div className="flex items-center gap-4 flex-1">
-                    <label className="cursor-pointer px-5 py-3 bg-white border border-gray-200 rounded-xl hover:border-fuchsia-400 transition-all flex items-center gap-2 font-bold text-gray-500 text-sm shadow-sm">
-                      <UploadCloud className="w-4 h-4" /> Прикрепить
-                      <input type="file" accept="image/*" className="hidden" onChange={(e) => handleFileUpload(block.id, e, isHw, 'questionImage', 'questionImageName')} />
-                    </label>
-                    {block.questionImageName && <span className="text-xs font-bold text-emerald-600"><CheckCircle2 className="w-4 h-4 inline" /> {block.questionImageName}</span>}
-                    {block.questionImage && <button type="button" onClick={() => updateBlock(block.id, { questionImage: '', questionImageName: '' }, isHw)} className="p-2 bg-white rounded-lg shadow-sm text-gray-400 hover:text-red-500"><Trash2 className="w-4 h-4" /></button>}
-                  </div>
-                </div>
-                {block.questionImage && <ExpandableImage src={getFullUrl(block.questionImage)} className="mb-6" />}
-
-                <div className="pt-8 border-t-2 border-dashed border-gray-200 space-y-6">
+                <div className="pt-4 border-t-2 border-dashed border-gray-200 space-y-6">
                   <div>
-                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-2">Источник / отрывок</label>
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-2">Текст для анализа (отрывок)</label>
                     <textarea
                       value={block.source || ''}
                       onChange={(e) => updateBlock(block.id, { source: e.target.value }, isHw)}
-                      placeholder="Автор, название произведения или текст отрывка для анализа..."
-                      rows={4}
-                      className="w-full p-4 rounded-xl border-2 border-gray-100 outline-none focus:border-fuchsia-400 font-medium text-gray-700 bg-gray-50 focus:bg-white transition-all resize-y min-h-[100px]"
+                      placeholder="Вставьте большой текст отрывка — его увидит ученик над полем сочинения..."
+                      rows={12}
+                      className="w-full p-4 rounded-xl border-2 border-amber-100 outline-none focus:border-amber-400 font-medium text-gray-800 bg-amber-50/30 focus:bg-white transition-all resize-y min-h-[200px] font-serif leading-relaxed"
                     />
                   </div>
                   <div>

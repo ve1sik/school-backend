@@ -13,28 +13,70 @@ export class SubmissionsService {
     private telegramService: TelegramService,
   ) {}
 
+  private async getCuratorAccessScope(curatorId: string) {
+    const groups = await this.prisma.group.findMany({
+      where: { curator_id: curatorId },
+      include: {
+        students: { select: { id: true } },
+        courses: { select: { id: true } },
+      },
+    });
+
+    const studentIds = new Set(groups.flatMap((g) => g.students.map((s) => s.id)));
+    const courseIds = new Set(groups.flatMap((g) => g.courses.map((c) => c.id)));
+
+    if (studentIds.size > 0) {
+      const enrollments = await this.prisma.enrollment.findMany({
+        where: { user_id: { in: [...studentIds] } },
+        select: { course_id: true },
+      });
+      enrollments.forEach((e) => courseIds.add(e.course_id));
+    }
+
+    return {
+      studentIds: [...studentIds],
+      courseIds: [...courseIds],
+    };
+  }
+
   private async canGradeStudentLesson(studentId: string, lessonId: string, requesterId?: string, requesterRole?: string) {
     if (requesterRole === 'ADMIN') return true;
     if (!requesterId || !['CURATOR', 'TEACHER'].includes(requesterRole || '')) return false;
 
+    const staffFilter =
+      requesterRole === 'CURATOR' ? { curator_id: requesterId } : { teacher_id: requesterId };
+
     const group = await this.prisma.group.findFirst({
       where: {
+        ...staffFilter,
         students: { some: { id: studentId } },
-        ...(requesterRole === 'CURATOR' ? { curator_id: requesterId } : { teacher_id: requesterId }),
-        courses: {
-          some: {
-            themes: {
-              some: {
-                lessons: { some: { id: lessonId } },
-              },
-            },
-          },
-        },
       },
       select: { id: true },
     });
+    if (!group) return false;
 
-    return !!group;
+    const lesson = await this.prisma.lesson.findUnique({
+      where: { id: lessonId },
+      select: { theme: { select: { course_id: true } } },
+    });
+    if (!lesson?.theme?.course_id) return false;
+
+    const courseId = lesson.theme.course_id;
+
+    const linked = await this.prisma.group.findFirst({
+      where: {
+        id: group.id,
+        courses: { some: { id: courseId } },
+      },
+      select: { id: true },
+    });
+    if (linked) return true;
+
+    const enrolled = await this.prisma.enrollment.findFirst({
+      where: { user_id: studentId, course_id: courseId },
+      select: { id: true },
+    });
+    return !!enrolled;
   }
 
   private mapSubmissionForCurator(sub: any) {
@@ -222,13 +264,23 @@ export class SubmissionsService {
 
     const scopeClause =
       requesterRole === 'CURATOR' && requesterId
-        ? {
-            AND: [
-              { user: { groups: { some: { curator_id: requesterId } } } },
-              { lesson: { theme: { course: { groups: { some: { curator_id: requesterId } } } } } },
-            ],
-          }
-        : {};
+        ? await this.getCuratorAccessScope(requesterId).then((scope) => {
+            if (scope.studentIds.length === 0 || scope.courseIds.length === 0) {
+              return { user_id: { in: [] as string[] } };
+            }
+            return {
+              user_id: { in: scope.studentIds },
+              lesson: { theme: { course_id: { in: scope.courseIds } } },
+            };
+          })
+        : requesterRole === 'TEACHER' && requesterId
+          ? {
+              AND: [
+                { user: { groups: { some: { teacher_id: requesterId } } } },
+                { lesson: { theme: { course: { groups: { some: { teacher_id: requesterId } } } } } },
+              ],
+            }
+          : {};
 
     const where = { ...statusClause, ...scopeClause };
 

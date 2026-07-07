@@ -24,6 +24,7 @@ import { isAutoGradableBlockType } from '../utils/autoGrade';
 import { useRonSync } from '../lib/ron';
 import EssayPlainEditor from '../components/EssayPlainEditor';
 import EssayResultView from '../components/EssayResultView';
+import EssayStudentTask from '../components/EssayStudentTask';
 import { EGE_ESSAY_MAX_SCORE, FINAL_ESSAY_MAX_SCORE, criteriaKindFromBlockType } from '../utils/essayCriteria';
 import { isManualGradeBlock, isUnlimitedAttempts } from '../utils/lessonBlockTypes';
 import { checkSpelling, type SpellError } from '../utils/spellCheck';
@@ -326,10 +327,15 @@ const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswer
         )}
       </AnimatePresence>
 
-      <QuestionBlock content={block.question || ''} mode="quill" />
-      
-      {(block.questionImage || block.image) && (
-        <ExpandableImage src={getFullUrl(block.questionImage || block.image)} alt="Схема" className="mb-8" />
+      {(block.type === 'essay' || block.type === 'essay_final') ? (
+        <EssayStudentTask block={block} questionMode="quill" />
+      ) : (
+        <>
+          <QuestionBlock content={block.question || ''} mode="quill" />
+          {(block.questionImage || block.image) && (
+            <ExpandableImage src={getFullUrl(block.questionImage || block.image)} alt="Схема" className="mb-8" />
+          )}
+        </>
       )}
 
       <div className="space-y-3 mb-8">
@@ -514,6 +520,7 @@ const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswer
             {isLocked && serverSubmission && (
               <div className="absolute inset-0 z-10 bg-transparent cursor-not-allowed" />
             )}
+            <p className="text-[10px] font-black uppercase tracking-widest text-purple-600 pl-1">Ваше сочинение</p>
             <p className="text-xs font-bold text-gray-500 bg-gray-50 border border-gray-100 rounded-xl px-4 py-2">
               Сочинение ЕГЭ — без автокоррекции. После проверки увидите баллы K1–K10.
             </p>
@@ -532,6 +539,7 @@ const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswer
             {isLocked && serverSubmission && (
               <div className="absolute inset-0 z-10 bg-transparent cursor-not-allowed" />
             )}
+            <p className="text-[10px] font-black uppercase tracking-widest text-violet-600 pl-1">Ваше сочинение</p>
             <p className="text-xs font-bold text-gray-500 bg-gray-50 border border-gray-100 rounded-xl px-4 py-2">
               Итоговое сочинение — без автокоррекции. После проверки увидите баллы K1–K5.
             </p>

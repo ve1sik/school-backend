@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { FileText, AlertCircle, Clock, CheckCircle2, Loader2, FolderOpen, ChevronRight, Search, Book, Calendar, XCircle } from 'lucide-react';
 import { motion, AnimatePresence, type Variants } from 'framer-motion';
 import { useNavigate, useSearchParams } from 'react-router-dom';
@@ -19,6 +19,7 @@ export default function Homework() {
     ['TODO', 'OVERDUE', 'REVISION', 'REVIEW', 'GRADED', 'RON'].includes(initialTab) ? initialTab : 'TODO',
   );
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedCourseFilter, setSelectedCourseFilter] = useState<string>('all');
 
   useEffect(() => {
     const fetchRealHomeworks = async () => {
@@ -107,7 +108,17 @@ export default function Homework() {
     fetchRealHomeworks();
   }, []);
 
-  const filteredHomeworks = homeworks.filter(hw => {
+  const courseNames = useMemo(
+    () => [...new Set(homeworks.map((h) => h.courseName))].sort(),
+    [homeworks],
+  );
+
+  const homeworksForCourse =
+    selectedCourseFilter === 'all'
+      ? homeworks
+      : homeworks.filter((h) => h.courseName === selectedCourseFilter);
+
+  const filteredHomeworks = homeworksForCourse.filter(hw => {
     const matchesTab = hw.status === activeTab;
     const searchLower = searchQuery.toLowerCase();
     const matchesSearch = hw.title.toLowerCase().includes(searchLower) ||
@@ -117,11 +128,11 @@ export default function Homework() {
   });
 
   const counts = {
-    TODO: homeworks.filter(h => h.status === 'TODO').length,
-    OVERDUE: homeworks.filter(h => h.status === 'OVERDUE').length,
-    REVISION: homeworks.filter(h => h.status === 'REVISION').length,
-    REVIEW: homeworks.filter(h => h.status === 'REVIEW').length,
-    GRADED: homeworks.filter(h => h.status === 'GRADED').length,
+    TODO: homeworksForCourse.filter(h => h.status === 'TODO').length,
+    OVERDUE: homeworksForCourse.filter(h => h.status === 'OVERDUE').length,
+    REVISION: homeworksForCourse.filter(h => h.status === 'REVISION').length,
+    REVIEW: homeworksForCourse.filter(h => h.status === 'REVIEW').length,
+    GRADED: homeworksForCourse.filter(h => h.status === 'GRADED').length,
   };
 
   // 🔥 ГРУППИРОВКА ЗАДАНИЙ (Курс -> Модуль -> Массив заданий)
@@ -150,9 +161,31 @@ export default function Homework() {
         <h1 className="text-4xl md:text-5xl font-black tracking-tight text-gray-900 mb-3 flex items-center gap-4">
           Мои задания <FileText className="w-10 h-10 text-[#5A4BFF]" />
         </h1>
-        <p className="text-gray-500 font-medium text-lg mb-8">Отслеживай свои домашние работы и оценки куратора.</p>
+        <p className="text-gray-500 font-medium text-lg mb-4">Отслеживай свои домашние работы и оценки куратора.</p>
 
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+        {courseNames.length > 1 && (
+          <div className="flex flex-wrap gap-2 mb-6">
+            <button
+              type="button"
+              onClick={() => setSelectedCourseFilter('all')}
+              className={`px-4 py-2 rounded-xl font-bold text-sm transition-all ${selectedCourseFilter === 'all' ? 'bg-gray-900 text-white' : 'bg-white border border-gray-200 text-gray-600 hover:border-gray-300'}`}
+            >
+              Все предметы
+            </button>
+            {courseNames.map((name) => (
+              <button
+                key={name}
+                type="button"
+                onClick={() => setSelectedCourseFilter(name)}
+                className={`px-4 py-2 rounded-xl font-bold text-sm transition-all ${selectedCourseFilter === name ? 'bg-[#5A4BFF] text-white shadow-md' : 'bg-white border border-gray-200 text-gray-600 hover:border-purple-200'}`}
+              >
+                {name}
+              </button>
+            ))}
+          </div>
+        )}
+
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8">
           <div className="flex gap-3 overflow-x-auto pb-2 md:pb-0 flex-wrap">
             {([
               { key: 'TODO', label: 'К выполнению', activeClass: 'bg-[#5A4BFF] text-white shadow-lg shadow-indigo-500/20' },

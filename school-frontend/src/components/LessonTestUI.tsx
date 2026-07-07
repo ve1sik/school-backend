@@ -8,7 +8,7 @@ export const safeHtml = (text: unknown): string => {
 export const hasRichText = (text: unknown): boolean =>
   typeof text === 'string' && /<[a-z][\s\S]*>/i.test(text);
 
-export const getOptionLetter = (idx: number) => String.fromCharCode(65 + idx);
+export const getOptionLetter = (idx: number) => String(idx + 1);
 
 export const LESSON_TEST_STYLES = `
   .test-prose .ql-container.ql-snow,

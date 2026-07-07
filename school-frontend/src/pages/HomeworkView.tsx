@@ -23,6 +23,7 @@ import { checkSpelling, type SpellError } from '../utils/spellCheck';
 import { isAutoGradableBlockType } from '../utils/autoGrade';
 import { useRonSync } from '../lib/ron';
 import EssayPlainEditor from '../components/EssayPlainEditor';
+import EssayStudentTask from '../components/EssayStudentTask';
 import EssayResultView from '../components/EssayResultView';
 import { getHomeworkBlocksFromLesson, lessonHasHomework } from '../utils/lessonHomework';
 import { EGE_ESSAY_MAX_SCORE, FINAL_ESSAY_MAX_SCORE, criteriaKindFromBlockType } from '../utils/essayCriteria';
@@ -217,14 +218,6 @@ const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswer
               {isLocked || result === 'SUCCESS' || result === 'GRADED' ? 'Далее →' : 'Пропустить →'}
             </button>
           )}
-          <button
-            type="button"
-            onClick={(e) => { e.preventDefault(); handleSubmitTest(block); }}
-            disabled={block.type === 'matching' ? (!isMatchingReady || isLocked) : (selected.length === 0 || selected[0] === '' || selected[0] === '<p><br></p>' || isLocked)}
-            className={`px-5 py-2 rounded-xl font-black text-xs transition-all active:scale-95 disabled:opacity-40 uppercase tracking-wide ${isExhausted && !isUnlimitedAttempts(block.type) ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : result === 'ERROR' ? 'bg-[#FF4A6B] text-white shadow-md' : result === 'GRADED' ? 'bg-emerald-500 text-white cursor-not-allowed' : 'bg-[#A855F7] text-white shadow-md shadow-purple-500/30'}`}
-          >
-            {result === 'PENDING' ? '⏳ Проверка' : result === 'GRADED' ? '✅ Оценено' : (isExhausted && !isUnlimitedAttempts(block.type) ? '🚫 Лимит' : result === 'ERROR' ? '↩ Ещё раз' : '✓ Ответить')}
-          </button>
           <button onClick={() => setIsOpen(false)} className="p-2 text-gray-400 hover:text-gray-700 bg-gray-50 hover:bg-gray-100 rounded-xl transition-colors border border-gray-200/50">
             <X className="w-4 h-4" />
           </button>
@@ -352,10 +345,15 @@ const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswer
         )}
       </AnimatePresence>
 
-      <QuestionBlock content={block.question || ''} mode="html" />
-      
-      {(block.questionImage || block.image) && (
-        <ExpandableImage src={getFullUrl(block.questionImage || block.image)} alt="Схема" className="mb-8" />
+      {(block.type === 'essay' || block.type === 'essay_final') ? (
+        <EssayStudentTask block={block} />
+      ) : (
+        <>
+          <QuestionBlock content={block.question || ''} mode="html" />
+          {(block.questionImage || block.image) && (
+            <ExpandableImage src={getFullUrl(block.questionImage || block.image)} alt="Схема" className="mb-8" />
+          )}
+        </>
       )}
 
       <div className="space-y-3 mb-8">
@@ -498,9 +496,12 @@ const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswer
                 }
 
                 return (
-                  <div key={idx} className="flex flex-col gap-2 w-36 shrink-0">
-                    <div className={`flex flex-col border-2 rounded-2xl overflow-hidden transition-all shadow-sm ${tBorderClass}`}>
-                      <div className="bg-gradient-to-b from-gray-50 to-gray-100/80 px-3 py-3 text-center font-bold text-gray-800 border-b-2 border-inherit flex items-center justify-center min-h-[3.25rem] break-words text-sm leading-snug">
+                  <div key={idx} className="flex flex-col items-center gap-2 w-28 shrink-0">
+                    <span className="w-8 h-8 rounded-lg bg-indigo-100 text-indigo-700 font-black text-sm flex items-center justify-center">
+                      {idx + 1}
+                    </span>
+                    <div className={`flex flex-col border-2 rounded-2xl overflow-hidden transition-all shadow-sm w-full ${tBorderClass}`}>
+                      <div className="bg-gradient-to-b from-gray-50 to-gray-100/80 px-2 py-3 text-center font-bold text-gray-800 border-b-2 border-inherit flex items-center justify-center min-h-[3rem] break-words text-xs leading-snug">
                         {pair.left}
                       </div>
                       <input
@@ -522,8 +523,8 @@ const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswer
                             if (prevInput) prevInput.focus();
                           }
                         }}
-                        placeholder=""
-                        className={`w-full p-4 text-center font-bold text-lg outline-none transition-all ${tInputClass} ${isExhausted && !isCorrectPair ? 'line-through opacity-70' : ''}`}
+                        placeholder=" "
+                        className={`w-full aspect-square max-h-16 text-center font-black text-xl outline-none transition-all ${tInputClass} ${isExhausted && !isCorrectPair ? 'line-through opacity-70' : ''}`}
                       />
                     </div>
                     {isExhausted && !isCorrectPair && (
@@ -543,6 +544,7 @@ const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswer
             {isLocked && serverSubmission && (
               <div className="absolute inset-0 z-10 bg-transparent cursor-not-allowed" />
             )}
+            <p className="text-[10px] font-black uppercase tracking-widest text-purple-600 pl-1">Ваше сочинение</p>
             <p className="text-xs font-bold text-gray-500 bg-gray-50 border border-gray-100 rounded-xl px-4 py-2">
               {block.type === 'essay_final'
                 ? 'Итоговое сочинение — без автокоррекции. После проверки увидите баллы K1–K5.'
@@ -592,7 +594,18 @@ const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswer
           </motion.div>
         )}
       </AnimatePresence>
-      </div>{/* end p-6 md:p-8 */}
+      </div>
+
+      <div className="sticky bottom-0 z-20 shrink-0 bg-white border-t border-gray-100 px-4 py-3 flex items-center justify-end gap-3 shadow-[0_-4px_20px_rgba(0,0,0,0.06)]">
+        <button
+          type="button"
+          onClick={(e) => { e.preventDefault(); handleSubmitTest(block); }}
+          disabled={block.type === 'matching' ? (!isMatchingReady || isLocked) : (selected.length === 0 || selected[0] === '' || selected[0] === '<p><br></p>' || isLocked)}
+          className={`w-full sm:w-auto px-10 py-4 rounded-xl font-black text-sm transition-all active:scale-95 disabled:opacity-40 uppercase tracking-wide ${isExhausted && !isUnlimitedAttempts(block.type) ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : result === 'ERROR' ? 'bg-[#FF4A6B] text-white shadow-lg' : result === 'GRADED' ? 'bg-emerald-500 text-white cursor-not-allowed' : 'bg-[#A855F7] text-white shadow-lg shadow-purple-500/30'}`}
+        >
+          {result === 'PENDING' ? 'НА ПРОВЕРКЕ' : result === 'GRADED' ? 'ОЦЕНЕНО' : (isExhausted && !isUnlimitedAttempts(block.type) ? 'ЛИМИТ ИСЧЕРПАН' : result === 'ERROR' ? 'ЕЩЁ РАЗ' : 'ОТВЕТИТЬ')}
+        </button>
+      </div>
     </div>
   );
 };

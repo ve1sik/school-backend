@@ -151,6 +151,30 @@ export default function CuratorDashboard() {
   const tabSubmissions =
     answerTab === 'written' ? writtenSubmissions : answerTab === 'tests' ? testSubmissions : historySubmissions;
 
+  const pendingCountByStudent = useMemo(() => {
+    const map = new Map<string, number>();
+    if (!selectedLesson) return map;
+    submissions.forEach((sub: any) => {
+      if (sub.lessonId !== selectedLesson.id) return;
+      if (sub.status !== 'PENDING') return;
+      if (sub.isAutoGraded) return;
+      if (String(sub.blockId || '').startsWith('oral-')) return;
+      map.set(sub.studentId, (map.get(sub.studentId) || 0) + 1);
+    });
+    return map;
+  }, [submissions, selectedLesson?.id]);
+
+  const totalPendingForLesson = useMemo(() => {
+    if (!selectedLesson) return 0;
+    return submissions.filter(
+      (sub: any) =>
+        sub.lessonId === selectedLesson.id &&
+        sub.status === 'PENDING' &&
+        !sub.isAutoGraded &&
+        !String(sub.blockId || '').startsWith('oral-'),
+    ).length;
+  }, [submissions, selectedLesson?.id]);
+
   const submittedStudentIds = useMemo(() => {
     if (!selectedLesson) return new Set<string>();
     return new Set(
@@ -310,13 +334,17 @@ export default function CuratorDashboard() {
     }
   };
 
-  const renderStudentButton = (student: any, submitted: boolean) => (
+  const renderStudentButton = (student: any, submitted: boolean) => {
+    const pendingCount = pendingCountByStudent.get(student.id) || 0;
+    return (
     <button
       key={student.id}
       onClick={() => setActiveStudentId(student.id)}
       className={`w-full text-left p-4 rounded-2xl border-2 transition-all bg-white ${
         activeStudentId === student.id
           ? 'border-purple-500 shadow-md shadow-purple-100'
+          : pendingCount > 0
+            ? 'border-rose-200 hover:border-rose-400 bg-rose-50/30'
           : submitted
             ? 'border-emerald-100 hover:border-emerald-300'
             : 'border-gray-100 hover:border-purple-200'
@@ -324,18 +352,26 @@ export default function CuratorDashboard() {
     >
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-3 min-w-0">
-          <div className={`w-11 h-11 rounded-full flex items-center justify-center shrink-0 ${submitted ? 'bg-emerald-50 text-emerald-600' : 'bg-gray-50 text-gray-400'}`}>
+          <div className={`w-11 h-11 rounded-full flex items-center justify-center shrink-0 relative ${pendingCount > 0 ? 'bg-rose-100 text-rose-600' : submitted ? 'bg-emerald-50 text-emerald-600' : 'bg-gray-50 text-gray-400'}`}>
             <User className="w-5 h-5" />
+            {pendingCount > 0 && (
+              <span className="absolute -top-1 -right-1 min-w-[1.25rem] h-5 px-1 rounded-full bg-red-500 text-white text-[10px] font-black flex items-center justify-center">
+                {pendingCount}
+              </span>
+            )}
           </div>
           <div className="min-w-0">
             <p className="font-black text-gray-900 truncate">{getStudentName(student)}</p>
             <p className="text-[11px] font-bold text-gray-400 truncate">{student.email}</p>
+            {pendingCount > 0 && (
+              <p className="text-[10px] font-black text-rose-600 uppercase tracking-wider mt-0.5">На проверке</p>
+            )}
           </div>
         </div>
         <ChevronRight className={`w-4 h-4 shrink-0 ${activeStudentId === student.id ? 'text-purple-600' : 'text-gray-300'}`} />
       </div>
     </button>
-  );
+  );};
 
   const isEssaySubmission = (sub: any) => {
     const bt = sub.blockType || sub.block_type;
@@ -537,7 +573,14 @@ export default function CuratorDashboard() {
           </button>
           <div>
             <h1 className="text-2xl font-black text-gray-900">Кабинет куратора</h1>
-            <p className="text-xs font-bold text-purple-500 uppercase tracking-widest mt-1">Группы, ученики и проверка ответов</p>
+            <p className="text-xs font-bold text-purple-500 uppercase tracking-widest mt-1 flex items-center gap-2 flex-wrap">
+              Группы, ученики и проверка ответов
+              {totalPendingForLesson > 0 && selectedLesson && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-red-500 text-white text-[10px] font-black normal-case tracking-normal">
+                  {totalPendingForLesson} на проверке
+                </span>
+              )}
+            </p>
           </div>
         </div>
 
