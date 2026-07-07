@@ -36,6 +36,13 @@ export default function Messages() {
   }, [searchParams]);
 
   useEffect(() => {
+    const prefill = searchParams.get('prefill');
+    if (prefill && activeChatId) {
+      setNewMessage(decodeURIComponent(prefill));
+    }
+  }, [searchParams, activeChatId]);
+
+  useEffect(() => {
     const fetchContacts = async () => {
       try {
         const token = getToken();

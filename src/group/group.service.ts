@@ -277,6 +277,35 @@ export class GroupService {
     );
   }
 
+  async getMyMembership(userId: string) {
+    const groups = await this.prisma.group.findMany({
+      where: { students: { some: { id: userId } } },
+      select: {
+        id: true,
+        title: true,
+        curator_id: true,
+        curator: {
+          select: { id: true, name: true, surname: true, email: true, avatar: true },
+        },
+        teacher: {
+          select: { id: true, name: true, surname: true, email: true, avatar: true },
+        },
+        courses: { select: { id: true, title: true } },
+      },
+    });
+
+    const primary = groups[0];
+    const curator = primary?.curator ?? null;
+    const teacher = primary?.teacher ?? null;
+
+    return {
+      groups,
+      curator,
+      teacher,
+      supportContact: curator || teacher,
+    };
+  }
+
   async getThemeAccess(groupId: string) {
     return this.prisma.groupThemeAccess.findMany({
       where: { group_id: groupId },

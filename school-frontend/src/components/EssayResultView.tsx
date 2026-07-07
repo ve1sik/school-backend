@@ -22,6 +22,7 @@ type Props = {
   criteriaScores?: unknown;
   errorAnnotations?: unknown;
   criteriaKind?: EssayCriteriaKind;
+  scoreTitle?: string;
 };
 
 export default function EssayResultView({
@@ -32,6 +33,7 @@ export default function EssayResultView({
   criteriaScores,
   errorAnnotations,
   criteriaKind = 'ege',
+  scoreTitle = 'Итоговый балл за сочинение',
 }: Props) {
   const plain = stripHtmlToPlain(answer);
   const criteria = normalizeCriteriaScores(criteriaScores, criteriaKind);
@@ -43,7 +45,7 @@ export default function EssayResultView({
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3 p-4 rounded-2xl bg-emerald-50 border-2 border-emerald-200">
-        <span className="font-black text-emerald-800 text-lg">Итоговый балл за сочинение</span>
+        <span className="font-black text-emerald-800 text-lg">{scoreTitle}</span>
         <span className="text-3xl font-black text-emerald-600">
           {score} <span className="text-lg text-emerald-400">/ {maxScore}</span>
         </span>

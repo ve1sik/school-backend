@@ -52,6 +52,13 @@ export class GroupController {
     return this.groupService.getMyThemeAccess(userId);
   }
 
+  @Roles('STUDENT', 'ADMIN', 'CURATOR', 'TEACHER')
+  @Get('my-membership')
+  getMyMembership(@Request() req) {
+    const userId = req.user.sub || req.user.id || req.user.userId;
+    return this.groupService.getMyMembership(userId);
+  }
+
   @Permissions('CURATOR_DASHBOARD')
   @Get('curator-scope')
   getCuratorScope(@Request() req) {

@@ -24,6 +24,7 @@ import { isAutoGradableBlockType } from '../utils/autoGrade';
 import { useRonSync } from '../lib/ron';
 import EssayPlainEditor from '../components/EssayPlainEditor';
 import EssayResultView from '../components/EssayResultView';
+import AskCuratorButton from '../components/AskCuratorButton';
 import EssayStudentTask from '../components/EssayStudentTask';
 import { EGE_ESSAY_MAX_SCORE, FINAL_ESSAY_MAX_SCORE, criteriaKindFromBlockType } from '../utils/essayCriteria';
 import { isManualGradeBlock, isUnlimitedAttempts } from '../utils/lessonBlockTypes';
@@ -118,7 +119,7 @@ function ExpandableImage({ src, alt, className = '' }: { src: string, alt?: stri
   );
 }
 
-const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswerToggle, handleTextAnswerChange, handleMatchingChange, handleSubmitTest, submissions, courseSpellCheck, spellErrors }: any) => {
+const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswerToggle, handleTextAnswerChange, handleMatchingChange, handleSubmitTest, submissions, courseSpellCheck, spellErrors, courseTitle, lessonTitle }: any) => {
   const [isOpen, setIsOpen] = useState(false);
   const [activeStep, setActiveStep] = useState(0);
 
@@ -309,7 +310,19 @@ const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswer
             />
           </motion.div>
         )}
-        {result === 'GRADED' && serverSubmission && block.type !== 'essay' && block.type !== 'essay_final' && (
+        {result === 'GRADED' && serverSubmission && block.type === 'written' && (
+          <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="mb-6">
+            <EssayResultView
+              answer={serverSubmission.answer || ''}
+              score={Number(serverSubmission.score) || 0}
+              maxScore={Number(serverSubmission.max_score || block.maxScore || 100)}
+              comment={serverSubmission.comment}
+              errorAnnotations={serverSubmission.error_annotations || serverSubmission.errorAnnotations}
+              scoreTitle="Оценка за письменное задание"
+            />
+          </motion.div>
+        )}
+        {result === 'GRADED' && serverSubmission && block.type !== 'essay' && block.type !== 'essay_final' && block.type !== 'written' && (
            <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="bg-emerald-50 border-2 border-emerald-200 p-5 rounded-xl mb-6 shadow-sm">
              <div className="flex flex-col sm:flex-row sm:items-center justify-between font-black text-emerald-600 gap-3 mb-4">
                <span className="flex items-center gap-2 text-xl"><CheckCircle2 className="w-7 h-7" /> Работа проверена!</span>
@@ -324,6 +337,16 @@ const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswer
                </div>
              )}
            </motion.div>
+        )}
+        {(result === 'SUCCESS' || result === 'ERROR' || result === 'PENDING' || result === 'GRADED') && (
+          <div className="mb-6">
+            <AskCuratorButton
+              courseTitle={courseTitle}
+              lessonTitle={lessonTitle}
+              questionLabel={block.question || block.title || group.title}
+              blockIndex={activeStep}
+            />
+          </div>
         )}
       </AnimatePresence>
 
@@ -1270,6 +1293,8 @@ export default function CourseView() {
                             submissions={submissions}
                             courseSpellCheck={courseSpellCheck}
                             spellErrors={spellErrors}
+                            courseTitle={course?.title}
+                            lessonTitle={activeLesson?.title}
                           />
                         ))}
                       </div>

@@ -7,6 +7,23 @@ import { parseSafeDate } from '../lib/parseDate';
 
 const API_URL = 'https://prepodmgy.ru/api';
 
+const DEFAULT_TYPE_LABELS: Record<string, string> = {
+  WEBINAR: 'Вебинар',
+  DEADLINE: 'Дедлайн',
+  OFFLINE: 'Офлайн',
+};
+
+const getEventTypeLabel = (ev: any) => {
+  if (ev.custom_type?.trim()) return ev.custom_type.trim();
+  return DEFAULT_TYPE_LABELS[ev.type] || ev.type || 'Событие';
+};
+
+const getEventTypeColors = (type: string) => {
+  if (type === 'DEADLINE') return 'from-rose-500 to-red-600';
+  if (type === 'OFFLINE') return 'from-emerald-500 to-teal-600';
+  return 'from-[#5A4BFF] to-violet-600';
+};
+
 export default function Schedule() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [events, setEvents] = useState<any[]>([]);
@@ -14,6 +31,8 @@ export default function Schedule() {
   
   // 🔥 БРОНЕБОЙНАЯ ПРОВЕРКА НА АДМИНА (читаем прямо из токена)
   const [isAdmin, setIsAdmin] = useState(false);
+  const [canManageSchedule, setCanManageSchedule] = useState(false);
+  const [groups, setGroups] = useState<any[]>([]);
 
   useEffect(() => {
     try {
@@ -23,11 +42,30 @@ export default function Schedule() {
         if (payload?.role === 'ADMIN') {
           setIsAdmin(true);
         }
+        if (['ADMIN', 'CURATOR', 'TEACHER'].includes(payload?.role || '')) {
+          setCanManageSchedule(true);
+        }
       }
     } catch (e) {
       console.error('Ошибка расшифровки токена');
     }
   }, []);
+
+  useEffect(() => {
+    if (!canManageSchedule) return;
+    const loadGroups = async () => {
+      try {
+        const token = getToken();
+        const res = await axios.get(`${API_URL}/schedule/groups`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        setGroups(Array.isArray(res.data) ? res.data : []);
+      } catch {
+        setGroups([]);
+      }
+    };
+    loadGroups();
+  }, [canManageSchedule]);
 
   const [showAddModal, setShowAddModal] = useState(false);
   const [selectedDayEvents, setSelectedDayEvents] = useState<any[]>([]);
@@ -35,7 +73,16 @@ export default function Schedule() {
   const [selectedDateTitle, setSelectedDateTitle] = useState('');
 
   const [formData, setFormData] = useState({
-    title: '', date: '', time: '', type: 'WEBINAR', link: '', description: ''
+    title: '',
+    date: '',
+    time: '',
+    type: 'WEBINAR',
+    custom_type: '',
+    link: '',
+    description: '',
+    group_id: '',
+    repeat_weeks: 1,
+    useRepeat: false,
   });
 
   useEffect(() => {
@@ -56,17 +103,34 @@ export default function Schedule() {
     try {
       const token = getToken();
       const eventDateTime = new Date(`${formData.date}T${formData.time}:00`).toISOString();
-      
-      await axios.post(`${API_URL}/schedule`, {
+      const payload: any = {
         title: formData.title,
         description: formData.description,
         date: eventDateTime,
-        type: formData.type,
-        link: formData.link
-      }, { headers: { Authorization: `Bearer ${token}` } });
-      
+        type: formData.type === 'CUSTOM' ? 'WEBINAR' : formData.type,
+        custom_type: formData.type === 'CUSTOM' ? formData.custom_type : (formData.custom_type || undefined),
+        link: formData.link,
+        group_id: formData.group_id || undefined,
+      };
+      if (formData.useRepeat && formData.repeat_weeks > 1) {
+        payload.repeat_weeks = Number(formData.repeat_weeks);
+      }
+
+      await axios.post(`${API_URL}/schedule`, payload, { headers: { Authorization: `Bearer ${token}` } });
+
       setShowAddModal(false);
-      setFormData({ title: '', date: '', time: '', type: 'WEBINAR', link: '', description: '' });
+      setFormData({
+        title: '',
+        date: '',
+        time: '',
+        type: 'WEBINAR',
+        custom_type: '',
+        link: '',
+        description: '',
+        group_id: '',
+        repeat_weeks: 1,
+        useRepeat: false,
+      });
       fetchEvents();
     } catch (err) { console.error('Ошибка создания', err); }
   };
@@ -125,14 +189,10 @@ export default function Schedule() {
           {upcomingEvents.map(ev => {
             const evDate = parseSafeDate(ev.date);
             const today = isToday(ev.date);
-            const typeColors: Record<string, string> = {
-              WEBINAR: 'from-[#5A4BFF] to-violet-600',
-              DEADLINE: 'from-rose-500 to-red-600',
-              OFFLINE: 'from-emerald-500 to-teal-600',
-            };
-            const typeLabels: Record<string, string> = { WEBINAR: 'Вебинар', DEADLINE: 'Дедлайн', OFFLINE: 'Офлайн' };
+            const typeLabels: Record<string, string> = DEFAULT_TYPE_LABELS;
+            const label = getEventTypeLabel(ev);
             return (
-              <div key={ev.id} className={`relative rounded-[2rem] p-6 bg-gradient-to-br ${typeColors[ev.type] || typeColors.WEBINAR} text-white overflow-hidden shadow-lg`}>
+              <div key={ev.id} className={`relative rounded-[2rem] p-6 bg-gradient-to-br ${getEventTypeColors(ev.type)} text-white overflow-hidden shadow-lg`}>
                 <div className="absolute -bottom-6 -right-6 w-28 h-28 bg-white/10 rounded-full blur-2xl" />
                 <div className="relative z-10">
                   <div className="flex items-center justify-between mb-4">
@@ -150,7 +210,7 @@ export default function Schedule() {
                       {today ? '🚀 Войти в урок' : 'Ссылка'} <ExternalLink className="w-3.5 h-3.5" />
                     </a>
                   ) : (
-                    <span className="text-xs font-bold text-white/60">{typeLabels[ev.type]}</span>
+                    <span className="text-xs font-bold text-white/60">{label || typeLabels[ev.type]}</span>
                   )}
                 </div>
               </div>
@@ -168,7 +228,7 @@ export default function Schedule() {
             Расписание
           </h1>
         </div>
-        {isAdmin && (
+        {canManageSchedule && (
           <button 
             onClick={() => setShowAddModal(true)}
             className="px-8 py-4 bg-gray-900 hover:bg-black text-white rounded-2xl font-black flex items-center gap-2 transition-all active:scale-95 shadow-xl shadow-gray-900/20 group"
@@ -260,14 +320,19 @@ export default function Schedule() {
               <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2 custom-scrollbar">
                 {selectedDayEvents.map(ev => (
                   <div key={ev.id} className="p-6 rounded-[2rem] border border-gray-100 bg-white shadow-sm hover:shadow-md transition-shadow relative group">
-                    {isAdmin && (
+                    {canManageSchedule && (
                       <button onClick={() => handleDeleteEvent(ev.id)} className="absolute top-6 right-6 p-2 text-gray-300 hover:bg-rose-50 hover:text-rose-500 rounded-xl opacity-0 group-hover:opacity-100 transition-all"><Trash2 className="w-5 h-5"/></button>
                     )}
                     
-                    <div className="flex items-center gap-2 mb-4">
-                      {ev.type === 'WEBINAR' && <span className="px-3 py-1.5 bg-purple-50 text-purple-700 text-[10px] font-black uppercase tracking-widest rounded-xl border border-purple-100 flex items-center gap-1.5"><Video className="w-3.5 h-3.5"/> Вебинар</span>}
-                      {ev.type === 'DEADLINE' && <span className="px-3 py-1.5 bg-rose-50 text-rose-700 text-[10px] font-black uppercase tracking-widest rounded-xl border border-rose-100 flex items-center gap-1.5"><AlertCircle className="w-3.5 h-3.5"/> Дедлайн</span>}
-                      {ev.type === 'OFFLINE' && <span className="px-3 py-1.5 bg-emerald-50 text-emerald-700 text-[10px] font-black uppercase tracking-widest rounded-xl border border-emerald-100 flex items-center gap-1.5"><MapPin className="w-3.5 h-3.5"/> Офлайн</span>}
+                    <div className="flex items-center gap-2 mb-4 flex-wrap">
+                      <span className="px-3 py-1.5 bg-indigo-50 text-indigo-700 text-[10px] font-black uppercase tracking-widest rounded-xl border border-indigo-100">
+                        {getEventTypeLabel(ev)}
+                      </span>
+                      {ev.group?.title && (
+                        <span className="px-3 py-1.5 bg-gray-50 text-gray-600 text-[10px] font-black uppercase tracking-widest rounded-xl border border-gray-100">
+                          {ev.group.title}
+                        </span>
+                      )}
                       <span className="text-sm font-bold text-gray-500 bg-gray-50 px-3 py-1.5 rounded-xl flex items-center gap-1.5"><Clock className="w-3.5 h-3.5"/> {parseSafeDate(ev.date).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}</span>
                     </div>
                     
@@ -288,7 +353,7 @@ export default function Schedule() {
       </AnimatePresence>
 
       <AnimatePresence>
-        {showAddModal && isAdmin && (
+        {showAddModal && canManageSchedule && (
           <motion.div className="fixed inset-0 z-50 bg-gray-900/40 backdrop-blur-md flex justify-center items-center p-4">
             <motion.div initial={{ opacity: 0, scale: 0.9, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 10 }} className="bg-white rounded-[2.5rem] w-full max-w-lg overflow-hidden shadow-2xl relative p-8 md:p-10 border border-white/20">
               <button onClick={() => setShowAddModal(false)} className="absolute top-6 right-6 p-2.5 bg-gray-100 hover:bg-gray-200 rounded-full transition-colors"><X className="w-5 h-5 text-gray-600" /></button>
@@ -318,7 +383,63 @@ export default function Schedule() {
                     <option value="WEBINAR">📹 Вебинар (Онлайн)</option>
                     <option value="DEADLINE">🚨 Дедлайн (Сдача работ)</option>
                     <option value="OFFLINE">📍 Офлайн занятие</option>
+                    <option value="CUSTOM">✏️ Свой тип (название ниже)</option>
                   </select>
+                </div>
+
+                {(formData.type === 'CUSTOM' || formData.custom_type) && (
+                  <div>
+                    <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 ml-1">Своё название типа</label>
+                    <input
+                      type="text"
+                      value={formData.custom_type}
+                      onChange={e => setFormData({ ...formData, custom_type: e.target.value })}
+                      required={formData.type === 'CUSTOM'}
+                      className="w-full px-5 py-4 bg-gray-50 border border-gray-100 focus:border-[#5A4BFF] focus:bg-white rounded-2xl outline-none font-bold transition-all"
+                      placeholder="Например: Разбор пробника"
+                    />
+                  </div>
+                )}
+
+                {groups.length > 0 && (
+                  <div>
+                    <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 ml-1">Группа (необязательно)</label>
+                    <select
+                      value={formData.group_id}
+                      onChange={e => setFormData({ ...formData, group_id: e.target.value })}
+                      className="w-full px-5 py-4 bg-gray-50 border border-gray-100 focus:border-[#5A4BFF] focus:bg-white rounded-2xl outline-none font-bold cursor-pointer transition-all appearance-none"
+                    >
+                      <option value="">Все ученики</option>
+                      {groups.map((g) => (
+                        <option key={g.id} value={g.id}>{g.title}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                <div className="p-4 rounded-2xl bg-indigo-50/50 border border-indigo-100 space-y-3">
+                  <label className="flex items-center gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={formData.useRepeat}
+                      onChange={e => setFormData({ ...formData, useRepeat: e.target.checked })}
+                      className="w-5 h-5 rounded accent-[#5A4BFF]"
+                    />
+                    <span className="font-bold text-gray-800 text-sm">Повторять каждую неделю (например, каждое воскресенье)</span>
+                  </label>
+                  {formData.useRepeat && (
+                    <div>
+                      <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 ml-1">Сколько недель</label>
+                      <input
+                        type="number"
+                        min={2}
+                        max={52}
+                        value={formData.repeat_weeks}
+                        onChange={e => setFormData({ ...formData, repeat_weeks: Math.max(2, Number(e.target.value) || 2) })}
+                        className="w-full px-5 py-3 bg-white border border-gray-100 focus:border-[#5A4BFF] rounded-2xl outline-none font-bold"
+                      />
+                    </div>
+                  )}
                 </div>
 
                 <div>
