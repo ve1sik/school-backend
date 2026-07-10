@@ -209,8 +209,8 @@ const PASS_SCORE = 70;
 const safePercent = (earned: number, max: number) =>
   max > 0 ? Math.min(100, Math.round((earned / max) * 100)) : 0;
 
-const averageOfThreeSections = (tests: number, written: number, oral: number) =>
-  Math.round((tests + written + oral) / 3);
+const averageOfThreeSections = (tests: number, written: number, oral: number, includeOral = true) =>
+  includeOral ? Math.round((tests + written + oral) / 3) : Math.round((tests + written) / 2);
 
 const stripHtml = (html: string) =>
   (html || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
@@ -339,6 +339,7 @@ type CourseStats = {
 };
 
 function buildCourseStats(course: any, mySubs: any[]): CourseStats | null {
+  const includeOral = course.oral_in_analytics !== false;
   const g_tests = { e: 0, m: 0, count: 0 };
   const g_written = { e: 0, m: 0, count: 0 };
   const g_oral = { e: 0, m: 0, count: 0 };
@@ -613,7 +614,7 @@ function buildCourseStats(course: any, mySubs: any[]): CourseStats | null {
         const lessonTestsScore = safePercent(l_tests.e, l_tests.m);
         const lessonWrittenScore = safePercent(l_written.e, l_written.m);
         const lessonOralScore = safePercent(l_oral.e, l_oral.m);
-        const lessonScore = averageOfThreeSections(lessonTestsScore, lessonWrittenScore, lessonOralScore);
+        const lessonScore = averageOfThreeSections(lessonTestsScore, lessonWrittenScore, lessonOralScore, includeOral);
         themeEarned += lessonTarget.earned;
         themeMax += lessonTarget.max;
         themeTaskCount += lessonTarget.taskCount;
@@ -646,7 +647,7 @@ function buildCourseStats(course: any, mySubs: any[]): CourseStats | null {
       const themeTestsScore = safePercent(t_tests.e, t_tests.m);
       const themeWrittenScore = safePercent(t_written.e, t_written.m);
       const themeOralScore = safePercent(t_oral.e, t_oral.m);
-      const themeTotalScore = averageOfThreeSections(themeTestsScore, themeWrittenScore, themeOralScore);
+      const themeTotalScore = averageOfThreeSections(themeTestsScore, themeWrittenScore, themeOralScore, includeOral);
 
       g_tests.e += t_tests.e; g_tests.m += t_tests.m; g_tests.count += t_tests.count;
       g_written.e += t_written.e; g_written.m += t_written.m; g_written.count += t_written.count;
@@ -699,7 +700,7 @@ function buildCourseStats(course: any, mySubs: any[]): CourseStats | null {
   const globalPTests = safePercent(g_tests.e, g_tests.m);
   const globalPWritten = safePercent(g_written.e, g_written.m);
   const globalPOral = safePercent(g_oral.e, g_oral.m);
-  const coursePercent = averageOfThreeSections(globalPTests, globalPWritten, globalPOral);
+  const coursePercent = averageOfThreeSections(globalPTests, globalPWritten, globalPOral, includeOral);
 
   courseWeakSpots.sort((a, b) => a.percent - b.percent);
   courseSpellWeakSpots.sort((a, b) => (b.spellErrors?.length ?? 0) - (a.spellErrors?.length ?? 0));
@@ -707,7 +708,7 @@ function buildCourseStats(course: any, mySubs: any[]): CourseStats | null {
   const existingCategories = [
     g_tests.m > 0 ? { label: 'тесты', value: globalPTests } : null,
     g_written.m > 0 ? { label: 'развёрнутые ответы', value: globalPWritten } : null,
-    g_oral.m > 0 ? { label: 'устные опросы', value: globalPOral } : null,
+    g_oral.m > 0 && includeOral ? { label: 'устные опросы', value: globalPOral } : null,
   ].filter(Boolean) as { label: string; value: number }[];
   const weakest = existingCategories.sort((a, b) => a.value - b.value)[0];
 
@@ -907,6 +908,7 @@ export default function Dashboard() {
   })();
 
   const spellAnalyticsEnabled = isSpellCheckEnabled(selectedCourse);
+  const oralAnalyticsEnabled = selectedCourse?.oral_in_analytics !== false;
 
   const currentSpellWeakSpots = useMemo(() => {
     if (!spellAnalyticsEnabled || !selectedCourse) return [];
@@ -978,7 +980,7 @@ export default function Dashboard() {
   const oralEarned = Math.round(currentData?.earnedByType?.oral ?? 0);
   const oralMax = Math.round(currentData?.maxByType?.oral ?? 0);
   const oralScore = safePercent(oralEarned, oralMax);
-  const totalScore = averageOfThreeSections(testsScore, writtenScore, oralScore);
+  const totalScore = averageOfThreeSections(testsScore, writtenScore, oralScore, oralAnalyticsEnabled);
   const currentTaskCount = selectedLessonRow
     ? selectedLessonRow.taskCount
     : isCourseView
@@ -1340,11 +1342,15 @@ export default function Dashboard() {
                     <p className="text-3xl font-black text-orange-700">{writtenScore}<span className="text-sm text-orange-300">/100</span></p>
                   </div>
                 </div>
-                <div className="bg-teal-50 rounded-[1.35rem] p-5 border border-teal-100 h-full min-h-0 flex flex-col justify-between">
+                <div className={`bg-teal-50 rounded-[1.35rem] p-5 border border-teal-100 h-full min-h-0 flex flex-col justify-between ${oralAnalyticsEnabled ? '' : 'opacity-50'}`}>
                   <Mic className="w-6 h-6 text-teal-500" />
                   <div>
                     <p className="text-[10px] font-black uppercase tracking-widest text-teal-400 mb-1">Устные</p>
-                    <p className="text-3xl font-black text-teal-700">{oralScore}<span className="text-sm text-teal-300">/100</span></p>
+                    {oralAnalyticsEnabled ? (
+                      <p className="text-3xl font-black text-teal-700">{oralScore}<span className="text-sm text-teal-300">/100</span></p>
+                    ) : (
+                      <p className="text-sm font-bold text-teal-600">Не учитываются<br /><span className="text-[10px] text-teal-400">Тесты 50% · Письм. 50%</span></p>
+                    )}
                   </div>
                 </div>
                 <div className="bg-white rounded-[1.35rem] p-5 border border-gray-100 h-full min-h-0 flex flex-col justify-between shadow-sm">

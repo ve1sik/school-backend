@@ -131,6 +131,15 @@ const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswer
 
   useEffect(() => { if (!isOpen) setActiveStep(0); }, [isOpen]);
 
+  useEffect(() => {
+    if (!isOpen) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [isOpen]);
+
   if (!isOpen) {
     return (
       <div className="bg-white border border-gray-100 rounded-3xl p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-all hover:shadow-md hover:border-gray-200 mb-4">
@@ -202,74 +211,52 @@ const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswer
   }
 
   return (
-    <div className="bg-white border border-gray-100 rounded-[2rem] relative shadow-lg shadow-indigo-100/40 mb-8 overflow-hidden max-h-[calc(100dvh-7rem)] flex flex-col">
-      {/* STICKY HEADER — кнопки всегда видны */}
-      <div className="sticky top-0 z-20 bg-white border-b border-gray-100 px-4 py-3 flex items-center justify-between gap-2 shadow-sm shrink-0">
-        <div className="flex items-center gap-3 min-w-0">
-          <group.Icon className={`w-5 h-5 shrink-0 ${group.iconColor?.split(' ')[1] || ''}`} />
-          <span className="font-black text-gray-900 truncate">{group.title}</span>
-          <span className="text-xs font-bold text-gray-400 shrink-0">Вопрос {activeStep + 1} / {group.blocks.length}</span>
+    <div className="fixed inset-0 z-[200] bg-[#F4F7FE] flex flex-col p-2 sm:p-3 md:p-4">
+      <div className="flex-1 min-h-0 max-w-3xl w-full mx-auto bg-white border border-gray-100 rounded-2xl md:rounded-[1.75rem] shadow-2xl flex flex-col overflow-hidden">
+      {/* HEADER */}
+      <div className="shrink-0 z-20 bg-white border-b border-gray-100 px-3 py-2.5 flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2 min-w-0 flex-1">
+          <group.Icon className={`w-4 h-4 shrink-0 ${group.iconColor?.split(' ')[1] || ''}`} />
+          <span className="font-black text-gray-900 text-sm truncate">{group.title}</span>
+          <div className="hidden sm:flex items-center gap-1 ml-1">
+            {group.blocks.map((b: any, i: number) => {
+              const sSub = submissions?.find((s: any) => s.blockId === b.id || s.block_id === b.id);
+              let bRes = testResults?.[b.id];
+              let bAttempts = attemptsUsed?.[b.id] || 0;
+              if (sSub) {
+                if (sSub.status === 'GRADED') {
+                  if (['test', 'test_short', 'matching'].includes(b.type)) {
+                    if (Number(sSub.score) > 0) bRes = 'SUCCESS';
+                    else { bRes = 'ERROR'; bAttempts = b.maxAttempts || 3; }
+                  } else bRes = 'GRADED';
+                } else if (sSub.status === 'REVIEW' || sSub.status === 'PENDING') bRes = 'PENDING';
+              }
+              const isActive = i === activeStep;
+              let cls = 'w-7 h-7 rounded-full text-[11px] font-black border transition-all ';
+              if (isActive) cls += 'bg-[#A855F7] border-[#A855F7] text-white';
+              else if (bRes === 'SUCCESS' || bRes === 'GRADED') cls += 'bg-emerald-50 border-emerald-200 text-emerald-600';
+              else if (bRes === 'PENDING') cls += 'bg-purple-50 border-purple-200 text-purple-600';
+              else cls += 'bg-white border-gray-200 text-gray-500';
+              return <button key={b.id} type="button" onClick={() => setActiveStep(i)} className={cls}>{i + 1}</button>;
+            })}
+          </div>
+          <span className="text-[10px] font-bold text-gray-400 shrink-0 sm:hidden">{activeStep + 1}/{group.blocks.length}</span>
         </div>
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-1.5 shrink-0">
           {activeStep > 0 && (
-            <button onClick={() => setActiveStep(p => p - 1)} className="px-4 py-2 rounded-xl font-bold text-xs bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">← Назад</button>
+            <button type="button" onClick={() => setActiveStep(p => p - 1)} className="px-3 py-1.5 rounded-lg font-bold text-xs bg-gray-100 text-gray-600">←</button>
           )}
           {activeStep < group.blocks.length - 1 && (
-            <button onClick={() => setActiveStep(p => p + 1)} className="px-4 py-2 rounded-xl font-bold text-xs bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors">
-              {isLocked || result === 'SUCCESS' || result === 'GRADED' ? 'Далее →' : 'Пропустить →'}
-            </button>
+            <button type="button" onClick={() => setActiveStep(p => p + 1)} className="px-3 py-1.5 rounded-lg font-bold text-xs bg-gray-100 text-gray-700">→</button>
           )}
-          <button onClick={() => setIsOpen(false)} className="p-2 text-gray-400 hover:text-gray-700 bg-gray-50 hover:bg-gray-100 rounded-xl transition-colors border border-gray-200/50">
+          <button type="button" onClick={() => setIsOpen(false)} className="p-1.5 text-gray-400 hover:text-gray-700 bg-gray-50 rounded-lg border border-gray-200">
             <X className="w-4 h-4" />
           </button>
         </div>
       </div>
 
-      <div className="p-4 md:p-5 overflow-y-auto flex-1 min-h-0">
-      <div className="flex flex-wrap gap-2.5 mb-8">
-        {group.blocks.map((b: any, i: number) => {
-          const sSub = submissions?.find((s: any) => s.blockId === b.id || s.block_id === b.id);
-          let bRes = testResults?.[b.id];
-          let bAttempts = attemptsUsed?.[b.id] || 0;
-          
-          if (sSub) {
-            if (sSub.status === 'GRADED') {
-              if (['test', 'test_short', 'matching'].includes(b.type)) {
-                if (Number(sSub.score) > 0) bRes = 'SUCCESS';
-                else { bRes = 'ERROR'; bAttempts = b.maxAttempts || 3; }
-              } else {
-                bRes = 'GRADED';
-              }
-            } else if (sSub.status === 'REVIEW' || sSub.status === 'PENDING') {
-              bRes = 'PENDING';
-            }
-          }
-
-          const isActive = i === activeStep;
-          let circleClass = "w-11 h-11 rounded-full flex items-center justify-center font-black text-sm transition-all border-2 ";
-          
-          if (isActive) {
-            circleClass += "bg-[#A855F7] border-[#A855F7] text-white shadow-lg shadow-purple-500/30 scale-110";
-          } else if (bRes === 'SUCCESS' || bRes === 'GRADED') {
-            circleClass += "bg-emerald-50 border-emerald-200 text-emerald-600 hover:bg-emerald-100";
-          } else if (bRes === 'ERROR' && bAttempts >= (b.maxAttempts || 3)) {
-            circleClass += "bg-rose-50 border-rose-200 text-rose-600 hover:bg-rose-100";
-          } else if (bRes === 'PENDING') {
-            circleClass += "bg-purple-50 border-purple-200 text-purple-600 hover:bg-purple-100";
-          } else {
-            circleClass += "bg-white border-gray-200 text-gray-500 hover:border-[#A855F7] hover:text-[#A855F7]";
-          }
-
-          return (
-            <button key={b.id} onClick={() => setActiveStep(i)} className={circleClass}>{i + 1}</button>
-          );
-        })}
-      </div>
-
-      <div className="flex flex-wrap items-center gap-2 mb-6">
-        <div className="px-3 py-1.5 rounded-lg bg-purple-50 text-purple-600 text-[10px] font-black uppercase tracking-widest border border-purple-100">
-          Вопрос {activeStep + 1}
-        </div>
+      <div className="flex-1 min-h-0 overflow-y-auto p-3 sm:p-4 custom-scrollbar">
+      <div className="flex flex-wrap items-center gap-1.5 mb-3">
         {block.type !== 'written' && block.type !== 'essay' && block.type !== 'essay_final' && (
           <div className={`px-3 py-1.5 rounded-md text-[10px] font-black uppercase tracking-widest ${isExhausted && result !== 'SUCCESS' ? 'bg-rose-100 text-rose-600' : 'bg-gray-100 text-gray-500'}`}>
             Попыток: {attemptsLeft} из {maxAttempts}
@@ -284,6 +271,17 @@ const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswer
           </div>
         )}
       </div>
+
+      {(block.type === 'essay' || block.type === 'essay_final') ? (
+        <EssayStudentTask block={block} />
+      ) : (
+        <>
+          <QuestionBlock content={block.question || ''} mode="html" />
+          {(block.questionImage || block.image) && (
+            <ExpandableImage src={getFullUrl(block.questionImage || block.image)} alt="Схема" className="mb-4 max-h-40" />
+          )}
+        </>
+      )}
 
       <AnimatePresence mode="wait">
         {result === 'ERROR' && !isExhausted && (
@@ -368,18 +366,7 @@ const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswer
         )}
       </AnimatePresence>
 
-      {(block.type === 'essay' || block.type === 'essay_final') ? (
-        <EssayStudentTask block={block} />
-      ) : (
-        <>
-          <QuestionBlock content={block.question || ''} mode="html" />
-          {(block.questionImage || block.image) && (
-            <ExpandableImage src={getFullUrl(block.questionImage || block.image)} alt="Схема" className="mb-8" />
-          )}
-        </>
-      )}
-
-      <div className="space-y-3 mb-8">
+      <div className="space-y-2 mb-3">
         {block.type === 'test' && (
           <p className="text-[10px] font-black uppercase tracking-[0.15em] text-gray-400 mb-1 pl-1">Выберите вариант ответа</p>
         )}
@@ -628,6 +615,7 @@ const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswer
         >
           {result === 'PENDING' ? 'НА ПРОВЕРКЕ' : result === 'GRADED' ? 'ОЦЕНЕНО' : (isExhausted && !isUnlimitedAttempts(block.type) ? 'ЛИМИТ ИСЧЕРПАН' : result === 'ERROR' ? 'ЕЩЁ РАЗ' : 'ОТВЕТИТЬ')}
         </button>
+      </div>
       </div>
     </div>
   );

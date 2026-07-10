@@ -51,6 +51,7 @@ export default function AdminGroups() {
   const [curators, setCurators] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [newGroupTitle, setNewGroupTitle] = useState('');
+  const [listTab, setListTab] = useState<'STUDY' | 'STREAM'>('STUDY');
 
   // Переименование группы
   const [renamingGroupId, setRenamingGroupId] = useState<string | null>(null);
@@ -112,7 +113,11 @@ export default function AdminGroups() {
     e.preventDefault();
     if (!newGroupTitle.trim()) return;
     try {
-      await axios.post(`${API_URL}/groups`, { title: newGroupTitle }, getTokenConfig());
+      await axios.post(`${API_URL}/groups`, {
+        title: newGroupTitle,
+        group_kind: listTab,
+        is_public: listTab === 'STREAM',
+      }, getTokenConfig());
       setNewGroupTitle('');
       fetchData();
     } catch (error) {
@@ -286,38 +291,67 @@ export default function AdminGroups() {
     return searchStr.includes(studentSearch.toLowerCase());
   });
 
+  const filteredGroups = groups.filter((g) =>
+    (g.group_kind || (g.is_public ? 'STREAM' : 'STUDY')) === listTab,
+  );
+
   if (isLoading) return <div className="h-full w-full flex items-center justify-center"><Loader2 className="w-12 h-12 animate-spin text-[#5A4BFF]" /></div>;
 
   return (
     <div className="max-w-7xl mx-auto">
-      <div className="flex justify-between items-center mb-8">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-8">
         <div>
-          <h1 className="text-4xl font-black text-gray-900 mb-2">Потоки и Группы</h1>
-          <p className="text-gray-500 font-medium">Управляй учебными потоками, привязывай курсы и назначай учеников.</p>
+          <h1 className="text-4xl font-black text-gray-900 mb-2">Потоки и группы</h1>
+          <p className="text-gray-500 font-medium">
+            {listTab === 'STUDY'
+              ? 'Учебные группы: куратор, ученики, доступ к курсам.'
+              : 'Потоки магазина: цена, обложка, витрина для записи.'}
+          </p>
+        </div>
+        <div className="flex gap-2 p-1.5 bg-gray-100 rounded-2xl">
+          <button
+            type="button"
+            onClick={() => setListTab('STUDY')}
+            className={`px-5 py-2.5 rounded-xl font-black text-sm transition-all ${listTab === 'STUDY' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'}`}
+          >
+            Учебные группы
+          </button>
+          <button
+            type="button"
+            onClick={() => setListTab('STREAM')}
+            className={`px-5 py-2.5 rounded-xl font-black text-sm transition-all ${listTab === 'STREAM' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'}`}
+          >
+            Потоки (магазин)
+          </button>
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-1">
           <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-gray-100 sticky top-8">
-            <h2 className="text-xl font-black mb-6 flex items-center gap-2"><Users className="w-6 h-6 text-[#5A4BFF]" /> Новая группа</h2>
+            <h2 className="text-xl font-black mb-6 flex items-center gap-2">
+              <Users className="w-6 h-6 text-[#5A4BFF]" />
+              {listTab === 'STUDY' ? 'Новая учебная группа' : 'Новый поток'}
+            </h2>
             <form onSubmit={handleCreateGroup} className="space-y-4">
-              <input type="text" value={newGroupTitle} onChange={(e) => setNewGroupTitle(e.target.value)} placeholder="Напр: ОГЭ История - Сентябрь" className="w-full px-5 py-4 bg-gray-50 rounded-xl outline-none focus:bg-white focus:ring-2 focus:ring-indigo-400 transition-all font-bold text-gray-700" required />
+              <input type="text" value={newGroupTitle} onChange={(e) => setNewGroupTitle(e.target.value)} placeholder={listTab === 'STUDY' ? 'Напр: Русский ЕГЭ — Группа А' : 'Напр: ОГЭ История — Сентябрь'} className="w-full px-5 py-4 bg-gray-50 rounded-xl outline-none focus:bg-white focus:ring-2 focus:ring-indigo-400 transition-all font-bold text-gray-700" required />
               <button type="submit" className="w-full py-4 bg-[#5A4BFF] hover:bg-[#4a3dec] text-white rounded-xl font-black transition-all flex items-center justify-center gap-2 active:scale-95 shadow-lg shadow-indigo-500/20">
-                <Plus className="w-5 h-5" /> Создать поток
+                <Plus className="w-5 h-5" /> {listTab === 'STUDY' ? 'Создать группу' : 'Создать поток'}
               </button>
             </form>
           </div>
         </div>
 
         <div className="lg:col-span-2 space-y-4">
-          {groups.length === 0 ? (
+          {filteredGroups.length === 0 ? (
             <div className="bg-white p-10 rounded-[2rem] border border-dashed border-gray-300 flex flex-col items-center justify-center text-center">
               <Users className="w-16 h-16 text-gray-200 mb-4" />
-              <h3 className="text-xl font-black text-gray-400">Групп пока нет</h3>
+              <h3 className="text-xl font-black text-gray-400">
+                {listTab === 'STUDY' ? 'Учебных групп пока нет' : 'Потоков пока нет'}
+              </h3>
             </div>
           ) : (
-            groups.map(group => (
+            filteredGroups.map(group => (
               <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} key={group.id} className="bg-white p-6 md:p-8 rounded-[2rem] shadow-sm border border-gray-100 hover:shadow-md transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-6 group/card">
                 <div className="flex items-center gap-6">
                   {group.cover_url ? (
@@ -359,12 +393,17 @@ export default function AdminGroups() {
                       </div>
                     )}
                     <div className="flex flex-wrap items-center gap-3">
+                      <span className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest ${(group.group_kind || (group.is_public ? 'STREAM' : 'STUDY')) === 'STREAM' ? 'bg-amber-50 text-amber-700' : 'bg-indigo-50 text-indigo-700'}`}>
+                        {(group.group_kind || (group.is_public ? 'STREAM' : 'STUDY')) === 'STREAM' ? 'Поток' : 'Группа'}
+                      </span>
                       <span className="px-4 py-1.5 bg-indigo-50 text-indigo-700 rounded-lg text-sm font-bold flex items-center gap-2">
                         <Users className="w-4 h-4" /> Учеников: {group._count?.students || 0}
                       </span>
+                      {(group.group_kind === 'STREAM' || group.is_public) && (
                       <span className="px-4 py-1.5 bg-emerald-50 text-emerald-700 rounded-lg text-sm font-bold flex items-center gap-2">
                         <CreditCard className="w-4 h-4" /> {group.price > 0 ? `${group.price} ₽` : 'Бесплатно'}
                       </span>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -392,10 +431,16 @@ export default function AdminGroups() {
               <button onClick={() => setShowModal(false)} className="absolute top-6 right-6 p-2 bg-gray-50 text-gray-400 hover:text-gray-900 rounded-full transition-colors z-20"><X className="w-5 h-5" /></button>
               
               <h3 className="text-3xl font-black text-gray-900 mb-2 pr-10">{selectedGroup.title}</h3>
-              <p className="text-gray-500 font-medium mb-8 flex items-center gap-2"><ShieldCheck className="w-4 h-4" /> Настройка витрины и доступов</p>
+              <p className="text-gray-500 font-medium mb-8 flex items-center gap-2">
+                <ShieldCheck className="w-4 h-4" />
+                {(selectedGroup.group_kind || (selectedGroup.is_public ? 'STREAM' : 'STUDY')) === 'STREAM'
+                  ? 'Витрина магазина и доступы'
+                  : 'Куратор, ученики и курсы'}
+              </p>
 
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 mb-8">
                 
+                {(selectedGroup.group_kind === 'STREAM' || selectedGroup.is_public) && (
                 <div className="space-y-6">
                   <div className="bg-gray-50 rounded-3xl p-2 border-2 border-dashed border-gray-200">
                     <div className="relative w-full aspect-video bg-gray-200 rounded-[1.5rem] overflow-hidden group">
@@ -428,8 +473,10 @@ export default function AdminGroups() {
                     </div>
                   </div>
                 </div>
+                )}
 
-                <div className="space-y-6 flex flex-col h-full">
+                <div className={`space-y-6 flex flex-col h-full ${(selectedGroup.group_kind === 'STREAM' || selectedGroup.is_public) ? '' : 'lg:col-span-2'}`}>
+                  {(selectedGroup.group_kind === 'STREAM' || selectedGroup.is_public) && (
                   <div className="bg-gray-50 p-5 rounded-2xl border border-gray-100">
                     <h4 className="text-[11px] font-black text-gray-500 uppercase tracking-widest mb-4 flex items-center gap-2"><ListChecks className="w-4 h-4" /> Что внутри курса (3 факта)</h4>
                     <div className="space-y-3">
@@ -445,6 +492,7 @@ export default function AdminGroups() {
                       ))}
                     </div>
                   </div>
+                  )}
 
                   <div className="bg-purple-50/50 p-5 rounded-2xl border border-purple-100">
                     <h4 className="text-[11px] font-black text-purple-400 uppercase tracking-widest mb-3 flex items-center gap-2"><UserCheck className="w-4 h-4" /> Назначить куратора</h4>

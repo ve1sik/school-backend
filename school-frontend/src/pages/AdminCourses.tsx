@@ -462,6 +462,29 @@ export default function AdminCourses() {
     }
   };
 
+  const handleToggleOralAnalytics = async (courseId: string, newVal: boolean) => {
+    const prevVal = !newVal;
+    setSelectedCourseForThemes((prev: any) =>
+      prev?.id === courseId ? { ...prev, oral_in_analytics: newVal } : prev,
+    );
+    setItems((prev) =>
+      prev.map((c) => (c.id === courseId ? { ...c, oral_in_analytics: newVal } : c)),
+    );
+    try {
+      await axios.patch(`${API_URL}/courses/${courseId}`, { oral_in_analytics: newVal }, getTokenConfig());
+      invalidateCache('/courses');
+      showToast(newVal ? 'Устные включены в аналитику' : 'Аналитика: только тесты и письменные (50/50)');
+    } catch {
+      setSelectedCourseForThemes((prev: any) =>
+        prev?.id === courseId ? { ...prev, oral_in_analytics: prevVal } : prev,
+      );
+      setItems((prev) =>
+        prev.map((c) => (c.id === courseId ? { ...c, oral_in_analytics: prevVal } : c)),
+      );
+      showToast('Не удалось сохранить настройку аналитики', 'error');
+    }
+  };
+
   const handleSaveThemeTitle = async (id: string, newTitle: string) => {
     const finalTitle = newTitle.trim();
     if (!finalTitle || editingThemeId !== id) {
@@ -1634,6 +1657,13 @@ export default function AdminCourses() {
                        <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-all ${selectedCourseForThemes.spell_check ? 'left-4' : 'left-0.5'}`} />
                      </div>
                      <span className="text-[11px] font-black text-gray-500 group-hover:text-gray-700 transition-colors uppercase tracking-widest">Орфография</span>
+                   </label>
+                   <label className="flex items-center gap-2 cursor-pointer ml-1 select-none group shrink-0" title="Учитывать устные опросы в аналитике курса">
+                     <div className={`w-9 h-5 rounded-full transition-colors relative ${selectedCourseForThemes.oral_in_analytics !== false ? 'bg-teal-500' : 'bg-gray-200'}`}
+                       onClick={() => handleToggleOralAnalytics(selectedCourseForThemes.id, selectedCourseForThemes.oral_in_analytics === false)}>
+                       <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-all ${selectedCourseForThemes.oral_in_analytics !== false ? 'left-4' : 'left-0.5'}`} />
+                     </div>
+                     <span className="text-[11px] font-black text-gray-500 group-hover:text-gray-700 transition-colors uppercase tracking-widest">Устные</span>
                    </label>
                 </div>
               </div>

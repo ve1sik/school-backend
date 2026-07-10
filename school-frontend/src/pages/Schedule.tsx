@@ -355,12 +355,15 @@ export default function Schedule() {
       <AnimatePresence>
         {showAddModal && canManageSchedule && (
           <motion.div className="fixed inset-0 z-50 bg-gray-900/40 backdrop-blur-md flex justify-center items-center p-4">
-            <motion.div initial={{ opacity: 0, scale: 0.9, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 10 }} className="bg-white rounded-[2.5rem] w-full max-w-lg overflow-hidden shadow-2xl relative p-8 md:p-10 border border-white/20">
-              <button onClick={() => setShowAddModal(false)} className="absolute top-6 right-6 p-2.5 bg-gray-100 hover:bg-gray-200 rounded-full transition-colors"><X className="w-5 h-5 text-gray-600" /></button>
+            <motion.div initial={{ opacity: 0, scale: 0.9, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 10 }} className="bg-white rounded-[2.5rem] w-full max-w-lg max-h-[min(90dvh,820px)] flex flex-col overflow-hidden shadow-2xl relative border border-white/20">
+              <button onClick={() => setShowAddModal(false)} className="absolute top-5 right-5 z-10 p-2.5 bg-gray-100 hover:bg-gray-200 rounded-full transition-colors"><X className="w-5 h-5 text-gray-600" /></button>
               
-              <h3 className="text-3xl font-black mb-8 text-gray-900">Новое событие</h3>
+              <div className="shrink-0 px-8 pt-8 pb-4">
+                <h3 className="text-2xl md:text-3xl font-black text-gray-900 pr-10">Новое событие</h3>
+              </div>
               
-              <form onSubmit={handleCreateEvent} className="space-y-5">
+              <form onSubmit={handleCreateEvent} className="flex flex-col flex-1 min-h-0">
+                <div className="flex-1 overflow-y-auto px-8 space-y-4 custom-scrollbar">
                 <div>
                   <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 ml-1">Название</label>
                   <input type="text" value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} required className="w-full px-5 py-4 bg-gray-50 border border-gray-100 focus:border-[#5A4BFF] focus:bg-white rounded-2xl outline-none font-bold transition-all text-lg" placeholder="Разбор варианта №5" />
@@ -451,8 +454,13 @@ export default function Schedule() {
                   <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 ml-1">Описание (необязательно)</label>
                   <textarea value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} className="w-full px-5 py-4 bg-gray-50 border border-gray-100 focus:border-[#5A4BFF] focus:bg-white rounded-2xl outline-none font-medium transition-all resize-none" placeholder="Что нужно подготовить к уроку..." rows={2} />
                 </div>
+                </div>
 
-                <button type="submit" className="w-full py-5 mt-2 bg-[#5A4BFF] hover:bg-[#4a3dec] text-white rounded-2xl font-black text-lg transition-all shadow-xl shadow-indigo-500/20 active:scale-95">СОХРАНИТЬ В КАЛЕНДАРЬ</button>
+                <div className="shrink-0 px-8 py-5 border-t border-gray-100 bg-white">
+                  <button type="submit" className="w-full py-4 bg-[#5A4BFF] hover:bg-[#4a3dec] text-white rounded-2xl font-black text-base transition-all shadow-xl shadow-indigo-500/20 active:scale-95">
+                    СОХРАНИТЬ В КАЛЕНДАРЬ
+                  </button>
+                </div>
               </form>
             </motion.div>
           </motion.div>

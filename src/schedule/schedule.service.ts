@@ -147,20 +147,21 @@ export class ScheduleService {
   async getAssignableGroups(userId: string, role: string) {
     if (role === Role.ADMIN) {
       return this.prisma.group.findMany({
+        where: { group_kind: 'STUDY' },
         select: { id: true, title: true },
         orderBy: { title: 'asc' },
       });
     }
     if (role === Role.CURATOR) {
       return this.prisma.group.findMany({
-        where: { curator_id: userId },
+        where: { curator_id: userId, group_kind: 'STUDY' },
         select: { id: true, title: true },
         orderBy: { title: 'asc' },
       });
     }
     if (role === Role.TEACHER) {
       return this.prisma.group.findMany({
-        where: { teacher_id: userId },
+        where: { teacher_id: userId, group_kind: 'STUDY' },
         select: { id: true, title: true },
         orderBy: { title: 'asc' },
       });

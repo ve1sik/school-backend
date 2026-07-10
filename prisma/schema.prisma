@@ -41,6 +41,11 @@ enum EventType {
   OFFLINE
 }
 
+enum GroupKind {
+  STUDY
+  STREAM
+}
+
 enum ApplicationStatus {
   PENDING
   APPROVED
@@ -98,9 +103,10 @@ model User {
 
 
 model Group {
-  id           String   @id @default(uuid())
+  id           String    @id @default(uuid())
   title        String
-  price        Int      @default(0) 
+  group_kind   GroupKind @default(STUDY)
+  price        Int       @default(0)
   old_price    Int?     @default(0)
   start_date   String?
   badge        String?
@@ -147,7 +153,8 @@ model Course {
   title           String
   description     String?  @db.Text
   cover_url       String?
-  spell_check     Boolean  @default(false)
+  spell_check         Boolean  @default(false)
+  oral_in_analytics   Boolean  @default(true)
 
   subject_id  String?
   subject     Subject? @relation(fields: [subject_id], references: [id], onDelete: Cascade)

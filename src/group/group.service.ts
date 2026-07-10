@@ -396,7 +396,7 @@ export class GroupService {
 
   async findShopGroups() {
     return this.prisma.group.findMany({
-      where: { is_public: true },
+      where: { is_public: true, group_kind: 'STREAM' },
       include: {
         curator: { select: { name: true, surname: true, avatar: true } },
         courses: { select: { id: true, title: true, cover_url: true, description: true } },
