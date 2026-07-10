@@ -74,12 +74,13 @@ export const LESSON_TEST_STYLES = `
 type QuestionBlockProps = {
   content: string;
   mode?: 'quill' | 'html';
+  compact?: boolean;
 };
 
-export function QuestionBlock({ content, mode = 'html' }: QuestionBlockProps) {
+export function QuestionBlock({ content, mode = 'html', compact = false }: QuestionBlockProps) {
   return (
-    <div className="rounded-2xl border border-indigo-100/90 bg-gradient-to-br from-indigo-50/70 via-white to-violet-50/50 p-5 md:p-7 mb-8 shadow-sm ring-1 ring-indigo-50">
-      <p className="text-[10px] font-black uppercase tracking-[0.18em] text-indigo-500 mb-4 flex items-center gap-2">
+    <div className={`rounded-2xl border border-indigo-100/90 bg-gradient-to-br from-indigo-50/70 via-white to-violet-50/50 shadow-sm ring-1 ring-indigo-50 ${compact ? 'p-3 md:p-4 mb-3' : 'p-5 md:p-7 mb-8'}`}>
+      <p className={`text-[10px] font-black uppercase tracking-[0.18em] text-indigo-500 flex items-center gap-2 ${compact ? 'mb-2' : 'mb-4'}`}>
         <span className="inline-flex w-5 h-5 rounded-md bg-indigo-100 items-center justify-center text-[9px]">?</span>
         Условие задания
       </p>

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { parseSafeDate, parseSafeDateMs } from '../lib/parseDate';
 import axios from 'axios';
@@ -122,8 +122,15 @@ function ExpandableImage({ src, alt, className = '' }: { src: string, alt?: stri
 const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswerToggle, handleTextAnswerChange, handleMatchingChange, handleSubmitTest, submissions, courseSpellCheck, spellErrors, courseTitle, lessonTitle }: any) => {
   const [isOpen, setIsOpen] = useState(false);
   const [activeStep, setActiveStep] = useState(0);
+  const panelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => { if (!isOpen) setActiveStep(0); }, [isOpen]);
+
+  useEffect(() => {
+    if (isOpen && panelRef.current) {
+      panelRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  }, [isOpen, activeStep]);
 
   if (!isOpen) {
     return (
@@ -197,58 +204,53 @@ const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswer
   }
 
   return (
-    <div className="bg-white border border-gray-100 rounded-[2rem] p-6 md:p-8 relative shadow-lg shadow-indigo-100/40 mb-8">
-      <div className="flex justify-between items-center mb-6">
-        <h4 className="font-black text-xl text-gray-900 flex items-center gap-3">
-          <group.Icon className={`w-6 h-6 ${group.iconColor?.split(' ')[1] || ''}`} />
-          {group.title}
-        </h4>
-        <button onClick={() => setIsOpen(false)} className="p-2.5 text-gray-400 hover:text-gray-700 bg-gray-50 hover:bg-gray-100 rounded-xl transition-colors border border-gray-200/50 shadow-sm">
-          <X className="w-5 h-5" />
-        </button>
-      </div>
-
-      <div className="flex flex-wrap gap-2.5 mb-8">
-        {group.blocks.map((b: any, i: number) => {
-          const sSub = submissions?.find((s: any) => s.blockId === b.id || s.block_id === b.id);
-          let bRes = testResults?.[b.id];
-          let bAttempts = attemptsUsed?.[b.id] || 0;
-          
-          if (sSub) {
-            if (sSub.status === 'GRADED') {
-              if (['test', 'test_short', 'matching'].includes(b.type)) {
-                if (Number(sSub.score) > 0) bRes = 'SUCCESS';
-                else { bRes = 'ERROR'; bAttempts = b.maxAttempts || 3; }
-              } else {
-                bRes = 'GRADED';
+    <div
+      ref={panelRef}
+      className="bg-white border-2 border-[#A855F7]/25 rounded-2xl shadow-lg mb-4 flex flex-col overflow-hidden max-h-[min(82dvh,calc(100dvh-7rem))] w-full"
+    >
+      <div className="shrink-0 z-20 bg-white border-b border-gray-100 px-3 py-2.5 flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2 min-w-0 flex-1">
+          <group.Icon className={`w-4 h-4 shrink-0 ${group.iconColor?.split(' ')[1] || ''}`} />
+          <span className="font-black text-gray-900 text-sm truncate">{group.title}</span>
+          <div className="hidden sm:flex items-center gap-1 ml-1">
+            {group.blocks.map((b: any, i: number) => {
+              const sSub = submissions?.find((s: any) => s.blockId === b.id || s.block_id === b.id);
+              let bRes = testResults?.[b.id];
+              let bAttempts = attemptsUsed?.[b.id] || 0;
+              if (sSub) {
+                if (sSub.status === 'GRADED') {
+                  if (['test', 'test_short', 'matching'].includes(b.type)) {
+                    if (Number(sSub.score) > 0) bRes = 'SUCCESS';
+                    else { bRes = 'ERROR'; bAttempts = b.maxAttempts || 3; }
+                  } else bRes = 'GRADED';
+                } else if (sSub.status === 'REVIEW' || sSub.status === 'PENDING') bRes = 'PENDING';
               }
-            } else if (sSub.status === 'REVIEW' || sSub.status === 'PENDING') {
-              bRes = 'PENDING';
-            }
-          }
-
-          const isActive = i === activeStep;
-          let circleClass = "w-11 h-11 rounded-full flex items-center justify-center font-black text-sm transition-all border-2 ";
-          
-          if (isActive) {
-            circleClass += "bg-[#A855F7] border-[#A855F7] text-white shadow-lg shadow-purple-500/30 scale-110";
-          } else if (bRes === 'SUCCESS' || bRes === 'GRADED') {
-            circleClass += "bg-emerald-50 border-emerald-200 text-emerald-600 hover:bg-emerald-100";
-          } else if (bRes === 'ERROR' && bAttempts >= (b.maxAttempts || 3)) {
-            circleClass += "bg-rose-50 border-rose-200 text-rose-600 hover:bg-rose-100";
-          } else if (bRes === 'PENDING') {
-            circleClass += "bg-purple-50 border-purple-200 text-purple-600 hover:bg-purple-100";
-          } else {
-            circleClass += "bg-white border-gray-200 text-gray-500 hover:border-[#A855F7] hover:text-[#A855F7]";
-          }
-
-          return (
-            <button key={b.id} onClick={() => setActiveStep(i)} className={circleClass}>{i + 1}</button>
-          );
-        })}
+              const isActive = i === activeStep;
+              let cls = 'w-7 h-7 rounded-full text-[11px] font-black border transition-all ';
+              if (isActive) cls += 'bg-[#A855F7] border-[#A855F7] text-white';
+              else if (bRes === 'SUCCESS' || bRes === 'GRADED') cls += 'bg-emerald-50 border-emerald-200 text-emerald-600';
+              else if (bRes === 'PENDING') cls += 'bg-purple-50 border-purple-200 text-purple-600';
+              else cls += 'bg-white border-gray-200 text-gray-500';
+              return <button key={b.id} type="button" onClick={() => setActiveStep(i)} className={cls}>{i + 1}</button>;
+            })}
+          </div>
+          <span className="text-[10px] font-bold text-gray-400 shrink-0 sm:hidden">{activeStep + 1}/{group.blocks.length}</span>
+        </div>
+        <div className="flex items-center gap-1.5 shrink-0">
+          {activeStep > 0 && (
+            <button type="button" onClick={() => setActiveStep(p => p - 1)} className="px-3 py-1.5 rounded-lg font-bold text-xs bg-gray-100 text-gray-600">←</button>
+          )}
+          {activeStep < group.blocks.length - 1 && (
+            <button type="button" onClick={() => setActiveStep(p => p + 1)} className="px-3 py-1.5 rounded-lg font-bold text-xs bg-gray-100 text-gray-700">→</button>
+          )}
+          <button type="button" onClick={() => setIsOpen(false)} className="p-1.5 text-gray-400 hover:text-gray-700 bg-gray-50 rounded-lg border border-gray-200">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2 mb-6">
+      <div className="flex-1 min-h-0 overflow-y-auto p-3 sm:p-4 custom-scrollbar">
+      <div className="flex flex-wrap items-center gap-1.5 mb-3">
         <div className="px-3 py-1.5 rounded-lg bg-purple-50 text-purple-600 text-[10px] font-black uppercase tracking-widest border border-purple-100">
           Вопрос {activeStep + 1}
         </div>
@@ -266,6 +268,17 @@ const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswer
           </div>
         )}
       </div>
+
+      {(block.type === 'essay' || block.type === 'essay_final') ? (
+        <EssayStudentTask block={block} questionMode="quill" compact />
+      ) : (
+        <>
+          <QuestionBlock content={block.question || ''} mode="quill" compact />
+          {(block.questionImage || block.image) && (
+            <ExpandableImage src={getFullUrl(block.questionImage || block.image)} alt="Схема" className="mb-4 max-h-40" />
+          )}
+        </>
+      )}
 
       <AnimatePresence mode="wait">
         {result === 'ERROR' && !isExhausted && (
@@ -350,18 +363,7 @@ const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswer
         )}
       </AnimatePresence>
 
-      {(block.type === 'essay' || block.type === 'essay_final') ? (
-        <EssayStudentTask block={block} questionMode="quill" />
-      ) : (
-        <>
-          <QuestionBlock content={block.question || ''} mode="quill" />
-          {(block.questionImage || block.image) && (
-            <ExpandableImage src={getFullUrl(block.questionImage || block.image)} alt="Схема" className="mb-8" />
-          )}
-        </>
-      )}
-
-      <div className="space-y-3 mb-8">
+      <div className="space-y-2 mb-3">
         {block.type === 'test' && (
           <p className="text-[10px] font-black uppercase tracking-[0.15em] text-gray-400 mb-1 pl-1">Выберите вариант ответа</p>
         )}
@@ -553,6 +555,7 @@ const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswer
                 if (!isLocked) handleTextAnswerChange(block.id, val);
               }}
               readOnly={isLocked}
+              minRows={6}
             />
           </div>
         )}
@@ -573,13 +576,13 @@ const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswer
               }}
               readOnly={isLocked}
               placeholder="Напишите итоговое сочинение…"
-              minRows={14}
+              minRows={6}
             />
           </div>
         )}
 
         {block.type === 'written' && (
-          <div className="flex flex-col gap-2 relative">
+          <div className="flex flex-col gap-2 relative [&_.ql-container]:max-h-[min(26dvh,200px)] [&_.ql-editor]:max-h-[min(22dvh,168px)] [&_.ql-editor]:overflow-y-auto">
             {isLocked && serverSubmission && (
                <div className="absolute inset-0 z-10 bg-transparent cursor-not-allowed"></div>
             )}
@@ -603,35 +606,25 @@ const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswer
         )}
       </div>
 
-      <div className="flex flex-col sm:flex-row items-center gap-4 pt-6 border-t border-gray-100">
-        <button 
-          type="button"
-          onClick={(e) => { e.preventDefault(); handleSubmitTest(block); }} 
-          disabled={block.type === 'matching' ? (!isMatchingReady || isLocked) : (selected.length === 0 || selected[0] === '' || selected[0] === '<p><br></p>' || isLocked)} 
-          className={`w-full sm:w-auto px-10 py-4 rounded-xl font-black text-sm transition-all active:scale-95 disabled:opacity-50 tracking-wide uppercase ${isExhausted && !isUnlimitedAttempts(block.type) ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : result === 'ERROR' ? 'bg-[#FF4A6B] hover:bg-red-500 text-white shadow-lg shadow-red-500/30' : result === 'GRADED' ? 'bg-emerald-500 text-white cursor-not-allowed' : 'bg-[#A855F7] hover:bg-[#9333EA] text-white shadow-lg shadow-purple-500/30'}`}
-        >
-          {result === 'PENDING' ? 'НА ПРОВЕРКЕ' : result === 'GRADED' ? 'ОЦЕНЕНО' : (isExhausted && !isUnlimitedAttempts(block.type) ? 'ЛИМИТ ИСЧЕРПАН' : result === 'ERROR' ? 'ЕЩЕ РАЗ' : 'ОТВЕТИТЬ')}
-        </button>
-        
-        <div className="flex-1 w-full flex justify-end gap-3">
-          {activeStep > 0 && (
-            <button onClick={() => setActiveStep(p => p - 1)} className="px-6 py-4 rounded-xl font-bold text-sm bg-gray-50 text-gray-500 hover:bg-gray-100 transition-colors">НАЗАД</button>
-          )}
-          {activeStep < group.blocks.length - 1 && (
-            <button onClick={() => setActiveStep(p => p + 1)} className="px-6 py-4 rounded-xl font-bold text-sm bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors">
-              {isLocked || result === 'SUCCESS' || result === 'GRADED' ? 'ДАЛЕЕ' : 'ПРОПУСТИТЬ'}
-            </button>
-          )}
-        </div>
-      </div>
-
       <AnimatePresence>
         {(isLocked || isExhausted) && block.explanation && (
-          <motion.div initial={{ opacity: 0, height: 0, marginTop: 0 }} animate={{ opacity: 1, height: 'auto', marginTop: 24 }} exit={{ opacity: 0, height: 0, marginTop: 0 }} className="overflow-hidden">
+          <motion.div initial={{ opacity: 0, height: 0, marginTop: 0 }} animate={{ opacity: 1, height: 'auto', marginTop: 16 }} exit={{ opacity: 0, height: 0, marginTop: 0 }} className="overflow-hidden">
             <ExplanationBlock content={block.explanation || ''} mode="quill" />
           </motion.div>
         )}
       </AnimatePresence>
+      </div>
+
+      <div className="sticky bottom-0 z-20 shrink-0 bg-white border-t border-gray-100 px-4 py-3 flex items-center justify-end gap-3 shadow-[0_-4px_20px_rgba(0,0,0,0.06)]">
+        <button
+          type="button"
+          onClick={(e) => { e.preventDefault(); handleSubmitTest(block); }}
+          disabled={block.type === 'matching' ? (!isMatchingReady || isLocked) : (selected.length === 0 || selected[0] === '' || selected[0] === '<p><br></p>' || isLocked)}
+          className={`w-full sm:w-auto px-10 py-4 rounded-xl font-black text-sm transition-all active:scale-95 disabled:opacity-40 uppercase tracking-wide ${isExhausted && !isUnlimitedAttempts(block.type) ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : result === 'ERROR' ? 'bg-[#FF4A6B] text-white shadow-lg' : result === 'GRADED' ? 'bg-emerald-500 text-white cursor-not-allowed' : 'bg-[#A855F7] text-white shadow-lg shadow-purple-500/30'}`}
+        >
+          {result === 'PENDING' ? 'НА ПРОВЕРКЕ' : result === 'GRADED' ? 'ОЦЕНЕНО' : (isExhausted && !isUnlimitedAttempts(block.type) ? 'ЛИМИТ ИСЧЕРПАН' : result === 'ERROR' ? 'ЕЩЁ РАЗ' : 'ОТВЕТИТЬ')}
+        </button>
+      </div>
     </div>
   );
 };

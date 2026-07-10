@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { 
@@ -128,17 +128,15 @@ function ExpandableImage({ src, alt, className = '' }: { src: string, alt?: stri
 const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswerToggle, handleTextAnswerChange, handleMatchingChange, handleSubmitTest, submissions, spellErrors, courseSpellCheck, courseTitle, lessonTitle }: any) => {
   const [isOpen, setIsOpen] = useState(false);
   const [activeStep, setActiveStep] = useState(0);
+  const panelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => { if (!isOpen) setActiveStep(0); }, [isOpen]);
 
   useEffect(() => {
-    if (!isOpen) return;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => {
-      document.body.style.overflow = prev;
-    };
-  }, [isOpen]);
+    if (isOpen && panelRef.current) {
+      panelRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  }, [isOpen, activeStep]);
 
   if (!isOpen) {
     return (
@@ -211,8 +209,10 @@ const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswer
   }
 
   return (
-    <div className="fixed inset-0 z-[200] bg-[#F4F7FE] flex flex-col p-2 sm:p-3 md:p-4">
-      <div className="flex-1 min-h-0 max-w-3xl w-full mx-auto bg-white border border-gray-100 rounded-2xl md:rounded-[1.75rem] shadow-2xl flex flex-col overflow-hidden">
+    <div
+      ref={panelRef}
+      className="bg-white border-2 border-[#A855F7]/25 rounded-2xl shadow-lg mb-4 flex flex-col overflow-hidden max-h-[min(82dvh,calc(100dvh-7rem))] w-full"
+    >
       {/* HEADER */}
       <div className="shrink-0 z-20 bg-white border-b border-gray-100 px-3 py-2.5 flex items-center justify-between gap-2">
         <div className="flex items-center gap-2 min-w-0 flex-1">
@@ -273,10 +273,10 @@ const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswer
       </div>
 
       {(block.type === 'essay' || block.type === 'essay_final') ? (
-        <EssayStudentTask block={block} />
+        <EssayStudentTask block={block} compact />
       ) : (
         <>
-          <QuestionBlock content={block.question || ''} mode="html" />
+          <QuestionBlock content={block.question || ''} mode="html" compact />
           {(block.questionImage || block.image) && (
             <ExpandableImage src={getFullUrl(block.questionImage || block.image)} alt="Схема" className="mb-4 max-h-40" />
           )}
@@ -567,13 +567,13 @@ const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswer
               }}
               readOnly={isLocked}
               placeholder="Напишите сочинение по заданию…"
-              minRows={14}
+              minRows={6}
             />
           </div>
         )}
 
         {block.type === 'written' && (
-          <div className="flex flex-col gap-2 relative">
+          <div className="flex flex-col gap-2 relative [&_.ql-container]:max-h-[min(26dvh,200px)] [&_.ql-editor]:max-h-[min(22dvh,168px)] [&_.ql-editor]:overflow-y-auto">
             {isLocked && serverSubmission && (
                <div className="absolute inset-0 z-10 bg-transparent cursor-not-allowed"></div>
             )}
@@ -615,7 +615,6 @@ const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswer
         >
           {result === 'PENDING' ? 'НА ПРОВЕРКЕ' : result === 'GRADED' ? 'ОЦЕНЕНО' : (isExhausted && !isUnlimitedAttempts(block.type) ? 'ЛИМИТ ИСЧЕРПАН' : result === 'ERROR' ? 'ЕЩЁ РАЗ' : 'ОТВЕТИТЬ')}
         </button>
-      </div>
       </div>
     </div>
   );

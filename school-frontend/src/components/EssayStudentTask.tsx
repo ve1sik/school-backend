@@ -6,15 +6,16 @@ type Props = {
     source?: string;
   };
   questionMode?: 'html' | 'quill';
+  compact?: boolean;
 };
 
 /** Задание + отрывок для сочинения (без поля ответа ученика). */
-export default function EssayStudentTask({ block, questionMode = 'html' }: Props) {
+export default function EssayStudentTask({ block, questionMode = 'html', compact = false }: Props) {
   return (
-    <div className="space-y-5 mb-6">
-      <div className="rounded-2xl border border-gray-100 bg-gray-50/80 p-4 md:p-5">
-        <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-3">Задание</p>
-        <QuestionBlock content={block.question || ''} mode={questionMode} />
+    <div className={compact ? 'space-y-3 mb-3' : 'space-y-5 mb-6'}>
+      <div className={`rounded-2xl border border-gray-100 bg-gray-50/80 ${compact ? 'p-3 md:p-4' : 'p-4 md:p-5'}`}>
+        <p className={`text-[10px] font-black uppercase tracking-widest text-gray-400 ${compact ? 'mb-2' : 'mb-3'}`}>Задание</p>
+        <QuestionBlock content={block.question || ''} mode={questionMode} compact={compact} />
       </div>
       {block.source?.trim() && (
         <div className="rounded-2xl border-2 border-amber-100 bg-amber-50/50 p-4 md:p-6 max-h-[45vh] overflow-y-auto custom-scrollbar">
