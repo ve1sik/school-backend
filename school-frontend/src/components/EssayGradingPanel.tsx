@@ -1,7 +1,6 @@
 import { useMemo, useRef, useState } from 'react';
-import { AlertCircle, ArrowRight, Plus, Trash2 } from 'lucide-react';
+import { AlertCircle, ArrowRight, ChevronDown, ChevronUp, Plus, Trash2 } from 'lucide-react';
 import {
-  buildEmptyCriteriaScores,
   getCriteriaDefs,
   getMaxScoreForKind,
   normalizeCriteriaScores,
@@ -20,6 +19,8 @@ import {
   type EssayErrorAnnotation,
   type EssayErrorKind,
 } from '../utils/essayErrors';
+import ScoreField from './ScoreField';
+import { ExpandTextButton, FullscreenTextReader } from './FullscreenTextReader';
 
 type Props = {
   submissionId: string;
@@ -66,6 +67,8 @@ export default function EssayGradingPanel({
   const [selection, setSelection] = useState<{ start: number; end: number; text: string } | null>(
     null,
   );
+  const [fullscreenOpen, setFullscreenOpen] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
   const textRef = useRef<HTMLTextAreaElement>(null);
 
   const totalFromCriteria = sumCriteriaScores(criteria);
@@ -110,86 +113,100 @@ export default function EssayGradingPanel({
   };
 
   return (
-    <div className="space-y-8">
-      <div className="grid lg:grid-cols-[1fr_320px] gap-6">
-        <div className="bg-white rounded-3xl border border-gray-100 p-5 md:p-6">
-          <p className="text-[10px] font-black text-purple-500 uppercase tracking-widest mb-3">
-            Текст сочинения — выделите фрагмент с ошибкой
-          </p>
+    <div className="space-y-5">
+      <div className="grid lg:grid-cols-[1fr_260px] gap-4">
+        <div className="bg-white rounded-2xl border border-gray-100 p-4 md:p-5">
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+            <p className="text-[10px] font-black text-purple-500 uppercase tracking-widest">
+              Текст сочинения — выделите фрагмент с ошибкой
+            </p>
+            <ExpandTextButton onClick={() => setFullscreenOpen(true)} />
+          </div>
           <textarea
             ref={textRef}
             readOnly
             value={plainText}
             onMouseUp={captureSelection}
             onTouchEnd={captureSelection}
-            className="w-full min-h-[240px] p-4 rounded-2xl border-2 border-gray-100 bg-gray-50 font-serif text-base leading-relaxed resize-y outline-none selection:bg-purple-200"
+            className="w-full min-h-[140px] max-h-[220px] p-3 rounded-xl border-2 border-gray-100 bg-gray-50 font-serif text-sm leading-relaxed resize-y outline-none selection:bg-purple-200 overflow-y-auto"
           />
+
           {errors.length > 0 && (
-            <div className="mt-4 p-4 rounded-2xl bg-gray-50 border border-gray-100 font-serif text-sm leading-relaxed whitespace-pre-wrap">
-              <p className="text-[10px] font-black text-gray-400 uppercase mb-2">Предпросмотр пометок</p>
-              {segments.map((seg, idx) =>
-                seg.annotation ? (
-                  <mark key={`${idx}-${seg.annotation.id}`} className={`${kindColor(seg.annotation.kind)} border-b-2 px-0.5`} title={seg.annotation.message}>
-                    {seg.text}
-                  </mark>
-                ) : (
-                  <span key={idx}>{seg.text}</span>
-                ),
+            <div className="mt-3">
+              <button
+                type="button"
+                onClick={() => setPreviewOpen((v) => !v)}
+                className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-gray-500 hover:text-purple-600"
+              >
+                {previewOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                Предпросмотр пометок ({errors.length})
+              </button>
+              {previewOpen && (
+                <div className="mt-2 p-3 rounded-xl bg-gray-50 border border-gray-100 font-serif text-sm leading-relaxed whitespace-pre-wrap max-h-[160px] overflow-y-auto custom-scrollbar">
+                  {segments.map((seg, idx) =>
+                    seg.annotation ? (
+                      <mark key={`${idx}-${seg.annotation.id}`} className={`${kindColor(seg.annotation.kind)} border-b-2 px-0.5`} title={seg.annotation.message}>
+                        {seg.text}
+                      </mark>
+                    ) : (
+                      <span key={idx}>{seg.text}</span>
+                    ),
+                  )}
+                </div>
               )}
             </div>
           )}
-          <div className="mt-3 flex flex-wrap gap-2 items-end">
-            <div className="flex gap-2 flex-wrap">
-              {ESSAY_ERROR_KINDS.map((k) => (
-                <button
-                  key={k.id}
-                  type="button"
-                  onClick={() => setSelectedKind(k.id)}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-black border-2 transition-all ${
-                    selectedKind === k.id ? k.color + ' ring-2 ring-offset-1 ring-purple-300' : 'border-gray-200 text-gray-500'
-                  }`}
-                >
-                  {k.label}
-                </button>
-              ))}
-            </div>
+
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {ESSAY_ERROR_KINDS.map((k) => (
+              <button
+                key={k.id}
+                type="button"
+                onClick={() => setSelectedKind(k.id)}
+                className={`px-2.5 py-1 rounded-lg text-[10px] font-black border transition-all ${
+                  selectedKind === k.id ? k.color + ' ring-1 ring-offset-1 ring-purple-300' : 'border-gray-200 text-gray-500'
+                }`}
+              >
+                {k.label}
+              </button>
+            ))}
           </div>
           {selection && (
-            <div className="mt-3 p-3 rounded-xl bg-purple-50 border border-purple-100 text-sm">
+            <div className="mt-2 p-2.5 rounded-xl bg-purple-50 border border-purple-100 text-xs">
               <span className="font-black text-purple-700">Выделено:</span>{' '}
               <span className="italic">«{selection.text.slice(0, 80)}{selection.text.length > 80 ? '…' : ''}»</span>
             </div>
           )}
-          <div className="mt-3 flex flex-col sm:flex-row gap-2">
+          <div className="mt-2 flex flex-col sm:flex-row gap-2">
             <input
               value={draftMessage}
               onChange={(e) => setDraftMessage(e.target.value)}
               placeholder="Комментарий к ошибке…"
-              className="flex-1 p-3 rounded-xl border-2 border-gray-200 outline-none focus:border-purple-400 text-sm font-medium"
+              className="flex-1 p-2.5 rounded-xl border-2 border-gray-200 outline-none focus:border-purple-400 text-sm font-medium"
             />
             <button
               type="button"
               onClick={addError}
               disabled={!selection || !draftMessage.trim()}
-              className="px-4 py-3 bg-purple-600 hover:bg-purple-500 disabled:opacity-40 text-white rounded-xl font-black text-sm flex items-center justify-center gap-2"
+              className="px-4 py-2.5 bg-purple-600 hover:bg-purple-500 disabled:opacity-40 text-white rounded-xl font-black text-sm flex items-center justify-center gap-2"
             >
-              <Plus className="w-4 h-4" /> Добавить ошибку
+              <Plus className="w-4 h-4" /> Добавить
             </button>
           </div>
         </div>
 
-        <div className="bg-gray-900 text-white rounded-3xl p-5 flex flex-col max-h-[520px]">
-          <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-            <ArrowRight className="w-3 h-3" /> Ошибки в тексте
+        <div className="bg-gray-900 text-white rounded-2xl p-4 flex flex-col max-h-[320px]">
+          <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3 flex items-center gap-2">
+            <ArrowRight className="w-3 h-3" /> Ошибки ({errors.length})
           </p>
-          <div className="flex-1 overflow-y-auto space-y-3 pr-1 custom-scrollbar">
+          <div className="flex-1 overflow-y-auto space-y-2 pr-1 custom-scrollbar">
             {errors.length === 0 && (
-              <p className="text-sm text-gray-500 font-medium">Пока нет пометок — выделите фрагмент и добавьте комментарий.</p>
+              <p className="text-xs text-gray-500 font-medium">Выделите фрагмент и добавьте комментарий.</p>
             )}
             {errors.map((err, idx) => (
-              <div key={err.id} className="p-3 rounded-2xl bg-white/5 border border-white/10">
-                <div className="flex items-start justify-between gap-2 mb-2">
-                  <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-lg border ${kindColor(err.kind)}`}>
+              <div key={err.id} className="p-2.5 rounded-xl bg-white/5 border border-white/10">
+                <div className="flex items-start justify-between gap-2 mb-1">
+                  <span className={`text-[9px] font-black uppercase px-1.5 py-0.5 rounded border ${kindColor(err.kind)}`}>
                     {idx + 1}. {kindLabel(err.kind)}
                   </span>
                   <button
@@ -197,35 +214,35 @@ export default function EssayGradingPanel({
                     onClick={() => setErrors((prev) => prev.filter((e) => e.id !== err.id))}
                     className="text-gray-500 hover:text-red-400"
                   >
-                    <Trash2 className="w-4 h-4" />
+                    <Trash2 className="w-3.5 h-3.5" />
                   </button>
                 </div>
                 {err.snippet && (
-                  <p className="text-xs text-purple-200 italic mb-1">«{err.snippet}»</p>
+                  <p className="text-[11px] text-purple-200 italic mb-0.5">«{err.snippet}»</p>
                 )}
-                <p className="text-sm font-medium text-gray-200">{err.message}</p>
+                <p className="text-xs font-medium text-gray-200">{err.message}</p>
               </div>
             ))}
           </div>
         </div>
       </div>
 
-      <div className="bg-white rounded-3xl border border-gray-100 overflow-hidden">
-        <div className="p-5 md:p-6 bg-gradient-to-r from-purple-50 to-indigo-50 border-b border-gray-100 flex flex-wrap items-center justify-between gap-4">
+      <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+        <div className="p-4 md:p-5 bg-gradient-to-r from-purple-50 to-indigo-50 border-b border-gray-100 flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h4 className="text-xl font-black text-gray-900">
-              {criteriaKind === 'final' ? 'Критерии итогового сочинения (K1–K5)' : 'Критерии ЕГЭ (K1–K10)'}
+            <h4 className="text-lg font-black text-gray-900">
+              {criteriaKind === 'final' ? 'Критерии итогового (K1–K5)' : 'Критерии ЕГЭ (K1–K10)'}
             </h4>
-            <p className="text-sm text-gray-500 font-medium mt-1">Поставьте балл и комментарий по каждому критерию</p>
+            <p className="text-xs text-gray-500 font-medium mt-0.5">Кликните в поле балла и введите число с клавиатуры</p>
           </div>
           <div className="text-right">
             <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Итого</p>
-            <p className="text-3xl font-black text-purple-600">
+            <p className="text-2xl font-black text-purple-600">
               {totalFromCriteria}
-              <span className="text-lg text-gray-400 font-bold"> / {maxScore || getMaxScoreForKind(criteriaKind)}</span>
+              <span className="text-base text-gray-400 font-bold"> / {maxScore || getMaxScoreForKind(criteriaKind)}</span>
             </p>
             {initialScore != null && isGraded && (
-              <p className="text-xs text-gray-400 mt-1">Было: {initialScore}</p>
+              <p className="text-xs text-gray-400 mt-0.5">Было: {initialScore}</p>
             )}
           </div>
         </div>
@@ -233,28 +250,23 @@ export default function EssayGradingPanel({
           {criteria.map((row) => {
             const def = criteriaDefs.find((c) => c.id === row.id);
             return (
-              <div key={row.id} className="p-4 md:p-5 grid md:grid-cols-[minmax(0,1.2fr)_100px_minmax(0,1fr)] gap-4 items-start">
+              <div key={row.id} className="p-3 md:p-4 grid md:grid-cols-[minmax(0,1fr)_88px_minmax(0,1fr)] gap-3 items-start">
                 <div>
                   <p className="font-black text-gray-900 text-sm">{row.label}</p>
-                  <p className="text-xs font-bold text-purple-600 mt-1">{row.id}: 0 – {row.maxScore} баллов</p>
+                  <p className="text-xs font-bold text-purple-600 mt-0.5">{row.id}: 0 – {row.maxScore}</p>
                   {def?.hint && (
-                    <p className="text-xs text-gray-400 mt-1 font-medium">{def.hint}</p>
+                    <p className="text-[11px] text-gray-400 mt-0.5 font-medium line-clamp-2">{def.hint}</p>
                   )}
                 </div>
                 <div>
                   <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1">
-                    {row.id} из {row.maxScore}
+                    {row.id}
                   </label>
-                  <input
-                    type="number"
-                    min={0}
-                    max={row.maxScore}
+                  <ScoreField
                     value={row.score}
-                    onChange={(e) => {
-                      const v = Math.min(row.maxScore, Math.max(0, Number(e.target.value) || 0));
-                      updateCriterion(row.id, { score: v });
-                    }}
-                    className="w-full p-3 rounded-xl border-2 border-gray-200 text-center font-black text-lg outline-none focus:border-purple-400"
+                    max={row.maxScore}
+                    onChange={(v) => updateCriterion(row.id, { score: v })}
+                    className="w-full p-2.5 rounded-xl border-2 border-gray-200 text-center font-black text-lg outline-none focus:border-purple-400"
                   />
                 </div>
                 <div>
@@ -264,8 +276,8 @@ export default function EssayGradingPanel({
                   <input
                     value={row.comment}
                     onChange={(e) => updateCriterion(row.id, { comment: e.target.value })}
-                    placeholder="Например: позиция автора определена неверно…"
-                    className="w-full p-3 rounded-xl border-2 border-gray-200 text-sm font-medium outline-none focus:border-purple-400"
+                    placeholder="Краткий комментарий…"
+                    className="w-full p-2.5 rounded-xl border-2 border-gray-200 text-sm font-medium outline-none focus:border-purple-400"
                   />
                 </div>
               </div>
@@ -274,33 +286,40 @@ export default function EssayGradingPanel({
         </div>
       </div>
 
-      <div className="bg-gray-900 text-white rounded-3xl p-6 md:p-8">
-        <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3">
-          Общий комментарий к сочинению
+      <div className="bg-gray-900 text-white rounded-2xl p-5 md:p-6">
+        <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2">
+          Общий комментарий
         </label>
         <textarea
           value={comment}
           onChange={(e) => setComment(e.target.value)}
-          placeholder="Итоговый разбор: что получилось, что доработать…"
-          className="w-full bg-white/5 border-2 border-white/10 rounded-2xl p-4 text-sm outline-none focus:border-purple-500 text-white font-medium resize-none min-h-[90px] mb-6"
+          placeholder="Итоговый разбор…"
+          className="w-full bg-white/5 border-2 border-white/10 rounded-xl p-3 text-sm outline-none focus:border-purple-500 text-white font-medium resize-none min-h-[72px] mb-4"
         />
-        <div className="flex flex-col sm:flex-row justify-end gap-3">
+        <div className="flex flex-col sm:flex-row justify-end gap-2">
           <button
             type="button"
             onClick={() => onRevision(comment)}
-            className="px-6 py-4 bg-amber-500 hover:bg-amber-400 text-white rounded-xl font-black text-sm flex items-center justify-center gap-2"
+            className="px-5 py-3 bg-amber-500 hover:bg-amber-400 text-white rounded-xl font-black text-sm flex items-center justify-center gap-2"
           >
             <AlertCircle className="w-4 h-4" /> На доработку
           </button>
           <button
             type="button"
             onClick={handleSave}
-            className="px-8 py-4 bg-purple-600 hover:bg-purple-500 text-white rounded-xl font-black text-sm"
+            className="px-7 py-3 bg-purple-600 hover:bg-purple-500 text-white rounded-xl font-black text-sm"
           >
-            {isGraded ? 'Сохранить оценку' : 'Выставить ' + totalFromCriteria + ' баллов'}
+            {isGraded ? 'Сохранить оценку' : `Выставить ${totalFromCriteria} баллов`}
           </button>
         </div>
       </div>
+
+      <FullscreenTextReader
+        text={plainText}
+        title="Текст сочинения"
+        isOpen={fullscreenOpen}
+        onClose={() => setFullscreenOpen(false)}
+      />
     </div>
   );
 }

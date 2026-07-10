@@ -30,6 +30,7 @@ import { invalidateCache } from '../lib/api';
 import EssayGradingPanel from '../components/EssayGradingPanel';
 import WrittenGradingPanel from '../components/WrittenGradingPanel';
 import { EGE_ESSAY_MAX_SCORE, FINAL_ESSAY_MAX_SCORE, criteriaKindFromBlockType, detectCriteriaKindFromSubmission } from '../utils/essayCriteria';
+import { parseSubmissionQuestion } from '../utils/submissionQuestion';
 
 const API_URL = 'https://prepodmgy.ru/api';
 
@@ -65,6 +66,7 @@ export default function CuratorDashboard() {
   const [oralScore, setOralScore] = useState<number | ''>('');
   const [oralComment, setOralComment] = useState('');
   const [recentlyGradedIds, setRecentlyGradedIds] = useState<Set<string>>(new Set());
+  const [limitToSelectedLesson, setLimitToSelectedLesson] = useState(false);
   const [toast, setToast] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
 
   const showToast = (text: string, type: 'success' | 'error' = 'success') => {
@@ -135,10 +137,27 @@ export default function CuratorDashboard() {
     setSelectedLessonId(firstLesson?.id || null);
   }, [selectedGroupId, groups, selectedCourseId, selectedGroup]);
 
+  const courseLessonMeta = useMemo(() => {
+    const byId = new Map<string, { title: string; themeTitle: string }>();
+    selectedCourse?.themes?.forEach((theme: any) => {
+      theme.lessons?.forEach((lesson: any) => {
+        byId.set(lesson.id, { title: lesson.title, themeTitle: theme.title });
+      });
+    });
+    return byId;
+  }, [selectedCourse]);
+
+  const courseLessonIds = useMemo(() => new Set(courseLessonMeta.keys()), [courseLessonMeta]);
+
   const lessonSubmissions = useMemo(() => {
-    if (!selectedLesson || !activeStudentId) return [];
-    return submissions.filter((sub: any) => sub.studentId === activeStudentId && sub.lessonId === selectedLesson.id);
-  }, [submissions, activeStudentId, selectedLesson?.id]);
+    if (!activeStudentId || !selectedCourse) return [];
+    return submissions.filter((sub: any) => {
+      if (sub.studentId !== activeStudentId) return false;
+      if (!courseLessonIds.has(sub.lessonId)) return false;
+      if (limitToSelectedLesson && selectedLesson && sub.lessonId !== selectedLesson.id) return false;
+      return true;
+    });
+  }, [submissions, activeStudentId, selectedCourse, courseLessonIds, limitToSelectedLesson, selectedLesson?.id]);
 
   const writtenSubmissions = lessonSubmissions.filter(
     (sub: any) =>
@@ -154,36 +173,53 @@ export default function CuratorDashboard() {
 
   const pendingCountByStudent = useMemo(() => {
     const map = new Map<string, number>();
-    if (!selectedLesson) return map;
+    if (!selectedCourse) return map;
     submissions.forEach((sub: any) => {
-      if (sub.lessonId !== selectedLesson.id) return;
+      if (!courseLessonIds.has(sub.lessonId)) return;
       if (sub.status !== 'PENDING') return;
       if (sub.isAutoGraded) return;
       if (String(sub.blockId || '').startsWith('oral-')) return;
       map.set(sub.studentId, (map.get(sub.studentId) || 0) + 1);
     });
     return map;
-  }, [submissions, selectedLesson?.id]);
+  }, [submissions, courseLessonIds, selectedCourse]);
+
+  const pendingByLesson = useMemo(() => {
+    const map = new Map<string, number>();
+    submissions.forEach((sub: any) => {
+      if (!courseLessonIds.has(sub.lessonId)) return;
+      if (sub.status !== 'PENDING') return;
+      if (sub.isAutoGraded) return;
+      if (String(sub.blockId || '').startsWith('oral-')) return;
+      map.set(sub.lessonId, (map.get(sub.lessonId) || 0) + 1);
+    });
+    return map;
+  }, [submissions, courseLessonIds]);
 
   const totalPendingForLesson = useMemo(() => {
-    if (!selectedLesson) return 0;
+    if (!selectedCourse) return 0;
     return submissions.filter(
       (sub: any) =>
-        sub.lessonId === selectedLesson.id &&
+        courseLessonIds.has(sub.lessonId) &&
         sub.status === 'PENDING' &&
         !sub.isAutoGraded &&
         !String(sub.blockId || '').startsWith('oral-'),
     ).length;
-  }, [submissions, selectedLesson?.id]);
+  }, [submissions, courseLessonIds, selectedCourse]);
 
   const submittedStudentIds = useMemo(() => {
-    if (!selectedLesson) return new Set<string>();
+    if (!selectedCourse) return new Set<string>();
     return new Set(
       submissions
-        .filter((sub: any) => sub.lessonId === selectedLesson.id && !String(sub.blockId || '').startsWith('oral-'))
+        .filter(
+          (sub: any) =>
+            courseLessonIds.has(sub.lessonId) &&
+            !String(sub.blockId || '').startsWith('oral-') &&
+            (!limitToSelectedLesson || !selectedLesson || sub.lessonId === selectedLesson.id),
+        )
         .map((sub: any) => sub.studentId),
     );
-  }, [submissions, selectedLesson?.id]);
+  }, [submissions, selectedCourse, courseLessonIds, limitToSelectedLesson, selectedLesson?.id]);
 
   const filteredStudents = (selectedGroup?.students || []).filter((student: any) => {
     const value = `${student.surname || ''} ${student.name || ''} ${student.email || ''}`.toLowerCase();
@@ -461,27 +497,40 @@ export default function CuratorDashboard() {
   };
 
   const renderSubmissionCard = (sub: any, index: number) => {
-    const [questionText, questionImage] = String(sub.question || '').split('|||IMG|||');
+    const { questionText, questionImage, sourceText } = parseSubmissionQuestion(sub.question);
+    const lessonMeta = courseLessonMeta.get(sub.lessonId);
+    const lessonLabel = sub.lessonTitle || lessonMeta?.title || 'Урок';
     const isGraded = sub.status === 'GRADED';
     const isEssay = isEssaySubmission(sub);
 
     if (isEssay && !sub.isAutoGraded) {
       return (
         <div key={sub.id} className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
-          <div className="p-6 md:p-8 bg-gradient-to-br from-purple-50 to-indigo-50 border-b border-gray-100">
-            <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
+          <div className="p-5 md:p-6 bg-gradient-to-br from-purple-50 to-indigo-50 border-b border-gray-100">
+            <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
               <span className="font-black text-xs uppercase tracking-widest text-purple-700 flex items-center gap-2">
-                <FileText className="w-4 h-4" /> Сочинение (ЕГЭ) {index + 1}
+                <FileText className="w-4 h-4" /> Сочинение {index + 1}
               </span>
-              <span className={`px-3 py-1 rounded-xl text-[10px] font-black uppercase ${isGraded ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
-                {isGraded ? 'Оценено' : 'На проверке'}
-              </span>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="px-3 py-1 rounded-xl text-[10px] font-black uppercase bg-white/80 text-indigo-700 border border-indigo-100">
+                  {lessonLabel}
+                </span>
+                <span className={`px-3 py-1 rounded-xl text-[10px] font-black uppercase ${isGraded ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+                  {isGraded ? 'Оценено' : 'На проверке'}
+                </span>
+              </div>
             </div>
-            <div className="text-gray-900 font-black theory-read-only mb-4">
+            <div className="text-gray-900 font-black theory-read-only mb-3">
               <ReactQuill theme="snow" value={questionText || ''} readOnly modules={{ toolbar: false }} />
             </div>
+            {sourceText && (
+              <div className="rounded-2xl border-2 border-amber-100 bg-amber-50/60 p-4 max-h-[200px] overflow-y-auto custom-scrollbar mb-3">
+                <p className="text-[10px] font-black uppercase tracking-widest text-amber-700 mb-2">Текст для анализа</p>
+                <div className="font-serif text-sm leading-relaxed whitespace-pre-wrap text-gray-800">{sourceText}</div>
+              </div>
+            )}
             {questionImage && (
-              <img src={getFullUrl(questionImage)} alt="Задание" className="max-h-80 rounded-3xl border border-gray-200 shadow-sm object-contain" />
+              <img src={getFullUrl(questionImage)} alt="Задание" className="max-h-60 rounded-2xl border border-gray-200 shadow-sm object-contain" />
             )}
           </div>
           <div className="p-6 md:p-8">
@@ -509,14 +558,19 @@ export default function CuratorDashboard() {
     if (!sub.isAutoGraded) {
       return (
         <div key={sub.id} className="bg-white rounded-3xl border border-gray-100 shadow-sm overflow-hidden">
-          <div className="p-6 md:p-8 bg-gray-50/70 border-b border-gray-100">
-            <div className="flex flex-wrap items-center justify-between gap-4 mb-5">
+          <div className="p-5 md:p-6 bg-gray-50/70 border-b border-gray-100">
+            <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
               <span className="font-black text-xs uppercase tracking-widest text-gray-500 flex items-center gap-2">
                 <PenTool className="w-4 h-4" /> Письменный ответ {index + 1}
               </span>
-              <span className={`px-3 py-1 rounded-xl text-[10px] font-black uppercase ${isGraded ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
-                {isGraded ? 'Оценено' : 'На проверке'}
-              </span>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="px-3 py-1 rounded-xl text-[10px] font-black uppercase bg-white text-gray-600 border border-gray-200">
+                  {lessonLabel}
+                </span>
+                <span className={`px-3 py-1 rounded-xl text-[10px] font-black uppercase ${isGraded ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+                  {isGraded ? 'Оценено' : 'На проверке'}
+                </span>
+              </div>
             </div>
             <div className="text-gray-900 font-black theory-read-only">
               <ReactQuill theme="snow" value={questionText || ''} readOnly modules={{ toolbar: false }} />
@@ -701,7 +755,7 @@ export default function CuratorDashboard() {
 
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <h3 className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">Сдали по выбранному уроку</h3>
+                <h3 className="text-[10px] font-black text-emerald-600 uppercase tracking-widest">Есть ответы по курсу</h3>
                 <span className="text-xs font-black text-emerald-600">{submittedStudents.length}</span>
               </div>
               {submittedStudents.length === 0 ? (
@@ -757,21 +811,35 @@ export default function CuratorDashboard() {
                 </div>
 
                 <div>
-                  <div className="flex items-center justify-between gap-4 mb-3">
+                  <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
                     <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Уроки выбранного модуля</h3>
-                    <span className="text-xs font-black text-purple-500">{selectedTheme?.title || 'Модуль не выбран'}</span>
+                    <label className="flex items-center gap-2 text-xs font-bold text-gray-500 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={limitToSelectedLesson}
+                        onChange={(e) => setLimitToSelectedLesson(e.target.checked)}
+                        className="rounded border-gray-300 text-purple-600 focus:ring-purple-400"
+                      />
+                      Только выбранный урок
+                    </label>
                   </div>
                   <div className="flex gap-2 overflow-x-auto pb-2 custom-scrollbar">
                     {(selectedTheme?.lessons || []).map((lesson: any, index: number) => {
                       const active = selectedLesson?.id === lesson.id;
+                      const pendingHere = pendingByLesson.get(lesson.id) || 0;
                       return (
                         <button
                           key={lesson.id}
                           onClick={() => setSelectedLessonId(lesson.id)}
-                          className={`shrink-0 px-4 py-3 rounded-2xl border-2 text-left transition-all min-w-[190px] ${
+                          className={`shrink-0 px-4 py-3 rounded-2xl border-2 text-left transition-all min-w-[190px] relative ${
                             active ? 'bg-purple-600 border-purple-600 text-white shadow-lg shadow-purple-100' : 'bg-gray-50 border-gray-100 hover:border-purple-200 text-gray-700'
                           }`}
                         >
+                          {pendingHere > 0 && (
+                            <span className="absolute -top-1.5 -right-1.5 min-w-[1.25rem] h-5 px-1 rounded-full bg-red-500 text-white text-[10px] font-black flex items-center justify-center">
+                              {pendingHere}
+                            </span>
+                          )}
                           <p className={`text-[10px] font-black uppercase tracking-widest mb-1 ${active ? 'text-purple-100' : 'text-gray-400'}`}>Урок {index + 1}</p>
                           <p className="text-sm font-black truncate">{lesson.title}</p>
                         </button>
@@ -799,7 +867,8 @@ export default function CuratorDashboard() {
                           <div>
                             <h2 className="text-2xl font-black">{getStudentName(activeStudent)}</h2>
                             <p className="text-sm font-bold text-gray-400">
-                              {selectedCourse?.title || 'Курс'} / {selectedTheme?.title || 'Модуль'} / {selectedLesson?.title || 'Урок'}
+                              {selectedCourse?.title || 'Курс'}
+                              {limitToSelectedLesson && selectedLesson ? ` / ${selectedLesson.title}` : ' — все уроки курса'}
                             </p>
                           </div>
                         </div>
@@ -811,7 +880,7 @@ export default function CuratorDashboard() {
 
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                       {[
-                        { id: 'written', label: 'Письменные ответы', icon: FileText, count: writtenSubmissions.length },
+                        { id: 'written', label: 'Письменные и сочинения', icon: FileText, count: writtenSubmissions.length },
                         { id: 'tests', label: 'Тесты', icon: CheckSquare, count: testSubmissions.length },
                         { id: 'history', label: 'История', icon: History, count: historySubmissions.length },
                       ].map(tab => {
@@ -834,7 +903,11 @@ export default function CuratorDashboard() {
                         <div className="bg-white rounded-[2rem] border border-gray-100 p-10 text-center">
                           <BookOpen className="w-14 h-14 mx-auto mb-4 text-gray-200" />
                           <h3 className="text-xl font-black text-gray-900 mb-2">В этой вкладке пока пусто</h3>
-                          <p className="text-gray-500 font-bold">Устный ответ всё равно можно поставить ниже.</p>
+                          <p className="text-gray-500 font-bold">
+                            {limitToSelectedLesson
+                              ? 'Нет ответов по выбранному уроку. Снимите галочку «Только выбранный урок», чтобы увидеть работы по всему курсу.'
+                              : 'Нет ответов по этому курсу у выбранного ученика. Проверьте, что выбран верный курс и ученик уже отправил работу.'}
+                          </p>
                         </div>
                       ) : (
                         tabSubmissions.map((sub: any, index: number) => renderSubmissionCard(sub, index))

@@ -55,4 +55,14 @@
   .text-muted {
     @apply text-gray-500 font-medium;
   }
+
+  .score-field-no-spin {
+    -moz-appearance: textfield;
+    appearance: textfield;
+  }
+  .score-field-no-spin::-webkit-outer-spin-button,
+  .score-field-no-spin::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
 }

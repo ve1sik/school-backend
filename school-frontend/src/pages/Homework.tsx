@@ -60,7 +60,14 @@ export default function Homework() {
               }
 
               if (isHw) {
-                const submission = mySubs.find((s: any) => s.lesson_id === lesson.id || s.lessonId === lesson.id);
+                const lessonSubs = mySubs.filter(
+                  (s: any) => (s.lesson_id || s.lessonId) === lesson.id,
+                );
+                const submission =
+                  lessonSubs.find((s: any) => s.status === 'PENDING') ||
+                  lessonSubs.find((s: any) => s.status === 'REVISION') ||
+                  lessonSubs.find((s: any) => s.status === 'GRADED') ||
+                  lessonSubs[0];
                 
                 let status = 'TODO';
                 let score = null;

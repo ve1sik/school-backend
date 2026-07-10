@@ -26,6 +26,7 @@ import EssayPlainEditor from '../components/EssayPlainEditor';
 import EssayResultView from '../components/EssayResultView';
 import AskCuratorButton from '../components/AskCuratorButton';
 import EssayStudentTask from '../components/EssayStudentTask';
+import { buildSubmissionQuestion } from '../utils/submissionQuestion';
 import { EGE_ESSAY_MAX_SCORE, FINAL_ESSAY_MAX_SCORE, criteriaKindFromBlockType } from '../utils/essayCriteria';
 import { isManualGradeBlock, isUnlimitedAttempts } from '../utils/lessonBlockTypes';
 import { checkSpelling, type SpellError } from '../utils/spellCheck';
@@ -262,7 +263,7 @@ const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswer
         <div className="px-3 py-1.5 rounded-md bg-gray-100 text-gray-500 text-[10px] font-black uppercase tracking-widest">
           Макс. балл: {maxScore}
         </div>
-        {block.source && (
+        {block.source && block.type !== 'essay' && block.type !== 'essay_final' && (
           <div className="px-3 py-1.5 rounded-md bg-amber-50 text-amber-600 text-[10px] font-black uppercase tracking-widest border border-amber-100">
             Источник: {block.source}
           </div>
@@ -809,7 +810,7 @@ export default function CourseView() {
     let finalAnswerString = selected.join(', ');
 
     const img = block.questionImage || block.image;
-    const questionWithImage = img ? `${block.question}|||IMG|||${img}` : block.question;
+    const questionWithImage = buildSubmissionQuestion(block);
 
     if (isManualGradeBlock(block.type)) {
       isPending = true;
