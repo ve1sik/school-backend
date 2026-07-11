@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { ChevronLeft, ChevronRight, Video, Clock, Link as LinkIcon, Plus, X, Trash2, CalendarDays, Loader2, MapPin, AlertCircle, Sparkles, ExternalLink, ArrowRight } from 'lucide-react';
+import { useState, useEffect, useMemo } from 'react';
+import { ChevronLeft, ChevronRight, Video, Clock, Link as LinkIcon, Plus, X, Trash2, CalendarDays, Loader2, MapPin, AlertCircle, Sparkles, ExternalLink, ArrowRight, Search, Users } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 import { decodeToken, getToken } from '../lib/auth';
@@ -68,6 +68,7 @@ export default function Schedule() {
   }, [canManageSchedule]);
 
   const [showAddModal, setShowAddModal] = useState(false);
+  const [groupSearch, setGroupSearch] = useState('');
   const [selectedDayEvents, setSelectedDayEvents] = useState<any[]>([]);
   const [showDayModal, setShowDayModal] = useState(false);
   const [selectedDateTitle, setSelectedDateTitle] = useState('');
@@ -85,9 +86,20 @@ export default function Schedule() {
     useRepeat: false,
   });
 
+  const filteredGroups = useMemo(() => {
+    const q = groupSearch.trim().toLowerCase();
+    if (!q) return groups;
+    return groups.filter((g) => String(g.title || '').toLowerCase().includes(q));
+  }, [groups, groupSearch]);
+
+  const selectedGroupTitle = useMemo(
+    () => groups.find((g) => g.id === formData.group_id)?.title || '',
+    [groups, formData.group_id],
+  );
+
   useEffect(() => {
-    fetchEvents();
-  }, []);
+    if (showAddModal) setGroupSearch('');
+  }, [showAddModal]);
 
   const fetchEvents = async () => {
     try {
@@ -97,6 +109,10 @@ export default function Schedule() {
     } catch (err) { console.error('Ошибка загрузки расписания', err); }
     finally { setIsLoading(false); }
   };
+
+  useEffect(() => {
+    fetchEvents();
+  }, []);
 
   const handleCreateEvent = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -119,6 +135,7 @@ export default function Schedule() {
       await axios.post(`${API_URL}/schedule`, payload, { headers: { Authorization: `Bearer ${token}` } });
 
       setShowAddModal(false);
+      setGroupSearch('');
       setFormData({
         title: '',
         date: '',
@@ -368,6 +385,82 @@ export default function Schedule() {
                   <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 ml-1">Название</label>
                   <input type="text" value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} required className="w-full px-5 py-4 bg-gray-50 border border-gray-100 focus:border-[#5A4BFF] focus:bg-white rounded-2xl outline-none font-bold transition-all text-lg" placeholder="Разбор варианта №5" />
                 </div>
+
+                {canManageSchedule && (
+                  <div>
+                    <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 ml-1">
+                      Для какой группы
+                    </label>
+                    <p className="text-xs font-medium text-gray-400 mb-3 ml-1">
+                      Выберите учебную группу или оставьте «Все ученики» для общего события
+                    </p>
+
+                    {formData.group_id && selectedGroupTitle && (
+                      <div className="mb-3 flex items-center justify-between gap-3 px-4 py-3 bg-indigo-50 border border-indigo-100 rounded-2xl">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <Users className="w-4 h-4 text-indigo-500 shrink-0" />
+                          <span className="font-black text-indigo-900 truncate">{selectedGroupTitle}</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setFormData({ ...formData, group_id: '' })}
+                          className="shrink-0 p-1.5 text-indigo-400 hover:text-indigo-700 hover:bg-white rounded-lg transition-colors"
+                          title="Сбросить выбор"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    )}
+
+                    <div className="relative mb-2">
+                      <Search className="w-4 h-4 absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                      <input
+                        type="text"
+                        value={groupSearch}
+                        onChange={(e) => setGroupSearch(e.target.value)}
+                        className="w-full pl-11 pr-5 py-3.5 bg-gray-50 border border-gray-100 focus:border-[#5A4BFF] focus:bg-white rounded-2xl outline-none font-bold transition-all text-sm"
+                        placeholder="Поиск группы по названию…"
+                      />
+                    </div>
+
+                    <div className="max-h-[200px] overflow-y-auto rounded-2xl border border-gray-100 bg-gray-50/80 custom-scrollbar divide-y divide-gray-100">
+                      <button
+                        type="button"
+                        onClick={() => setFormData({ ...formData, group_id: '' })}
+                        className={`w-full text-left px-4 py-3 font-bold text-sm transition-colors ${
+                          !formData.group_id
+                            ? 'bg-[#5A4BFF] text-white'
+                            : 'hover:bg-white text-gray-700'
+                        }`}
+                      >
+                        Все ученики
+                      </button>
+                      {groups.length === 0 ? (
+                        <p className="px-4 py-3 text-sm font-medium text-gray-400">Нет доступных учебных групп</p>
+                      ) : filteredGroups.length === 0 ? (
+                        <p className="px-4 py-3 text-sm font-medium text-gray-400">Ничего не найдено по запросу «{groupSearch}»</p>
+                      ) : (
+                        filteredGroups.map((g) => (
+                          <button
+                            key={g.id}
+                            type="button"
+                            onClick={() => {
+                              setFormData({ ...formData, group_id: g.id });
+                              setGroupSearch('');
+                            }}
+                            className={`w-full text-left px-4 py-3 font-bold text-sm transition-colors truncate ${
+                              formData.group_id === g.id
+                                ? 'bg-[#5A4BFF] text-white'
+                                : 'hover:bg-white text-gray-700'
+                            }`}
+                          >
+                            {g.title}
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                )}
                 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
@@ -401,22 +494,6 @@ export default function Schedule() {
                       className="w-full px-5 py-4 bg-gray-50 border border-gray-100 focus:border-[#5A4BFF] focus:bg-white rounded-2xl outline-none font-bold transition-all"
                       placeholder="Например: Разбор пробника"
                     />
-                  </div>
-                )}
-
-                {groups.length > 0 && (
-                  <div>
-                    <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 ml-1">Группа (необязательно)</label>
-                    <select
-                      value={formData.group_id}
-                      onChange={e => setFormData({ ...formData, group_id: e.target.value })}
-                      className="w-full px-5 py-4 bg-gray-50 border border-gray-100 focus:border-[#5A4BFF] focus:bg-white rounded-2xl outline-none font-bold cursor-pointer transition-all appearance-none"
-                    >
-                      <option value="">Все ученики</option>
-                      {groups.map((g) => (
-                        <option key={g.id} value={g.id}>{g.title}</option>
-                      ))}
-                    </select>
                   </div>
                 )}
 
