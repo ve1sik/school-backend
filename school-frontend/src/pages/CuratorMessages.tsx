@@ -100,16 +100,16 @@ export default function CuratorMessages() {
   if (isLoadingContacts) return <div className="h-full w-full flex items-center justify-center"><Loader2 className="w-12 h-12 animate-spin text-[#5A4BFF]" /></div>;
 
   return (
-    <div className="flex flex-col md:flex-row h-[100vh] md:h-[calc(100vh-40px)] bg-[#F4F7FE] font-sans text-gray-900 overflow-hidden rounded-none md:rounded-[3rem] shadow-2xl border border-white/50">
+    <div className="flex flex-col md:flex-row h-[calc(100dvh-5rem)] bg-[#F4F7FE] font-sans text-gray-900 overflow-hidden rounded-none md:rounded-[2rem] shadow-2xl border border-white/50">
       
       {/* ЛЕВАЯ ПАНЕЛЬ: СПИСОК УЧЕНИКОВ */}
       <aside className={`w-full md:max-w-[380px] bg-white border-r border-gray-100 flex-col h-full shrink-0 z-20 ${activeChatId ? 'hidden md:flex' : 'flex'}`}>
-        <div className="p-8 border-b border-gray-50">
-          <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-gray-400 hover:text-purple-600 text-[10px] font-black uppercase tracking-widest transition-colors mb-6">
+        <div className="p-5 md:p-6 border-b border-gray-50 shrink-0">
+          <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-gray-400 hover:text-purple-600 text-[10px] font-black uppercase tracking-widest transition-colors mb-4">
             <ArrowLeft className="w-4 h-4" /> Назад
           </button>
 
-          <div className="flex items-center gap-3 mb-8">
+          <div className="flex items-center gap-3 mb-4">
             <div className="w-12 h-12 bg-purple-100 rounded-2xl flex items-center justify-center text-purple-600">
               <ShieldCheck className="w-6 h-6" />
             </div>

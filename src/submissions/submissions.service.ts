@@ -15,7 +15,7 @@ export class SubmissionsService {
 
   private async getCuratorAccessScope(curatorId: string) {
     const groups = await this.prisma.group.findMany({
-      where: { curator_id: curatorId },
+      where: { curator_id: curatorId, group_kind: 'STUDY' },
       include: {
         students: { select: { id: true } },
         courses: { select: { id: true } },
@@ -24,14 +24,6 @@ export class SubmissionsService {
 
     const studentIds = new Set(groups.flatMap((g) => g.students.map((s) => s.id)));
     const courseIds = new Set(groups.flatMap((g) => g.courses.map((c) => c.id)));
-
-    if (studentIds.size > 0) {
-      const enrollments = await this.prisma.enrollment.findMany({
-        where: { user_id: { in: [...studentIds] } },
-        select: { course_id: true },
-      });
-      enrollments.forEach((e) => courseIds.add(e.course_id));
-    }
 
     return {
       studentIds: [...studentIds],
@@ -72,11 +64,7 @@ export class SubmissionsService {
     });
     if (linked) return true;
 
-    const enrolled = await this.prisma.enrollment.findFirst({
-      where: { user_id: studentId, course_id: courseId },
-      select: { id: true },
-    });
-    return !!enrolled;
+    return false;
   }
 
   private mapSubmissionForCurator(sub: any) {
@@ -118,6 +106,31 @@ export class SubmissionsService {
 
   // Студент сдаёт работу (письменные — на проверку куратору)
   async createSubmission(userId: string, body: any) {
+    const existing = await this.prisma.submission.findFirst({
+      where: {
+        user_id: userId,
+        lesson_id: body.lessonId,
+        block_id: body.blockId,
+        status: 'REVISION',
+      },
+      orderBy: { created_at: 'desc' },
+    });
+
+    if (existing) {
+      return this.prisma.submission.update({
+        where: { id: existing.id },
+        data: {
+          answer: body.answer,
+          question: body.question ?? existing.question,
+          block_type: body.blockType || body.block_type || existing.block_type,
+          max_score: body.maxScore || existing.max_score || 3,
+          status: 'PENDING',
+          score: null,
+          comment: null,
+        },
+      });
+    }
+
     return this.prisma.submission.create({
       data: {
         user_id: userId,

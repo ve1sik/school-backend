@@ -291,10 +291,10 @@ export default function FlashcardStudy() {
 
   // ── STUDY SCREEN ──
   return (
-    <div className="min-h-[70vh] bg-gradient-to-br from-slate-900 to-indigo-950 flex flex-col rounded-[2rem] overflow-hidden">
+    <div className="h-[calc(100dvh-5.5rem)] bg-gradient-to-br from-slate-900 to-indigo-950 flex flex-col rounded-[2rem] overflow-hidden">
 
       {/* TOP BAR */}
-      <div className="flex items-center gap-4 p-4 md:p-6">
+      <div className="flex items-center gap-4 p-3 md:p-4 shrink-0">
         <button onClick={() => { setPhase('home'); fetchHome(); }}
           className="p-2 text-white/60 hover:text-white transition-colors">
           <ChevronLeft className="w-6 h-6" />
@@ -306,13 +306,13 @@ export default function FlashcardStudy() {
       </div>
 
       {/* CARD AREA */}
-      <div className="flex-1 flex flex-col items-center justify-center p-4 md:p-8 gap-8">
+      <div className="flex-1 min-h-0 flex flex-col items-center p-3 md:p-4 gap-3">
         {current && (
           <>
-            <p className="text-white/40 font-bold text-xs uppercase tracking-widest">{current.deck.title}</p>
+            <p className="text-white/40 font-bold text-xs uppercase tracking-widest shrink-0">{current.deck.title}</p>
 
             {/* 3D FLIP CARD */}
-            <div className="w-full max-w-4xl h-[62vh] min-h-[420px] cursor-pointer" style={{ perspective: '1000px' }}
+            <div className="flex-1 min-h-0 w-full max-w-4xl cursor-pointer" style={{ perspective: '1000px' }}
               onClick={() => !isFlipped && setIsFlipped(true)}>
               <motion.div
                 animate={{ rotateY: isFlipped ? 180 : 0 }}
@@ -321,33 +321,39 @@ export default function FlashcardStudy() {
               >
                 {/* FRONT */}
                 <div style={{ backfaceVisibility: 'hidden', position: 'absolute', inset: 0 }}
-                  className="bg-white rounded-[2rem] flex flex-col items-center justify-center p-5 md:p-8 shadow-2xl shadow-black/30 overflow-hidden">
-                  <div className="absolute top-4 left-4 px-3 py-1 bg-indigo-50 rounded-full text-indigo-500 text-xs font-black z-10">Вопрос</div>
-                  {current.front_image && (
-                    <img
-                      src={current.front_image.startsWith('http') ? current.front_image : `https://prepodmgy.ru/${current.front_image}`}
-                      alt="front"
-                      className={`w-full max-w-full ${current.front ? 'max-h-[42vh] md:max-h-[48vh]' : 'max-h-[52vh] md:max-h-[56vh]'} object-contain rounded-2xl mb-4 bg-gray-50 border border-gray-100`}
-                    />
+                  className="bg-white rounded-[2rem] flex flex-col min-h-0 p-4 md:p-6 shadow-2xl shadow-black/30 overflow-hidden">
+                  <div className="absolute top-3 left-3 px-3 py-1 bg-indigo-50 rounded-full text-indigo-500 text-xs font-black z-10">Вопрос</div>
+                  <div className="flex-1 min-h-0 flex flex-col items-center justify-center w-full gap-3">
+                    {current.front_image && (
+                      <img
+                        src={current.front_image.startsWith('http') ? current.front_image : `https://prepodmgy.ru/${current.front_image}`}
+                        alt="front"
+                        className="w-full h-full max-h-full object-contain rounded-2xl bg-gray-50 border border-gray-100"
+                      />
+                    )}
+                    {current.front && <p className="text-xl md:text-2xl font-black text-gray-900 text-center leading-tight">{current.front}</p>}
+                    {!current.front && !current.front_image && <p className="text-gray-300 font-bold">—</p>}
+                  </div>
+                  {!isFlipped && (
+                    <p className="text-xs text-gray-400 font-medium text-center shrink-0">Нажми, чтобы увидеть ответ</p>
                   )}
-                  {current.front && <p className="text-2xl md:text-3xl font-black text-gray-900 text-center leading-tight">{current.front}</p>}
-                  {!current.front && !current.front_image && <p className="text-gray-300 font-bold">—</p>}
-                  <p className="mt-4 text-sm text-gray-400 font-medium">Нажми, чтобы увидеть ответ</p>
                 </div>
 
                 {/* BACK */}
                 <div style={{ backfaceVisibility: 'hidden', transform: 'rotateY(180deg)', position: 'absolute', inset: 0 }}
-                  className="bg-gradient-to-br from-indigo-600 to-violet-600 rounded-[2rem] flex flex-col items-center justify-center p-5 md:p-8 shadow-2xl shadow-black/30 overflow-hidden">
-                  <div className="absolute top-4 left-4 px-3 py-1 bg-white/20 rounded-full text-white text-xs font-black z-10">Ответ</div>
-                  {current.back_image && (
-                    <img
-                      src={current.back_image.startsWith('http') ? current.back_image : `https://prepodmgy.ru/${current.back_image}`}
-                      alt="back"
-                      className={`w-full max-w-full ${current.back ? 'max-h-[42vh] md:max-h-[48vh]' : 'max-h-[52vh] md:max-h-[56vh]'} object-contain rounded-2xl mb-4 bg-white/10 border border-white/20`}
-                    />
-                  )}
-                  {current.back && <p className="text-2xl md:text-3xl font-black text-white text-center leading-tight">{current.back}</p>}
-                  {!current.back && !current.back_image && <p className="text-white/50 font-bold">—</p>}
+                  className="bg-gradient-to-br from-indigo-600 to-violet-600 rounded-[2rem] flex flex-col min-h-0 p-4 md:p-6 shadow-2xl shadow-black/30 overflow-hidden">
+                  <div className="absolute top-3 left-3 px-3 py-1 bg-white/20 rounded-full text-white text-xs font-black z-10">Ответ</div>
+                  <div className="flex-1 min-h-0 flex flex-col items-center justify-center w-full gap-3">
+                    {current.back_image && (
+                      <img
+                        src={current.back_image.startsWith('http') ? current.back_image : `https://prepodmgy.ru/${current.back_image}`}
+                        alt="back"
+                        className="w-full h-full max-h-full object-contain rounded-2xl bg-white/10 border border-white/20"
+                      />
+                    )}
+                    {current.back && <p className="text-xl md:text-2xl font-black text-white text-center leading-tight">{current.back}</p>}
+                    {!current.back && !current.back_image && <p className="text-white/50 font-bold">—</p>}
+                  </div>
                 </div>
               </motion.div>
             </div>
@@ -356,7 +362,7 @@ export default function FlashcardStudy() {
             <AnimatePresence>
               {isFlipped && (
                 <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }}
-                  className="w-full max-w-lg grid grid-cols-3 gap-3">
+                  className="w-full max-w-lg grid grid-cols-3 gap-2 shrink-0">
                   {RATINGS.map(({ rating, label, color, bg }) => (
                     <button key={rating} onClick={() => handleRate(rating)}
                       className={`py-4 rounded-2xl font-black border-2 transition-all active:scale-95 ${bg} ${color}`}>
@@ -368,7 +374,7 @@ export default function FlashcardStudy() {
             </AnimatePresence>
 
             {!isFlipped && (
-              <p className="text-white/30 font-medium text-sm">Сначала вспомни ответ, затем переверни карточку</p>
+              <p className="text-white/30 font-medium text-xs shrink-0">Сначала вспомни ответ, затем переверни карточку</p>
             )}
           </>
         )}

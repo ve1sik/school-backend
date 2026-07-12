@@ -161,7 +161,6 @@ const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswer
   const block = group.blocks[activeStep];
   if (!block) return null;
 
-  const selected = Array.isArray(testAnswers?.[block.id]) ? testAnswers[block.id] : [];
   const serverSubmission = submissions?.find((s: any) => s.blockId === block.id || s.block_id === block.id);
   
   let result = testResults?.[block.id];
@@ -183,8 +182,17 @@ const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswer
       }
     } else if (serverSubmission.status === 'REVIEW' || serverSubmission.status === 'PENDING') {
       result = 'PENDING';
+    } else if (serverSubmission.status === 'REVISION') {
+      result = 'REVISION';
     }
   }
+
+  const selected = (() => {
+    const fromState = Array.isArray(testAnswers?.[block.id]) ? testAnswers[block.id] : [];
+    if (fromState.length > 0 && fromState[0] && fromState[0] !== '<p><br></p>') return fromState;
+    if (result === 'REVISION' && serverSubmission?.answer) return [serverSubmission.answer];
+    return fromState;
+  })();
 
   const attemptsLeft = maxAttempts - currentAttempts;
   const isExhausted = attemptsLeft <= 0;
@@ -231,11 +239,13 @@ const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswer
                     else { bRes = 'ERROR'; bAttempts = b.maxAttempts || 3; }
                   } else bRes = 'GRADED';
                 } else if (sSub.status === 'REVIEW' || sSub.status === 'PENDING') bRes = 'PENDING';
+                else if (sSub.status === 'REVISION') bRes = 'REVISION';
               }
               const isActive = i === activeStep;
               let cls = 'w-7 h-7 rounded-full text-[11px] font-black border transition-all ';
               if (isActive) cls += 'bg-[#A855F7] border-[#A855F7] text-white';
               else if (bRes === 'SUCCESS' || bRes === 'GRADED') cls += 'bg-emerald-50 border-emerald-200 text-emerald-600';
+              else if (bRes === 'REVISION') cls += 'bg-orange-50 border-orange-200 text-orange-600';
               else if (bRes === 'PENDING') cls += 'bg-purple-50 border-purple-200 text-purple-600';
               else cls += 'bg-white border-gray-200 text-gray-500';
               return <button key={b.id} type="button" onClick={() => setActiveStep(i)} className={cls}>{i + 1}</button>;
@@ -311,6 +321,14 @@ const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswer
             </div>
             {block.type === 'written' && courseSpellCheck && spellErrors?.[block.id]?.length > 0 && (
               <SpellErrorsPanel errors={spellErrors[block.id]} />
+            )}
+          </motion.div>
+        )}
+        {result === 'REVISION' && serverSubmission && (
+          <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="bg-orange-50 border border-orange-200 p-4 rounded-xl mb-6">
+            <p className="text-lg font-black text-orange-800 flex items-center gap-2 mb-2">📝 На доработку</p>
+            {serverSubmission.comment && (
+              <p className="text-sm font-medium text-orange-700 whitespace-pre-wrap">{serverSubmission.comment}</p>
             )}
           </motion.div>
         )}
@@ -614,7 +632,7 @@ const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswer
           disabled={block.type === 'matching' ? (!isMatchingReady || isLocked) : (selected.length === 0 || selected[0] === '' || selected[0] === '<p><br></p>' || isLocked)}
           className={`w-full sm:w-auto px-10 py-4 rounded-xl font-black text-sm transition-all active:scale-95 disabled:opacity-40 uppercase tracking-wide ${isExhausted && !isUnlimitedAttempts(block.type) ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : result === 'ERROR' ? 'bg-[#FF4A6B] text-white shadow-lg' : result === 'GRADED' ? 'bg-emerald-500 text-white cursor-not-allowed' : 'bg-[#A855F7] text-white shadow-lg shadow-purple-500/30'}`}
         >
-          {result === 'PENDING' ? 'НА ПРОВЕРКЕ' : result === 'GRADED' ? 'ОЦЕНЕНО' : (isExhausted && !isUnlimitedAttempts(block.type) ? 'ЛИМИТ ИСЧЕРПАН' : result === 'ERROR' ? 'ЕЩЁ РАЗ' : 'ОТВЕТИТЬ')}
+          {result === 'PENDING' ? 'НА ПРОВЕРКЕ' : result === 'GRADED' ? 'ОЦЕНЕНО' : result === 'REVISION' ? 'ОТПРАВИТЬ СНОВА' : (isExhausted && !isUnlimitedAttempts(block.type) ? 'ЛИМИТ ИСЧЕРПАН' : result === 'ERROR' ? 'ЕЩЁ РАЗ' : 'ОТВЕТИТЬ')}
         </button>
       </div>
     </div>

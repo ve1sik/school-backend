@@ -5,12 +5,54 @@ import { PrismaService } from '../prisma/prisma.service';
 export class MessagesService {
   constructor(private prisma: PrismaService) {}
 
+  private async getContactUserIds(userId: string, role: string): Promise<string[] | null> {
+    if (role === 'STUDENT') {
+      const groups = await this.prisma.group.findMany({
+        where: { students: { some: { id: userId } }, group_kind: 'STUDY' },
+        select: { curator_id: true, teacher_id: true },
+      });
+      const staffIds = new Set<string>();
+      for (const group of groups) {
+        if (group.curator_id) staffIds.add(group.curator_id);
+        if (group.teacher_id) staffIds.add(group.teacher_id);
+      }
+      const admins = await this.prisma.user.findMany({
+        where: { role: 'ADMIN' },
+        select: { id: true },
+      });
+      admins.forEach((a) => staffIds.add(a.id));
+      return [...staffIds];
+    }
+
+    if (role === 'CURATOR') {
+      const groups = await this.prisma.group.findMany({
+        where: { curator_id: userId, group_kind: 'STUDY' },
+        select: { students: { select: { id: true } } },
+      });
+      return [...new Set(groups.flatMap((g) => g.students.map((s) => s.id)))];
+    }
+
+    if (role === 'TEACHER') {
+      const groups = await this.prisma.group.findMany({
+        where: { teacher_id: userId, group_kind: 'STUDY' },
+        select: { students: { select: { id: true } } },
+      });
+      return [...new Set(groups.flatMap((g) => g.students.map((s) => s.id)))];
+    }
+
+    return null;
+  }
+
   // Контакты + счётчик непрочитанных. Без N+1: один groupBy вместо count на каждого.
   async getContacts(userId: string, role: string) {
+    const scopedIds = await this.getContactUserIds(userId, role);
+
     const where =
-      role === 'STUDENT'
-        ? { role: { in: ['CURATOR', 'TEACHER', 'ADMIN'] as any } }
-        : { role: 'STUDENT' as any };
+      scopedIds !== null
+        ? { id: { in: scopedIds.length > 0 ? scopedIds : ['__none__'] } }
+        : role === 'STUDENT'
+          ? { role: { in: ['CURATOR', 'TEACHER', 'ADMIN'] as any } }
+          : { role: 'STUDENT' as any };
 
     const users = await this.prisma.user.findMany({
       where,

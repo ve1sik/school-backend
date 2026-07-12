@@ -133,12 +133,12 @@ export default function Messages() {
   if (isLoadingContacts) return <div className="h-full w-full flex items-center justify-center"><Loader2 className="w-12 h-12 animate-spin text-[#5A4BFF]" /></div>;
 
   return (
-    <div className="max-w-7xl mx-auto h-[calc(100vh-150px)] md:h-[calc(100vh-100px)] flex flex-col pb-6 pt-2 md:pt-4">
-      <div className="mb-4 md:mb-6">
-        <h1 className="text-2xl md:text-4xl font-black tracking-tight text-gray-900">Сообщения</h1>
+    <div className="max-w-7xl mx-auto h-[calc(100dvh-5rem)] flex flex-col min-h-0">
+      <div className="shrink-0 mb-2 md:mb-3">
+        <h1 className="text-2xl md:text-3xl font-black tracking-tight text-gray-900">Сообщения</h1>
       </div>
 
-      <div className="flex-1 flex gap-4 md:gap-6 overflow-hidden">
+      <div className="flex-1 min-h-0 flex gap-3 md:gap-4 overflow-hidden">
         
         {/* ЛЕВАЯ ПАНЕЛЬ: СПИСОК ЧАТОВ */}
         <motion.div 

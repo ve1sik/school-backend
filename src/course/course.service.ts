@@ -127,6 +127,7 @@ export class CourseService {
           groups: {
             some: {
               curator_id: userId,
+              is_public: false,
             },
           },
         },
@@ -151,21 +152,14 @@ export class CourseService {
       return this.sanitizeCoursesForClient(courses, userRole);
     }
 
-    // Получаем курсы из прямых enrollments И из групп
-    const [enrollments, groups] = await Promise.all([
-      this.prisma.enrollment.findMany({
-        where: { user_id: userId },
-        select: { course_id: true },
-      }),
-      this.prisma.group.findMany({
-        where: { students: { some: { id: userId } } },
-        select: { courses: { select: { id: true } } },
-      }),
-    ]);
+    // Курсы только из групп ученика (учебные + потоки магазина), без «лишних» enrollments
+    const groups = await this.prisma.group.findMany({
+      where: { students: { some: { id: userId } }, group_kind: 'STUDY' },
+      select: { courses: { select: { id: true } } },
+    });
 
     const courseIdSet = new Set<string>();
-    enrollments.forEach(e => courseIdSet.add(e.course_id));
-    groups.forEach(g => g.courses.forEach(c => courseIdSet.add(c.id)));
+    groups.forEach((g) => g.courses.forEach((c) => courseIdSet.add(c.id)));
 
     if (courseIdSet.size === 0) {
       return [];

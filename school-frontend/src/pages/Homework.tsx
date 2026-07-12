@@ -104,6 +104,38 @@ export default function Homework() {
           });
         });
 
+        const lessonIdsInList = new Set(extractedHomeworks.map((h) => h.id));
+        mySubs
+          .filter((s: any) => s.status === 'REVISION')
+          .forEach((submission: any) => {
+            const lessonId = submission.lesson_id || submission.lessonId;
+            if (!lessonId || lessonIdsInList.has(lessonId)) return;
+
+            for (const course of coursesRes.data) {
+              let found = false;
+              for (const theme of course.themes || []) {
+                const lesson = theme.lessons?.find((l: any) => l.id === lessonId);
+                if (!lesson) continue;
+
+                extractedHomeworks.push({
+                  id: lesson.id,
+                  title: lesson.title,
+                  courseName: course.title,
+                  themeName: theme.title,
+                  status: 'REVISION',
+                  score: submission.score,
+                  maxScore: submission.max_score || lesson.max_score || 100,
+                  deadline: findDeadline(lesson.title),
+                  comment: submission.comment || null,
+                });
+                lessonIdsInList.add(lessonId);
+                found = true;
+                break;
+              }
+              if (found) break;
+            }
+          });
+
         setHomeworks(extractedHomeworks);
       } catch (error) {
         console.error('Ошибка загрузки ДЗ:', error);
