@@ -523,7 +523,7 @@ export default function AdminGroups() {
                   </div>
 
                   <button onClick={handleSaveGroupSettings} className="mt-auto w-full py-5 bg-gray-900 hover:bg-[#5A4BFF] text-white rounded-2xl font-black text-lg transition-all active:scale-95 shadow-xl flex items-center justify-center gap-3">
-                    <Save className="w-5 h-5" /> ОПУБЛИКОВАТЬ НА ВИТРИНУ
+                    <Save className="w-5 h-5" /> СОХРАНИТЬ
                   </button>
                 </div>
 

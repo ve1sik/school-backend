@@ -436,7 +436,13 @@ export class GroupService {
     };
   }
 
-  async approveApplication(appId: string, reviewerId: string, reviewerRole?: string, permissions: string[] = []) {
+  async approveApplication(
+    appId: string,
+    reviewerId: string,
+    reviewerRole?: string,
+    permissions: string[] = [],
+    accessDays?: number,
+  ) {
     const existing = await this.prisma.groupApplication.findUnique({ where: { id: appId } });
     if (!existing) throw new NotFoundException('Заявка не найдена');
     await this.ensureCanReviewGroupApplications(existing.group_id, reviewerId, reviewerRole, permissions);
@@ -445,7 +451,7 @@ export class GroupService {
       where: { id: appId },
       data: { status: 'APPROVED', reviewed_by: reviewerId, reviewed_at: new Date() },
     });
-    await this.enrollStudent(app.group_id, app.user_id);
+    await this.enrollStudent(app.group_id, app.user_id, reviewerId, reviewerRole, accessDays);
     return app;
   }
 
@@ -460,27 +466,54 @@ export class GroupService {
     });
   }
 
-  async enrollStudent(groupId: string, studentId: string, requesterId?: string, requesterRole?: string) {
+  async enrollStudent(
+    groupId: string,
+    studentId: string,
+    requesterId?: string,
+    requesterRole?: string,
+    accessDays?: number,
+  ) {
     await this.ensureCanManageGroupMembers(groupId, requesterId, requesterRole);
 
-    // 1. Привязываем ученика к группе
     const group = await this.prisma.group.update({
       where: { id: groupId },
       data: {
         students: { connect: { id: studentId } }
       },
-      include: { courses: true } // Сразу вытягиваем все курсы этой группы
+      include: { courses: true }
     });
 
-    // 2. Выдаем ученику доступы (Enrollments) ко всем курсам этой группы одним запросом
+    const days = Number(accessDays);
+    const expiresAt =
+      Number.isFinite(days) && days > 0
+        ? new Date(Date.now() + days * 24 * 60 * 60 * 1000)
+        : null;
+
     if (group.courses.length > 0) {
-      await this.prisma.enrollment.createMany({
-        data: group.courses.map((course) => ({ user_id: studentId, course_id: course.id })),
-        skipDuplicates: true,
-      });
+      for (const course of group.courses) {
+        await this.prisma.enrollment.upsert({
+          where: {
+            user_id_course_id: { user_id: studentId, course_id: course.id },
+          },
+          create: {
+            user_id: studentId,
+            course_id: course.id,
+            expires_at: expiresAt,
+          },
+          update: expiresAt
+            ? { expires_at: expiresAt }
+            : {},
+        });
+      }
     }
 
-    return { success: true, message: 'Студент успешно добавлен в группу и получил курсы' };
+    return {
+      success: true,
+      message: expiresAt
+        ? `Студент добавлен. Доступ до ${expiresAt.toLocaleDateString('ru-RU')}`
+        : 'Студент успешно добавлен в группу и получил курсы',
+      expires_at: expiresAt,
+    };
   }
 }
 

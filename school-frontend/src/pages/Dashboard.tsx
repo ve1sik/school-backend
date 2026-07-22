@@ -1379,8 +1379,8 @@ export default function Dashboard() {
             </motion.div>
           )}
 
-          {/* АНАЛИЗ ПО ПРАВИЛАМ ОРФОГРАФИИ */}
-          {spellAnalyticsEnabled && spellRuleRec && spellRuleRec.totalErrors > 0 && (
+          {/* АНАЛИЗ ПО ПРАВИЛАМ ОРФОГРАФИИ — отключён (пре/при, корни и т.п.) */}
+          {false && spellAnalyticsEnabled && spellRuleRec && spellRuleRec.totalErrors > 0 && (
             <motion.div
               variants={itemVariants}
               initial="hidden"
@@ -1425,8 +1425,8 @@ export default function Dashboard() {
             </motion.div>
           )}
 
-          {/* ГДЕ ОШИБСЯ — показываем только если на курсе включена проверка орфографии */}
-          {spellAnalyticsEnabled && (
+          {/* ГДЕ ОШИБСЯ — умная аналитика по пре/при, корням и т.п. отключена по запросу */}
+          {false && spellAnalyticsEnabled && (
             <motion.div
               variants={itemVariants}
               initial="hidden"

@@ -135,7 +135,11 @@ const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswer
 
   if (!isOpen) {
     return (
-      <div className="bg-white border border-gray-100 rounded-3xl p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-all hover:shadow-md hover:border-gray-200 mb-4">
+      <button
+        type="button"
+        onClick={() => setIsOpen(true)}
+        className="w-full text-left bg-white border border-gray-100 rounded-3xl p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-all hover:shadow-md hover:border-gray-200 mb-4 cursor-pointer"
+      >
         <div className="flex items-center gap-4 min-w-0">
           <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 ${group.iconColor}`}>
             <group.Icon className="w-6 h-6" />
@@ -145,10 +149,10 @@ const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswer
             <p className="text-sm font-medium text-gray-500 mt-1">{group.blocks?.length || 0} заданий внутри</p>
           </div>
         </div>
-        <button onClick={() => setIsOpen(true)} className="shrink-0 px-8 py-3.5 rounded-xl font-black text-sm transition-all active:scale-95 bg-gray-900 text-white hover:bg-black shadow-sm tracking-wide">
+        <span className="shrink-0 px-8 py-3.5 rounded-xl font-black text-sm bg-gray-900 text-white shadow-sm tracking-wide pointer-events-none">
           Приступить
-        </button>
-      </div>
+        </span>
+      </button>
     );
   }
 
@@ -295,7 +299,9 @@ const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswer
         {result === 'ERROR' && !isExhausted && (
           <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="bg-[#FF4A6B]/10 border border-[#FF4A6B]/20 p-4 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between font-bold mb-6 gap-2 text-[#FF4A6B]">
             <span className="flex items-center gap-2 text-lg"><XCircle className="w-6 h-6" /> Ошибка!</span>
-            <span className="text-sm bg-white/50 px-3 py-1 rounded-lg">Используй вторую попытку ❤️</span>
+            <span className="text-sm bg-white/50 px-3 py-1 rounded-lg">
+              {attemptsLeft === 1 ? 'Используй последнюю попытку ❤️' : attemptsLeft === 2 ? 'Используй вторую попытку ❤️' : `Осталось попыток: ${attemptsLeft}`}
+            </span>
           </motion.div>
         )}
         {result === 'ERROR' && isExhausted && (

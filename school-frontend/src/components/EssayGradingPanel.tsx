@@ -128,7 +128,7 @@ export default function EssayGradingPanel({
             value={plainText}
             onMouseUp={captureSelection}
             onTouchEnd={captureSelection}
-            className="w-full min-h-[140px] max-h-[220px] p-3 rounded-xl border-2 border-gray-100 bg-gray-50 font-serif text-sm leading-relaxed resize-y outline-none selection:bg-purple-200 overflow-y-auto"
+            className="w-full min-h-[220px] h-[min(55vh,520px)] p-3 rounded-xl border-2 border-gray-100 bg-gray-50 font-serif text-sm leading-relaxed resize outline-none selection:bg-purple-200 overflow-y-auto"
           />
 
           {errors.length > 0 && (

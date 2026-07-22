@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { ChevronLeft, ChevronRight, Video, Clock, Link as LinkIcon, Plus, X, Trash2, CalendarDays, Loader2, MapPin, AlertCircle, Sparkles, ExternalLink, ArrowRight, Search, Users } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Video, Clock, Link as LinkIcon, Plus, X, Trash2, CalendarDays, Loader2, MapPin, AlertCircle, Sparkles, ExternalLink, ArrowRight, Search, Users, Pencil } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 import { decodeToken, getToken } from '../lib/auth';
@@ -68,6 +68,7 @@ export default function Schedule() {
   }, [canManageSchedule]);
 
   const [showAddModal, setShowAddModal] = useState(false);
+  const [editingEventId, setEditingEventId] = useState<string | null>(null);
   const [groupSearch, setGroupSearch] = useState('');
   const [selectedDayEvents, setSelectedDayEvents] = useState<any[]>([]);
   const [showDayModal, setShowDayModal] = useState(false);
@@ -85,6 +86,22 @@ export default function Schedule() {
     repeat_weeks: 1,
     useRepeat: false,
   });
+
+  const resetForm = () => {
+    setEditingEventId(null);
+    setFormData({
+      title: '',
+      date: '',
+      time: '',
+      type: 'WEBINAR',
+      custom_type: '',
+      link: '',
+      description: '',
+      group_id: '',
+      repeat_weeks: 1,
+      useRepeat: false,
+    });
+  };
 
   const filteredGroups = useMemo(() => {
     const q = groupSearch.trim().toLowerCase();
@@ -114,11 +131,16 @@ export default function Schedule() {
     fetchEvents();
   }, []);
 
+  const buildEventDateTime = () => {
+    const time = formData.time.length === 5 ? `${formData.time}:00` : formData.time;
+    return new Date(`${formData.date}T${time}`).toISOString();
+  };
+
   const handleCreateEvent = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
       const token = getToken();
-      const eventDateTime = new Date(`${formData.date}T${formData.time}:00`).toISOString();
+      const eventDateTime = buildEventDateTime();
       const payload: any = {
         title: formData.title,
         description: formData.description,
@@ -128,28 +150,43 @@ export default function Schedule() {
         link: formData.link,
         group_id: formData.group_id || undefined,
       };
-      if (formData.useRepeat && formData.repeat_weeks > 1) {
+      if (!editingEventId && formData.useRepeat && formData.repeat_weeks > 1) {
         payload.repeat_weeks = Number(formData.repeat_weeks);
       }
 
-      await axios.post(`${API_URL}/schedule`, payload, { headers: { Authorization: `Bearer ${token}` } });
+      if (editingEventId) {
+        await axios.patch(`${API_URL}/schedule/${editingEventId}`, payload, { headers: { Authorization: `Bearer ${token}` } });
+      } else {
+        await axios.post(`${API_URL}/schedule`, payload, { headers: { Authorization: `Bearer ${token}` } });
+      }
 
       setShowAddModal(false);
       setGroupSearch('');
-      setFormData({
-        title: '',
-        date: '',
-        time: '',
-        type: 'WEBINAR',
-        custom_type: '',
-        link: '',
-        description: '',
-        group_id: '',
-        repeat_weeks: 1,
-        useRepeat: false,
-      });
+      resetForm();
+      setShowDayModal(false);
       fetchEvents();
-    } catch (err) { console.error('Ошибка создания', err); }
+    } catch (err) { console.error('Ошибка сохранения события', err); }
+  };
+
+  const openEditEvent = (ev: any) => {
+    const d = parseSafeDate(ev.date);
+    const hh = String(d.getHours()).padStart(2, '0');
+    const mm = String(d.getMinutes()).padStart(2, '0');
+    setEditingEventId(ev.id);
+    setFormData({
+      title: ev.title || '',
+      date: d.toISOString().slice(0, 10),
+      time: `${hh}:${mm}`,
+      type: ev.custom_type ? 'CUSTOM' : (ev.type || 'WEBINAR'),
+      custom_type: ev.custom_type || '',
+      link: ev.link || '',
+      description: ev.description || '',
+      group_id: ev.group_id || ev.group?.id || '',
+      repeat_weeks: 1,
+      useRepeat: false,
+    });
+    setShowDayModal(false);
+    setShowAddModal(true);
   };
 
   const handleDeleteEvent = async (id: string) => {
@@ -247,7 +284,7 @@ export default function Schedule() {
         </div>
         {canManageSchedule && (
           <button 
-            onClick={() => setShowAddModal(true)}
+            onClick={() => { resetForm(); setShowAddModal(true); }}
             className="px-8 py-4 bg-gray-900 hover:bg-black text-white rounded-2xl font-black flex items-center gap-2 transition-all active:scale-95 shadow-xl shadow-gray-900/20 group"
           >
             <Plus className="w-5 h-5 group-hover:rotate-90 transition-transform" /> ДОБАВИТЬ СОБЫТИЕ
@@ -338,7 +375,10 @@ export default function Schedule() {
                 {selectedDayEvents.map(ev => (
                   <div key={ev.id} className="p-6 rounded-[2rem] border border-gray-100 bg-white shadow-sm hover:shadow-md transition-shadow relative group">
                     {canManageSchedule && (
-                      <button onClick={() => handleDeleteEvent(ev.id)} className="absolute top-6 right-6 p-2 text-gray-300 hover:bg-rose-50 hover:text-rose-500 rounded-xl opacity-0 group-hover:opacity-100 transition-all"><Trash2 className="w-5 h-5"/></button>
+                      <div className="absolute top-6 right-6 flex gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                        <button type="button" onClick={() => openEditEvent(ev)} className="p-2 text-gray-300 hover:bg-indigo-50 hover:text-indigo-600 rounded-xl"><Pencil className="w-5 h-5"/></button>
+                        <button type="button" onClick={() => handleDeleteEvent(ev.id)} className="p-2 text-gray-300 hover:bg-rose-50 hover:text-rose-500 rounded-xl"><Trash2 className="w-5 h-5"/></button>
+                      </div>
                     )}
                     
                     <div className="flex items-center gap-2 mb-4 flex-wrap">
@@ -373,10 +413,10 @@ export default function Schedule() {
         {showAddModal && canManageSchedule && (
           <motion.div className="fixed inset-0 z-50 bg-gray-900/40 backdrop-blur-md flex justify-center items-center p-4">
             <motion.div initial={{ opacity: 0, scale: 0.9, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 10 }} className="bg-white rounded-[2.5rem] w-full max-w-lg max-h-[min(90dvh,820px)] flex flex-col overflow-hidden shadow-2xl relative border border-white/20">
-              <button onClick={() => setShowAddModal(false)} className="absolute top-5 right-5 z-10 p-2.5 bg-gray-100 hover:bg-gray-200 rounded-full transition-colors"><X className="w-5 h-5 text-gray-600" /></button>
+              <button onClick={() => { setShowAddModal(false); resetForm(); }} className="absolute top-5 right-5 z-10 p-2.5 bg-gray-100 hover:bg-gray-200 rounded-full transition-colors"><X className="w-5 h-5 text-gray-600" /></button>
               
               <div className="shrink-0 px-8 pt-8 pb-4">
-                <h3 className="text-2xl md:text-3xl font-black text-gray-900 pr-10">Новое событие</h3>
+                <h3 className="text-2xl md:text-3xl font-black text-gray-900 pr-10">{editingEventId ? 'Редактировать событие' : 'Новое событие'}</h3>
               </div>
               
               <form onSubmit={handleCreateEvent} className="flex flex-col flex-1 min-h-0">
@@ -469,7 +509,7 @@ export default function Schedule() {
                   </div>
                   <div>
                     <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 ml-1">Время</label>
-                    <input type="time" value={formData.time} onChange={e => setFormData({...formData, time: e.target.value})} required className="w-full px-5 py-4 bg-gray-50 border border-gray-100 focus:border-[#5A4BFF] focus:bg-white rounded-2xl outline-none font-bold transition-all" />
+                    <input type="time" step="60" value={formData.time} onChange={e => setFormData({...formData, time: e.target.value})} required className="w-full px-5 py-4 bg-gray-50 border border-gray-100 focus:border-[#5A4BFF] focus:bg-white rounded-2xl outline-none font-bold transition-all" />
                   </div>
                 </div>
 
@@ -498,6 +538,7 @@ export default function Schedule() {
                 )}
 
                 <div className="p-4 rounded-2xl bg-indigo-50/50 border border-indigo-100 space-y-3">
+                  {!editingEventId && (
                   <label className="flex items-center gap-3 cursor-pointer">
                     <input
                       type="checkbox"
@@ -507,7 +548,8 @@ export default function Schedule() {
                     />
                     <span className="font-bold text-gray-800 text-sm">Повторять каждую неделю (например, каждое воскресенье)</span>
                   </label>
-                  {formData.useRepeat && (
+                  )}
+                  {!editingEventId && formData.useRepeat && (
                     <div>
                       <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 ml-1">Сколько недель</label>
                       <input
@@ -535,7 +577,7 @@ export default function Schedule() {
 
                 <div className="shrink-0 px-8 py-5 border-t border-gray-100 bg-white">
                   <button type="submit" className="w-full py-4 bg-[#5A4BFF] hover:bg-[#4a3dec] text-white rounded-2xl font-black text-base transition-all shadow-xl shadow-indigo-500/20 active:scale-95">
-                    СОХРАНИТЬ В КАЛЕНДАРЬ
+                    {editingEventId ? 'СОХРАНИТЬ ИЗМЕНЕНИЯ' : 'СОХРАНИТЬ В КАЛЕНДАРЬ'}
                   </button>
                 </div>
               </form>

@@ -138,6 +138,22 @@ export class ScheduleService {
     });
   }
 
+  async updateEvent(id: string, data: CreateEventInput) {
+    return this.prisma.event.update({
+      where: { id },
+      data: {
+        title: data.title,
+        description: data.description,
+        date: new Date(data.date),
+        type: (data.type || 'WEBINAR') as any,
+        custom_type: data.custom_type?.trim() || null,
+        link: data.link,
+        group_id: data.group_id || null,
+      },
+      include: { group: { select: { id: true, title: true } } },
+    });
+  }
+
   async deleteEvent(id: string) {
     return this.prisma.event.delete({
       where: { id },

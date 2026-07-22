@@ -152,7 +152,7 @@ export class CourseService {
       return this.sanitizeCoursesForClient(courses, userRole);
     }
 
-    // Курсы только из групп ученика (учебные + потоки магазина), без «лишних» enrollments
+    // Курсы из учебных групп, но без просроченного доступа по enrollment.expires_at
     const groups = await this.prisma.group.findMany({
       where: { students: { some: { id: userId } }, group_kind: 'STUDY' },
       select: { courses: { select: { id: true } } },
@@ -165,8 +165,24 @@ export class CourseService {
       return [];
     }
 
+    const now = new Date();
+    const enrollments = await this.prisma.enrollment.findMany({
+      where: { user_id: userId, course_id: { in: [...courseIdSet] } },
+      select: { course_id: true, expires_at: true },
+    });
+    const expiredIds = new Set(
+      enrollments
+        .filter((e) => e.expires_at && e.expires_at < now)
+        .map((e) => e.course_id),
+    );
+    const activeIds = [...courseIdSet].filter((id) => !expiredIds.has(id));
+
+    if (activeIds.length === 0) {
+      return [];
+    }
+
     const courses = await this.prisma.course.findMany({
-      where: { id: { in: [...courseIdSet] } },
+      where: { id: { in: activeIds } },
       include: { themes: this.themesInclude(userRole) },
       orderBy: { title: 'asc' },
     });

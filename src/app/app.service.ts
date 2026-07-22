@@ -23,7 +23,7 @@ export class AppService {
       pendingWhere.group = { curator_id: userId };
     }
 
-    const [user, messagesUnread, ronCount, pendingApplications] = await Promise.all([
+    const [user, messagesUnread, ronCount, pendingApplications, pendingSubmissions] = await Promise.all([
       this.prisma.user.findUnique({
         where: { id: userId },
         select: {
@@ -47,6 +47,7 @@ export class AppService {
       this.canSeePendingApps(role, permissions)
         ? this.prisma.groupApplication.count({ where: pendingWhere })
         : Promise.resolve(0),
+      this.getPendingSubmissionsBadge(userId, role, permissions),
     ]);
 
     return {
@@ -55,8 +56,64 @@ export class AppService {
         messages: messagesUnread,
         ron: ronCount,
         pendingApplications,
+        pendingSubmissions,
       },
     };
+  }
+
+  private async getPendingSubmissionsBadge(userId: string, role?: string, permissions: string[] = []) {
+    if (role !== 'ADMIN' && role !== 'CURATOR' && role !== 'TEACHER' && !permissions.includes('CURATOR_DASHBOARD')) {
+      return 0;
+    }
+
+    if (role === 'ADMIN') {
+      return this.prisma.submission.count({
+        where: {
+          OR: [
+            { status: 'PENDING' },
+            { status: 'GRADED', comment: { contains: '🤖 Автоматическая проверка' } },
+          ],
+        },
+      });
+    }
+
+    if (role === 'CURATOR' || permissions.includes('CURATOR_DASHBOARD')) {
+      const groups = await this.prisma.group.findMany({
+        where: { curator_id: userId, is_public: false },
+        select: {
+          students: { select: { id: true } },
+          courses: { select: { id: true } },
+        },
+      });
+      const studentIds = [...new Set(groups.flatMap((g) => g.students.map((s) => s.id)))];
+      const courseIds = [...new Set(groups.flatMap((g) => g.courses.map((c) => c.id)))];
+      if (!studentIds.length || !courseIds.length) return 0;
+      return this.prisma.submission.count({
+        where: {
+          user_id: { in: studentIds },
+          lesson: { theme: { course_id: { in: courseIds } } },
+          OR: [
+            { status: 'PENDING' },
+            { status: 'GRADED', comment: { contains: '🤖 Автоматическая проверка' } },
+          ],
+        },
+      });
+    }
+
+    if (role === 'TEACHER') {
+      return this.prisma.submission.count({
+        where: {
+          user: { groups: { some: { teacher_id: userId } } },
+          lesson: { theme: { course: { groups: { some: { teacher_id: userId } } } } },
+          OR: [
+            { status: 'PENDING' },
+            { status: 'GRADED', comment: { contains: '🤖 Автоматическая проверка' } },
+          ],
+        },
+      });
+    }
+
+    return 0;
   }
 
   async getNotifications(userId: string) {
@@ -73,7 +130,7 @@ export class AppService {
     const todayEnd = new Date();
     todayEnd.setHours(23, 59, 59, 999);
 
-    const [gradedCount, deadlines, todayEvents, flashcardStats] = await Promise.all([
+    const [gradedCount, deadlines, todayEvents, flashcardStats, expiredAccess] = await Promise.all([
       this.prisma.submission.count({
         where: {
           user_id: userId,
@@ -99,11 +156,19 @@ export class AppService {
         orderBy: { date: 'asc' },
       }),
       this.getFlashcardDueCount(userId),
+      this.prisma.enrollment.findMany({
+        where: {
+          user_id: userId,
+          expires_at: { not: null, lte: new Date() },
+        },
+        include: { course: { select: { id: true, title: true } } },
+        take: 5,
+      }),
     ]);
 
     const items: Array<{
       id: string;
-      type: 'graded' | 'deadline' | 'cards';
+      type: 'graded' | 'deadline' | 'cards' | 'access';
       text: string;
       sub?: string;
       link?: string;
@@ -149,6 +214,16 @@ export class AppService {
         link: '/flashcards',
       });
     }
+
+    expiredAccess.forEach((e) => {
+      items.push({
+        id: `exp-${e.id}`,
+        type: 'access',
+        text: `Доступ истёк: ${e.course.title}`,
+        sub: 'Прогресс сохранён. Обратитесь к куратору для продления',
+        link: '/shop',
+      });
+    });
 
     return { items };
   }

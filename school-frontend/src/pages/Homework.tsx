@@ -63,28 +63,49 @@ export default function Homework() {
                 const lessonSubs = mySubs.filter(
                   (s: any) => (s.lesson_id || s.lessonId) === lesson.id,
                 );
+                const hwBlockIds = new Set(hwBlocks.map((b: any) => b.id).filter(Boolean));
+                const relevantSubs = hwBlockIds.size
+                  ? lessonSubs.filter((s: any) => hwBlockIds.has(s.block_id || s.blockId))
+                  : lessonSubs;
+
+                const hasPending = relevantSubs.some((s: any) => s.status === 'PENDING' || s.status === 'REVIEW');
+                const hasRevision = relevantSubs.some((s: any) => s.status === 'REVISION');
+                const gradedSubs = relevantSubs.filter((s: any) => s.status === 'GRADED');
+                const allBlocksGraded =
+                  hwBlockIds.size > 0 &&
+                  [...hwBlockIds].every((id) =>
+                    gradedSubs.some((s: any) => (s.block_id || s.blockId) === id),
+                  );
+
                 const submission =
-                  lessonSubs.find((s: any) => s.status === 'PENDING') ||
-                  lessonSubs.find((s: any) => s.status === 'REVISION') ||
-                  lessonSubs.find((s: any) => s.status === 'GRADED') ||
-                  lessonSubs[0];
+                  relevantSubs.find((s: any) => s.status === 'PENDING' || s.status === 'REVIEW') ||
+                  relevantSubs.find((s: any) => s.status === 'REVISION') ||
+                  (allBlocksGraded ? gradedSubs[0] : null) ||
+                  relevantSubs[0];
                 
                 let status = 'TODO';
                 let score = null;
                 let maxScore = hwMaxScore || lesson.max_score || 100;
 
                 const deadline = findDeadline(lesson.title);
-                const isOverdue = status === 'TODO' && deadline && parseSafeDateMs(deadline) < Date.now();
 
                 let comment: string | null = null;
-                if (submission) {
-                  if (submission.status === 'GRADED') status = 'GRADED';
-                  else if (submission.status === 'REVISION') status = 'REVISION';
-                  else status = 'REVIEW';
-                  score = submission.score;
-                  maxScore = submission.max_score || maxScore;
-                  comment = submission.comment || null;
-                } else if (isOverdue) {
+                if (hasPending) {
+                  status = 'REVIEW';
+                  score = submission?.score ?? null;
+                  maxScore = submission?.max_score || maxScore;
+                  comment = submission?.comment || null;
+                } else if (hasRevision) {
+                  status = 'REVISION';
+                  score = submission?.score ?? null;
+                  maxScore = submission?.max_score || maxScore;
+                  comment = submission?.comment || null;
+                } else if (allBlocksGraded || (hwBlockIds.size === 0 && submission?.status === 'GRADED')) {
+                  status = 'GRADED';
+                  score = gradedSubs.reduce((acc: number, s: any) => acc + (Number(s.score) || 0), 0) || submission?.score;
+                  maxScore = gradedSubs.reduce((acc: number, s: any) => acc + (Number(s.max_score) || 0), 0) || maxScore;
+                  comment = submission?.comment || null;
+                } else if (deadline && parseSafeDateMs(deadline) < Date.now()) {
                   status = 'OVERDUE';
                 }
 
@@ -227,18 +248,18 @@ export default function Homework() {
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8">
           <div className="flex gap-3 overflow-x-auto pb-2 md:pb-0 flex-wrap">
             {([
-              { key: 'TODO', label: 'К выполнению', activeClass: 'bg-[#5A4BFF] text-white shadow-lg shadow-indigo-500/20' },
-              { key: 'OVERDUE', label: '🚨 Просрочено', activeClass: 'bg-rose-500 text-white shadow-lg shadow-rose-500/20' },
-              { key: 'REVISION', label: '📝 На доработку', activeClass: 'bg-orange-500 text-white shadow-lg shadow-orange-500/20' },
-              { key: 'REVIEW', label: '⏳ На проверке', activeClass: 'bg-amber-500 text-white shadow-lg shadow-amber-500/20' },
-              { key: 'GRADED', label: '✅ Оценено', activeClass: 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20' },
-              { key: 'RON', label: '↩ Работа над ошибками', activeClass: 'bg-violet-600 text-white shadow-lg shadow-violet-500/20' },
-            ] as const).map(({ key, label, activeClass }) => (
+              { key: 'TODO', label: 'К выполнению', activeClass: 'bg-[#5A4BFF] text-white shadow-lg shadow-indigo-500/20', idleBadge: 'bg-gray-100 text-gray-500' },
+              { key: 'OVERDUE', label: '🚨 Просрочено', activeClass: 'bg-rose-500 text-white shadow-lg shadow-rose-500/20', idleBadge: 'bg-rose-100 text-rose-600' },
+              { key: 'REVISION', label: '📝 На доработку', activeClass: 'bg-orange-500 text-white shadow-lg shadow-orange-500/20', idleBadge: 'bg-rose-500 text-white' },
+              { key: 'REVIEW', label: '⏳ На проверке', activeClass: 'bg-amber-500 text-white shadow-lg shadow-amber-500/20', idleBadge: 'bg-amber-100 text-amber-700' },
+              { key: 'GRADED', label: '✅ Оценено', activeClass: 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20', idleBadge: 'bg-gray-100 text-gray-500' },
+              { key: 'RON', label: '↩ Работа над ошибками', activeClass: 'bg-violet-600 text-white shadow-lg shadow-violet-500/20', idleBadge: 'bg-gray-100 text-gray-500' },
+            ] as const).map(({ key, label, activeClass, idleBadge }) => (
               <button key={key} onClick={() => { setActiveTab(key); setSearchParams(key === 'RON' ? { tab: 'ron' } : {}); }}
                 className={`px-5 py-3 rounded-2xl font-bold transition-all whitespace-nowrap flex items-center gap-2 ${activeTab === key ? activeClass : 'bg-white text-gray-500 hover:bg-gray-50 border border-gray-100'}`}>
                 {label}
                 {key !== 'RON' && counts[key as keyof typeof counts] > 0 && (
-                  <span className={`text-[10px] font-black px-1.5 py-0.5 rounded-md ${activeTab === key ? 'bg-white/20' : 'bg-gray-100 text-gray-500'}`}>
+                  <span className={`text-[10px] font-black px-1.5 py-0.5 rounded-md ${activeTab === key ? 'bg-white/20 text-white' : idleBadge}`}>
                     {counts[key as keyof typeof counts]}
                   </span>
                 )}
@@ -309,8 +330,15 @@ export default function Homework() {
                       const daysLeft = deadlineDate ? Math.ceil((deadlineDate.getTime() - Date.now()) / 86400000) : null;
 
                       return (
-                        <motion.div key={hw.id} variants={itemVariants}
-                          className={`bg-white rounded-[2.5rem] p-8 shadow-sm border flex flex-col justify-between min-h-[300px] hover:shadow-xl hover:-translate-y-1 transition-all duration-300 group ${hw.status === 'OVERDUE' ? 'border-rose-200' : 'border-gray-100'}`}>
+                        <motion.div
+                          key={hw.id}
+                          variants={itemVariants}
+                          role="button"
+                          tabIndex={0}
+                          onClick={() => navigate(`/homework/${hw.id}`)}
+                          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate(`/homework/${hw.id}`); } }}
+                          className={`bg-white rounded-[2.5rem] p-8 shadow-sm border flex flex-col justify-between min-h-[300px] hover:shadow-xl hover:-translate-y-1 transition-all duration-300 group cursor-pointer ${hw.status === 'OVERDUE' ? 'border-rose-200' : 'border-gray-100'}`}
+                        >
                           <div>
                             <div className="flex justify-between items-start mb-8">
                               <div className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest ${badgeBg} ${badgeText}`}>{statusText}</div>
@@ -328,10 +356,10 @@ export default function Homework() {
                             )}
                           </div>
                           <div className="mt-8 pt-6 border-t border-gray-50">
-                            <button onClick={() => navigate(`/homework/${hw.id}`)} className={`w-full py-4 rounded-2xl font-black text-sm transition-all active:scale-95 flex items-center justify-center gap-2 ${buttonStyle}`}>
+                            <div className={`w-full py-4 rounded-2xl font-black text-sm flex items-center justify-center gap-2 pointer-events-none ${buttonStyle}`}>
                               {buttonText}
                               {(hw.status === 'TODO' || hw.status === 'OVERDUE') && <ChevronRight className="w-4 h-4" />}
-                            </button>
+                            </div>
                           </div>
                         </motion.div>
                       );

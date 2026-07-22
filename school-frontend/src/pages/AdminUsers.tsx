@@ -21,7 +21,7 @@ interface User {
   city?: string;
   avatar?: string;
   created_at: string;
-  enrollments?: { course: { id: string; title: string } }[];
+  enrollments?: { course: { id: string; title: string }; expires_at?: string | null }[];
   groups?: { id: string; title: string }[];
   subjects?: { id: string; title: string }[];
 }
@@ -119,7 +119,18 @@ export default function AdminUsers() {
 
   const handleReviewApplication = async (appId: string, action: 'approve' | 'reject') => {
     try {
-      await axios.patch(`${API_URL}/groups/applications/${appId}/${action}`, {}, getTokenConfig());
+      let accessDays: number | undefined;
+      if (action === 'approve') {
+        const raw = window.prompt('На сколько дней выдать доступ? (пусто = без срока)', '30');
+        if (raw === null) return;
+        const parsed = Number(raw.trim());
+        if (raw.trim() && Number.isFinite(parsed) && parsed > 0) accessDays = parsed;
+      }
+      await axios.patch(
+        `${API_URL}/groups/applications/${appId}/${action}`,
+        action === 'approve' ? { accessDays } : {},
+        getTokenConfig(),
+      );
       showToast(action === 'approve' ? 'Заявка одобрена' : 'Заявка отклонена');
       fetchData();
     } catch {
@@ -173,10 +184,15 @@ export default function AdminUsers() {
   const handleAddCourse = async () => {
     if (!selectedUser || selectedCourseIds.length === 0) return;
     try {
+      const raw = window.prompt('На сколько дней выдать доступ? (пусто = без срока)', '30');
+      if (raw === null) return;
+      const parsed = Number(raw.trim());
+      const accessDays = raw.trim() && Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
       await Promise.all(selectedCourseIds.map(courseId =>
         axios.post(`${API_URL}/enrollments`, { 
           userId: selectedUser.id, 
           courseId,
+          accessDays,
         }, getTokenConfig())
       ));
       showToast(selectedCourseIds.length === 1 ? 'Курс добавлен!' : 'Курсы добавлены!');
@@ -202,9 +218,14 @@ export default function AdminUsers() {
   const handleAddToGroup = async () => {
     if (!selectedUser || selectedGroupIds.length === 0) return;
     try {
+      const raw = window.prompt('На сколько дней выдать доступ? (пусто = без срока)', '30');
+      if (raw === null) return;
+      const parsed = Number(raw.trim());
+      const accessDays = raw.trim() && Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
       await Promise.all(selectedGroupIds.map(groupId =>
         axios.post(`${API_URL}/groups/${groupId}/students`, { 
-          userId: selectedUser.id 
+          userId: selectedUser.id,
+          accessDays,
         }, getTokenConfig())
       ));
       showToast(selectedGroupIds.length === 1 ? 'Добавлен в группу!' : 'Добавлен в группы!');
@@ -213,6 +234,28 @@ export default function AdminUsers() {
       fetchData();
     } catch (err) {
       showToast('Ошибка добавления в группу', 'error');
+    }
+  };
+
+  const handleExtendCourse = async (courseId: string) => {
+    if (!selectedUser) return;
+    const raw = window.prompt('Продлить доступ на сколько дней?', '30');
+    if (raw === null) return;
+    const days = Number(raw.trim());
+    if (!Number.isFinite(days) || days <= 0) {
+      showToast('Укажите число дней', 'error');
+      return;
+    }
+    try {
+      await axios.patch(
+        `${API_URL}/enrollments/${selectedUser.id}/${courseId}/extend`,
+        { accessDays: days },
+        getTokenConfig(),
+      );
+      showToast('Доступ продлён');
+      fetchData();
+    } catch {
+      showToast('Не удалось продлить доступ', 'error');
     }
   };
 
@@ -855,12 +898,24 @@ export default function AdminUsers() {
                 </div>
                 <div className="space-y-2">
                   {selectedUser.enrollments?.map(e => (
-                    <div key={e.course.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-xl border border-gray-100">
-                      <span className="text-sm font-bold text-gray-700">{e.course.title}</span>
+                    <div key={e.course.id} className="flex items-center justify-between gap-2 p-3 bg-gray-50 rounded-xl border border-gray-100">
+                      <div className="min-w-0">
+                        <span className="text-sm font-bold text-gray-700 block truncate">{e.course.title}</span>
+                        {e.expires_at && (
+                          <span className={`text-[10px] font-bold ${new Date(e.expires_at) < new Date() ? 'text-rose-500' : 'text-gray-400'}`}>
+                            до {new Date(e.expires_at).toLocaleDateString('ru-RU')}
+                          </span>
+                        )}
+                      </div>
                       {currentRole === 'ADMIN' && (
-                        <button onClick={() => handleRemoveCourse(e.course.id)} className="p-1 text-gray-400 hover:text-red-500 transition-colors">
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <button type="button" onClick={() => handleExtendCourse(e.course.id)} className="px-2 py-1 text-[10px] font-black uppercase tracking-wide text-indigo-600 hover:bg-indigo-50 rounded-lg">
+                            +дни
+                          </button>
+                          <button onClick={() => handleRemoveCourse(e.course.id)} className="p-1 text-gray-400 hover:text-red-500 transition-colors">
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
                       )}
                     </div>
                   ))}

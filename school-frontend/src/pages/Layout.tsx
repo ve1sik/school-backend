@@ -42,6 +42,7 @@ export default function Layout() {
   const [unreadCount, setUnreadCount] = useState(0);
   const [ronCount, setRonCount] = useState(0);
   const [pendingApplicationsCount, setPendingApplicationsCount] = useState(0);
+  const [pendingSubmissionsCount, setPendingSubmissionsCount] = useState(0);
 
   // Мобильное выдвижное меню
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
@@ -131,6 +132,7 @@ export default function Layout() {
         setUnreadCount(res.data.badges?.messages || 0);
         setRonCount(res.data.badges?.ron || 0);
         setPendingApplicationsCount(res.data.badges?.pendingApplications || 0);
+        setPendingSubmissionsCount(res.data.badges?.pendingSubmissions || 0);
       } catch {
         try {
           const res = await api.get('/auth/me');
@@ -146,8 +148,13 @@ export default function Layout() {
     let unreadInterval: ReturnType<typeof setInterval> | undefined;
     const pollUnread = async () => {
       if (!getToken()) return;
-      const unreadRes = await api.get('/messages/unread').catch(() => ({ data: { count: 0 } }));
+      const [unreadRes, shellRes] = await Promise.all([
+        api.get('/messages/unread').catch(() => ({ data: { count: 0 } })),
+        api.get('/app/shell').catch(() => ({ data: { badges: {} } })),
+      ]);
       setUnreadCount(unreadRes.data.count || 0);
+      setPendingSubmissionsCount(shellRes.data.badges?.pendingSubmissions || 0);
+      setRonCount(shellRes.data.badges?.ron || 0);
     };
     const startUnreadPoll = () => {
       pollUnread();
@@ -248,7 +255,7 @@ export default function Layout() {
     { path: '/admin/users', icon: Users, label: 'Управление пользователями', show: can('MANAGE_USERS'), badge: pendingApplicationsCount },
     { path: '/admin/groups', icon: ShieldCheck, label: 'Потоки (магазин)', show: can('MANAGE_GROUPS'), badge: pendingApplicationsCount },
     { path: '/admin/decks', icon: Layers, label: 'Карточки (колоды)', show: can('MANAGE_DECKS') },
-    { path: '/curator', icon: Users, label: 'Кабинет куратора', show: can('CURATOR_DASHBOARD') },
+    { path: '/curator', icon: Users, label: 'Кабинет куратора', show: can('CURATOR_DASHBOARD'), badge: pendingSubmissionsCount },
   ].filter(item => item.show);
   const hasAdminItems = adminItems.length > 0;
 

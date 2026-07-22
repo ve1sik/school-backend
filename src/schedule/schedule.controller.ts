@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Delete, Body, Param, UseGuards, Request } from '@nestjs/common';
+﻿import { Controller, Get, Post, Patch, Delete, Body, Param, UseGuards, Request } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
@@ -30,6 +30,12 @@ export class ScheduleController {
       return this.scheduleService.createBulkEvents(body);
     }
     return this.scheduleService.createEvent(body);
+  }
+
+  @Roles(Role.ADMIN, Role.CURATOR, Role.TEACHER)
+  @Patch(':id')
+  updateEvent(@Param('id') id: string, @Body() body: any) {
+    return this.scheduleService.updateEvent(id, body);
   }
 
   @Roles(Role.ADMIN, Role.CURATOR, Role.TEACHER)

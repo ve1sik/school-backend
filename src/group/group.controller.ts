@@ -91,9 +91,19 @@ export class GroupController {
 
   @Permissions('MANAGE_GROUPS', 'MANAGE_USERS')
   @Post(':id/students')
-  updateStudents(@Param('id') id: string, @Body() body: { studentIds?: string[]; userId?: string }, @Request() req) {
+  updateStudents(
+    @Param('id') id: string,
+    @Body() body: { studentIds?: string[]; userId?: string; accessDays?: number },
+    @Request() req,
+  ) {
     if (body.userId) {
-      return this.groupService.enrollStudent(id, body.userId, req.user.sub, req.user.role);
+      return this.groupService.enrollStudent(
+        id,
+        body.userId,
+        req.user.sub,
+        req.user.role,
+        body.accessDays,
+      );
     }
     return this.groupService.updateStudents(id, body.studentIds || [], req.user.sub, req.user.role);
   }
@@ -122,13 +132,14 @@ export class GroupController {
 
   @Permissions('MANAGE_USERS', 'MANAGE_GROUPS')
   @Patch('applications/:appId/approve')
-  approveApplication(@Param('appId') appId: string, @Request() req) {
+  approveApplication(@Param('appId') appId: string, @Body() body: { accessDays?: number }, @Request() req) {
     const reviewerId = req.user.sub || req.user.id;
     return this.groupService.approveApplication(
       appId,
       reviewerId,
       req.user.role,
       req.user.admin_permissions || [],
+      body?.accessDays,
     );
   }
 
