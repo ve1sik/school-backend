@@ -1,4 +1,4 @@
-﻿-- AlterTable
+-- AlterTable
 ALTER TABLE "enrollments" ADD COLUMN IF NOT EXISTS "expires_at" TIMESTAMP(3);
 
 -- CreateIndex
