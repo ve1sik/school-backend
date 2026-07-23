@@ -25,6 +25,7 @@ echo '=== frontend deploy ==='
 bash deploy-frontend.sh
 echo '=== backend ==='
 npm install
+npx prisma migrate resolve --rolled-back 20260722090000_enrollment_expires_at || true
 npx prisma migrate deploy
 npm run build
 pm2 restart school-backend
