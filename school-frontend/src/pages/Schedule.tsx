@@ -74,6 +74,9 @@ export default function Schedule() {
   const [showDayModal, setShowDayModal] = useState(false);
   const [selectedDateTitle, setSelectedDateTitle] = useState('');
 
+  const [saveError, setSaveError] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
+
   const [formData, setFormData] = useState({
     title: '',
     date: '',
@@ -83,9 +86,16 @@ export default function Schedule() {
     link: '',
     description: '',
     group_id: '',
-    repeat_weeks: 1,
+    repeat_weeks: 2,
     useRepeat: false,
   });
+
+  const normalizeEventLink = (raw: string) => {
+    const trimmed = raw.trim();
+    if (!trimmed) return '';
+    if (/^https?:\/\//i.test(trimmed)) return trimmed;
+    return `https://${trimmed}`;
+  };
 
   const resetForm = () => {
     setEditingEventId(null);
@@ -98,9 +108,10 @@ export default function Schedule() {
       link: '',
       description: '',
       group_id: '',
-      repeat_weeks: 1,
+      repeat_weeks: 2,
       useRepeat: false,
     });
+    setSaveError('');
   };
 
   const filteredGroups = useMemo(() => {
@@ -131,27 +142,42 @@ export default function Schedule() {
     fetchEvents();
   }, []);
 
-  const buildEventDateTime = () => {
+  const buildEventDateTime = (): string | null => {
+    if (!formData.date || !formData.time) return null;
     const time = formData.time.length === 5 ? `${formData.time}:00` : formData.time;
-    return new Date(`${formData.date}T${time}`).toISOString();
+    const d = new Date(`${formData.date}T${time}`);
+    if (Number.isNaN(d.getTime())) return null;
+    return d.toISOString();
   };
 
   const handleCreateEvent = async (e: React.FormEvent) => {
     e.preventDefault();
+    setSaveError('');
+    const eventDateTime = buildEventDateTime();
+    if (!eventDateTime) {
+      setSaveError('Проверьте дату и время — не удалось собрать дату события.');
+      return;
+    }
+    if (formData.type === 'CUSTOM' && !formData.custom_type.trim()) {
+      setSaveError('Укажите своё название типа события.');
+      return;
+    }
+
+    setIsSaving(true);
     try {
       const token = getToken();
-      const eventDateTime = buildEventDateTime();
+      const repeatWeeks = formData.useRepeat ? Math.max(2, Number(formData.repeat_weeks) || 2) : 0;
       const payload: any = {
-        title: formData.title,
-        description: formData.description,
+        title: formData.title.trim(),
+        description: formData.description.trim() || undefined,
         date: eventDateTime,
         type: formData.type === 'CUSTOM' ? 'WEBINAR' : formData.type,
-        custom_type: formData.type === 'CUSTOM' ? formData.custom_type : (formData.custom_type || undefined),
-        link: formData.link,
+        custom_type: formData.type === 'CUSTOM' ? formData.custom_type.trim() : (formData.custom_type?.trim() || undefined),
+        link: normalizeEventLink(formData.link) || undefined,
         group_id: formData.group_id || undefined,
       };
-      if (!editingEventId && formData.useRepeat && formData.repeat_weeks > 1) {
-        payload.repeat_weeks = Number(formData.repeat_weeks);
+      if (!editingEventId && formData.useRepeat && repeatWeeks > 1) {
+        payload.repeat_weeks = repeatWeeks;
       }
 
       if (editingEventId) {
@@ -165,7 +191,17 @@ export default function Schedule() {
       resetForm();
       setShowDayModal(false);
       fetchEvents();
-    } catch (err) { console.error('Ошибка сохранения события', err); }
+    } catch (err: any) {
+      console.error('Ошибка сохранения события', err);
+      const msg =
+        err?.response?.data?.message ||
+        (Array.isArray(err?.response?.data?.message) ? err.response.data.message.join(', ') : null) ||
+        err?.response?.data?.error ||
+        'Не удалось сохранить событие. Проверьте поля и попробуйте снова.';
+      setSaveError(typeof msg === 'string' ? msg : 'Не удалось сохранить событие.');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const openEditEvent = (ev: any) => {
@@ -182,7 +218,7 @@ export default function Schedule() {
       link: ev.link || '',
       description: ev.description || '',
       group_id: ev.group_id || ev.group?.id || '',
-      repeat_weeks: 1,
+      repeat_weeks: 2,
       useRepeat: false,
     });
     setShowDayModal(false);
@@ -274,14 +310,14 @@ export default function Schedule() {
       )}
 
       <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col md:flex-row md:justify-between md:items-center gap-3 mb-2">
-        <div>
+        <motion.div>
           <h1 className="text-2xl md:text-3xl font-black tracking-tight text-gray-900 mb-1 flex items-center gap-3">
             <div className="p-2 bg-white rounded-xl shadow-sm border border-gray-100">
               <CalendarDays className="w-6 h-6 text-[#5A4BFF]" />
             </div>
             Расписание
           </h1>
-        </div>
+        </motion.div>
         {canManageSchedule && (
           <button 
             onClick={() => { resetForm(); setShowAddModal(true); }}
@@ -543,7 +579,14 @@ export default function Schedule() {
                     <input
                       type="checkbox"
                       checked={formData.useRepeat}
-                      onChange={e => setFormData({ ...formData, useRepeat: e.target.checked })}
+                      onChange={e => {
+                        const on = e.target.checked;
+                        setFormData({
+                          ...formData,
+                          useRepeat: on,
+                          repeat_weeks: on ? Math.max(2, formData.repeat_weeks) : formData.repeat_weeks,
+                        });
+                      }}
                       className="w-5 h-5 rounded accent-[#5A4BFF]"
                     />
                     <span className="font-bold text-gray-800 text-sm">Повторять каждую неделю (например, каждое воскресенье)</span>
@@ -556,7 +599,7 @@ export default function Schedule() {
                         type="number"
                         min={2}
                         max={52}
-                        value={formData.repeat_weeks}
+                        value={Math.max(2, formData.repeat_weeks)}
                         onChange={e => setFormData({ ...formData, repeat_weeks: Math.max(2, Number(e.target.value) || 2) })}
                         className="w-full px-5 py-3 bg-white border border-gray-100 focus:border-[#5A4BFF] rounded-2xl outline-none font-bold"
                       />
@@ -566,7 +609,7 @@ export default function Schedule() {
 
                 <div>
                   <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 ml-1">Ссылка (Zoom/YouTube)</label>
-                  <input type="url" value={formData.link} onChange={e => setFormData({...formData, link: e.target.value})} className="w-full px-5 py-4 bg-gray-50 border border-gray-100 focus:border-[#5A4BFF] focus:bg-white rounded-2xl outline-none font-medium transition-all" placeholder="https://..." />
+                  <input type="text" inputMode="url" value={formData.link} onChange={e => setFormData({...formData, link: e.target.value})} className="w-full px-5 py-4 bg-gray-50 border border-gray-100 focus:border-[#5A4BFF] focus:bg-white rounded-2xl outline-none font-medium transition-all" placeholder="zoom.us/j/... или https://..." />
                 </div>
 
                 <div>
@@ -575,8 +618,19 @@ export default function Schedule() {
                 </div>
                 </div>
 
-                <div className="shrink-0 px-8 py-5 border-t border-gray-100 bg-white">
-                  <button type="submit" className="w-full py-4 bg-[#5A4BFF] hover:bg-[#4a3dec] text-white rounded-2xl font-black text-base transition-all shadow-xl shadow-indigo-500/20 active:scale-95">
+                <div className="shrink-0 px-8 py-5 border-t border-gray-100 bg-white space-y-3">
+                  {saveError && (
+                    <div className="flex items-start gap-2 p-3 rounded-xl bg-rose-50 border border-rose-100 text-rose-800 text-sm font-medium">
+                      <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
+                      <span>{saveError}</span>
+                    </div>
+                  )}
+                  <button
+                    type="submit"
+                    disabled={isSaving}
+                    className="w-full py-4 bg-[#5A4BFF] hover:bg-[#4a3dec] disabled:opacity-60 text-white rounded-2xl font-black text-base transition-all shadow-xl shadow-indigo-500/20 active:scale-95 flex items-center justify-center gap-2"
+                  >
+                    {isSaving && <Loader2 className="w-5 h-5 animate-spin" />}
                     {editingEventId ? 'СОХРАНИТЬ ИЗМЕНЕНИЯ' : 'СОХРАНИТЬ В КАЛЕНДАРЬ'}
                   </button>
                 </div>
