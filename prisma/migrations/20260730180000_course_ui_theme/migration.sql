@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE "courses" ADD COLUMN IF NOT EXISTS "ui_theme" TEXT NOT NULL DEFAULT 'DEFAULT';

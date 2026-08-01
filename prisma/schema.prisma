@@ -155,6 +155,8 @@ model Course {
   cover_url       String?
   spell_check         Boolean  @default(false)
   oral_in_analytics   Boolean  @default(true)
+  /// DEFAULT | RUSSIAN | HISTORY — оформление урока/ДЗ под предмет
+  ui_theme            String   @default("DEFAULT")
 
   subject_id  String?
   subject     Subject? @relation(fields: [subject_id], references: [id], onDelete: Cascade)

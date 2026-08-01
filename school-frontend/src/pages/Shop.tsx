@@ -149,10 +149,16 @@ export default function Shop() {
     (g.courses || []).some((c: any) => c.title.toLowerCase().includes(searchQuery.toLowerCase()))
   );
 
-  if (isLoading) return <div className="h-full w-full flex items-center justify-center"><Loader2 className="w-12 h-12 animate-spin text-[#5A4BFF]" /></div>;
+  if (isLoading) {
+    return (
+      <div className="h-full w-full flex items-center justify-center">
+        <Loader2 className="w-10 h-10 animate-spin text-[#6C63FF]" />
+      </div>
+    );
+  }
 
   return (
-    <div className="max-w-7xl mx-auto pb-20">
+    <div className="w-full max-w-[1200px] mx-auto pb-20 px-2 md:px-4 pt-2 space-y-6">
 
       {/* Toast уведомления */}
       <div className="fixed bottom-6 right-6 z-50 flex flex-col gap-3 pointer-events-none">
@@ -177,14 +183,14 @@ export default function Shop() {
             <motion.div initial={{ scale: 0.95, opacity: 0, y: 20 }} animate={{ scale: 1, opacity: 1, y: 0 }} exit={{ scale: 0.95, opacity: 0, y: 20 }}
               className="bg-white rounded-[2.5rem] w-full max-w-lg shadow-2xl overflow-hidden">
               
-              <div className="bg-gradient-to-br from-[#5A4BFF] to-indigo-700 p-8 relative">
-                <button onClick={() => setPaymentModal(null)} className="absolute top-4 right-4 p-2 bg-white/20 hover:bg-white/30 rounded-full text-white transition-colors">
+              <div className="bg-[#1A1D26] p-8 relative">
+                <button onClick={() => setPaymentModal(null)} className="absolute top-4 right-4 p-2 bg-white/10 hover:bg-white/20 rounded-full text-white transition-colors">
                   <X className="w-4 h-4" />
                 </button>
                 <h2 className="text-2xl font-black text-white mb-1">Запись на поток</h2>
-                <p className="text-indigo-200 font-bold text-sm">{paymentModal.title}</p>
-                <div className="mt-4 inline-flex items-center gap-2 bg-white/20 backdrop-blur rounded-2xl px-4 py-2">
-                  <CreditCard className="w-5 h-5 text-[#00FFCC]" />
+                <p className="text-white/60 font-bold text-sm">{paymentModal.title}</p>
+                <div className="mt-4 inline-flex items-center gap-2 bg-white/10 rounded-2xl px-4 py-2">
+                  <CreditCard className="w-5 h-5 text-white/80" />
                   <span className="text-2xl font-black text-white">{paymentModal.price?.toLocaleString('ru-RU')} ₽</span>
                 </div>
               </div>
@@ -216,7 +222,7 @@ export default function Shop() {
                     onChange={e => setPaymentComment(e.target.value)}
                     placeholder="Например: оплатил(а) 15 мая, перевод от Иванова А.И."
                     rows={3}
-                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-2xl text-sm font-bold text-gray-700 outline-none focus:border-[#5A4BFF] focus:ring-2 focus:ring-[#5A4BFF]/10 resize-none transition-all"
+                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-2xl text-sm font-bold text-gray-700 outline-none focus:border-[#6C63FF] focus:ring-2 focus:ring-[#6C63FF]/10 resize-none transition-all"
                   />
                 </div>
 
@@ -230,9 +236,9 @@ export default function Shop() {
                       </button>
                     </div>
                   ) : (
-                    <label className="flex flex-col items-center gap-3 p-6 border-2 border-dashed border-gray-200 rounded-2xl cursor-pointer hover:border-[#5A4BFF] hover:bg-indigo-50/30 transition-all">
+                    <label className="flex flex-col items-center gap-3 p-6 border-2 border-dashed border-gray-200 rounded-2xl cursor-pointer hover:border-[#6C63FF] hover:bg-indigo-50/30 transition-all">
                       {uploadingProof ? (
-                        <Loader2 className="w-8 h-8 text-[#5A4BFF] animate-spin" />
+                        <Loader2 className="w-8 h-8 text-[#6C63FF] animate-spin" />
                       ) : (
                         <>
                           <Upload className="w-8 h-8 text-gray-300" />
@@ -248,7 +254,7 @@ export default function Shop() {
                 <button
                   onClick={handleSubmitApplication}
                   disabled={submittingApp}
-                  className="w-full py-4 bg-[#5A4BFF] hover:bg-[#4a3dec] text-white rounded-2xl font-black text-sm transition-all active:scale-[.98] shadow-lg shadow-[#5A4BFF]/30 disabled:opacity-70 flex items-center justify-center gap-2"
+                  className="w-full py-4 bg-[#1A1D26] hover:bg-black text-white rounded-2xl font-black text-sm transition-all active:scale-[.98] disabled:opacity-70 flex items-center justify-center gap-2"
                 >
                   {submittingApp ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
                   Отправить заявку
@@ -258,40 +264,27 @@ export default function Shop() {
           </motion.div>
         )}
       </AnimatePresence>
-      
-      <div className="mb-12 relative overflow-hidden rounded-[3rem] bg-gradient-to-br from-gray-900 via-indigo-900 to-[#5A4BFF] p-10 md:p-16 shadow-2xl">
-        <div className="absolute top-0 right-0 w-96 h-96 bg-white/10 blur-[100px] rounded-full pointer-events-none"></div>
-        <div className="absolute bottom-0 left-10 w-64 h-64 bg-indigo-500/30 blur-[80px] rounded-full pointer-events-none"></div>
-        
-        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-8">
-          <div className="max-w-2xl">
-            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-white/10 backdrop-blur-md border border-white/20 mb-6 shadow-sm">
-              <Star className="w-4 h-4 text-amber-300 fill-amber-300" />
-              <span className="text-xs font-black text-white uppercase tracking-widest">Набор открыт</span>
-            </div>
-            <h1 className="text-4xl md:text-6xl font-black text-white mb-6 leading-tight tracking-tight">
-              Твой билет на <span className="text-[#00FFCC]">бюджет</span>
-            </h1>
-            <p className="text-lg md:text-xl text-indigo-100 font-medium leading-relaxed max-w-xl">
-              Выбирай направление, залетай на поток и готовься к экзаменам с лучшими преподами в топовой тусовке.
-            </p>
-          </div>
-          
-          <div className="hidden lg:flex w-32 h-32 bg-white/10 backdrop-blur-xl rounded-[2rem] border border-white/20 items-center justify-center shrink-0 rotate-12 hover:rotate-0 transition-all duration-500 shadow-xl">
-            <ShoppingCart className="w-16 h-16 text-[#00FFCC]" />
-          </div>
-        </div>
+
+      <h1 className="text-[28px] md:text-[32px] font-black tracking-tight text-gray-900 leading-none">
+        Магазин курсов
+      </h1>
+
+      {/* Баннер */}
+      <div className="w-full min-h-[120px] md:min-h-[140px] rounded-2xl bg-[#E8ECF2] border border-gray-200/80 flex items-center justify-center px-6 py-8">
+        <p className="text-gray-400 font-bold text-sm md:text-base text-center">
+          Рекламный баннер предстоящего курса
+        </p>
       </div>
 
       {/* Поиск */}
-      <div className="mb-8 relative max-w-md">
-        <Search className="w-5 h-5 text-gray-400 absolute left-4 top-1/2 -translate-y-1/2" />
+      <div className="relative w-full max-w-xl">
+        <Search className="w-4 h-4 text-gray-400 absolute left-4 top-1/2 -translate-y-1/2" />
         <input
           type="text"
-          placeholder="Найти поток или курс..."
+          placeholder="найти поток или курс"
           value={searchQuery}
           onChange={e => setSearchQuery(e.target.value)}
-          className="w-full bg-white border border-gray-200 rounded-2xl pl-12 pr-10 py-3.5 outline-none focus:border-[#5A4BFF] focus:ring-4 focus:ring-[#5A4BFF]/10 transition-all font-bold text-gray-700 shadow-sm"
+          className="w-full bg-white border border-gray-200 rounded-full pl-11 pr-10 py-3 outline-none focus:border-[#6C63FF] transition-all font-medium text-sm text-gray-700 placeholder:text-gray-400"
         />
         {searchQuery && (
           <button onClick={() => setSearchQuery('')} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors">
@@ -301,71 +294,105 @@ export default function Shop() {
       </div>
 
       {filteredGroups.length === 0 && searchQuery ? (
-        <div className="bg-white rounded-[3rem] p-12 text-center border border-gray-100 shadow-sm">
-          <Search className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-          <h2 className="text-2xl font-black text-gray-800 mb-2">Ничего не найдено</h2>
-          <p className="text-gray-500">Попробуй изменить запрос.</p>
+        <div className="bg-white rounded-2xl p-12 text-center border border-gray-200">
+          <Search className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+          <h2 className="text-xl font-black text-gray-800 mb-2">Ничего не найдено</h2>
+          <p className="text-gray-500 text-sm">Попробуй изменить запрос.</p>
         </div>
       ) : groups.length === 0 ? (
-        <div className="bg-white rounded-[3rem] p-12 text-center border border-gray-100 shadow-sm">
-          <ShoppingCart className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-          <h2 className="text-2xl font-black text-gray-800 mb-2">Витрина пока пуста</h2>
-          <p className="text-gray-500">Скоро здесь появятся новые потоки для записи.</p>
+        <div className="bg-white rounded-2xl p-12 text-center border border-gray-200">
+          <ShoppingCart className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+          <h2 className="text-xl font-black text-gray-800 mb-2">Витрина пока пуста</h2>
+          <p className="text-gray-500 text-sm">Скоро здесь появятся новые потоки для записи.</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
           {filteredGroups.map((group) => {
             const isOwned = userGroups.includes(group.id);
             const appStatus = myApplications[group.id];
-            const featuresList = (group.features && group.features.length > 0) ? group.features : ['Доступ ко всем урокам', 'Проверка ДЗ', 'Авторские конспекты'];
+            const featuresList = (group.features && group.features.length > 0)
+              ? group.features
+              : ['Доступ ко всем урокам', 'Проверка ДЗ', 'Авторские конспекты'];
             const courses = group.courses || [];
             const isCoursesExpanded = expandedCourses[group.id];
-            
+            const isPopular = Boolean(group.price > 0 || (group._count?.students ?? 0) >= 3);
+            const mentorName = group.curator
+              ? `${group.curator.name || ''} ${group.curator.surname || ''}`.trim() || 'Куратор'
+              : null;
+
             return (
-              <motion.div 
-                whileHover={{ y: -8 }}
-                key={group.id} 
-                className="bg-white rounded-[2.5rem] overflow-hidden shadow-sm border border-gray-100 flex flex-col group/card transition-all hover:shadow-2xl hover:shadow-indigo-500/10"
+              <div
+                key={group.id}
+                className="bg-white rounded-2xl border border-gray-200 overflow-hidden flex flex-col hover:shadow-md transition-shadow"
               >
-                <div className="relative h-56 bg-gray-100 overflow-hidden">
+                {/* Обложка */}
+                <div className="relative h-44 bg-[#1A1D26] overflow-hidden">
                   {group.cover_url ? (
-                    <img src={getFullUrl(group.cover_url)} alt={group.title} className="w-full h-full object-cover group-hover/card:scale-105 transition-transform duration-700 ease-out" />
+                    <img
+                      src={getFullUrl(group.cover_url)}
+                      alt={group.title}
+                      className="w-full h-full object-cover opacity-90"
+                    />
                   ) : (
-                    <div className="w-full h-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center group-hover/card:scale-105 transition-transform duration-700 ease-out">
-                      <GraduationCap className="w-20 h-20 text-white/20" />
+                    <div className="w-full h-full bg-[#1A1D26] flex items-center justify-center">
+                      <GraduationCap className="w-16 h-16 text-white/15" />
                     </div>
                   )}
-                  
-                  <div className="absolute inset-0 bg-gradient-to-t from-gray-900/90 via-transparent to-transparent"></div>
-                  
-                  <div className="absolute top-4 left-4 right-4 flex justify-between items-start">
-                    <div className="flex flex-col gap-2 items-start">
-                      {group.curator && (
-                        <div className="px-3 py-1.5 bg-white/90 backdrop-blur-md rounded-xl text-[10px] font-black text-gray-900 uppercase tracking-widest shadow-sm flex items-center gap-1.5">
-                          <ShieldCheck className="w-3 h-3 text-[#5A4BFF]" /> С куратором
-                        </div>
-                      )}
-                    </div>
+
+                  <div className="absolute top-3 left-3 right-3 flex justify-between items-start gap-2">
+                    {group.start_date ? (
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-white rounded-md text-[10px] font-black text-gray-900 uppercase tracking-wide shadow-sm">
+                        <Calendar className="w-3 h-3" />
+                        Старт: {formatShopDate(group.start_date)}
+                      </span>
+                    ) : (
+                      <span />
+                    )}
+                    {isPopular && (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-[#EF4444] text-white rounded-md text-[10px] font-black uppercase tracking-wide shadow-sm">
+                        <Star className="w-3 h-3 fill-white" />
+                        Популярный тариф
+                      </span>
+                    )}
                   </div>
 
-                  {group.start_date && (
-                    <div className="absolute bottom-4 left-6 flex items-center gap-2 text-white font-bold text-sm bg-black/40 backdrop-blur-md px-3 py-1.5 rounded-lg border border-white/10">
-                      <Calendar className="w-4 h-4 text-[#00FFCC]" /> Старт: {formatShopDate(group.start_date)}
+                  {group.curator && (
+                    <div className="absolute bottom-3 left-3">
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-black/80 text-white rounded-md text-[10px] font-black uppercase tracking-wide">
+                        <ShieldCheck className="w-3 h-3" />
+                        С куратором
+                      </span>
                     </div>
                   )}
                 </div>
 
-                <div className="p-8 flex-1 flex flex-col">
-                  <h3 className="text-2xl font-black text-gray-900 mb-4 leading-tight line-clamp-2">
+                <div className="p-5 flex-1 flex flex-col">
+                  <h3 className="text-xl font-black text-gray-900 mb-4 leading-snug line-clamp-2">
                     {group.title}
                   </h3>
 
-                  {/* Список курсов */}
+                  {mentorName && (
+                    <div className="flex items-center gap-3 mb-4 p-3 bg-[#EEF0FF] rounded-xl">
+                      <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center overflow-hidden shrink-0 border border-indigo-100">
+                        {group.curator?.avatar ? (
+                          <img src={getFullUrl(group.curator.avatar)} alt="Куратор" className="w-full h-full object-cover" />
+                        ) : (
+                          <UserCircle className="w-6 h-6 text-gray-300" />
+                        )}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-[10px] font-black text-[#6C63FF] uppercase tracking-wider mb-0.5">Личный наставник</p>
+                        <p className="text-sm font-bold text-gray-900 truncate">{mentorName}</p>
+                      </div>
+                    </div>
+                  )}
+
                   {courses.length > 0 && (
-                    <div className="mb-5">
+                    <div className="mb-4">
                       <button
+                        type="button"
                         onClick={() => setExpandedCourses(prev => ({ ...prev, [group.id]: !prev[group.id] }))}
-                        className="flex items-center gap-2 text-xs font-black text-[#5A4BFF] uppercase tracking-widest mb-2 hover:text-indigo-700 transition-colors"
+                        className="flex items-center gap-2 text-[11px] font-black text-[#6C63FF] uppercase tracking-wider mb-2 hover:text-indigo-700 transition-colors"
                       >
                         <BookOpen className="w-3.5 h-3.5" />
                         {courses.length} {courses.length === 1 ? 'курс' : courses.length < 5 ? 'курса' : 'курсов'}
@@ -388,75 +415,54 @@ export default function Shop() {
                     </div>
                   )}
 
-                  {group.curator && (
-                    <div className="flex items-center gap-4 mb-6 p-4 bg-gray-50 rounded-2xl border border-gray-100">
-                      <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center overflow-hidden shrink-0 shadow-sm border border-gray-200">
-                        {group.curator.avatar ? (
-                          <img src={getFullUrl(group.curator.avatar)} alt="Куратор" className="w-full h-full object-cover" />
-                        ) : (
-                          <UserCircle className="w-8 h-8 text-gray-300" />
-                        )}
-                      </div>
-                      <div>
-                        <p className="text-[10px] font-black text-[#5A4BFF] uppercase tracking-widest mb-0.5">Личный наставник</p>
-                        <p className="text-sm font-bold text-gray-900">{group.curator.name || 'Куратор'} {group.curator.surname || ''}</p>
-                      </div>
-                    </div>
-                  )}
-
-                  <div className="space-y-4 mb-8 flex-1">
-                    {featuresList.map((feature: string, index: number) => (
-                      <div key={index} className="flex items-start gap-3">
-                        <div className={`w-8 h-8 rounded-xl ${getFeatureBg(index)} flex items-center justify-center shrink-0`}>
-                          {getFeatureIcon(index)}
+                  <div className="flex gap-3 mb-5 flex-1">
+                    <div className="space-y-3 flex-1 min-w-0">
+                      {featuresList.slice(0, 3).map((feature: string, index: number) => (
+                        <div key={index} className="flex items-start gap-2.5">
+                          <div className={`w-7 h-7 rounded-lg ${getFeatureBg(index)} flex items-center justify-center shrink-0`}>
+                            {getFeatureIcon(index)}
+                          </div>
+                          <p className="text-[13px] font-bold text-gray-700 leading-snug pt-1">{feature}</p>
                         </div>
-                        <p className="text-sm font-bold text-gray-700 leading-snug pt-1.5">{feature}</p>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
+
+                    <div className="shrink-0 self-start px-3 py-2 rounded-xl border border-gray-200 bg-gray-50 text-right min-w-[88px]">
+                      <span className="text-[9px] font-black text-gray-400 uppercase tracking-wider block mb-1">Стоимость</span>
+                      <span className="text-lg font-black text-gray-900 leading-none whitespace-nowrap">
+                        {group.price > 0 ? `${group.price.toLocaleString('ru-RU')}₽` : '0₽'}
+                      </span>
+                    </div>
                   </div>
 
-                  <div className="mt-auto pt-6 border-t border-gray-100 flex items-center justify-between gap-4">
-                    <div className="flex flex-col">
-                      <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1">Стоимость</span>
-                      <div className="flex items-end gap-2">
-                        <span className="text-3xl font-black text-gray-900 tracking-tight leading-none">
-                          {group.price > 0 ? `${group.price.toLocaleString('ru-RU')} ₽` : 'Бесплатно'}
-                        </span>
-                      </div>
-                      {group._count?.students > 0 && (
-                        <span className="text-[10px] font-bold text-emerald-500 block mt-1.5">
-                          {group._count.students} учеников уже учатся
-                        </span>
-                      )}
+                  {isOwned ? (
+                    <div className="w-full py-3.5 bg-emerald-50 text-emerald-600 border border-emerald-200 rounded-xl font-black text-sm flex items-center justify-center gap-2 cursor-not-allowed">
+                      <CheckCircle2 className="w-4 h-4" /> Куплено
                     </div>
-                    
-                    {isOwned ? (
-                      <div className="px-6 py-4 bg-emerald-50 text-emerald-600 border border-emerald-200 rounded-2xl font-black text-sm flex items-center gap-2 cursor-not-allowed shrink-0">
-                        <CheckCircle2 className="w-5 h-5" /> КУПЛЕНО
-                      </div>
-                    ) : appStatus === 'PENDING' ? (
-                      <div className="px-5 py-4 bg-amber-50 text-amber-600 border border-amber-200 rounded-2xl font-black text-xs flex items-center gap-2 cursor-not-allowed shrink-0">
-                        <Clock className="w-4 h-4" /> НА РАССМОТРЕНИИ
-                      </div>
-                    ) : appStatus === 'REJECTED' ? (
-                      <button
-                        onClick={() => handleApply(group)}
-                        className="px-5 py-4 bg-rose-50 text-rose-600 border border-rose-200 hover:bg-rose-100 rounded-2xl font-black text-xs transition-all flex items-center gap-2 shrink-0"
-                      >
-                        <AlertCircle className="w-4 h-4" /> ОТКЛОНЕНО — ПОВТОРИТЬ
-                      </button>
-                    ) : (
-                      <button 
-                        onClick={() => handleApply(group)}
-                        className="px-8 py-4 bg-gray-900 hover:bg-[#5A4BFF] text-white rounded-2xl font-black text-sm transition-all active:scale-95 shadow-lg flex items-center gap-2 group-hover/card:shadow-[#5A4BFF]/30 shrink-0"
-                      >
-                        <CreditCard className="w-4 h-4" />
-                        {group.price > 0 ? 'ЗАПИСАТЬСЯ' : 'ВСТУПИТЬ'}
-                      </button>
-                    )}
-                  </div>
+                  ) : appStatus === 'PENDING' ? (
+                    <div className="w-full py-3.5 bg-amber-50 text-amber-600 border border-amber-200 rounded-xl font-black text-sm flex items-center justify-center gap-2 cursor-not-allowed">
+                      <Clock className="w-4 h-4" /> На рассмотрении
+                    </div>
+                  ) : appStatus === 'REJECTED' ? (
+                    <button
+                      type="button"
+                      onClick={() => handleApply(group)}
+                      className="w-full py-3.5 bg-rose-50 text-rose-600 border border-rose-200 hover:bg-rose-100 rounded-xl font-black text-sm transition-all flex items-center justify-center gap-2"
+                    >
+                      <AlertCircle className="w-4 h-4" /> Отклонено — повторить
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => handleApply(group)}
+                      className="w-full py-3.5 bg-[#1A1D26] hover:bg-black text-white rounded-xl font-black text-sm transition-all active:scale-[.98] flex items-center justify-center gap-2"
+                    >
+                      <CreditCard className="w-4 h-4" />
+                      {group.price > 0 ? 'Записаться' : 'Вступить'}
+                    </button>
+                  )}
                 </div>
-              </motion.div>
+              </div>
             );
           })}
         </div>

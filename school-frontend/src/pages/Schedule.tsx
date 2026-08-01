@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { ChevronLeft, ChevronRight, Video, Clock, Link as LinkIcon, Plus, X, Trash2, CalendarDays, Loader2, MapPin, AlertCircle, Sparkles, ExternalLink, ArrowRight, Search, Users, Pencil } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Clock, Link as LinkIcon, Plus, X, Trash2, Loader2, AlertCircle, Sparkles, Search, Users, Pencil } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 import { decodeToken, getToken } from '../lib/auth';
@@ -8,20 +8,49 @@ import { parseSafeDate } from '../lib/parseDate';
 const API_URL = 'https://prepodmgy.ru/api';
 
 const DEFAULT_TYPE_LABELS: Record<string, string> = {
-  WEBINAR: 'Вебинар',
+  WEBINAR: 'Лекция',
   DEADLINE: 'Дедлайн',
   OFFLINE: 'Офлайн',
 };
+
+const MONTH_GENITIVE = [
+  'января', 'февраля', 'марта', 'апреля', 'мая', 'июня',
+  'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря',
+];
 
 const getEventTypeLabel = (ev: any) => {
   if (ev.custom_type?.trim()) return ev.custom_type.trim();
   return DEFAULT_TYPE_LABELS[ev.type] || ev.type || 'Событие';
 };
 
-const getEventTypeColors = (type: string) => {
-  if (type === 'DEADLINE') return 'from-rose-500 to-red-600';
-  if (type === 'OFFLINE') return 'from-emerald-500 to-teal-600';
-  return 'from-[#5A4BFF] to-violet-600';
+/** Тема предмета по группе/названию — фиолетовый (РЯ) / оранжевый (История) */
+const getSubjectTheme = (ev: any) => {
+  const hay = `${ev?.group?.title || ''} ${ev?.title || ''}`.toLowerCase();
+  if (/истор/.test(hay)) {
+    return {
+      key: 'history' as const,
+      short: 'ИСТОРИЯ',
+      badge: 'bg-[#F97316] text-white',
+      border: 'border-[#F97316]',
+      pill: 'bg-[#F97316] text-white',
+    };
+  }
+  // русский / по умолчанию
+  return {
+    key: 'russian' as const,
+    short: 'РУССКИЙ ЯЗЫК',
+    badge: 'bg-[#6C63FF] text-white',
+    border: 'border-[#6C63FF]',
+    pill: 'bg-[#6C63FF] text-white',
+  };
+};
+
+const formatEventCardDate = (d: Date) => {
+  const day = d.getDate();
+  const mon = MONTH_GENITIVE[d.getMonth()].toUpperCase();
+  const hh = String(d.getHours()).padStart(2, '0');
+  const mm = String(d.getMinutes()).padStart(2, '0');
+  return `${day} ${mon} ${hh}:${mm}`;
 };
 
 export default function Schedule() {
@@ -245,8 +274,11 @@ export default function Schedule() {
   const prevMonth = () => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1));
   const nextMonth = () => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1));
 
+  const [selectedDayKey, setSelectedDayKey] = useState<string | null>(null);
+
   const handleDayClick = (day: number, thisDate: Date) => {
     const clickedDate = thisDate.toDateString();
+    setSelectedDayKey(clickedDate);
     const dayEvents = events.filter(e => parseSafeDate(e.date).toDateString() === clickedDate);
     if (dayEvents.length > 0) {
       setSelectedDayEvents(dayEvents);
@@ -255,141 +287,160 @@ export default function Schedule() {
     }
   };
 
-  // Ближайшие события (сегодня + будущие, максимум 3)
+  // Ближайшие события — до 4 карточек как в макете
   const now = new Date();
   const upcomingEvents = events
-    .filter(e => parseSafeDate(e.date) >= now)
+    .filter(e => parseSafeDate(e.date) >= new Date(now.getFullYear(), now.getMonth(), now.getDate()))
     .sort((a, b) => parseSafeDate(a.date).getTime() - parseSafeDate(b.date).getTime())
-    .slice(0, 3);
+    .slice(0, 4);
 
-  const isToday = (d: string) => parseSafeDate(d).toDateString() === now.toDateString();
-
-  if (isLoading) return <div className="h-screen flex items-center justify-center bg-[#F4F7FE]"><Loader2 className="w-12 h-12 animate-spin text-[#5A4BFF]" /></div>;
+  if (isLoading) {
+    return (
+      <div className="h-[60vh] flex items-center justify-center">
+        <Loader2 className="w-10 h-10 animate-spin text-[#6C63FF]" />
+      </div>
+    );
+  }
 
   return (
-    <div className="max-w-6xl mx-auto space-y-4 pb-6 px-4 pt-4 relative">
-      
-      <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-[#5A4BFF]/10 rounded-full blur-[120px] pointer-events-none -z-10"></div>
-      <div className="absolute bottom-0 left-0 w-[400px] h-[400px] bg-purple-500/10 rounded-full blur-[100px] pointer-events-none -z-10"></div>
+    <div className="w-full max-w-[1200px] mx-auto pb-8 px-2 md:px-4 pt-2 space-y-5">
+      {/* Заголовок + кнопка */}
+      <div className="flex flex-wrap items-center gap-3">
+        <h1 className="text-[28px] md:text-[32px] font-black tracking-tight text-gray-900 leading-none">
+          Расписание
+        </h1>
+        {canManageSchedule && (
+          <button
+            type="button"
+            onClick={() => { resetForm(); setShowAddModal(true); }}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-[#1A1D26] hover:bg-black text-white text-[11px] font-black uppercase tracking-wide rounded-lg transition-colors active:scale-95"
+          >
+            <Plus className="w-3.5 h-3.5" /> Добавить событие
+          </button>
+        )}
+      </div>
 
-      {/* ── СТРИП БЛИЖАЙШИХ ЗАНЯТИЙ ── */}
+      {/* Карточки ближайших */}
       {upcomingEvents.length > 0 && (
-        <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}
-          className="grid grid-cols-1 md:grid-cols-3 gap-3 hidden lg:grid">
-          {upcomingEvents.map(ev => {
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
+          {upcomingEvents.map((ev) => {
+            const theme = getSubjectTheme(ev);
             const evDate = parseSafeDate(ev.date);
-            const today = isToday(ev.date);
-            const typeLabels: Record<string, string> = DEFAULT_TYPE_LABELS;
-            const label = getEventTypeLabel(ev);
             return (
-              <div key={ev.id} className={`relative rounded-[2rem] p-6 bg-gradient-to-br ${getEventTypeColors(ev.type)} text-white overflow-hidden shadow-lg`}>
-                <div className="absolute -bottom-6 -right-6 w-28 h-28 bg-white/10 rounded-full blur-2xl" />
-                <div className="relative z-10">
-                  <div className="flex items-center justify-between mb-4">
-                    <span className="text-[10px] font-black uppercase tracking-widest bg-white/20 px-2.5 py-1 rounded-lg">
-                      {today ? '🔴 Сегодня' : evDate.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' })}
-                    </span>
-                    <span className="text-xs font-bold bg-white/20 px-2.5 py-1 rounded-lg flex items-center gap-1">
-                      <Clock className="w-3 h-3" />{evDate.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}
-                    </span>
-                  </div>
-                  <p className="font-black text-base leading-snug mb-4 line-clamp-2">{ev.title}</p>
-                  {ev.link ? (
-                    <a href={ev.link} target="_blank" rel="noreferrer"
-                      className="inline-flex items-center gap-2 bg-white text-gray-900 font-black text-xs px-4 py-2.5 rounded-xl hover:scale-105 transition-transform active:scale-95 shadow-md">
-                      {today ? '🚀 Войти в урок' : 'Ссылка'} <ExternalLink className="w-3.5 h-3.5" />
-                    </a>
-                  ) : (
-                    <span className="text-xs font-bold text-white/60">{label || typeLabels[ev.type]}</span>
+              <button
+                key={ev.id}
+                type="button"
+                onClick={() => {
+                  if (ev.link) {
+                    window.open(ev.link, '_blank', 'noopener,noreferrer');
+                    return;
+                  }
+                  const d = parseSafeDate(ev.date);
+                  setSelectedDayEvents([ev]);
+                  setSelectedDateTitle(`${d.getDate()} ${monthNames[d.getMonth()].toLowerCase()}`);
+                  setShowDayModal(true);
+                }}
+                className={`text-left bg-white border ${theme.border} rounded-xl p-4 hover:shadow-md transition-shadow`}
+              >
+                <div className="flex items-start justify-between gap-2 mb-3">
+                  <span className={`text-[9px] font-black uppercase tracking-wider px-2 py-1 rounded-md ${theme.badge}`}>
+                    {theme.short}
+                  </span>
+                  <span className="text-[10px] font-bold text-gray-500 whitespace-nowrap shrink-0">
+                    {formatEventCardDate(evDate)}
+                  </span>
+                </div>
+                <p className="font-black text-[15px] text-gray-900 uppercase leading-snug mb-2 line-clamp-2">
+                  {ev.title}
+                </p>
+                <p className="text-sm font-medium text-gray-500">{getEventTypeLabel(ev)}</p>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Календарь */}
+      <div className="bg-white border border-gray-200/80 rounded-2xl shadow-sm p-4 md:p-6">
+        <div className="flex justify-between items-center mb-5">
+          <h2 className="text-xl md:text-2xl font-black text-gray-900">
+            {monthNames[currentDate.getMonth()]} {currentDate.getFullYear()}
+          </h2>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={prevMonth}
+              className="w-9 h-9 rounded-full bg-[#1A1D26] text-white flex items-center justify-center hover:bg-black transition-colors"
+              aria-label="Предыдущий месяц"
+            >
+              <ChevronLeft className="w-5 h-5" />
+            </button>
+            <button
+              type="button"
+              onClick={nextMonth}
+              className="w-9 h-9 rounded-full bg-[#1A1D26] text-white flex items-center justify-center hover:bg-black transition-colors"
+              aria-label="Следующий месяц"
+            >
+              <ChevronRight className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-7 border border-gray-200 rounded-xl overflow-hidden">
+          {dayNames.map((day) => (
+            <div
+              key={day}
+              className="hidden md:block text-center text-[11px] font-bold text-gray-400 uppercase tracking-wider py-2 border-b border-gray-200 bg-gray-50/80"
+            >
+              {day}
+            </div>
+          ))}
+
+          {Array(firstDayOfMonth).fill(null).map((_, i) => (
+            <div
+              key={`empty-${i}`}
+              className="min-h-[72px] md:min-h-[96px] border-b border-r border-gray-100 bg-gray-50/40"
+            />
+          ))}
+
+          {Array.from({ length: daysInMonth }, (_, i) => i + 1).map((day) => {
+            const thisDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), day);
+            const dayKey = thisDate.toDateString();
+            const isSelected = selectedDayKey === dayKey || (!selectedDayKey && dayKey === now.toDateString());
+            const dayEvents = events.filter(
+              (e) => parseSafeDate(e.date).toDateString() === dayKey,
+            );
+
+            return (
+              <div
+                key={day}
+                onClick={() => handleDayClick(day, thisDate)}
+                className={`min-h-[72px] md:min-h-[96px] p-1.5 md:p-2 border-b border-r border-gray-100 relative cursor-pointer transition-colors hover:bg-gray-50/80
+                  ${isSelected ? 'ring-2 ring-inset ring-[#6C63FF] bg-[#6C63FF]/[0.03]' : ''}`}
+              >
+                <div className="font-black text-sm text-gray-900 mb-1">{day}</div>
+                <div className="space-y-1">
+                  {dayEvents.slice(0, 3).map((ev) => {
+                    const theme = getSubjectTheme(ev);
+                    return (
+                      <div
+                        key={ev.id}
+                        className={`text-[8px] md:text-[9px] font-black uppercase tracking-wide px-1.5 py-0.5 rounded truncate ${theme.pill}`}
+                        title={ev.title}
+                      >
+                        {theme.short}
+                      </div>
+                    );
+                  })}
+                  {dayEvents.length > 3 && (
+                    <div className="text-[8px] font-bold text-gray-400 px-1">+{dayEvents.length - 3}</div>
                   )}
                 </div>
               </div>
             );
           })}
-        </motion.div>
-      )}
-
-      <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col md:flex-row md:justify-between md:items-center gap-3 mb-2">
-        <motion.div>
-          <h1 className="text-2xl md:text-3xl font-black tracking-tight text-gray-900 mb-1 flex items-center gap-3">
-            <div className="p-2 bg-white rounded-xl shadow-sm border border-gray-100">
-              <CalendarDays className="w-6 h-6 text-[#5A4BFF]" />
-            </div>
-            Расписание
-          </h1>
-        </motion.div>
-        {canManageSchedule && (
-          <button 
-            onClick={() => { resetForm(); setShowAddModal(true); }}
-            className="px-8 py-4 bg-gray-900 hover:bg-black text-white rounded-2xl font-black flex items-center gap-2 transition-all active:scale-95 shadow-xl shadow-gray-900/20 group"
-          >
-            <Plus className="w-5 h-5 group-hover:rotate-90 transition-transform" /> ДОБАВИТЬ СОБЫТИЕ
-          </button>
-        )}
-      </motion.div>
-
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="bg-white/80 backdrop-blur-xl rounded-[2rem] shadow-lg shadow-indigo-500/5 border border-white p-4 md:p-5 relative overflow-hidden">
-        
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-xl md:text-2xl font-black text-gray-900 capitalize tracking-tight flex items-center gap-2">
-            {monthNames[currentDate.getMonth()]} <span className="text-gray-400 font-bold text-lg">{currentDate.getFullYear()}</span>
-          </h2>
-          <div className="flex gap-2 bg-gray-50 p-1.5 rounded-2xl border border-gray-100">
-            <button onClick={prevMonth} className="p-3 bg-transparent hover:bg-white rounded-xl transition-all hover:shadow-sm"><ChevronLeft className="w-6 h-6 text-gray-700" /></button>
-            <button onClick={nextMonth} className="p-3 bg-transparent hover:bg-white rounded-xl transition-all hover:shadow-sm"><ChevronRight className="w-6 h-6 text-gray-700" /></button>
-          </div>
         </div>
-
-        <div className="grid grid-cols-7 gap-1.5 md:gap-2 mb-2">
-          {dayNames.map(day => (
-            <div key={day} className="text-center font-black text-gray-400 text-[10px] md:text-xs uppercase tracking-widest py-1">{day}</div>
-          ))}
-        </div>
-
-        <div className="grid grid-cols-7 gap-1.5 md:gap-2 auto-rows-fr" style={{ minHeight: 'min(52vh, 420px)' }}>
-          {Array(firstDayOfMonth).fill(null).map((_, i) => (
-            <div key={`empty-${i}`} className="min-h-[3.25rem] md:min-h-[3.75rem] rounded-xl bg-gray-50/50 border border-gray-100/50 border-dashed"></div>
-          ))}
-          
-          {Array.from({ length: daysInMonth }, (_, i) => i + 1).map(day => {
-            const thisDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), day);
-            const isToday = thisDate.toDateString() === new Date().toDateString();
-            const dayEvents = events.filter(e => parseSafeDate(e.date).toDateString() === thisDate.toDateString());
-            
-            return (
-              <div 
-                key={day} 
-                onClick={() => handleDayClick(day, thisDate)}
-                className={`min-h-[3.25rem] md:min-h-[3.75rem] rounded-xl p-1.5 md:p-2 transition-all duration-200 flex flex-col relative group overflow-hidden
-                  ${isToday 
-                    ? 'bg-gradient-to-br from-[#5A4BFF] to-[#8c52ff] shadow-md shadow-indigo-500/20 cursor-pointer' 
-                    : dayEvents.length > 0 
-                      ? 'bg-white border border-gray-100 hover:border-[#5A4BFF] cursor-pointer' 
-                      : 'bg-white border border-transparent hover:bg-gray-50'}`}
-              >
-                <div className={`font-black text-sm md:text-base leading-none ${isToday ? 'text-white' : 'text-gray-900 group-hover:text-[#5A4BFF] transition-colors'}`}>
-                  {day}
-                </div>
-
-                <div className="flex-1 overflow-hidden mt-1 space-y-0.5">
-                  {dayEvents.slice(0, 2).map((ev, idx) => {
-                    let pillClass = 'bg-indigo-50 text-indigo-700';
-                    if (isToday) pillClass = 'bg-white/25 text-white';
-                    else if (ev.type === 'DEADLINE') pillClass = 'bg-rose-50 text-rose-700';
-                    else if (ev.type === 'OFFLINE') pillClass = 'bg-emerald-50 text-emerald-700';
-                    
-                    return (
-                      <div key={idx} className={`text-[8px] md:text-[9px] font-bold px-1 py-0.5 rounded truncate ${pillClass}`}>
-                        {ev.title}
-                      </div>
-                    )
-                  })}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </motion.div>
+      </div>
 
       <AnimatePresence>
         {showDayModal && (

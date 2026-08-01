@@ -8,6 +8,11 @@ import { parseSafeDate, parseSafeDateMs } from '../lib/parseDate';
 import { useNavigate } from 'react-router-dom';
 import { SPELL_RULE_OPTIONS } from '../utils/spellRules';
 import { EGE_ESSAY_MAX_SCORE, FINAL_ESSAY_MAX_SCORE } from '../utils/essayCriteria';
+import {
+  isLocalDevHost,
+  resolveCourseUiTheme,
+  setLocalCourseUiTheme,
+} from '../lib/courseUiTheme';
 
 import ReactQuill from 'react-quill-new';
 import 'react-quill-new/dist/quill.snow.css';
@@ -333,12 +338,14 @@ export default function AdminCourses() {
       
       const mergedCourses = res.data.map((c: any) => ({
         ...c,
-        categoryId: c.categoryId || localCourseCats[c.id] || null
+        categoryId: c.categoryId || localCourseCats[c.id] || null,
+        ui_theme: resolveCourseUiTheme(c),
       }));
 
       setItems(mergedCourses);
       if (selectedCourseForThemes) {
-        setSelectedCourseForThemes(mergedCourses.find((c: any) => c.id === selectedCourseForThemes.id) || null);
+        const fresh = mergedCourses.find((c: any) => c.id === selectedCourseForThemes.id) || null;
+        setSelectedCourseForThemes(fresh ? { ...fresh, ui_theme: resolveCourseUiTheme(fresh) } : null);
       }
     } catch (err) { 
       setItems([]); 
@@ -459,6 +466,57 @@ export default function AdminCourses() {
         prev.map((c) => (c.id === courseId ? { ...c, spell_check: prevVal } : c)),
       );
       showToast('Не удалось сохранить настройку орфографии', 'error');
+    }
+  };
+
+  const handleToggleRussianUi = async (courseId: string, enabled: boolean) => {
+    await handleSetUiTheme(courseId, enabled ? 'RUSSIAN' : 'DEFAULT', 'russian');
+  };
+
+  const handleToggleHistoryUi = async (courseId: string, enabled: boolean) => {
+    await handleSetUiTheme(courseId, enabled ? 'HISTORY' : 'DEFAULT', 'history');
+  };
+
+  const handleSetUiTheme = async (
+    courseId: string,
+    newVal: 'DEFAULT' | 'RUSSIAN' | 'HISTORY',
+    kind: 'russian' | 'history',
+  ) => {
+    const prevVal = resolveCourseUiTheme(
+      selectedCourseForThemes?.id === courseId ? selectedCourseForThemes : { id: courseId },
+    );
+
+    setLocalCourseUiTheme(courseId, newVal);
+    setSelectedCourseForThemes((prev: any) =>
+      prev?.id === courseId ? { ...prev, ui_theme: newVal } : prev,
+    );
+    setItems((prev) =>
+      prev.map((c) => (c.id === courseId ? { ...c, ui_theme: newVal } : c)),
+    );
+
+    const labels = {
+      russian: { on: 'Оформление «Русский язык» включено', off: 'Русский UI выключен', localOn: 'Русский UI включён локально (для тестов)', localOff: 'Русский UI выключен локально' },
+      history: { on: 'Оформление «История» включено', off: 'История UI выключен', localOn: 'История UI включена локально (для тестов)', localOff: 'История UI выключена локально' },
+    } as const;
+    const L = labels[kind];
+
+    try {
+      await axios.patch(`${API_URL}/courses/${courseId}`, { ui_theme: newVal }, getTokenConfig());
+      invalidateCache('/courses');
+      showToast(newVal === 'DEFAULT' ? (kind === 'russian' ? L.off : L.off) : L.on);
+    } catch {
+      if (isLocalDevHost()) {
+        showToast(newVal === 'DEFAULT' ? L.localOff : L.localOn);
+        return;
+      }
+      setLocalCourseUiTheme(courseId, prevVal);
+      setSelectedCourseForThemes((prev: any) =>
+        prev?.id === courseId ? { ...prev, ui_theme: prevVal } : prev,
+      );
+      setItems((prev) =>
+        prev.map((c) => (c.id === courseId ? { ...c, ui_theme: prevVal } : c)),
+      );
+      showToast('Не удалось сохранить оформление', 'error');
     }
   };
 
@@ -1249,6 +1307,56 @@ export default function AdminCourses() {
                     <Plus className="w-6 h-6 mb-1" /> Добавить
                   </button>
                 </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 p-4 rounded-2xl border border-indigo-100 bg-indigo-50/40">
+                  <p className="md:col-span-2 text-[10px] font-black text-indigo-600 uppercase tracking-widest">Русский UI — соответствие (ЕГЭ)</p>
+                  <div>
+                    <label className="text-[10px] font-bold text-gray-500 uppercase block mb-1">Заголовок слева</label>
+                    <input value={block.leftTitle || ''} onChange={(e) => updateBlock(block.id, { leftTitle: e.target.value }, isHw)} placeholder="Грамматические ошибки" className="w-full p-3 rounded-xl border border-gray-200 outline-none font-medium text-sm" />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold text-gray-500 uppercase block mb-1">Заголовок справа</label>
+                    <input value={block.rightTitle || ''} onChange={(e) => updateBlock(block.id, { rightTitle: e.target.value }, isHw)} placeholder="Предложения" className="w-full p-3 rounded-xl border border-gray-200 outline-none font-medium text-sm" />
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="text-[10px] font-bold text-gray-500 uppercase block mb-1">Правая колонка (по строке = 1) … 9)</label>
+                    <textarea
+                      value={Array.isArray(block.rightColumn) ? block.rightColumn.join('\n') : ''}
+                      onChange={(e) => updateBlock(block.id, { rightColumn: e.target.value.split('\n').map((s) => s.trimEnd()).filter((s, i, arr) => s || i < arr.length - 1) }, isHw)}
+                      placeholder={"Предложение 1\nПредложение 2\n..."}
+                      rows={5}
+                      className="w-full p-3 rounded-xl border border-gray-200 outline-none font-medium text-sm resize-y"
+                    />
+                    <p className="text-[11px] text-gray-500 mt-1">В «Значение» пары укажите номер предложения (например 3). Ученик вводит цифры в поля А–Д.</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {['test_short', 'written', 'test'].includes(block.type) && (
+              <div className="mb-6 p-4 rounded-2xl border border-violet-100 bg-violet-50/40 space-y-3">
+                <p className="text-[10px] font-black text-violet-600 uppercase tracking-widest">Русский UI — доп. поля</p>
+                <div className="flex flex-wrap items-end gap-4">
+                  <div>
+                    <label className="text-[10px] font-bold text-gray-500 uppercase block mb-1">Поля «Для заметок» (задание 21)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="20"
+                      value={block.notesCount || 0}
+                      onChange={(e) => updateBlock(block.id, { notesCount: Math.max(0, parseInt(e.target.value) || 0) }, isHw)}
+                      className="w-28 p-3 rounded-xl border border-gray-200 outline-none font-black text-center"
+                    />
+                  </div>
+                  <div className="flex-1 min-w-[200px]">
+                    <label className="text-[10px] font-bold text-gray-500 uppercase block mb-1">Текст слева (HTML), если не из условия</label>
+                    <input
+                      value={block.passage || ''}
+                      onChange={(e) => updateBlock(block.id, { passage: e.target.value }, isHw)}
+                      placeholder="Опционально: фрагмент с (1)…(7)"
+                      className="w-full p-3 rounded-xl border border-gray-200 outline-none font-medium text-sm"
+                    />
+                  </div>
+                </div>
               </div>
             )}
 
@@ -1283,6 +1391,15 @@ export default function AdminCourses() {
     return (
       <div className={`p-6 rounded-[2rem] border-2 shadow-xl flex flex-col gap-4 shadow-${color}-500/10 ${bgClass}`}>
         <h4 className={`font-black text-xs uppercase tracking-widest text-center ${titleColor}`}>Добавить {isHw ? 'в домашку' : 'в теорию'}</h4>
+        {!isHw && (resolveCourseUiTheme(selectedCourseForThemes) === 'HISTORY' || resolveCourseUiTheme(selectedCourseForThemes) === 'RUSSIAN') && (
+          <p className={`text-[11px] rounded-xl px-3 py-2 leading-snug border ${
+            resolveCourseUiTheme(selectedCourseForThemes) === 'HISTORY'
+              ? 'text-orange-700 bg-orange-50 border-orange-100'
+              : 'text-violet-700 bg-violet-50 border-violet-100'
+          }`}>
+            {resolveCourseUiTheme(selectedCourseForThemes) === 'HISTORY' ? 'История' : 'Русский'} UI: в названии файла пишите «Скрипт», «Учебник» или «Запоминалка» — так секции встанут как в макете. Перед файлом можно добавить картинку-обложку.
+          </p>
+        )}
         <div className="grid grid-cols-2 gap-2">
           <button type="button" onClick={() => addBlock('text', isHw)} className={btnClass}><FileText className="w-5 h-5 text-emerald-500" /> Текст</button>
           <button type="button" onClick={() => addBlock('image', isHw)} className={btnClass}><ImageIcon className="w-5 h-5 text-blue-500" /> Картинка</button>
@@ -1485,7 +1602,7 @@ export default function AdminCourses() {
                 </div>
               ) : (
                 filteredCourses.map((item) => (
-                  <div key={item.id} onClick={() => { setSelectedCourseForThemes(item); setShowThemeModal(true); }} className="bg-white p-6 rounded-[2rem] shadow-sm flex flex-col sm:flex-row sm:items-center justify-between cursor-pointer hover:shadow-md hover:border-indigo-200 border-2 border-transparent transition-all group gap-4">
+                  <div key={item.id} onClick={() => { setSelectedCourseForThemes({ ...item, ui_theme: resolveCourseUiTheme(item) }); setShowThemeModal(true); }} className="bg-white p-6 rounded-[2rem] shadow-sm flex flex-col sm:flex-row sm:items-center justify-between cursor-pointer hover:shadow-md hover:border-indigo-200 border-2 border-transparent transition-all group gap-4">
                     <div className="flex-1 min-w-0">
                       
                       {item.categoryId && (
@@ -1657,6 +1774,24 @@ export default function AdminCourses() {
                        <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-all ${selectedCourseForThemes.spell_check ? 'left-4' : 'left-0.5'}`} />
                      </div>
                      <span className="text-[11px] font-black text-gray-500 group-hover:text-gray-700 transition-colors uppercase tracking-widest">Орфография</span>
+                   </label>
+                   <label className="flex items-center gap-2 cursor-pointer ml-1 select-none group shrink-0" title="Включить оформление заданий в стиле «Русский язык ЕГЭ»">
+                     <div
+                       className={`w-9 h-5 rounded-full transition-colors relative ${resolveCourseUiTheme(selectedCourseForThemes) === 'RUSSIAN' ? 'bg-[#6C63FF]' : 'bg-gray-200'}`}
+                       onClick={() => handleToggleRussianUi(selectedCourseForThemes.id, resolveCourseUiTheme(selectedCourseForThemes) !== 'RUSSIAN')}
+                     >
+                       <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-all ${resolveCourseUiTheme(selectedCourseForThemes) === 'RUSSIAN' ? 'left-4' : 'left-0.5'}`} />
+                     </div>
+                     <span className="text-[11px] font-black text-gray-500 group-hover:text-gray-700 transition-colors uppercase tracking-widest">Русский UI</span>
+                   </label>
+                   <label className="flex items-center gap-2 cursor-pointer ml-1 select-none group shrink-0" title="Включить оформление заданий в стиле «История ЕГЭ»">
+                     <div
+                       className={`w-9 h-5 rounded-full transition-colors relative ${resolveCourseUiTheme(selectedCourseForThemes) === 'HISTORY' ? 'bg-[#EF6C35]' : 'bg-gray-200'}`}
+                       onClick={() => handleToggleHistoryUi(selectedCourseForThemes.id, resolveCourseUiTheme(selectedCourseForThemes) !== 'HISTORY')}
+                     >
+                       <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-all ${resolveCourseUiTheme(selectedCourseForThemes) === 'HISTORY' ? 'left-4' : 'left-0.5'}`} />
+                     </div>
+                     <span className="text-[11px] font-black text-gray-500 group-hover:text-gray-700 transition-colors uppercase tracking-widest">История UI</span>
                    </label>
                    <label className="flex items-center gap-2 cursor-pointer ml-1 select-none group shrink-0" title="Учитывать устные опросы в аналитике курса">
                      <div className={`w-9 h-5 rounded-full transition-colors relative ${selectedCourseForThemes.oral_in_analytics !== false ? 'bg-teal-500' : 'bg-gray-200'}`}

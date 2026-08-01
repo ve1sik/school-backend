@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { FileText, AlertCircle, Clock, CheckCircle2, Loader2, FolderOpen, ChevronRight, Search, Book, Calendar, XCircle } from 'lucide-react';
+import { FileText, AlertCircle, Clock, CheckCircle2, Loader2, FolderOpen, ChevronRight, Search, Calendar, XCircle, Info } from 'lucide-react';
 import { motion, AnimatePresence, type Variants } from 'framer-motion';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { cachedGet } from '../lib/api';
@@ -8,6 +8,31 @@ import { parseSafeDate, parseSafeDateMs } from '../lib/parseDate';
 import RonWork from './RonWork';
 
 type TabType = 'TODO' | 'OVERDUE' | 'REVISION' | 'REVIEW' | 'GRADED' | 'RON';
+
+const getCoursePillTheme = (name: string, active: boolean) => {
+  const hay = name.toLowerCase();
+  const isHistory = /истор/.test(hay);
+  if (active) {
+    if (isHistory) return 'bg-[#EF4444] text-white border-[#EF4444] shadow-sm';
+    return 'bg-[#6C63FF] text-white border-[#6C63FF] shadow-sm';
+  }
+  if (isHistory) return 'bg-white text-[#EF4444] border-[#EF4444] hover:bg-red-50';
+  return 'bg-white text-[#6C63FF] border-[#6C63FF]/40 hover:border-[#6C63FF] hover:bg-indigo-50/40';
+};
+
+const STATUS_FILTERS: {
+  key: TabType;
+  label: string;
+  dot: string;
+  active: string;
+}[] = [
+  { key: 'TODO', label: 'К выполнению', dot: 'bg-[#1A1D26]', active: 'bg-[#1A1D26] text-white border-[#1A1D26]' },
+  { key: 'OVERDUE', label: 'Просрочено', dot: 'bg-rose-500', active: 'bg-rose-500 text-white border-rose-500' },
+  { key: 'REVISION', label: 'На доработку', dot: 'bg-amber-400', active: 'bg-amber-400 text-white border-amber-400' },
+  { key: 'REVIEW', label: 'На проверке', dot: 'bg-sky-500', active: 'bg-sky-500 text-white border-sky-500' },
+  { key: 'GRADED', label: 'Оценено', dot: 'bg-emerald-500', active: 'bg-emerald-500 text-white border-emerald-500' },
+  { key: 'RON', label: 'Работа над ошибками', dot: 'bg-[#A78BFA]', active: 'bg-[#8B5CF6] text-white border-[#8B5CF6]' },
+];
 
 export default function Homework() {
   const navigate = useNavigate();
@@ -19,12 +44,11 @@ export default function Homework() {
     ['TODO', 'OVERDUE', 'REVISION', 'REVIEW', 'GRADED', 'RON'].includes(initialTab) ? initialTab : 'TODO',
   );
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedCourseFilter, setSelectedCourseFilter] = useState<string>('all');
+  const [selectedCourseFilter, setSelectedCourseFilter] = useState<string>('');
 
   useEffect(() => {
     const fetchRealHomeworks = async () => {
       try {
-        // 🚀 Общий кеш: переходы между ДЗ/курсами/дашбордом не дёргают бэкенд заново
         const [coursesData, subsData, schedData] = await Promise.all([
           cachedGet('/courses').catch(() => []),
           cachedGet('/submissions/my/summary').catch(() => []),
@@ -34,7 +58,6 @@ export default function Homework() {
         const subsRes = { data: Array.isArray(subsData) ? subsData : [] };
         const schedRes = { data: Array.isArray(schedData) ? schedData : [] };
 
-        // Собираем дедлайны из расписания — матчим по названию урока
         const deadlineEvents: any[] = schedRes.data.filter((e: any) => e.type === 'DEADLINE');
         const findDeadline = (title: string): string | null => {
           const match = deadlineEvents.find(d =>
@@ -82,7 +105,7 @@ export default function Homework() {
                   relevantSubs.find((s: any) => s.status === 'REVISION') ||
                   (allBlocksGraded ? gradedSubs[0] : null) ||
                   relevantSubs[0];
-                
+
                 let status = 'TODO';
                 let score = null;
                 let maxScore = hwMaxScore || lesson.max_score || 100;
@@ -173,8 +196,15 @@ export default function Homework() {
     [homeworks],
   );
 
+  useEffect(() => {
+    if (!courseNames.length) return;
+    if (!selectedCourseFilter || !courseNames.includes(selectedCourseFilter)) {
+      setSelectedCourseFilter(courseNames[0]);
+    }
+  }, [courseNames, selectedCourseFilter]);
+
   const homeworksForCourse =
-    selectedCourseFilter === 'all'
+    !selectedCourseFilter
       ? homeworks
       : homeworks.filter((h) => h.courseName === selectedCourseFilter);
 
@@ -195,7 +225,6 @@ export default function Homework() {
     GRADED: homeworksForCourse.filter(h => h.status === 'GRADED').length,
   };
 
-  // 🔥 ГРУППИРОВКА ЗАДАНИЙ (Курс -> Модуль -> Массив заданий)
   const groupedHomeworks = filteredHomeworks.reduce((acc, hw) => {
     if (!acc[hw.courseName]) acc[hw.courseName] = {};
     if (!acc[hw.courseName][hw.themeName]) acc[hw.courseName][hw.themeName] = [];
@@ -206,187 +235,213 @@ export default function Homework() {
   if (isLoading) {
     return (
       <div className="h-[calc(100vh-100px)] flex flex-col items-center justify-center space-y-4">
-        <Loader2 className="w-12 h-12 animate-spin text-[#5A4BFF]" />
+        <Loader2 className="w-10 h-10 animate-spin text-[#6C63FF]" />
       </div>
     );
   }
 
-  const containerVariants = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.1 } } };
-  const itemVariants: Variants = { hidden: { opacity: 0, y: 20 }, show: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 300, damping: 24 } } };
+  const containerVariants = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.06 } } };
+  const itemVariants: Variants = { hidden: { opacity: 0, y: 12 }, show: { opacity: 1, y: 0, transition: { type: 'spring', stiffness: 320, damping: 26 } } };
 
   return (
-    <div className="max-w-7xl mx-auto space-y-8 pb-10 pt-4 px-4 sm:px-0">
-      
-      <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="mb-6">
-        <h1 className="text-4xl md:text-5xl font-black tracking-tight text-gray-900 mb-3 flex items-center gap-4">
-          Мои задания <FileText className="w-10 h-10 text-[#5A4BFF]" />
+    <div className="w-full max-w-[1200px] mx-auto space-y-6 pb-10 pt-2 px-2 md:px-4">
+      <div>
+        <h1 className="text-[28px] md:text-[32px] font-black tracking-tight text-gray-900 leading-none mb-2">
+          Домашнее задание
         </h1>
-        <p className="text-gray-500 font-medium text-lg mb-4">Отслеживай свои домашние работы и оценки куратора.</p>
+        <p className="text-gray-500 font-medium text-sm md:text-base">
+          Отслеживайте свои домашние задания и оценки кураторов
+        </p>
+      </div>
 
-        {courseNames.length > 1 && (
-          <div className="flex flex-wrap gap-2 mb-6">
-            <button
-              type="button"
-              onClick={() => setSelectedCourseFilter('all')}
-              className={`px-4 py-2 rounded-xl font-bold text-sm transition-all ${selectedCourseFilter === 'all' ? 'bg-gray-900 text-white' : 'bg-white border border-gray-200 text-gray-600 hover:border-gray-300'}`}
-            >
-              Все предметы
-            </button>
-            {courseNames.map((name) => (
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+        <div className="flex flex-wrap gap-2">
+          {courseNames.length === 0 ? (
+            <span className="text-sm font-medium text-gray-400">Пока нет курсов с заданиями</span>
+          ) : (
+            courseNames.map((name) => (
               <button
                 key={name}
                 type="button"
                 onClick={() => setSelectedCourseFilter(name)}
-                className={`px-4 py-2 rounded-xl font-bold text-sm transition-all ${selectedCourseFilter === name ? 'bg-[#5A4BFF] text-white shadow-md' : 'bg-white border border-gray-200 text-gray-600 hover:border-purple-200'}`}
+                className={`px-4 py-2.5 rounded-full border-2 text-[11px] font-black uppercase tracking-wide transition-all ${getCoursePillTheme(name, selectedCourseFilter === name)}`}
               >
                 {name}
               </button>
-            ))}
-          </div>
-        )}
-
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-8">
-          <div className="flex gap-3 overflow-x-auto pb-2 md:pb-0 flex-wrap">
-            {([
-              { key: 'TODO', label: 'К выполнению', activeClass: 'bg-[#5A4BFF] text-white shadow-lg shadow-indigo-500/20', idleBadge: 'bg-gray-100 text-gray-500' },
-              { key: 'OVERDUE', label: '🚨 Просрочено', activeClass: 'bg-rose-500 text-white shadow-lg shadow-rose-500/20', idleBadge: 'bg-rose-100 text-rose-600' },
-              { key: 'REVISION', label: '📝 На доработку', activeClass: 'bg-orange-500 text-white shadow-lg shadow-orange-500/20', idleBadge: 'bg-rose-500 text-white' },
-              { key: 'REVIEW', label: '⏳ На проверке', activeClass: 'bg-amber-500 text-white shadow-lg shadow-amber-500/20', idleBadge: 'bg-amber-100 text-amber-700' },
-              { key: 'GRADED', label: '✅ Оценено', activeClass: 'bg-emerald-500 text-white shadow-lg shadow-emerald-500/20', idleBadge: 'bg-gray-100 text-gray-500' },
-              { key: 'RON', label: '↩ Работа над ошибками', activeClass: 'bg-violet-600 text-white shadow-lg shadow-violet-500/20', idleBadge: 'bg-gray-100 text-gray-500' },
-            ] as const).map(({ key, label, activeClass, idleBadge }) => (
-              <button key={key} onClick={() => { setActiveTab(key); setSearchParams(key === 'RON' ? { tab: 'ron' } : {}); }}
-                className={`px-5 py-3 rounded-2xl font-bold transition-all whitespace-nowrap flex items-center gap-2 ${activeTab === key ? activeClass : 'bg-white text-gray-500 hover:bg-gray-50 border border-gray-100'}`}>
-                {label}
-                {key !== 'RON' && counts[key as keyof typeof counts] > 0 && (
-                  <span className={`text-[10px] font-black px-1.5 py-0.5 rounded-md ${activeTab === key ? 'bg-white/20 text-white' : idleBadge}`}>
-                    {counts[key as keyof typeof counts]}
-                  </span>
-                )}
-              </button>
-            ))}
-          </div>
-
-          <div className="relative w-full md:w-80 shrink-0">
-            <Search className="w-5 h-5 text-gray-400 absolute left-4 top-1/2 -translate-y-1/2" />
-            <input 
-              type="text" 
-              placeholder="Поиск заданий..." 
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-white border border-gray-200 rounded-2xl pl-12 pr-4 py-3 outline-none focus:border-[#5A4BFF] focus:ring-4 focus:ring-[#5A4BFF]/10 transition-all font-medium text-gray-700 shadow-sm"
-            />
-          </div>
+            ))
+          )}
         </div>
-      </motion.div>
+
+        <div className="relative w-full lg:w-72 shrink-0">
+          <Search className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+          <input
+            type="text"
+            placeholder="поиск заданий"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full bg-white border border-gray-200 rounded-full pl-10 pr-4 py-2.5 outline-none focus:border-[#6C63FF] transition-all text-sm font-medium text-gray-700 placeholder:text-gray-400"
+          />
+        </div>
+      </div>
+
+      <div className="flex flex-wrap gap-2">
+        {STATUS_FILTERS.map(({ key, label, dot, active }) => {
+          const count = key === 'RON' ? null : counts[key as keyof typeof counts];
+          const isActive = activeTab === key;
+          return (
+            <button
+              key={key}
+              type="button"
+              onClick={() => {
+                setActiveTab(key);
+                setSearchParams(key === 'RON' ? { tab: 'ron' } : {});
+              }}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-[12px] font-bold transition-all whitespace-nowrap ${
+                isActive
+                  ? active
+                  : 'bg-white text-gray-700 border-gray-200 hover:border-gray-300'
+              }`}
+            >
+              {!isActive && <span className={`w-2 h-2 rounded-full shrink-0 ${dot}`} />}
+              {count !== null && <span className={isActive ? 'opacity-90' : 'text-gray-900'}>{count}</span>}
+              <span>{label}</span>
+            </button>
+          );
+        })}
+      </div>
 
       {activeTab === 'RON' ? (
         <RonWork embedded />
       ) : (
-      <>
-      {/* 🔥 РЕНДЕР С ГРУППИРОВКОЙ ПО КУРСАМ И МОДУЛЯМ */}
-      {Object.entries(groupedHomeworks).map(([courseName, themes]) => (
-        <motion.div key={courseName} variants={containerVariants} initial="hidden" animate="show" className="mb-12">
-          
-          {/* ЗАГОЛОВОК КУРСА */}
-          <div className="flex items-center gap-3 mb-6 pb-2 border-b-2 border-gray-100">
-            <Book className="w-8 h-8 text-gray-800" />
-            <h2 className="text-3xl font-black text-gray-900">{courseName}</h2>
-          </div>
+        <>
+          {Object.entries(groupedHomeworks).map(([courseName, themes]) => (
+            <motion.div key={courseName} variants={containerVariants} initial="hidden" animate="show" className="space-y-8">
+              {Object.entries(themes).map(([themeName, hws]) => (
+                <div key={themeName}>
+                  <div className="flex items-center gap-2 mb-4">
+                    <FileText className="w-4 h-4 text-gray-500 shrink-0" />
+                    <h3 className="text-base md:text-lg font-black text-gray-900">{themeName}</h3>
+                  </div>
 
-          <div className="space-y-10 pl-2 md:pl-6">
-            {Object.entries(themes).map(([themeName, hws]) => (
-              <div key={themeName}>
-                {/* ЗАГОЛОВОК МОДУЛЯ */}
-                <div className="inline-flex items-center gap-2 bg-indigo-50 border border-indigo-100 px-4 py-2 rounded-xl mb-6">
-                  <div className="w-2 h-2 rounded-full bg-[#5A4BFF]"></div>
-                  <h3 className="text-sm font-black text-[#5A4BFF] uppercase tracking-widest">{themeName}</h3>
-                </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                    <AnimatePresence mode="popLayout">
+                      {hws.map((hw) => {
+                        let statusText = '';
+                        let badgeClass = '';
+                        let Icon = AlertCircle;
+                        let iconClass = 'text-gray-400';
+                        let buttonText = 'НАЧАТЬ ВЫПОЛНЕНИЕ';
+                        let buttonClass = 'bg-[#1A1D26] hover:bg-black text-white';
 
-                {/* КАРТОЧКИ ЗАДАНИЙ */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  <AnimatePresence mode="popLayout">
-                    {hws.map((hw) => {
-                      let badgeBg = '', badgeText = '', Icon = AlertCircle, iconColor = '', statusText = '', buttonStyle = '', buttonText = '';
+                        if (hw.status === 'TODO') {
+                          statusText = 'К выполнению';
+                          badgeClass = 'border border-[#F4A261]/60 text-[#E07A3D] bg-[#FFF7F0]';
+                          Icon = Info;
+                          iconClass = 'text-gray-400';
+                          buttonText = 'НАЧАТЬ ВЫПОЛНЕНИЕ';
+                          buttonClass = 'bg-[#1A1D26] hover:bg-black text-white';
+                        } else if (hw.status === 'OVERDUE') {
+                          statusText = 'Просрочено';
+                          badgeClass = 'border border-rose-200 text-rose-600 bg-rose-50';
+                          Icon = XCircle;
+                          iconClass = 'text-rose-400';
+                          buttonText = 'СДАТЬ СЕЙЧАС';
+                          buttonClass = 'bg-rose-500 hover:bg-rose-600 text-white';
+                        } else if (hw.status === 'REVISION') {
+                          statusText = 'На доработку';
+                          badgeClass = 'border border-amber-200 text-amber-700 bg-amber-50';
+                          Icon = AlertCircle;
+                          iconClass = 'text-amber-500';
+                          buttonText = 'ДОРАБОТАТЬ';
+                          buttonClass = 'bg-amber-500 hover:bg-amber-600 text-white';
+                        } else if (hw.status === 'REVIEW') {
+                          statusText = 'На проверке';
+                          badgeClass = 'border border-sky-200 text-sky-700 bg-sky-50';
+                          Icon = Clock;
+                          iconClass = 'text-sky-500';
+                          buttonText = 'СМОТРЕТЬ ДЕТАЛИ';
+                          buttonClass = 'bg-gray-100 hover:bg-gray-200 text-gray-600';
+                        } else if (hw.status === 'GRADED') {
+                          statusText = `Оценено ${hw.score ?? '—'}/${hw.maxScore ?? '—'}`;
+                          badgeClass = 'border border-emerald-200 text-emerald-700 bg-emerald-50';
+                          Icon = CheckCircle2;
+                          iconClass = 'text-emerald-500';
+                          buttonText = 'ПОСМОТРЕТЬ ОЦЕНКУ';
+                          buttonClass = 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-100';
+                        }
 
-                      if (hw.status === 'TODO') {
-                        badgeBg = 'bg-orange-100'; badgeText = 'text-orange-600'; iconColor = 'text-orange-500'; statusText = 'К ВЫПОЛНЕНИЮ';
-                        buttonStyle = 'bg-gray-900 hover:bg-black text-white shadow-xl shadow-gray-900/20'; buttonText = 'НАЧАТЬ ВЫПОЛНЕНИЕ';
-                      } else if (hw.status === 'OVERDUE') {
-                        badgeBg = 'bg-rose-100'; badgeText = 'text-rose-600'; Icon = XCircle; iconColor = 'text-rose-500'; statusText = 'ПРОСРОЧЕНО';
-                        buttonStyle = 'bg-rose-500 hover:bg-rose-600 text-white shadow-xl shadow-rose-500/20'; buttonText = 'СДАТЬ СЕЙЧАС';
-                      } else if (hw.status === 'REVISION') {
-                        badgeBg = 'bg-orange-100'; badgeText = 'text-orange-600'; Icon = AlertCircle; iconColor = 'text-orange-500'; statusText = 'НА ДОРАБОТКУ';
-                        buttonStyle = 'bg-orange-500 hover:bg-orange-600 text-white shadow-xl shadow-orange-500/20'; buttonText = 'ДОРАБОТАТЬ';
-                      } else if (hw.status === 'REVIEW') {
-                        badgeBg = 'bg-indigo-100'; badgeText = 'text-[#5A4BFF]'; Icon = Clock; iconColor = 'text-[#5A4BFF]'; statusText = 'НА ПРОВЕРКЕ';
-                        buttonStyle = 'bg-gray-50 text-gray-400 hover:bg-gray-100 hover:text-gray-600'; buttonText = 'СМОТРЕТЬ ДЕТАЛИ';
-                      } else if (hw.status === 'GRADED') {
-                        badgeBg = 'bg-emerald-100'; badgeText = 'text-emerald-600'; Icon = CheckCircle2; iconColor = 'text-emerald-500'; statusText = `ОЦЕНЕНО: ${hw.score}/${hw.maxScore}`;
-                        buttonStyle = 'bg-gray-50 text-emerald-600 hover:bg-emerald-50 border border-emerald-100'; buttonText = 'ПОСМОТРЕТЬ ОЦЕНКУ';
-                      }
+                        const deadlineDate = hw.deadline ? parseSafeDate(hw.deadline) : null;
+                        const daysLeft = deadlineDate ? Math.ceil((deadlineDate.getTime() - Date.now()) / 86400000) : null;
 
-                      const deadlineDate = hw.deadline ? parseSafeDate(hw.deadline) : null;
-                      const daysLeft = deadlineDate ? Math.ceil((deadlineDate.getTime() - Date.now()) / 86400000) : null;
-
-                      return (
-                        <motion.div
-                          key={hw.id}
-                          variants={itemVariants}
-                          role="button"
-                          tabIndex={0}
-                          onClick={() => navigate(`/homework/${hw.id}`)}
-                          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate(`/homework/${hw.id}`); } }}
-                          className={`bg-white rounded-[2.5rem] p-8 shadow-sm border flex flex-col justify-between min-h-[300px] hover:shadow-xl hover:-translate-y-1 transition-all duration-300 group cursor-pointer ${hw.status === 'OVERDUE' ? 'border-rose-200' : 'border-gray-100'}`}
-                        >
-                          <div>
-                            <div className="flex justify-between items-start mb-8">
-                              <div className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest ${badgeBg} ${badgeText}`}>{statusText}</div>
-                              <div className="p-2 rounded-full bg-gray-50"><Icon className={`w-6 h-6 ${iconColor}`} /></div>
+                        return (
+                          <motion.div
+                            key={hw.id}
+                            variants={itemVariants}
+                            role="button"
+                            tabIndex={0}
+                            onClick={() => navigate(`/homework/${hw.id}`)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' || e.key === ' ') {
+                                e.preventDefault();
+                                navigate(`/homework/${hw.id}`);
+                              }
+                            }}
+                            className="bg-white rounded-2xl border border-gray-200 p-5 flex flex-col min-h-[220px] hover:shadow-md transition-shadow cursor-pointer group"
+                          >
+                            <div className="flex justify-between items-start mb-5">
+                              <span className={`px-2.5 py-1 rounded-lg text-[10px] font-bold ${badgeClass}`}>
+                                {statusText}
+                              </span>
+                              <Icon className={`w-5 h-5 ${iconClass}`} />
                             </div>
-                            <h3 className="text-2xl font-black text-gray-900 mb-3 leading-tight line-clamp-3">{hw.title}</h3>
+
+                            <h3 className="text-lg font-black text-gray-900 leading-snug line-clamp-3 mb-auto">
+                              {hw.title}
+                            </h3>
+
                             {deadlineDate && hw.status !== 'GRADED' && (
-                              <div className={`flex items-center gap-1.5 mt-3 text-xs font-bold ${daysLeft !== null && daysLeft <= 1 ? 'text-rose-500' : 'text-gray-400'}`}>
+                              <div className={`flex items-center gap-1.5 mt-3 text-[11px] font-bold ${daysLeft !== null && daysLeft <= 1 ? 'text-rose-500' : 'text-gray-400'}`}>
                                 <Calendar className="w-3.5 h-3.5" />
                                 {hw.status === 'OVERDUE'
                                   ? `Просрочено: ${deadlineDate.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' })}`
-                                  : `Сдать до: ${deadlineDate.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' })}${daysLeft !== null && daysLeft <= 2 ? ` (осталось ${daysLeft} д.)` : ''}`
-                                }
+                                  : `До ${deadlineDate.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' })}`}
                               </div>
                             )}
-                          </div>
-                          <div className="mt-8 pt-6 border-t border-gray-50">
-                            <div className={`w-full py-4 rounded-2xl font-black text-sm flex items-center justify-center gap-2 pointer-events-none ${buttonStyle}`}>
-                              {buttonText}
-                              {(hw.status === 'TODO' || hw.status === 'OVERDUE') && <ChevronRight className="w-4 h-4" />}
-                            </div>
-                          </div>
-                        </motion.div>
-                      );
-                    })}
-                  </AnimatePresence>
-                </div>
-              </div>
-            ))}
-          </div>
-        </motion.div>
-      ))}
 
-      {/* ПУСТОЕ СОСТОЯНИЕ */}
-      {filteredHomeworks.length === 0 && !isLoading && (
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex flex-col items-center justify-center py-32 text-center bg-white rounded-[3rem] border border-gray-100 shadow-sm mt-8">
-          <div className="w-24 h-24 bg-indigo-50 rounded-full flex items-center justify-center mb-6 shadow-inner">
-            <FolderOpen className="w-12 h-12 text-[#5A4BFF]" />
-          </div>
-          <h2 className="text-3xl font-black text-gray-900 mb-3">
-            {searchQuery ? 'Ничего не найдено' : 'Пусто'}
-          </h2>
-          <p className="text-gray-500 font-medium text-lg max-w-md">
-            {searchQuery ? 'Попробуйте изменить запрос поиска.' : 'Здесь пока нет заданий.'}
-          </p>
-        </motion.div>
-      )}
-      </>
+                            <div className={`mt-5 w-full py-3 rounded-xl font-black text-[11px] uppercase tracking-wide flex items-center justify-center gap-1.5 pointer-events-none ${buttonClass}`}>
+                              {buttonText}
+                              {(hw.status === 'TODO' || hw.status === 'OVERDUE' || hw.status === 'REVISION') && (
+                                <ChevronRight className="w-4 h-4" />
+                              )}
+                            </div>
+                          </motion.div>
+                        );
+                      })}
+                    </AnimatePresence>
+                  </div>
+                </div>
+              ))}
+            </motion.div>
+          ))}
+
+          {filteredHomeworks.length === 0 && !isLoading && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="flex flex-col items-center justify-center py-24 text-center bg-white rounded-2xl border border-gray-200 mt-4"
+            >
+              <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mb-4">
+                <FolderOpen className="w-8 h-8 text-gray-400" />
+              </div>
+              <h2 className="text-xl font-black text-gray-900 mb-2">
+                {searchQuery ? 'Ничего не найдено' : 'Пусто'}
+              </h2>
+              <p className="text-gray-500 font-medium text-sm max-w-md">
+                {searchQuery ? 'Попробуйте изменить запрос поиска.' : 'В этом статусе пока нет заданий.'}
+              </p>
+            </motion.div>
+          )}
+        </>
       )}
     </div>
   );

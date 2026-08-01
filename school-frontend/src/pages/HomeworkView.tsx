@@ -26,6 +26,11 @@ import EssayPlainEditor from '../components/EssayPlainEditor';
 import EssayStudentTask from '../components/EssayStudentTask';
 import EssayResultView from '../components/EssayResultView';
 import AskCuratorButton from '../components/AskCuratorButton';
+import RussianHomeworkLayout from '../components/RussianHomeworkLayout';
+import RussianPracticeBlock, { isRussianStepDone } from '../components/RussianPracticeBlock';
+import HistoryPracticeBlock from '../components/HistoryPracticeBlock';
+import { SubjectLessonShell, SubjectTheoryContent } from '../components/HistoryTheoryContent';
+import { resolveCourseUiTheme } from '../lib/courseUiTheme';
 import { getHomeworkBlocksFromLesson, lessonHasHomework } from '../utils/lessonHomework';
 import { buildSubmissionQuestion } from '../utils/submissionQuestion';
 import { EGE_ESSAY_MAX_SCORE, FINAL_ESSAY_MAX_SCORE, criteriaKindFromBlockType } from '../utils/essayCriteria';
@@ -126,20 +131,28 @@ function ExpandableImage({ src, alt, className = '' }: { src: string, alt?: stri
   );
 }
 
-const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswerToggle, handleTextAnswerChange, handleMatchingChange, handleSubmitTest, submissions, spellErrors, courseSpellCheck, courseTitle, lessonTitle }: any) => {
-  const [isOpen, setIsOpen] = useState(false);
-  const [activeStep, setActiveStep] = useState(0);
+const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswerToggle, handleTextAnswerChange, handleMatchingChange, handleSubmitTest, submissions, spellErrors, courseSpellCheck, courseTitle, lessonTitle, forceOpen = false, hideChrome = false, controlledStep, onStepChange, showNextButton = false }: any) => {
+  const [isOpen, setIsOpen] = useState(forceOpen);
+  const [activeStepInner, setActiveStepInner] = useState(0);
   const panelRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => { if (!isOpen) setActiveStep(0); }, [isOpen]);
+  const isControlled = typeof controlledStep === 'number' && typeof onStepChange === 'function';
+  const activeStep = isControlled ? controlledStep : activeStepInner;
+  const setActiveStep = (updater: number | ((p: number) => number)) => {
+    const next = typeof updater === 'function' ? updater(activeStep) : updater;
+    if (isControlled) onStepChange(next);
+    else setActiveStepInner(next);
+  };
+
+  useEffect(() => { if (!isOpen && !forceOpen) setActiveStepInner(0); }, [isOpen, forceOpen]);
 
   useEffect(() => {
-    if (isOpen && panelRef.current) {
+    if ((isOpen || forceOpen) && panelRef.current && !hideChrome) {
       panelRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
     }
-  }, [isOpen, activeStep]);
+  }, [isOpen, forceOpen, activeStep, hideChrome]);
 
-  if (!isOpen) {
+  if (!isOpen && !forceOpen) {
     return (
       <button
         type="button"
@@ -224,9 +237,12 @@ const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswer
   return (
     <div
       ref={panelRef}
-      className="bg-white border-2 border-[#A855F7]/25 rounded-2xl shadow-lg mb-4 flex flex-col overflow-hidden max-h-[min(82dvh,calc(100dvh-7rem))] w-full"
+      className={hideChrome
+        ? 'bg-transparent w-full flex flex-col'
+        : 'bg-white border-2 border-[#A855F7]/25 rounded-2xl shadow-lg mb-4 flex flex-col overflow-hidden max-h-[min(82dvh,calc(100dvh-7rem))] w-full'}
     >
       {/* HEADER */}
+      {!hideChrome && (
       <div className="shrink-0 z-20 bg-white border-b border-gray-100 px-3 py-2.5 flex items-center justify-between gap-2">
         <div className="flex items-center gap-2 min-w-0 flex-1">
           <group.Icon className={`w-4 h-4 shrink-0 ${group.iconColor?.split(' ')[1] || ''}`} />
@@ -269,6 +285,7 @@ const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswer
           </button>
         </div>
       </div>
+      )}
 
       <div className="flex-1 min-h-0 overflow-y-auto p-3 sm:p-4 custom-scrollbar">
       <div className="flex flex-wrap items-center gap-1.5 mb-3">
@@ -631,12 +648,23 @@ const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswer
       </AnimatePresence>
       </div>
 
-      <div className="sticky bottom-0 z-20 shrink-0 bg-white border-t border-gray-100 px-4 py-3 flex items-center justify-end gap-3 shadow-[0_-4px_20px_rgba(0,0,0,0.06)]">
+      <div className={`shrink-0 ${hideChrome ? 'pt-4' : 'sticky bottom-0 z-20 bg-white border-t border-gray-100 px-4 py-3 shadow-[0_-4px_20px_rgba(0,0,0,0.06)]'} flex items-center ${showNextButton ? 'justify-between' : 'justify-end'} gap-3`}>
+        {showNextButton && (
+          <button
+            type="button"
+            onClick={() => {
+              if (activeStep < group.blocks.length - 1) setActiveStep(activeStep + 1);
+            }}
+            className="px-6 py-3 rounded-xl font-black text-[11px] uppercase tracking-wide bg-[#1A1D26] hover:bg-black text-white"
+          >
+            Далее &gt;
+          </button>
+        )}
         <button
           type="button"
           onClick={(e) => { e.preventDefault(); handleSubmitTest(block); }}
           disabled={block.type === 'matching' ? (!isMatchingReady || isLocked) : (selected.length === 0 || selected[0] === '' || selected[0] === '<p><br></p>' || isLocked)}
-          className={`w-full sm:w-auto px-10 py-4 rounded-xl font-black text-sm transition-all active:scale-95 disabled:opacity-40 uppercase tracking-wide ${isExhausted && !isUnlimitedAttempts(block.type) ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : result === 'ERROR' ? 'bg-[#FF4A6B] text-white shadow-lg' : result === 'GRADED' ? 'bg-emerald-500 text-white cursor-not-allowed' : 'bg-[#A855F7] text-white shadow-lg shadow-purple-500/30'}`}
+          className={`${showNextButton ? 'px-6 py-3' : 'w-full sm:w-auto px-10 py-4'} rounded-xl font-black text-sm transition-all active:scale-95 disabled:opacity-40 uppercase tracking-wide ${isExhausted && !isUnlimitedAttempts(block.type) ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : result === 'ERROR' ? 'bg-[#FF4A6B] text-white shadow-lg' : result === 'GRADED' ? 'bg-emerald-500 text-white cursor-not-allowed' : showNextButton ? 'bg-[#6C63FF] text-white' : 'bg-[#A855F7] text-white shadow-lg shadow-purple-500/30'}`}
         >
           {result === 'PENDING' ? 'НА ПРОВЕРКЕ' : result === 'GRADED' ? 'ОЦЕНЕНО' : result === 'REVISION' ? 'ОТПРАВИТЬ СНОВА' : (isExhausted && !isUnlimitedAttempts(block.type) ? 'ЛИМИТ ИСЧЕРПАН' : result === 'ERROR' ? 'ЕЩЁ РАЗ' : 'ОТВЕТИТЬ')}
         </button>
@@ -671,6 +699,10 @@ export default function HomeworkView() {
   
   const [submissions, setSubmissions] = useState<any[]>([]);
   const [courseSpellCheck, setCourseSpellCheck] = useState(false);
+  const [courseUiTheme, setCourseUiTheme] = useState('DEFAULT');
+  const [moduleIndex, setModuleIndex] = useState(1);
+  const [russianPart, setRussianPart] = useState<'theory' | 'practice'>('practice');
+  const [russianStep, setRussianStep] = useState(0);
   const [spellErrors, setSpellErrors] = useState<Record<string, SpellError[]>>({});
 
   const syncSpellErrorsFromAnswer = (blockId: string, text: string) => {
@@ -719,6 +751,8 @@ export default function HomeworkView() {
                 setSourceThemeId(theme.id);
                 setSourceCourseTitle(course.title || '');
                 setCourseSpellCheck(course.spell_check === true);
+                setCourseUiTheme(resolveCourseUiTheme(course));
+                setModuleIndex(Number(theme.order_index) || 1);
               }
             });
           });
@@ -1070,6 +1104,148 @@ export default function HomeworkView() {
       <div className="h-screen flex flex-col items-center justify-center bg-[#F4F7FE]">
         <h2 className="text-2xl font-bold text-gray-800 mb-4">В этом уроке нет домашнего задания</h2>
         <button onClick={() => navigate(-1)} className="text-[#A855F7] font-bold hover:underline">Вернуться назад</button>
+      </div>
+    );
+  }
+
+  const practiceBlocksFlat = hwGroups.flatMap((g) => g.blocks);
+  const passageBlock = hwTheoryBlocks.find((b) => b.type === 'text' || b.type === 'paragraph');
+  const isRussianUi = courseUiTheme === 'RUSSIAN';
+  const isHistoryUi = courseUiTheme === 'HISTORY';
+  const isSubjectUi = isRussianUi || isHistoryUi;
+  const russianStepSafe = Math.min(russianStep, Math.max(0, practiceBlocksFlat.length - 1));
+  const russianCompleted = practiceBlocksFlat.map((b) =>
+    isRussianStepDone(b, testAnswers, testResults, submissions),
+  );
+
+  if (isSubjectUi) {
+    return (
+      <div className="min-h-screen bg-[#F4F7FE] font-sans text-gray-900 py-4">
+        <style>{`
+  .theory-read-only .ql-container.ql-snow { border: none !important; font-family: inherit !important; font-size: inherit !important; }
+  .theory-read-only .ql-editor { padding: 0 !important; white-space: normal !important; word-break: break-word !important; }
+  .ql-editor { min-height: auto !important; font-size: 16px !important; padding: 0 !important; }
+  ${LESSON_TEST_STYLES}
+`}</style>
+        <div className="px-3 md:px-6 mb-3">
+          <button
+            type="button"
+            onClick={() => {
+              if (window.history.length > 1) navigate(-1);
+              else if (sourceCourseId) navigate(`/courses/${sourceCourseId}`);
+              else navigate('/homework');
+            }}
+            className={`flex items-center gap-2 text-gray-400 font-black text-[11px] uppercase tracking-wider transition-colors ${isHistoryUi ? 'hover:text-[#EF6C35]' : 'hover:text-[#6C63FF]'}`}
+          >
+            <ArrowLeft className="w-4 h-4" /> К списку заданий
+          </button>
+        </div>
+
+        {(isHistoryUi || isRussianUi) && (hwTheoryBlocks.length === 0 ? 'practice' : russianPart) === 'theory' ? (
+          <SubjectLessonShell
+            variant={isHistoryUi ? 'history' : 'russian'}
+            courseTitle={sourceCourseTitle || (isHistoryUi ? 'История ЕГЭ' : 'Русский язык ЕГЭ')}
+            moduleIndex={moduleIndex}
+            themeTitle={homework.themeTitle || homework.title || 'Тема'}
+            activePart="theory"
+            onPartChange={setRussianPart}
+            hasPractice={practiceBlocksFlat.length > 0}
+            theoryContent={
+              <SubjectTheoryContent
+                variant={isHistoryUi ? 'history' : 'russian'}
+                themeTitle={homework.themeTitle || homework.title || 'Тема'}
+                blocks={hwTheoryBlocks}
+              />
+            }
+            practiceContent={null}
+          />
+        ) : (
+        <RussianHomeworkLayout
+          variant={isHistoryUi ? 'history' : 'russian'}
+          moduleIndex={moduleIndex}
+          themeTitle={homework.themeTitle || homework.title || 'Тема'}
+          practiceCount={practiceBlocksFlat.length}
+          activePart={hwTheoryBlocks.length === 0 ? 'practice' : russianPart}
+          onPartChange={setRussianPart}
+          activePracticeIndex={russianStepSafe}
+          onPracticeIndexChange={setRussianStep}
+          completedSteps={russianCompleted}
+          passage={
+            passageBlock ? (
+              <div className="theory-read-only">
+                <ReactQuill theme="snow" value={passageBlock.content || ''} readOnly modules={{ toolbar: false }} />
+              </div>
+            ) : null
+          }
+          theoryBlocks={
+            hwTheoryBlocks.length === 0 ? (
+              <p className="text-gray-500 font-medium">В этом задании пока нет теоретических материалов.</p>
+            ) : isHistoryUi || isRussianUi ? (
+              <SubjectTheoryContent
+                variant={isHistoryUi ? 'history' : 'russian'}
+                themeTitle={homework.themeTitle || homework.title || 'Тема'}
+                blocks={hwTheoryBlocks}
+              />
+            ) : (
+              <div className="space-y-8">
+                {hwTheoryBlocks.map((block) => (
+                  <div key={block.id}>{renderTheoryBlock(block)}</div>
+                ))}
+              </div>
+            )
+          }
+          practiceSlot={
+            practiceBlocksFlat.length === 0 ? (
+              <p className="text-gray-500 font-medium">Практических заданий пока нет.</p>
+            ) : isHistoryUi ? (
+              <HistoryPracticeBlock
+                key={`hi-${homework.id}-${practiceBlocksFlat[russianStepSafe]?.id}`}
+                block={practiceBlocksFlat[russianStepSafe]}
+                stepIndex={russianStepSafe}
+                totalSteps={practiceBlocksFlat.length}
+                testAnswers={testAnswers}
+                testResults={testResults}
+                attemptsUsed={attemptsUsed}
+                submissions={submissions}
+                spellErrors={spellErrors}
+                courseSpellCheck={courseSpellCheck}
+                courseTitle={sourceCourseTitle}
+                lessonTitle={homework?.title}
+                handleTextAnswerChange={handleTextAnswerChange}
+                handleAnswerToggle={handleAnswerToggle}
+                handleMatchingChange={handleMatchingChange}
+                handleSubmitTest={handleSubmitTest}
+                onNext={() => setRussianStep((s) => Math.min(s + 1, practiceBlocksFlat.length - 1))}
+                setTestAnswers={setTestAnswers}
+                answersKey={answersKey}
+                setSafeLocal={setSafeLocal}
+              />
+            ) : (
+              <RussianPracticeBlock
+                key={`ru-${homework.id}-${practiceBlocksFlat[russianStepSafe]?.id}`}
+                block={practiceBlocksFlat[russianStepSafe]}
+                stepIndex={russianStepSafe}
+                totalSteps={practiceBlocksFlat.length}
+                testAnswers={testAnswers}
+                testResults={testResults}
+                attemptsUsed={attemptsUsed}
+                submissions={submissions}
+                spellErrors={spellErrors}
+                courseSpellCheck={courseSpellCheck}
+                courseTitle={sourceCourseTitle}
+                lessonTitle={homework?.title}
+                handleTextAnswerChange={handleTextAnswerChange}
+                handleMatchingChange={handleMatchingChange}
+                handleSubmitTest={handleSubmitTest}
+                onNext={() => setRussianStep((s) => Math.min(s + 1, practiceBlocksFlat.length - 1))}
+                setTestAnswers={setTestAnswers}
+                answersKey={answersKey}
+                setSafeLocal={setSafeLocal}
+              />
+            )
+          }
+        />
+        )}
       </div>
     );
   }
