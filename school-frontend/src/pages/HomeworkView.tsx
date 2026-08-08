@@ -1119,15 +1119,83 @@ export default function HomeworkView() {
   );
 
   if (isSubjectUi) {
+    const hwThemeTitle = homework.themeTitle || homework.title || 'Тема';
+    const hwActivePart = hwTheoryBlocks.length === 0 ? 'practice' : russianPart;
+    const showSubjectTheoryShell = isSubjectUi && hwActivePart === 'theory';
+    const subjectUiVariant = isHistoryUi ? 'history' : 'russian';
+    const subjectCourseFallback = isHistoryUi ? 'История ЕГЭ' : 'Русский язык ЕГЭ';
+    const hwPracticeIsHomework = isSubjectUi;
+
+    const theoryNode =
+      hwTheoryBlocks.length === 0 ? (
+        <p className="text-gray-500 font-medium">В этом задании пока нет теоретических материалов.</p>
+      ) : (
+        <SubjectTheoryContent
+          variant={isHistoryUi ? 'history' : 'russian'}
+          themeTitle={hwThemeTitle}
+          blocks={hwTheoryBlocks}
+        />
+      );
+
+    const practiceNode =
+      practiceBlocksFlat.length === 0 ? (
+        <p className="text-gray-500 font-medium">Практических заданий пока нет.</p>
+      ) : isHistoryUi ? (
+        <HistoryPracticeBlock
+          key={`hi-${homework.id}-${practiceBlocksFlat[russianStepSafe]?.id}`}
+          block={practiceBlocksFlat[russianStepSafe]}
+          stepIndex={russianStepSafe}
+          totalSteps={practiceBlocksFlat.length}
+          testAnswers={testAnswers}
+          testResults={testResults}
+          attemptsUsed={attemptsUsed}
+          submissions={submissions}
+          spellErrors={spellErrors}
+          courseSpellCheck={courseSpellCheck}
+          courseTitle={sourceCourseTitle}
+          lessonTitle={homework?.title}
+          handleTextAnswerChange={handleTextAnswerChange}
+          handleAnswerToggle={handleAnswerToggle}
+          handleMatchingChange={handleMatchingChange}
+          handleSubmitTest={handleSubmitTest}
+          onNext={() => setRussianStep((s) => Math.min(s + 1, practiceBlocksFlat.length - 1))}
+          setTestAnswers={setTestAnswers}
+          answersKey={answersKey}
+          setSafeLocal={setSafeLocal}
+        />
+      ) : (
+        <RussianPracticeBlock
+          key={`ru-${homework.id}-${practiceBlocksFlat[russianStepSafe]?.id}`}
+          block={practiceBlocksFlat[russianStepSafe]}
+          stepIndex={russianStepSafe}
+          totalSteps={practiceBlocksFlat.length}
+          testAnswers={testAnswers}
+          testResults={testResults}
+          attemptsUsed={attemptsUsed}
+          submissions={submissions}
+          spellErrors={spellErrors}
+          courseSpellCheck={courseSpellCheck}
+          courseTitle={sourceCourseTitle}
+          lessonTitle={homework?.title}
+          handleTextAnswerChange={handleTextAnswerChange}
+          handleMatchingChange={handleMatchingChange}
+          handleSubmitTest={handleSubmitTest}
+          onNext={() => setRussianStep((s) => Math.min(s + 1, practiceBlocksFlat.length - 1))}
+          setTestAnswers={setTestAnswers}
+          answersKey={answersKey}
+          setSafeLocal={setSafeLocal}
+        />
+      );
+
     return (
-      <div className="min-h-screen bg-[#F4F7FE] font-sans text-gray-900 py-4">
+      <div className="h-full min-h-0 flex flex-col overflow-hidden bg-[#F4F7FE] font-sans text-gray-900">
         <style>{`
   .theory-read-only .ql-container.ql-snow { border: none !important; font-family: inherit !important; font-size: inherit !important; }
   .theory-read-only .ql-editor { padding: 0 !important; white-space: normal !important; word-break: break-word !important; }
   .ql-editor { min-height: auto !important; font-size: 16px !important; padding: 0 !important; }
   ${LESSON_TEST_STYLES}
 `}</style>
-        <div className="px-3 md:px-6 mb-3">
+        <div className="px-3 md:px-5 pt-2 pb-2 shrink-0">
           <button
             type="button"
             onClick={() => {
@@ -1141,111 +1209,44 @@ export default function HomeworkView() {
           </button>
         </div>
 
-        {(isHistoryUi || isRussianUi) && (hwTheoryBlocks.length === 0 ? 'practice' : russianPart) === 'theory' ? (
-          <SubjectLessonShell
-            variant={isHistoryUi ? 'history' : 'russian'}
-            courseTitle={sourceCourseTitle || (isHistoryUi ? 'История ЕГЭ' : 'Русский язык ЕГЭ')}
-            moduleIndex={moduleIndex}
-            themeTitle={homework.themeTitle || homework.title || 'Тема'}
-            activePart="theory"
-            onPartChange={setRussianPart}
-            hasPractice={practiceBlocksFlat.length > 0}
-            theoryContent={
-              <SubjectTheoryContent
-                variant={isHistoryUi ? 'history' : 'russian'}
-                themeTitle={homework.themeTitle || homework.title || 'Тема'}
-                blocks={hwTheoryBlocks}
-              />
-            }
-            practiceContent={null}
-          />
-        ) : (
-        <RussianHomeworkLayout
-          variant={isHistoryUi ? 'history' : 'russian'}
-          moduleIndex={moduleIndex}
-          themeTitle={homework.themeTitle || homework.title || 'Тема'}
-          practiceCount={practiceBlocksFlat.length}
-          activePart={hwTheoryBlocks.length === 0 ? 'practice' : russianPart}
-          onPartChange={setRussianPart}
-          activePracticeIndex={russianStepSafe}
-          onPracticeIndexChange={setRussianStep}
-          completedSteps={russianCompleted}
-          passage={
-            passageBlock ? (
-              <div className="theory-read-only">
-                <ReactQuill theme="snow" value={passageBlock.content || ''} readOnly modules={{ toolbar: false }} />
-              </div>
-            ) : null
-          }
-          theoryBlocks={
-            hwTheoryBlocks.length === 0 ? (
-              <p className="text-gray-500 font-medium">В этом задании пока нет теоретических материалов.</p>
-            ) : isHistoryUi || isRussianUi ? (
-              <SubjectTheoryContent
-                variant={isHistoryUi ? 'history' : 'russian'}
-                themeTitle={homework.themeTitle || homework.title || 'Тема'}
-                blocks={hwTheoryBlocks}
-              />
-            ) : (
-              <div className="space-y-8">
-                {hwTheoryBlocks.map((block) => (
-                  <div key={block.id}>{renderTheoryBlock(block)}</div>
-                ))}
-              </div>
-            )
-          }
-          practiceSlot={
-            practiceBlocksFlat.length === 0 ? (
-              <p className="text-gray-500 font-medium">Практических заданий пока нет.</p>
-            ) : isHistoryUi ? (
-              <HistoryPracticeBlock
-                key={`hi-${homework.id}-${practiceBlocksFlat[russianStepSafe]?.id}`}
-                block={practiceBlocksFlat[russianStepSafe]}
-                stepIndex={russianStepSafe}
-                totalSteps={practiceBlocksFlat.length}
-                testAnswers={testAnswers}
-                testResults={testResults}
-                attemptsUsed={attemptsUsed}
-                submissions={submissions}
-                spellErrors={spellErrors}
-                courseSpellCheck={courseSpellCheck}
-                courseTitle={sourceCourseTitle}
-                lessonTitle={homework?.title}
-                handleTextAnswerChange={handleTextAnswerChange}
-                handleAnswerToggle={handleAnswerToggle}
-                handleMatchingChange={handleMatchingChange}
-                handleSubmitTest={handleSubmitTest}
-                onNext={() => setRussianStep((s) => Math.min(s + 1, practiceBlocksFlat.length - 1))}
-                setTestAnswers={setTestAnswers}
-                answersKey={answersKey}
-                setSafeLocal={setSafeLocal}
-              />
-            ) : (
-              <RussianPracticeBlock
-                key={`ru-${homework.id}-${practiceBlocksFlat[russianStepSafe]?.id}`}
-                block={practiceBlocksFlat[russianStepSafe]}
-                stepIndex={russianStepSafe}
-                totalSteps={practiceBlocksFlat.length}
-                testAnswers={testAnswers}
-                testResults={testResults}
-                attemptsUsed={attemptsUsed}
-                submissions={submissions}
-                spellErrors={spellErrors}
-                courseSpellCheck={courseSpellCheck}
-                courseTitle={sourceCourseTitle}
-                lessonTitle={homework?.title}
-                handleTextAnswerChange={handleTextAnswerChange}
-                handleMatchingChange={handleMatchingChange}
-                handleSubmitTest={handleSubmitTest}
-                onNext={() => setRussianStep((s) => Math.min(s + 1, practiceBlocksFlat.length - 1))}
-                setTestAnswers={setTestAnswers}
-                answersKey={answersKey}
-                setSafeLocal={setSafeLocal}
-              />
-            )
-          }
-        />
-        )}
+        <div className="flex-1 min-h-0 px-3 md:px-5 pb-3">
+          {showSubjectTheoryShell ? (
+            <SubjectLessonShell
+              variant={subjectUiVariant}
+              courseTitle={sourceCourseTitle || subjectCourseFallback}
+              moduleIndex={moduleIndex}
+              themeTitle={hwThemeTitle}
+              activePart="theory"
+              onPartChange={setRussianPart}
+              hasPractice={practiceBlocksFlat.length > 0 || isSubjectUi}
+              practiceIsHomework={hwPracticeIsHomework}
+              theoryContent={theoryNode}
+              practiceContent={null}
+            />
+          ) : (
+            <RussianHomeworkLayout
+              variant={subjectUiVariant}
+              moduleIndex={moduleIndex}
+              themeTitle={hwThemeTitle}
+              practiceCount={practiceBlocksFlat.length}
+              activePart={hwActivePart}
+              onPartChange={setRussianPart}
+              practiceIsHomework={hwPracticeIsHomework}
+              activePracticeIndex={russianStepSafe}
+              onPracticeIndexChange={setRussianStep}
+              completedSteps={russianCompleted}
+              passage={
+                passageBlock ? (
+                  <div className="theory-read-only">
+                    <ReactQuill theme="snow" value={passageBlock.content || ''} readOnly modules={{ toolbar: false }} />
+                  </div>
+                ) : null
+              }
+              theoryBlocks={theoryNode}
+              practiceSlot={practiceNode}
+            />
+          )}
+        </div>
       </div>
     );
   }

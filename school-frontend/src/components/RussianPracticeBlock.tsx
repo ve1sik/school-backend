@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type FocusEvent } from 'react';
 import { CheckCircle2, Clock, XCircle } from 'lucide-react';
 import { ExplanationBlock, OptionText, safeHtml } from './LessonTestUI';
 import EssayPlainEditor from './EssayPlainEditor';
@@ -7,12 +7,13 @@ import EssayResultView from './EssayResultView';
 import AskCuratorButton from './AskCuratorButton';
 import { EGE_ESSAY_MAX_SCORE, criteriaKindFromBlockType } from '../utils/essayCriteria';
 import type { SpellError } from '../utils/spellCheck';
+import { design } from '../lib/designTokens';
 
 const CYR_LETTERS = ['А', 'Б', 'В', 'Г', 'Д', 'Е', 'Ж', 'З', 'И', 'К', 'Л', 'М', 'Н', 'О'];
 const BTN =
-  'inline-flex items-center justify-center px-6 py-3 rounded-xl bg-[#1A1D26] hover:bg-black text-white text-[11px] font-black uppercase tracking-wide transition-colors disabled:opacity-40';
+  'inline-flex items-center justify-center gap-1 px-6 py-[14px] rounded-[10px] hover:bg-black text-white text-[12px] font-bold uppercase tracking-[0.04em] transition-colors disabled:opacity-40';
 const INPUT =
-  'w-full px-4 py-3.5 rounded-xl border border-gray-200 bg-white text-[15px] text-gray-900 placeholder:text-gray-400 outline-none focus:border-[#6C63FF] focus:ring-2 focus:ring-[#6C63FF]/15 transition-all';
+  'w-full px-4 py-3.5 rounded-[10px] border bg-white text-[15px] placeholder:text-[#9CA3AF] outline-none focus:ring-2 transition-all';
 
 type Props = {
   block: any;
@@ -106,7 +107,7 @@ function QuestionHtml({ content }: { content: string }) {
   return (
     <div className="ql-snow mb-5">
       <div
-        className="ql-editor !p-0 text-[15px] md:text-[16px] leading-relaxed text-gray-900 font-semibold [&_p]:mb-2"
+        className="ql-editor !p-0 text-[15px] md:text-[16px] leading-relaxed text-[#111827] font-bold [&_p]:mb-2 [&_strong]:font-extrabold"
         dangerouslySetInnerHTML={{ __html: safeHtml(content) }}
       />
     </div>
@@ -319,11 +320,18 @@ export default function RussianPracticeBlock({
       <div className="space-y-6">
         <div className={`grid grid-cols-1 ${rightColumn.length ? 'lg:grid-cols-2' : ''} gap-8 lg:gap-12`}>
           <div>
-            <p className="text-[11px] font-black uppercase tracking-[0.14em] text-[#6C63FF] mb-3">{leftTitle}</p>
+            <p
+              className="text-[11px] font-black uppercase tracking-[0.14em] mb-3"
+              style={{ color: design.brandPurple }}
+            >
+              {leftTitle}
+            </p>
             <ol className="space-y-3">
               {pairs.map((pair: any, idx: number) => (
                 <li key={idx} className="flex gap-2 text-[15px] leading-snug text-gray-800">
-                  <span className="font-black text-gray-900 shrink-0">{CYR_LETTERS[idx] || idx + 1})</span>
+                  <span className="font-black shrink-0" style={{ color: design.brandPurple }}>
+                    {CYR_LETTERS[idx] || idx + 1})
+                  </span>
                   <span>{pair.left}</span>
                 </li>
               ))}
@@ -331,7 +339,12 @@ export default function RussianPracticeBlock({
           </div>
           {rightColumn.length > 0 && (
             <div>
-              <p className="text-[11px] font-black uppercase tracking-[0.14em] text-[#6C63FF] mb-3">{rightTitle}</p>
+              <p
+                className="text-[11px] font-black uppercase tracking-[0.14em] mb-3"
+                style={{ color: design.brandPurple }}
+              >
+                {rightTitle}
+              </p>
               <ol className="space-y-3">
                 {rightColumn.map((item, idx) => (
                   <li key={idx} className="flex gap-2 text-[15px] leading-snug text-gray-800">
@@ -354,8 +367,11 @@ export default function RussianPracticeBlock({
               if (serverMatch) value = serverMatch.split(' - ').slice(1).join(' - ');
             }
             return (
-              <div key={idx} className="flex flex-col items-center gap-1.5 w-[52px]">
-                <span className="w-9 h-9 rounded-lg bg-[#6C63FF] text-white text-sm font-black flex items-center justify-center">
+              <div key={idx} className="flex flex-col items-center gap-2 w-[56px]">
+                <span
+                  className="w-10 h-10 rounded-[8px] text-white text-[14px] font-bold flex items-center justify-center"
+                  style={{ backgroundColor: design.brandPurple }}
+                >
                   {CYR_LETTERS[idx] || idx + 1}
                 </span>
                 <input
@@ -375,7 +391,14 @@ export default function RussianPracticeBlock({
                       (document.getElementById(`ru-match-${block.id}-${idx - 1}`) as HTMLInputElement | null)?.focus();
                     }
                   }}
-                  className="w-full aspect-square max-h-12 text-center font-black text-lg rounded-lg border border-gray-200 outline-none focus:border-[#6C63FF] disabled:bg-gray-50"
+                  className="w-full h-11 text-center font-bold text-[16px] rounded-[8px] border outline-none disabled:bg-gray-50"
+                  style={{ borderColor: design.border }}
+                  onFocus={(e) => {
+                    e.currentTarget.style.borderColor = design.brandPurple;
+                  }}
+                  onBlur={(e) => {
+                    e.currentTarget.style.borderColor = design.border;
+                  }}
                 />
               </div>
             );
@@ -401,20 +424,21 @@ export default function RussianPracticeBlock({
 
   const renderPassageNotes = () => (
     <div className="space-y-5">
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr_220px] gap-5 items-start">
-        <div className="text-[15px] leading-relaxed text-gray-800">
+      <QuestionHtml content={block.question || ''} />
+      <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(220px,34%)] gap-6 lg:gap-10 items-start">
+        <div className="text-[15px] leading-[1.7]" style={{ color: design.textPrimary }}>
           {passageHtml ? (
             <div className="ql-snow">
               <div className="ql-editor !p-0" dangerouslySetInnerHTML={{ __html: safeHtml(passageHtml) }} />
             </div>
-          ) : (
-            <QuestionHtml content={block.question || ''} />
-          )}
+          ) : null}
         </div>
-        <div className="space-y-2">
+        <div className="space-y-2.5">
           {notes.map((n, i) => (
             <div key={i} className="flex items-center gap-2">
-              <span className="text-sm font-bold text-gray-600 w-5 shrink-0">{i + 1})</span>
+              <span className="text-[13px] font-semibold w-6 shrink-0" style={{ color: design.textMuted }}>
+                {i + 1})
+              </span>
               <input
                 type="text"
                 value={n}
@@ -425,7 +449,14 @@ export default function RussianPracticeBlock({
                   setNotes(next);
                 }}
                 placeholder="Для заметок"
-                className="w-full px-2.5 py-2 rounded-lg border border-gray-200 text-sm outline-none focus:border-[#6C63FF] placeholder:text-gray-400"
+                className="w-full px-2.5 py-2 rounded-[8px] border text-[13px] outline-none placeholder:text-[#9CA3AF]"
+                style={{ borderColor: design.border }}
+                onFocus={(e) => {
+                  e.currentTarget.style.borderColor = design.brandPurple;
+                }}
+                onBlur={(e) => {
+                  e.currentTarget.style.borderColor = design.border;
+                }}
               />
             </div>
           ))}
@@ -440,9 +471,35 @@ export default function RussianPracticeBlock({
         }}
         placeholder="Введите ответ"
         className={INPUT}
+        style={{
+          borderColor: design.border,
+          color: design.textPrimary,
+        }}
+        onFocus={(e) => {
+          e.currentTarget.style.borderColor = design.brandPurple;
+          e.currentTarget.style.boxShadow = `0 0 0 2px ${design.brandPurple}26`;
+        }}
+        onBlur={(e) => {
+          e.currentTarget.style.borderColor = design.border;
+          e.currentTarget.style.boxShadow = 'none';
+        }}
       />
     </div>
   );
+
+  const answerInputStyle = {
+    borderColor: design.border,
+    color: design.textPrimary,
+  } as const;
+
+  const focusAnswer = (e: FocusEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    e.currentTarget.style.borderColor = design.brandPurple;
+    e.currentTarget.style.boxShadow = `0 0 0 2px ${design.brandPurple}26`;
+  };
+  const blurAnswer = (e: FocusEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    e.currentTarget.style.borderColor = design.border;
+    e.currentTarget.style.boxShadow = 'none';
+  };
 
   const renderShortOrTest = () => (
     <div className="space-y-5">
@@ -464,6 +521,9 @@ export default function RussianPracticeBlock({
         }}
         placeholder="Введите ответ"
         className={INPUT}
+        style={answerInputStyle}
+        onFocus={focusAnswer}
+        onBlur={blurAnswer}
       />
     </div>
   );
@@ -483,6 +543,9 @@ export default function RussianPracticeBlock({
         placeholder="Введите ответ"
         rows={5}
         className={`${INPUT} resize-y min-h-[120px]`}
+        style={answerInputStyle}
+        onFocus={focusAnswer}
+        onBlur={blurAnswer}
       />
       {courseSpellCheck && spellErrors?.[block.id]?.length > 0 && (
         <SpellErrorsPanel errors={spellErrors[block.id]} />
@@ -495,7 +558,8 @@ export default function RussianPracticeBlock({
     notesCount > 0 && (block.type === 'test_short' || block.type === 'written' || block.type === 'test');
 
   return (
-    <div className="w-full space-y-5">
+    <div className="w-full h-full min-h-0 flex flex-col font-[Golos_Text,system-ui,sans-serif]">
+      <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar space-y-4 pr-0.5">
       {isEssay ? (
         <EssayStudentTask block={block} compact />
       ) : (
@@ -505,7 +569,7 @@ export default function RussianPracticeBlock({
             <img
               src={block.questionImage || block.image}
               alt=""
-              className="mb-2 max-h-48 rounded-xl object-contain"
+              className="mb-2 max-h-[min(28vh,12rem)] rounded-xl object-contain"
             />
           )}
         </>
@@ -557,10 +621,11 @@ export default function RussianPracticeBlock({
       {(isLocked || isExhausted) && block.explanation && (
         <ExplanationBlock content={block.explanation || ''} mode="html" />
       )}
+      </div>
 
-      <div className="pt-2">
-        <button type="button" onClick={goNext} className={BTN}>
-          {stepIndex >= totalSteps - 1 ? (isLocked ? 'Готово' : 'Отправить') : 'Далее >'}
+      <div className="shrink-0 pt-3 pb-0.5 bg-white">
+        <button type="button" onClick={goNext} className={BTN} style={{ backgroundColor: design.ink }}>
+          {stepIndex >= totalSteps - 1 ? (isLocked ? 'ГОТОВО' : 'ОТПРАВИТЬ') : 'ДАЛЕЕ >'}
         </button>
       </div>
     </div>

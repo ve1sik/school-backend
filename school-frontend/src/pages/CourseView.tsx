@@ -35,6 +35,7 @@ import { buildSubmissionQuestion } from '../utils/submissionQuestion';
 import { EGE_ESSAY_MAX_SCORE, FINAL_ESSAY_MAX_SCORE, criteriaKindFromBlockType } from '../utils/essayCriteria';
 import { isManualGradeBlock, isUnlimitedAttempts } from '../utils/lessonBlockTypes';
 import { checkSpelling, type SpellError } from '../utils/spellCheck';
+import { lessonHasHomework, getHomeworkBlocksFromLesson } from '../utils/lessonHomework';
 
 const SpellErrorsPanel = ({ errors }: { errors: SpellError[] }) => (
   <div className="p-4 rounded-2xl bg-amber-50 border-2 border-amber-200 space-y-2">
@@ -990,6 +991,27 @@ export default function CourseView() {
     return { ...theme, lessons: filteredLessons };
   }).filter((theme: any) => theme.lessons && theme.lessons.length > 0);
 
+  const courseUiThemeResolvedEarly = resolveCourseUiTheme(course);
+  const isSubjectUiEarly =
+    courseUiThemeResolvedEarly === 'RUSSIAN' || courseUiThemeResolvedEarly === 'HISTORY';
+
+  const subjectLessonNav = useMemo(() => {
+    if (!isSubjectUiEarly || !course?.themes) return [];
+    const items: { id: string | number; title: string; moduleIndex: number; themeTitle: string }[] = [];
+    course.themes.forEach((theme: any, tIdx: number) => {
+      const mIdx = Number(theme.order_index) || tIdx + 1;
+      (theme.lessons || []).forEach((lesson: any) => {
+        items.push({
+          id: lesson.id,
+          title: lesson.title || theme.title || 'Урок',
+          moduleIndex: mIdx,
+          themeTitle: theme.title || lesson.title || 'Тема',
+        });
+      });
+    });
+    return items;
+  }, [isSubjectUiEarly, course?.themes]);
+
   if (isLoading) return <div className="h-screen flex items-center justify-center bg-[#F4F7FE]"><Loader2 className="w-12 h-12 animate-spin text-[#5A4BFF]" /></div>;
   if (!course) return <div className="p-8 text-center font-bold">Курс не найден</div>;
 
@@ -1005,7 +1027,10 @@ export default function CourseView() {
 
   const theoryBlocks = blocks.filter(b => !['test', 'test_short', 'written', 'matching', 'essay', 'essay_final'].includes(b.type) && !b.isHomework);
   const practiceBlocks = blocks.filter(b => ['test', 'test_short', 'written', 'matching', 'essay', 'essay_final'].includes(b.type) && !b.isHomework);
-  const homeworkBlocks = blocks.filter(b => b.isHomework);
+  const homeworkBlocks =
+    blocks.filter(b => b.isHomework).length > 0
+      ? blocks.filter(b => b.isHomework)
+      : getHomeworkBlocksFromLesson(activeLesson);
 
   const groupInteractiveBlocks = (blocksToGroup: any[]) => {
     const groups = [
@@ -1031,10 +1056,15 @@ export default function CourseView() {
   };
 
   const practiceGroups = groupInteractiveBlocks(practiceBlocks);
-  const courseUiThemeResolved = resolveCourseUiTheme(course);
+  const courseUiThemeResolved = courseUiThemeResolvedEarly;
   const isRussianUi = courseUiThemeResolved === 'RUSSIAN';
   const isHistoryUi = courseUiThemeResolved === 'HISTORY';
-  const isSubjectUi = isRussianUi || isHistoryUi;
+  const isSubjectUi = isSubjectUiEarly;
+  const lessonHasHw =
+    homeworkBlocks.length > 0 || (activeLesson ? lessonHasHomework(activeLesson) : false);
+  /** Practice in dropdown may be inline tasks or ДЗ (no practice blocks). */
+  const subjectHasPractice = practiceBlocks.length > 0 || lessonHasHw;
+  const practiceIsHomework = lessonHasHw && practiceBlocks.length === 0;
   const activeTheme = course?.themes?.find((t: any) => t.lessons?.some((l: any) => l.id === activeLesson?.id))
     || course?.themes?.find((t: any) => String(t.id) === String(themeId));
   const moduleIndex = Number(activeTheme?.order_index) || 1;
@@ -1044,6 +1074,15 @@ export default function CourseView() {
   const russianCompleted = practiceBlocks.map((b: any) =>
     isRussianStepDone(b, testAnswers, testResults, submissions),
   );
+
+  const openSubjectPractice = () => {
+    if (practiceIsHomework && activeLesson?.id) {
+      navigate(`/homework/${activeLesson.id}`, { state: { openPractice: true } });
+      return;
+    }
+    setRussianPart('practice');
+    setAreTestsRevealed(true);
+  };
 
   const renderTheoryBlock = (block: any) => {
     if (block.type === 'video_file' && block.url) {
@@ -1143,15 +1182,42 @@ export default function CourseView() {
     return null;
   };
 
-  // 🔥 ИДЕАЛЬНОЕ ВЫРАВНИВАНИЕ СЕТКИ
-  const showSubjectTheory =
-    isSubjectUi && (theoryBlocks.length === 0 ? 'practice' : russianPart) === 'theory';
+  // History + Russian theory: SubjectLessonShell (Figma p.8 / p.9); practice stays on RussianHomeworkLayout
+  const showSubjectShell = isSubjectUi;
+  const subjectActivePart = theoryBlocks.length === 0 ? 'practice' : russianPart;
+  const showSubjectTheoryShell = isSubjectUi && subjectActivePart === 'theory';
+  const subjectUiVariant = isHistoryUi ? 'history' : 'russian';
+  const subjectCourseFallback = isHistoryUi ? 'История ЕГЭ' : 'Русский язык ЕГЭ';
+
+  const subjectCourseNav = {
+    onBackToModules: () => navigate(`/course/${courseId}`),
+    lessons: subjectLessonNav,
+    activeLessonId: activeLesson?.id as string | number,
+    onSelectLesson: (id: string | number) => {
+      const next = subjectLessonNav.find((l) => String(l.id) === String(id));
+      if (!next) return;
+      let found: any = null;
+      for (const theme of course?.themes || []) {
+        found = (theme.lessons || []).find((l: any) => String(l.id) === String(id));
+        if (found) {
+          setExpandedThemes((prev: any) => ({ ...prev, [theme.id]: true }));
+          break;
+        }
+      }
+      if (found) {
+        setActiveLesson(found);
+        setRussianPart('theory');
+        setRussianStep(0);
+        setAreTestsRevealed(false);
+      }
+    },
+  };
 
   return (
     <div
       className={`flex flex-col lg:flex-row font-sans text-gray-900 gap-3 lg:gap-6 ${
-        showSubjectTheory
-          ? 'h-full min-h-0 overflow-hidden p-0 md:p-1 bg-transparent'
+        showSubjectShell
+          ? 'h-full min-h-0 overflow-hidden p-3 md:p-4 lg:p-2 bg-[#F4F7FE]'
           : 'h-auto lg:h-full min-h-0 bg-[#F4F7FE] p-3 md:p-4 lg:p-2 overflow-visible lg:overflow-hidden'
       }`}
     >
@@ -1213,7 +1279,7 @@ export default function CourseView() {
 `}</style>
 
       {/* Lesson list — hidden on subject theory (matches design: app nav only) */}
-      {!showSubjectTheory && (
+      {!showSubjectShell && (
       <aside className="w-full lg:w-[300px] xl:w-[340px] bg-white rounded-3xl lg:rounded-[2rem] border border-gray-100 flex flex-col h-auto max-h-[55vh] lg:max-h-none lg:h-full shrink-0 z-20 shadow-sm overflow-hidden">
         <div className="p-6 md:p-8 pb-5 border-b border-gray-100 bg-white">
           <button type="button" onClick={() => navigate(`/course/${courseId}`)} className="text-[11px] font-black tracking-wider text-gray-400 hover:text-[#5A4BFF] flex items-center gap-2 mb-4 transition-colors uppercase">
@@ -1321,7 +1387,7 @@ export default function CourseView() {
       {/* 🔥 MAIN БЛОК: Выровнен с боковой панелью */}
       <main
         className={`flex-1 w-full relative min-h-0 h-auto lg:h-full ${
-          showSubjectTheory
+          showSubjectShell
             ? 'overflow-hidden bg-transparent border-0 shadow-none rounded-none'
             : 'bg-white rounded-3xl lg:rounded-[2rem] border border-gray-100 shadow-sm overflow-visible lg:overflow-y-auto scroll-smooth'
         }`}
@@ -1334,116 +1400,127 @@ export default function CourseView() {
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -10 }}
-                className={showSubjectTheory ? 'h-full min-h-0' : 'py-4'}
+                className={showSubjectShell ? 'h-full min-h-0' : 'py-4'}
               >
-                {(isHistoryUi || isRussianUi) && (theoryBlocks.length === 0 ? 'practice' : russianPart) === 'theory' ? (
+                {showSubjectTheoryShell ? (
                   <SubjectLessonShell
-                    variant={isHistoryUi ? 'history' : 'russian'}
-                    courseTitle={course?.title || (isHistoryUi ? 'История ЕГЭ' : 'Русский язык ЕГЭ')}
+                    variant={subjectUiVariant}
+                    courseTitle={course?.title || subjectCourseFallback}
                     moduleIndex={moduleIndex}
                     themeTitle={themeTitle}
                     activePart="theory"
                     onPartChange={(p) => {
-                      setRussianPart(p);
-                      if (p === 'practice') setAreTestsRevealed(true);
+                      if (p === 'practice') openSubjectPractice();
+                      else setRussianPart(p);
                     }}
-                    hasPractice={practiceBlocks.length > 0}
+                    hasPractice={subjectHasPractice}
+                    practiceIsHomework={practiceIsHomework}
+                    courseNav={subjectCourseNav}
                     theoryContent={
-                      <SubjectTheoryContent
-                        variant={isHistoryUi ? 'history' : 'russian'}
-                        themeTitle={themeTitle}
-                        blocks={theoryBlocks}
-                      />
+                      theoryBlocks.length === 0 ? (
+                        <p className="text-gray-500 font-medium">В этом уроке пока нет теоретических материалов.</p>
+                      ) : (
+                        <SubjectTheoryContent
+                          variant={subjectUiVariant}
+                          themeTitle={themeTitle}
+                          blocks={theoryBlocks}
+                        />
+                      )
                     }
                     practiceContent={null}
                   />
                 ) : (
-                <RussianHomeworkLayout
-                  variant={isHistoryUi ? 'history' : 'russian'}
-                  moduleIndex={moduleIndex}
-                  themeTitle={themeTitle}
-                  practiceCount={practiceBlocks.length}
-                  activePart={theoryBlocks.length === 0 ? 'practice' : russianPart}
-                  onPartChange={setRussianPart}
-                  activePracticeIndex={russianStepSafe}
-                  onPracticeIndexChange={(i) => {
-                    setRussianStep(i);
-                    setAreTestsRevealed(true);
-                  }}
-                  completedSteps={russianCompleted}
-                  passage={
-                    passageBlock ? (
-                      <div className="theory-read-only">
-                        <ReactQuill theme="snow" value={passageBlock.content || ''} readOnly modules={{ toolbar: false }} />
-                      </div>
-                    ) : null
-                  }
-                  theoryBlocks={
-                    theoryBlocks.length === 0 ? (
-                      <p className="text-gray-500 font-medium">В этом уроке пока нет теоретических материалов.</p>
-                    ) : isHistoryUi || isRussianUi ? (
-                      <SubjectTheoryContent
-                        variant={isHistoryUi ? 'history' : 'russian'}
-                        themeTitle={themeTitle}
-                        blocks={theoryBlocks}
-                      />
-                    ) : (
-                      <div className="space-y-8">
-                        {theoryBlocks.map((block) => renderTheoryBlock(block))}
-                      </div>
-                    )
-                  }
-                  practiceSlot={
-                    practiceBlocks.length === 0 ? (
-                      <p className="text-gray-500 font-medium">Практических заданий пока нет.</p>
-                    ) : isHistoryUi ? (
-                      <HistoryPracticeBlock
-                        key={`hi-cv-${activeLesson.id}-${practiceBlocks[russianStepSafe]?.id}`}
-                        block={practiceBlocks[russianStepSafe]}
-                        stepIndex={russianStepSafe}
-                        totalSteps={practiceBlocks.length}
-                        testAnswers={testAnswers}
-                        testResults={testResults}
-                        attemptsUsed={attemptsUsed}
-                        submissions={submissions}
-                        courseSpellCheck={courseSpellCheck}
-                        spellErrors={spellErrors}
-                        courseTitle={course?.title}
-                        lessonTitle={activeLesson?.title}
-                        handleTextAnswerChange={handleTextAnswerChange}
-                        handleAnswerToggle={handleAnswerToggle}
-                        handleMatchingChange={handleMatchingChange}
-                        handleSubmitTest={handleSubmitTest}
-                        onNext={() => setRussianStep((s) => Math.min(s + 1, practiceBlocks.length - 1))}
-                        setTestAnswers={setTestAnswers}
-                        answersKey="demo_answers"
-                        setSafeLocal={setSafeLocal}
-                      />
-                    ) : (
-                      <RussianPracticeBlock
-                        key={`ru-cv-${activeLesson.id}-${practiceBlocks[russianStepSafe]?.id}`}
-                        block={practiceBlocks[russianStepSafe]}
-                        stepIndex={russianStepSafe}
-                        totalSteps={practiceBlocks.length}
-                        testAnswers={testAnswers}
-                        testResults={testResults}
-                        attemptsUsed={attemptsUsed}
-                        submissions={submissions}
-                        courseSpellCheck={courseSpellCheck}
-                        spellErrors={spellErrors}
-                        courseTitle={course?.title}
-                        lessonTitle={activeLesson?.title}
-                        handleTextAnswerChange={handleTextAnswerChange}
-                        handleMatchingChange={handleMatchingChange}
-                        handleSubmitTest={handleSubmitTest}
-                        onNext={() => setRussianStep((s) => Math.min(s + 1, practiceBlocks.length - 1))}
-                        setTestAnswers={setTestAnswers}
-                        answersKey="demo_answers"
-                        setSafeLocal={setSafeLocal}
-                      />
-                    )
-                  }
-                />
+                  <RussianHomeworkLayout
+                    variant={isHistoryUi ? 'history' : 'russian'}
+                    moduleIndex={moduleIndex}
+                    themeTitle={themeTitle}
+                    practiceCount={practiceBlocks.length}
+                    activePart={subjectActivePart}
+                    onPartChange={(p) => {
+                      if (p === 'practice') openSubjectPractice();
+                      else setRussianPart(p);
+                    }}
+                    practiceIsHomework={practiceIsHomework}
+                    activePracticeIndex={russianStepSafe}
+                    onPracticeIndexChange={(i) => {
+                      setRussianStep(i);
+                      setAreTestsRevealed(true);
+                    }}
+                    completedSteps={russianCompleted}
+                    courseNav={subjectCourseNav}
+                    passage={
+                      passageBlock ? (
+                        <div className="theory-read-only">
+                          <ReactQuill theme="snow" value={passageBlock.content || ''} readOnly modules={{ toolbar: false }} />
+                        </div>
+                      ) : null
+                    }
+                    theoryBlocks={
+                      theoryBlocks.length === 0 ? (
+                        <p className="text-gray-500 font-medium">В этом уроке пока нет теоретических материалов.</p>
+                      ) : isHistoryUi || isRussianUi ? (
+                        <SubjectTheoryContent
+                          variant={isHistoryUi ? 'history' : 'russian'}
+                          themeTitle={themeTitle}
+                          blocks={theoryBlocks}
+                        />
+                      ) : (
+                        <div className="space-y-8">
+                          {theoryBlocks.map((block) => renderTheoryBlock(block))}
+                        </div>
+                      )
+                    }
+                    practiceSlot={
+                      practiceBlocks.length === 0 ? (
+                        <p className="text-gray-500 font-medium">Практических заданий пока нет.</p>
+                      ) : isHistoryUi ? (
+                        <HistoryPracticeBlock
+                          key={`hi-cv-${activeLesson.id}-${practiceBlocks[russianStepSafe]?.id}`}
+                          block={practiceBlocks[russianStepSafe]}
+                          stepIndex={russianStepSafe}
+                          totalSteps={practiceBlocks.length}
+                          testAnswers={testAnswers}
+                          testResults={testResults}
+                          attemptsUsed={attemptsUsed}
+                          submissions={submissions}
+                          courseSpellCheck={courseSpellCheck}
+                          spellErrors={spellErrors}
+                          courseTitle={course?.title}
+                          lessonTitle={activeLesson?.title}
+                          handleTextAnswerChange={handleTextAnswerChange}
+                          handleAnswerToggle={handleAnswerToggle}
+                          handleMatchingChange={handleMatchingChange}
+                          handleSubmitTest={handleSubmitTest}
+                          onNext={() => setRussianStep((s) => Math.min(s + 1, practiceBlocks.length - 1))}
+                          setTestAnswers={setTestAnswers}
+                          answersKey="demo_answers"
+                          setSafeLocal={setSafeLocal}
+                        />
+                      ) : (
+                        <RussianPracticeBlock
+                          key={`ru-cv-${activeLesson.id}-${practiceBlocks[russianStepSafe]?.id}`}
+                          block={practiceBlocks[russianStepSafe]}
+                          stepIndex={russianStepSafe}
+                          totalSteps={practiceBlocks.length}
+                          testAnswers={testAnswers}
+                          testResults={testResults}
+                          attemptsUsed={attemptsUsed}
+                          submissions={submissions}
+                          courseSpellCheck={courseSpellCheck}
+                          spellErrors={spellErrors}
+                          courseTitle={course?.title}
+                          lessonTitle={activeLesson?.title}
+                          handleTextAnswerChange={handleTextAnswerChange}
+                          handleMatchingChange={handleMatchingChange}
+                          handleSubmitTest={handleSubmitTest}
+                          onNext={() => setRussianStep((s) => Math.min(s + 1, practiceBlocks.length - 1))}
+                          setTestAnswers={setTestAnswers}
+                          answersKey="demo_answers"
+                          setSafeLocal={setSafeLocal}
+                        />
+                      )
+                    }
+                  />
                 )}
               </motion.div>
             ) : (

@@ -5,8 +5,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 import { decodeToken, getToken, getTokenConfig } from '../lib/auth';
 import { parseSafeDate } from '../lib/parseDate';
-
-import { API_URL, SITE_ORIGIN, resolveUploadUrl } from '../lib/api';
+import { API_URL, SITE_ORIGIN } from '../lib/api';
+import { design } from '../lib/designTokens';
 
 const getFullUrl = (url: string) => {
   if (!url) return '';
@@ -26,15 +26,17 @@ const roleLabel = (role?: string) => {
 const displayName = (c: any) =>
   c?.name ? `${c.name} ${c.surname || ''}`.trim() : c?.email || 'Без имени';
 
+/** Figma pdf-page-06 — Messages 1:1 */
 function Avatar({ contact, size = 'md' }: { contact: any; size?: 'sm' | 'md' | 'lg' }) {
-  const cls =
-    size === 'lg' ? 'w-12 h-12' : size === 'sm' ? 'w-9 h-9' : 'w-11 h-11';
+  const cls = size === 'lg' ? 'w-12 h-12' : size === 'sm' ? 'w-9 h-9' : 'w-11 h-11';
   return (
-    <div className={`${cls} rounded-full bg-gray-200 flex items-center justify-center text-gray-500 overflow-hidden shrink-0 border border-gray-100`}>
+    <div
+      className={`${cls} rounded-full bg-[#F3F4F6] flex items-center justify-center text-gray-400 overflow-hidden shrink-0 border border-[#E5E7EB]`}
+    >
       {contact?.avatar ? (
         <img src={getFullUrl(contact.avatar)} className="w-full h-full object-cover" alt="" />
       ) : (
-        <User className={size === 'sm' ? 'w-4 h-4' : 'w-5 h-5'} />
+        <User className={size === 'sm' ? 'w-4 h-4' : 'w-5 h-5'} strokeWidth={1.75} />
       )}
     </div>
   );
@@ -145,48 +147,59 @@ export default function Messages() {
   if (isLoadingContacts) {
     return (
       <div className="h-full w-full flex items-center justify-center">
-        <Loader2 className="w-10 h-10 animate-spin text-[#1A1D26]" />
+        <Loader2 className="w-10 h-10 animate-spin" style={{ color: design.ink }} />
       </div>
     );
   }
 
   return (
-    <div className="max-w-7xl mx-auto h-full min-h-0 flex flex-col">
-      <div className="shrink-0 mb-3 md:mb-4">
-        <h1 className="text-2xl md:text-[28px] font-black tracking-tight text-gray-900">Сообщения</h1>
-      </div>
-
+    <div className="h-full min-h-0 flex flex-col font-[Golos_Text,system-ui,sans-serif]">
       <div className="flex-1 min-h-0 flex gap-3 md:gap-4 overflow-hidden">
-        {/* Список чатов */}
-        <div
-          className={`w-full md:w-[340px] lg:w-[360px] bg-white rounded-2xl border border-gray-200 flex-col overflow-hidden shrink-0 ${
+        {/* Left — chat list (Figma) */}
+        <aside
+          className={`w-full md:w-[300px] lg:w-[320px] xl:w-[340px] bg-white rounded-[16px] border flex-col overflow-hidden shrink-0 ${
             activeChatId ? 'hidden md:flex' : 'flex'
           }`}
+          style={{ borderColor: design.border }}
         >
-          <div className="p-5 md:p-6 border-b border-gray-100">
+          <div className="px-5 pt-5 pb-4 shrink-0">
             <button
               type="button"
               onClick={() => navigate(-1)}
-              className="flex items-center gap-1.5 text-gray-500 hover:text-gray-900 text-[11px] font-black uppercase tracking-wider transition-colors mb-4"
+              className="inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.08em] text-[#9CA3AF] hover:text-gray-700 transition-colors mb-3"
             >
-              <ArrowLeft className="w-3.5 h-3.5" /> Назад
+              <ArrowLeft className="w-3.5 h-3.5" strokeWidth={2.5} />
+              Назад
             </button>
-            <h2 className="text-xl font-black text-gray-900 mb-4">Чаты</h2>
+            <h2 className="text-[20px] md:text-[22px] font-extrabold text-[#111827] mb-3.5 tracking-tight">
+              Чаты
+            </h2>
             <div className="relative">
-              <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
+              <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-[#9CA3AF]" strokeWidth={2} />
               <input
                 type="text"
-                placeholder="ПОИСК ДИАЛОГА"
+                placeholder="поиск диалога"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full bg-gray-50 border border-gray-200 rounded-xl py-2.5 pl-10 pr-3 outline-none focus:bg-white focus:border-[#6C63FF] transition-all font-medium text-sm text-gray-700 placeholder:text-gray-400 placeholder:uppercase placeholder:text-[11px] placeholder:tracking-wide"
+                className="w-full bg-white border rounded-full py-2.5 pl-10 pr-4 outline-none transition-all text-[13px] text-[#111827] placeholder:text-[#9CA3AF] placeholder:lowercase focus:ring-2"
+                style={{
+                  borderColor: design.border,
+                }}
+                onFocus={(e) => {
+                  e.currentTarget.style.borderColor = design.brandPurple;
+                  e.currentTarget.style.boxShadow = `0 0 0 2px ${design.brandPurple}26`;
+                }}
+                onBlur={(e) => {
+                  e.currentTarget.style.borderColor = design.border;
+                  e.currentTarget.style.boxShadow = 'none';
+                }}
               />
             </div>
           </div>
 
-          <div className="flex-1 overflow-y-auto custom-scrollbar px-3 py-2 space-y-1.5">
+          <div className="flex-1 overflow-y-auto custom-scrollbar px-3 pb-3 space-y-2">
             {filteredAndSortedContacts.length === 0 ? (
-              <p className="p-6 text-sm text-gray-400 font-medium text-center">Диалоги не найдены</p>
+              <p className="p-6 text-sm text-[#9CA3AF] font-medium text-center">Диалоги не найдены</p>
             ) : (
               filteredAndSortedContacts.map((contact) => {
                 const isActive = String(activeChatId) === String(contact.id);
@@ -196,23 +209,30 @@ export default function Messages() {
                     key={contact.id}
                     type="button"
                     onClick={() => setActiveChatId(contact.id)}
-                    className={`w-full text-left px-4 py-3 flex items-center gap-3 transition-colors rounded-xl border-2 ${
+                    className={`w-full text-left px-3.5 py-3 flex items-center gap-3 transition-colors rounded-[12px] border ${
                       isActive
-                        ? 'bg-[#EEF4FF] border-[#4A5CFF]'
-                        : 'border-transparent hover:bg-gray-50'
+                        ? 'bg-[#EEF2FF] border-[#C7D2FE]'
+                        : 'bg-white border-[#E5E7EB] hover:bg-gray-50'
                     }`}
                   >
                     <Avatar contact={contact} />
                     <div className="flex-1 min-w-0">
-                      <h4 className={`truncate text-[15px] ${isActive || hasUnread ? 'font-bold text-[#3B5BDB]' : 'font-semibold text-gray-800'}`}>
-                        {displayName(contact).toUpperCase()}
+                      <h4
+                        className={`truncate text-[13px] md:text-[14px] font-bold uppercase tracking-wide ${
+                          isActive || hasUnread ? 'text-[#3B5BDB]' : 'text-[#3B5BDB]'
+                        }`}
+                      >
+                        {displayName(contact)}
                       </h4>
-                      <p className="text-xs text-gray-400 font-medium mt-0.5 truncate">
+                      <p className="text-[12px] text-[#9CA3AF] font-medium mt-0.5 truncate">
                         {hasUnread ? 'Новое сообщение' : roleLabel(contact.role)}
                       </p>
                     </div>
                     {hasUnread && (
-                      <span className="shrink-0 min-w-[20px] h-5 px-1.5 rounded-full bg-[#1A1D26] text-white text-[10px] font-black flex items-center justify-center">
+                      <span
+                        className="shrink-0 min-w-[20px] h-5 px-1.5 rounded-full text-white text-[10px] font-bold flex items-center justify-center"
+                        style={{ backgroundColor: design.ink }}
+                      >
                         {contact.unreadCount > 99 ? '99+' : contact.unreadCount}
                       </span>
                     )}
@@ -221,49 +241,54 @@ export default function Messages() {
               })
             )}
           </div>
-        </div>
+        </aside>
 
-        {/* Окно переписки */}
-        <div
-          className={`flex-1 bg-white rounded-2xl border border-gray-200 flex-col overflow-hidden min-w-0 ${
+        {/* Right — conversation (Figma) */}
+        <section
+          className={`flex-1 bg-white rounded-[16px] border flex-col overflow-hidden min-w-0 ${
             activeChatId ? 'flex' : 'hidden md:flex'
           }`}
+          style={{ borderColor: design.border }}
         >
           {activeUser && activeChatId ? (
             <>
-              <div className="px-4 md:px-6 py-4 border-b border-gray-100 flex items-center justify-between gap-3 shrink-0">
+              <div
+                className="px-4 md:px-5 py-3.5 md:py-4 flex items-center justify-between gap-3 shrink-0 border-b"
+                style={{ borderColor: design.border }}
+              >
                 <div className="flex items-center gap-3 min-w-0">
                   <button
                     type="button"
                     onClick={() => setActiveChatId(null)}
                     className="md:hidden p-1.5 -ml-1 text-gray-400 hover:text-gray-900 shrink-0"
+                    aria-label="К списку чатов"
                   >
                     <ArrowLeft className="w-5 h-5" />
                   </button>
                   <Avatar contact={activeUser} size="md" />
                   <div className="min-w-0">
-                    <h3 className="font-bold text-[15px] text-[#3B5BDB] truncate uppercase tracking-wide">
+                    <h3 className="font-bold text-[14px] md:text-[15px] text-[#3B5BDB] truncate uppercase tracking-wide">
                       {displayName(activeUser)}
                     </h3>
-                    <p className="text-xs text-gray-400 font-medium">{roleLabel(activeUser.role)}</p>
+                    <p className="text-[12px] text-[#9CA3AF] font-medium">{roleLabel(activeUser.role)}</p>
                   </div>
                 </div>
                 <button
                   type="button"
                   onClick={() => setActiveChatId(null)}
-                  className="hidden md:flex w-9 h-9 items-center justify-center rounded-lg text-gray-400 hover:text-gray-800 hover:bg-gray-50 transition-colors"
+                  className="hidden md:flex w-8 h-8 items-center justify-center rounded-[8px] text-white transition-colors hover:opacity-90"
+                  style={{ backgroundColor: design.ink }}
+                  aria-label="Закрыть чат"
                 >
-                  <X className="w-5 h-5" />
+                  <X className="w-4 h-4" strokeWidth={2.5} />
                 </button>
               </div>
 
               <div className="flex-1 overflow-y-auto px-4 md:px-6 py-5 custom-scrollbar flex flex-col bg-white">
                 <AnimatePresence initial={false}>
                   {messages.length === 0 ? (
-                    <div className="m-auto text-center text-gray-400 font-medium text-sm leading-relaxed px-4">
-                      Здесь пока нет сообщений.
-                      <br />
-                      Напишите первым!
+                    <div className="m-auto text-center text-[#9CA3AF] font-medium text-[14px] leading-relaxed px-4">
+                      Здесь пока нет сообщений. Напишите первым!
                     </div>
                   ) : (
                     messages.map((msg: any) => {
@@ -280,16 +305,17 @@ export default function Messages() {
                           className={`flex w-full mb-3 ${isMe ? 'justify-end' : 'justify-start'}`}
                         >
                           <div
-                            className={`max-w-[75%] px-4 py-3 ${
+                            className={`max-w-[75%] px-4 py-3 rounded-[14px] ${
                               isMe
-                                ? 'bg-[#1A1D26] text-white rounded-2xl rounded-br-md'
-                                : 'bg-gray-50 text-gray-800 rounded-2xl rounded-bl-md border border-gray-100'
+                                ? 'text-white rounded-br-md'
+                                : 'bg-[#F9FAFB] text-[#111827] rounded-bl-md border border-[#E5E7EB]'
                             }`}
+                            style={isMe ? { backgroundColor: design.ink } : undefined}
                           >
                             <p className="text-[15px] leading-relaxed whitespace-pre-wrap">{msg.text}</p>
                             <span
                               className={`text-[10px] font-bold mt-1.5 block text-right ${
-                                isMe ? 'text-white/50' : 'text-gray-400'
+                                isMe ? 'text-white/50' : 'text-[#9CA3AF]'
                               }`}
                             >
                               {timeString}
@@ -303,37 +329,40 @@ export default function Messages() {
                 <div ref={messagesEndRef} />
               </div>
 
-              <div className="p-4 md:p-5 border-t border-gray-100 shrink-0">
-                <form onSubmit={handleSendMessage} className="flex items-center gap-3">
+              <div className="p-4 md:p-5 shrink-0">
+                <form onSubmit={handleSendMessage} className="flex items-center gap-2.5 md:gap-3">
                   <input
                     type="text"
                     value={newMessage}
                     onChange={(e) => setNewMessage(e.target.value)}
                     placeholder="Напишите сообщение"
-                    className="flex-1 bg-white border border-gray-200 rounded-xl py-3.5 px-4 outline-none focus:border-[#6C63FF] transition-all text-gray-900 font-medium text-[15px] placeholder:text-gray-400"
+                    className="flex-1 bg-white border rounded-[12px] py-3.5 px-4 outline-none transition-all text-[#111827] font-medium text-[15px] placeholder:text-[#9CA3AF]"
+                    style={{ borderColor: design.border }}
+                    onFocus={(e) => {
+                      e.currentTarget.style.borderColor = design.brandPurple;
+                    }}
+                    onBlur={(e) => {
+                      e.currentTarget.style.borderColor = design.border;
+                    }}
                   />
                   <button
                     type="submit"
                     disabled={!newMessage.trim()}
-                    className="w-12 h-12 shrink-0 rounded-xl bg-[#1A1D26] hover:bg-black text-white flex items-center justify-center transition-all disabled:opacity-40 active:scale-95"
+                    className="w-12 h-12 shrink-0 rounded-[10px] text-white flex items-center justify-center transition-all disabled:opacity-40 active:scale-95 hover:opacity-90"
+                    style={{ backgroundColor: design.ink }}
                     aria-label="Отправить"
                   >
-                    <Send className="w-5 h-5 ml-0.5" />
+                    <Send className="w-5 h-5 ml-0.5" strokeWidth={2} />
                   </button>
                 </form>
               </div>
             </>
           ) : (
-            <div className="h-full flex items-center justify-center text-gray-400 flex-col px-6">
-              <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mb-4 border border-gray-100">
-                <Search className="w-7 h-7 text-gray-300" />
-              </div>
-              <p className="font-semibold text-base text-gray-500 text-center">
-                Выберите чат из списка слева
-              </p>
+            <div className="h-full flex items-center justify-center text-[#9CA3AF] flex-col px-6">
+              <p className="font-medium text-[14px] text-center">Выберите чат из списка слева</p>
             </div>
           )}
-        </div>
+        </section>
       </div>
     </div>
   );

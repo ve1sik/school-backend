@@ -11,6 +11,7 @@
     color: #111827;
     min-height: 100vh;
     min-height: -webkit-fill-available;
+    font-family: "Golos Text", system-ui, sans-serif;
   }
 
   #root {

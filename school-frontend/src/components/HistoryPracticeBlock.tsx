@@ -1,6 +1,7 @@
+﻿import { type FocusEvent, type ReactNode } from 'react';
+import { Check, CheckCircle2, Clock, XCircle } from 'lucide-react';
 import { resolveUploadUrl } from '../lib/api';
-import { type ReactNode } from 'react';
-import { CheckCircle2, Clock, XCircle } from 'lucide-react';
+import { design } from '../lib/designTokens';
 import { ExplanationBlock, OptionText, safeHtml } from './LessonTestUI';
 import EssayPlainEditor from './EssayPlainEditor';
 import EssayStudentTask from './EssayStudentTask';
@@ -12,11 +13,11 @@ import { isRussianStepDone } from './RussianPracticeBlock';
 
 export { isRussianStepDone as isHistoryStepDone };
 
-const ACCENT = '#EF6C35';
+const ACCENT = design.historyOrange;
 const BTN =
-  'inline-flex items-center justify-center px-6 py-3 rounded-xl bg-[#1A1D26] hover:bg-black text-white text-[11px] font-black uppercase tracking-wide transition-colors disabled:opacity-40';
+  'inline-flex items-center justify-center gap-1 px-5 sm:px-6 py-3 sm:py-[14px] rounded-[10px] hover:bg-black text-white text-[11px] sm:text-[12px] font-bold uppercase tracking-[0.04em] transition-colors disabled:opacity-40 shrink-0 max-w-full';
 const INPUT =
-  'w-full px-4 py-3.5 rounded-xl border border-gray-200 bg-white text-[15px] text-gray-900 placeholder:text-gray-400 outline-none focus:border-[#EF6C35] focus:ring-2 focus:ring-[#EF6C35]/20 transition-all min-h-[120px]';
+  'w-full px-4 py-3.5 rounded-[10px] border bg-white text-[15px] placeholder:text-[#9CA3AF] outline-none transition-all resize-y';
 
 type Props = {
   block: any;
@@ -45,12 +46,8 @@ function stripHtml(html: string) {
 }
 
 function getImage(block: any): string {
-  const raw = block.questionImage || block.image || '';
-  if (!raw) return '';
-  if (raw.startsWith('http')) return raw.replace('http://prepodmgy.ru', 'SITE_ORIGIN_PLACEHOLDER');
-  const clean = raw.startsWith('/') ? raw.slice(1) : raw;
-  if (clean.startsWith('uploads/')) return `SITE_ORIGIN_PLACEHOLDER/${clean}`;
-  return `SITE_ORIGIN_PLACEHOLDER/api/${clean}`;
+  const raw = block.questionImage || block.image || block.schemeImage || block.scheme_image || '';
+  return resolveUploadUrl(raw);
 }
 
 function resolveBlockState(
@@ -104,7 +101,7 @@ function QuestionHtml({ content, className = '' }: { content: string; className?
   return (
     <div className={`ql-snow ${className}`}>
       <div
-        className="ql-editor !p-0 text-[15px] md:text-[16px] leading-relaxed text-gray-900 font-medium [&_p]:mb-2 [&_table]:w-full [&_table]:border-collapse [&_td]:border [&_td]:border-gray-800 [&_td]:px-2 [&_td]:py-1.5 [&_th]:border [&_th]:border-gray-800 [&_th]:px-2 [&_th]:py-1.5 [&_th]:font-bold"
+        className="ql-editor !p-0 text-[15px] md:text-[16px] leading-relaxed text-[#111827] font-medium [&_p]:mb-2.5 [&_strong]:font-bold [&_table]:w-full [&_table]:border-collapse [&_table]:text-[13px] md:[&_table]:text-[14px] [&_td]:border [&_td]:border-[#D1D5DB] [&_td]:px-2.5 [&_td]:py-2 [&_th]:border [&_th]:border-[#D1D5DB] [&_th]:px-2.5 [&_th]:py-2 [&_th]:font-bold [&_th]:bg-[#F9FAFB]"
         dangerouslySetInnerHTML={{ __html: safeHtml(content) }}
       />
     </div>
@@ -120,7 +117,7 @@ function SpellErrorsPanel({ errors }: { errors: SpellError[] }) {
         {errors.map((err, i) => (
           <span key={i} className="bg-white border border-rose-100 rounded-lg px-2 py-1">
             <span className="line-through text-rose-600 font-bold mr-1">{err.word}</span>
-            <span className="text-emerald-600 font-bold">→ {err.suggestion}</span>
+            <span className="text-emerald-600 font-bold">{'→'} {err.suggestion}</span>
           </span>
         ))}
       </div>
@@ -193,6 +190,7 @@ function StatusBanners(props: any) {
   );
 }
 
+/** Figma pdf-page-05 — History practice tasks 1:1 */
 export default function HistoryPracticeBlock({
   block,
   stepIndex,
@@ -249,36 +247,60 @@ export default function HistoryPracticeBlock({
       ? stripHtml(serverSubmission.answer)
       : stripHtml(selected[0] || '');
 
-  const setTableAnswer = (raw: string) => {
-    handleTextAnswerChange(block.id, raw);
+  const focusInput = (e: FocusEvent<HTMLTextAreaElement | HTMLInputElement>) => {
+    e.currentTarget.style.borderColor = ACCENT;
+    e.currentTarget.style.boxShadow = `0 0 0 2px ${ACCENT}33`;
   };
+  const blurInput = (e: FocusEvent<HTMLTextAreaElement | HTMLInputElement>) => {
+    e.currentTarget.style.borderColor = design.border;
+    e.currentTarget.style.boxShadow = 'none';
+  };
+
+  const answerInput = (rows = 4, minH?: string) => (
+    <textarea
+      disabled={isLocked}
+      value={textValue}
+      onChange={(e) => {
+        if (!isLocked) handleTextAnswerChange(block.id, e.target.value);
+      }}
+      placeholder="Введите ответ"
+      rows={rows}
+      className={`${INPUT} ${minH || 'min-h-[100px]'}`}
+      style={{ borderColor: design.border, color: design.textPrimary }}
+      onFocus={focusInput}
+      onBlur={blurInput}
+    />
+  );
 
   const renderCheckboxes = () => (
     <div className="space-y-2.5">
       {block.options.map((opt: any, idx: number) => {
         const checked = selected.includes(opt.text);
         return (
-          <label
+          <button
             key={idx}
-            className={`flex items-start gap-3 p-3.5 rounded-xl border-2 cursor-pointer transition-all ${
-              checked ? 'border-transparent text-gray-900' : 'border-gray-200 bg-white text-gray-800 hover:border-gray-300'
+            type="button"
+            disabled={isLocked}
+            onClick={() => {
+              if (!isLocked) handleAnswerToggle(block.id, opt.text);
+            }}
+            className={`w-full flex items-start gap-3 px-3.5 py-3.5 rounded-[10px] border text-left transition-all disabled:opacity-70 ${
+              checked ? 'border-transparent text-white' : 'bg-white border-[#E5E7EB] text-[#111827] hover:border-gray-300'
             }`}
-            style={checked ? { backgroundColor: `${ACCENT}22`, borderColor: ACCENT } : undefined}
+            style={checked ? { backgroundColor: ACCENT } : undefined}
           >
-            <input
-              type="checkbox"
-              className="mt-1 w-4 h-4 rounded accent-[#EF6C35]"
-              checked={checked}
-              disabled={isLocked}
-              onChange={() => {
-                if (!isLocked) handleAnswerToggle(block.id, opt.text);
-              }}
-            />
+            <span
+              className={`mt-0.5 w-[18px] h-[18px] shrink-0 rounded-[4px] border-2 flex items-center justify-center ${
+                checked ? 'border-white bg-white/20' : 'border-[#D1D5DB] bg-white'
+              }`}
+            >
+              {checked && <Check className="w-3 h-3 text-white" strokeWidth={3} />}
+            </span>
             <span className="text-[15px] leading-snug flex-1">
               <span className="font-bold mr-1">{idx + 1})</span>
               <OptionText text={opt.text} />
             </span>
-          </label>
+          </button>
         );
       })}
     </div>
@@ -290,13 +312,13 @@ export default function HistoryPracticeBlock({
       : Array.isArray(block.rightColumn)
         ? block.rightColumn
         : Array.isArray(block.pairs)
-          ? block.pairs.map((p: any) => p.right)
+          ? block.pairs.map((p: any) => p.right || p.left)
           : [];
     if (!items.length) return null;
     return (
-      <div className="mt-4">
-        <p className="font-bold text-gray-900 mb-2">Пропущенные элементы:</p>
-        <ol className="space-y-1.5 text-[15px] text-gray-800">
+      <div>
+        <p className="font-bold text-[#111827] mb-2.5 text-[15px]">Пропущенные элементы:</p>
+        <ol className="space-y-1.5 text-[14px] md:text-[15px] text-[#1F2937]">
           {items.map((t: string, i: number) => (
             <li key={i} className="flex gap-2">
               <span className="font-bold shrink-0">{i + 1})</span>
@@ -311,14 +333,17 @@ export default function HistoryPracticeBlock({
   const renderMatchingInputs = () => {
     if (block.type !== 'matching' || !Array.isArray(block.pairs)) return null;
     return (
-      <div className="flex flex-wrap gap-2 mt-4 mb-2">
+      <div className="flex flex-wrap gap-2.5 mt-3 mb-1">
         {block.pairs.map((pair: any, idx: number) => {
           const current = selected.find((s: string) => s.startsWith(`${pair.left}|||`));
           const value = current ? current.split('|||')[1] : '';
           return (
-            <div key={idx} className="flex flex-col items-center gap-1 w-14">
-              <span className="text-xs font-black" style={{ color: ACCENT }}>
-                {pair.left || String.fromCharCode(65 + idx)}
+            <div key={idx} className="flex flex-col items-center gap-1.5 w-14">
+              <span
+                className="w-9 h-9 rounded-[8px] text-white text-[13px] font-bold flex items-center justify-center"
+                style={{ backgroundColor: ACCENT }}
+              >
+                {pair.left || String.fromCharCode(1040 + idx)}
               </span>
               <input
                 type="text"
@@ -327,7 +352,14 @@ export default function HistoryPracticeBlock({
                 onChange={(e) => {
                   if (!isLocked) handleMatchingChange(block.id, pair.left, e.target.value);
                 }}
-                className="w-full h-10 text-center font-black rounded-lg border border-gray-200 outline-none focus:border-[#EF6C35]"
+                className="w-full h-10 text-center font-bold rounded-[8px] border outline-none"
+                style={{ borderColor: design.border }}
+                onFocus={(e) => {
+                  e.currentTarget.style.borderColor = ACCENT;
+                }}
+                onBlur={(e) => {
+                  e.currentTarget.style.borderColor = design.border;
+                }}
               />
             </div>
           );
@@ -336,35 +368,17 @@ export default function HistoryPracticeBlock({
     );
   };
 
-  const answerField = (
-    <textarea
-      disabled={isLocked}
-      value={block.type === 'test' && hasOptions ? '' : textValue}
-      onChange={(e) => {
-        if (isLocked) return;
-        if (isTableTask && block.type !== 'matching') setTableAnswer(e.target.value);
-        else if (block.type !== 'test') handleTextAnswerChange(block.id, e.target.value);
-        else handleTextAnswerChange(block.id, e.target.value);
-      }}
-      placeholder="Введите ответ"
-      rows={block.type === 'written' || isTableTask ? 5 : 4}
-      className={`${INPUT} resize-y ${block.type === 'test' && hasOptions && !isTableTask ? 'hidden' : ''}`}
-    />
-  );
-
-  // For test with checkboxes we still need a visible answer path — checkboxes only; for table+options show text input
-  const showTextAnswer =
-    block.type !== 'test' ||
-    isTableTask ||
-    !hasOptions ||
-    block.historyLayout === 'short' ||
-    block.type === 'test_short';
-
   const taskLabel = (
-    <p className="text-lg font-black text-gray-900 mb-3">
-      Задание {stepIndex + 1}
+    <p className="text-[17px] md:text-[18px] font-extrabold text-[#111827] mb-3 tracking-tight">
+      {`Задание ${stepIndex + 1}`}
     </p>
   );
+
+  const mapFrame = imageSrc ? (
+    <div className="rounded-[12px] overflow-hidden border border-[#E5E7EB] bg-[#F9FAFB]">
+      <img src={imageSrc} alt="" className="w-full h-auto object-contain max-h-[min(42vh,420px)] mx-auto block" />
+    </div>
+  ) : null;
 
   let body: ReactNode;
 
@@ -387,13 +401,10 @@ export default function HistoryPracticeBlock({
       </>
     );
   } else if (imageSrc && hasOptions && block.type === 'test') {
-    // Map + checkboxes (task 16)
     body = (
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-10 items-start">
-        <div className="rounded-xl overflow-hidden border border-gray-200 bg-gray-50">
-          <img src={imageSrc} alt="" className="w-full h-auto object-contain max-h-[520px] mx-auto" />
-        </div>
-        <div className="space-y-4">
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 xl:gap-8 items-start">
+        {mapFrame}
+        <div className="space-y-3 min-w-0">
           {taskLabel}
           <QuestionHtml content={block.question || ''} />
           {renderCheckboxes()}
@@ -401,54 +412,33 @@ export default function HistoryPracticeBlock({
       </div>
     );
   } else if (imageSrc && (block.type === 'test_short' || block.type === 'written' || (block.type === 'test' && !hasOptions))) {
-    // Map + short answer (task 14)
     body = (
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-10 items-start">
-        <div className="rounded-xl overflow-hidden border border-gray-200 bg-gray-50">
-          <img src={imageSrc} alt="" className="w-full h-auto object-contain max-h-[520px] mx-auto" />
-        </div>
-        <div className="space-y-4">
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 xl:gap-8 items-start">
+        {mapFrame}
+        <div className="space-y-3 min-w-0">
           {taskLabel}
           <QuestionHtml content={block.question || ''} />
-          <textarea
-            disabled={isLocked}
-            value={textValue}
-            onChange={(e) => {
-              if (!isLocked) handleTextAnswerChange(block.id, e.target.value);
-            }}
-            placeholder="Введите ответ"
-            rows={4}
-            className={`${INPUT} resize-y`}
-          />
+          {answerInput(4, 'min-h-[min(18vh,120px)] max-h-[28vh]')}
         </div>
       </div>
     );
   } else if (isTableTask) {
-    // Table + missing elements + answer (task 22)
     body = (
       <div className="space-y-4">
         {taskLabel}
-        <QuestionHtml content={block.question || ''} />
-        {imageSrc && (
-          <img src={imageSrc} alt="" className="max-h-64 rounded-xl object-contain border border-gray-100" />
-        )}
-        <div className="grid grid-cols-1 lg:grid-cols-[1.4fr_1fr] gap-6">
-          <div />
-          <div>{renderMissingElements()}</div>
+        <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1.35fr)_minmax(220px,1fr)] gap-4 xl:gap-6 items-start">
+          <div className="min-w-0 space-y-3">
+            <QuestionHtml content={block.question || ''} />
+            {imageSrc && !/<table/i.test(block.question || '') && (
+              <img src={imageSrc} alt="" className="max-h-[min(28vh,16rem)] rounded-[12px] object-contain border border-[#E5E7EB]" />
+            )}
+          </div>
+          <div className="space-y-3 min-w-0">
+            {renderMissingElements()}
+            {renderMatchingInputs()}
+            {(block.type !== 'matching' || !block.pairs?.length) && answerInput(3, 'min-h-[min(12vh,72px)] max-h-[22vh]')}
+          </div>
         </div>
-        {renderMatchingInputs()}
-        {(block.type !== 'matching' || !block.pairs?.length) && (
-          <textarea
-            disabled={isLocked}
-            value={textValue}
-            onChange={(e) => {
-              if (!isLocked) handleTextAnswerChange(block.id, e.target.value);
-            }}
-            placeholder="Введите ответ"
-            rows={3}
-            className={`${INPUT} resize-y min-h-[80px]`}
-          />
-        )}
       </div>
     );
   } else if (block.type === 'test' && hasOptions) {
@@ -460,15 +450,14 @@ export default function HistoryPracticeBlock({
       </div>
     );
   } else {
-    // Default written / short (tasks 6, 21)
     body = (
       <div className="space-y-4">
         {taskLabel}
-        <QuestionHtml content={block.question || ''} />
+        <QuestionHtml content={block.question || ''} className="font-semibold [&_.ql-editor]:font-semibold" />
         {imageSrc && (
-          <img src={imageSrc} alt="" className="max-h-72 rounded-xl object-contain border border-gray-100" />
+          <img src={imageSrc} alt="" className="max-h-72 rounded-[12px] object-contain border border-[#E5E7EB]" />
         )}
-        {showTextAnswer && answerField}
+        {answerInput(block.type === 'written' ? 5 : 3, block.type === 'written' ? 'min-h-[min(22vh,140px)] max-h-[36vh]' : 'min-h-[min(14vh,100px)] max-h-[28vh]')}
         {courseSpellCheck && spellErrors?.[block.id]?.length > 0 && (
           <SpellErrorsPanel errors={spellErrors[block.id]} />
         )}
@@ -476,13 +465,16 @@ export default function HistoryPracticeBlock({
     );
   }
 
-  // silence unused for matching path setTestAnswers
   void setTestAnswers;
   void answersKey;
   void setSafeLocal;
 
+  const nextLabel =
+    stepIndex >= totalSteps - 1 ? (isLocked ? 'ГОТОВО' : 'ОТПРАВИТЬ') : 'ДАЛЕЕ >';
+
   return (
-    <div className="w-full space-y-5">
+    <div className="w-full h-full min-h-0 flex flex-col font-[Golos_Text,system-ui,sans-serif]">
+      <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar space-y-4 pr-0.5">
       <StatusBanners
         block={block}
         result={result}
@@ -508,10 +500,11 @@ export default function HistoryPracticeBlock({
       {(isLocked || isExhausted) && block.explanation && (
         <ExplanationBlock content={block.explanation || ''} mode="html" />
       )}
+      </div>
 
-      <div className="pt-2 flex justify-start">
-        <button type="button" onClick={goNext} className={BTN}>
-          {stepIndex >= totalSteps - 1 ? (isLocked ? 'Готово' : 'Отправить') : 'Далее >'}
+      <div className="shrink-0 pt-3 pb-0.5 border-t border-transparent bg-white">
+        <button type="button" onClick={goNext} className={BTN} style={{ backgroundColor: design.ink }}>
+          {nextLabel}
         </button>
       </div>
     </div>

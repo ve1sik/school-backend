@@ -1,38 +1,69 @@
 import { useState, useEffect, useMemo } from 'react';
-import { FileText, AlertCircle, Clock, CheckCircle2, Loader2, FolderOpen, ChevronRight, Search, Calendar, XCircle, Info } from 'lucide-react';
+import { FileText, AlertCircle, Clock, CheckCircle2, Loader2, FolderOpen, ChevronRight, Search, XCircle, Info } from 'lucide-react';
 import { motion, AnimatePresence, type Variants } from 'framer-motion';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { cachedGet } from '../lib/api';
 import { getHomeworkBlocksFromLesson, lessonHasHomework } from '../utils/lessonHomework';
-import { parseSafeDate, parseSafeDateMs } from '../lib/parseDate';
+import { parseSafeDateMs } from '../lib/parseDate';
+import { design } from '../lib/designTokens';
 import RonWork from './RonWork';
 
 type TabType = 'TODO' | 'OVERDUE' | 'REVISION' | 'REVIEW' | 'GRADED' | 'RON';
 
+/** Figma pdf-page-02 — course subject pills */
 const getCoursePillTheme = (name: string, active: boolean) => {
-  const hay = name.toLowerCase();
-  const isHistory = /истор/.test(hay);
+  const isHistory = /истор/.test(name.toLowerCase());
   if (active) {
-    if (isHistory) return 'bg-[#EF4444] text-white border-[#EF4444] shadow-sm';
+    if (isHistory) return 'bg-[#EF6C35] text-white border-[#EF6C35] shadow-sm';
     return 'bg-[#6C63FF] text-white border-[#6C63FF] shadow-sm';
   }
-  if (isHistory) return 'bg-white text-[#EF4444] border-[#EF4444] hover:bg-red-50';
-  return 'bg-white text-[#6C63FF] border-[#6C63FF]/40 hover:border-[#6C63FF] hover:bg-indigo-50/40';
+  if (isHistory) return 'bg-white text-[#EF6C35] border-[#EF6C35] hover:bg-orange-50';
+  return 'bg-white text-[#6C63FF] border-[#6C63FF]/35 hover:border-[#6C63FF]';
 };
 
+/** Figma status chips: colored count box + label; active = filled ink */
 const STATUS_FILTERS: {
   key: TabType;
   label: string;
-  dot: string;
-  active: string;
-  countBg: string;
+  countClass: string;
+  activeClass: string;
 }[] = [
-  { key: 'TODO', label: 'К выполнению', dot: 'bg-[#1A1D26]', active: 'bg-[#1A1D26] text-white border-[#1A1D26]', countBg: 'bg-[#1A1D26] text-white' },
-  { key: 'OVERDUE', label: 'Просрочено', dot: 'bg-rose-500', active: 'bg-rose-500 text-white border-rose-500', countBg: 'bg-rose-500 text-white' },
-  { key: 'REVISION', label: 'На доработку', dot: 'bg-amber-400', active: 'bg-amber-400 text-white border-amber-400', countBg: 'bg-amber-400 text-white' },
-  { key: 'REVIEW', label: 'На проверке', dot: 'bg-sky-500', active: 'bg-sky-500 text-white border-sky-500', countBg: 'bg-sky-500 text-white' },
-  { key: 'GRADED', label: 'Оценено', dot: 'bg-emerald-500', active: 'bg-emerald-500 text-white border-emerald-500', countBg: 'bg-emerald-500 text-white' },
-  { key: 'RON', label: 'Работа над ошибками', dot: 'bg-[#A78BFA]', active: 'bg-[#8B5CF6] text-white border-[#8B5CF6]', countBg: 'bg-[#A78BFA] text-white' },
+  {
+    key: 'TODO',
+    label: 'К выполнению',
+    countClass: 'bg-[#1A1D26] text-white',
+    activeClass: 'bg-[#1A1D26] text-white border-[#1A1D26]',
+  },
+  {
+    key: 'OVERDUE',
+    label: 'Просрочено',
+    countClass: 'bg-[#EF4444] text-white',
+    activeClass: 'bg-[#EF4444] text-white border-[#EF4444]',
+  },
+  {
+    key: 'REVISION',
+    label: 'На доработку',
+    countClass: 'bg-[#FBBF24] text-[#1A1D26]',
+    activeClass: 'bg-[#FBBF24] text-[#1A1D26] border-[#FBBF24]',
+  },
+  {
+    key: 'REVIEW',
+    label: 'На проверке',
+    countClass: 'bg-[#1E3A8A] text-white',
+    activeClass: 'bg-[#1E3A8A] text-white border-[#1E3A8A]',
+  },
+  {
+    key: 'GRADED',
+    label: 'Оценено',
+    countClass: 'bg-[#10B981] text-white',
+    activeClass: 'bg-[#10B981] text-white border-[#10B981]',
+  },
+  {
+    key: 'RON',
+    label: 'Работа над ошибками',
+    countClass: 'bg-[#C4B5FD] text-white',
+    activeClass: 'bg-[#A78BFA] text-white border-[#A78BFA]',
+  },
 ];
 
 export default function Homework() {
@@ -61,9 +92,10 @@ export default function Homework() {
 
         const deadlineEvents: any[] = schedRes.data.filter((e: any) => e.type === 'DEADLINE');
         const findDeadline = (title: string): string | null => {
-          const match = deadlineEvents.find(d =>
-            d.title.toLowerCase().includes(title.toLowerCase()) ||
-            title.toLowerCase().includes(d.title.toLowerCase())
+          const match = deadlineEvents.find(
+            (d) =>
+              d.title.toLowerCase().includes(title.toLowerCase()) ||
+              title.toLowerCase().includes(d.title.toLowerCase()),
           );
           return match ? match.date : null;
         };
@@ -126,8 +158,12 @@ export default function Homework() {
                   comment = submission?.comment || null;
                 } else if (allBlocksGraded || (hwBlockIds.size === 0 && submission?.status === 'GRADED')) {
                   status = 'GRADED';
-                  score = gradedSubs.reduce((acc: number, s: any) => acc + (Number(s.score) || 0), 0) || submission?.score;
-                  maxScore = gradedSubs.reduce((acc: number, s: any) => acc + (Number(s.max_score) || 0), 0) || maxScore;
+                  score =
+                    gradedSubs.reduce((acc: number, s: any) => acc + (Number(s.score) || 0), 0) ||
+                    submission?.score;
+                  maxScore =
+                    gradedSubs.reduce((acc: number, s: any) => acc + (Number(s.max_score) || 0), 0) ||
+                    maxScore;
                   comment = submission?.comment || null;
                 } else if (deadline && parseSafeDateMs(deadline) < Date.now()) {
                   status = 'OVERDUE';
@@ -204,34 +240,37 @@ export default function Homework() {
     }
   }, [courseNames, selectedCourseFilter]);
 
-  const homeworksForCourse =
-    !selectedCourseFilter
-      ? homeworks
-      : homeworks.filter((h) => h.courseName === selectedCourseFilter);
+  const homeworksForCourse = !selectedCourseFilter
+    ? homeworks
+    : homeworks.filter((h) => h.courseName === selectedCourseFilter);
 
-  const filteredHomeworks = homeworksForCourse.filter(hw => {
+  const filteredHomeworks = homeworksForCourse.filter((hw) => {
     const matchesTab = hw.status === activeTab;
     const searchLower = searchQuery.toLowerCase();
-    const matchesSearch = hw.title.toLowerCase().includes(searchLower) ||
-                          hw.courseName.toLowerCase().includes(searchLower) ||
-                          hw.themeName.toLowerCase().includes(searchLower);
+    const matchesSearch =
+      hw.title.toLowerCase().includes(searchLower) ||
+      hw.courseName.toLowerCase().includes(searchLower) ||
+      hw.themeName.toLowerCase().includes(searchLower);
     return matchesTab && matchesSearch;
   });
 
   const counts = {
-    TODO: homeworksForCourse.filter(h => h.status === 'TODO').length,
-    OVERDUE: homeworksForCourse.filter(h => h.status === 'OVERDUE').length,
-    REVISION: homeworksForCourse.filter(h => h.status === 'REVISION').length,
-    REVIEW: homeworksForCourse.filter(h => h.status === 'REVIEW').length,
-    GRADED: homeworksForCourse.filter(h => h.status === 'GRADED').length,
+    TODO: homeworksForCourse.filter((h) => h.status === 'TODO').length,
+    OVERDUE: homeworksForCourse.filter((h) => h.status === 'OVERDUE').length,
+    REVISION: homeworksForCourse.filter((h) => h.status === 'REVISION').length,
+    REVIEW: homeworksForCourse.filter((h) => h.status === 'REVIEW').length,
+    GRADED: homeworksForCourse.filter((h) => h.status === 'GRADED').length,
   };
 
-  const groupedHomeworks = filteredHomeworks.reduce((acc, hw) => {
-    if (!acc[hw.courseName]) acc[hw.courseName] = {};
-    if (!acc[hw.courseName][hw.themeName]) acc[hw.courseName][hw.themeName] = [];
-    acc[hw.courseName][hw.themeName].push(hw);
-    return acc;
-  }, {} as Record<string, Record<string, any[]>>);
+  const groupedHomeworks = filteredHomeworks.reduce(
+    (acc, hw) => {
+      if (!acc[hw.courseName]) acc[hw.courseName] = {};
+      if (!acc[hw.courseName][hw.themeName]) acc[hw.courseName][hw.themeName] = [];
+      acc[hw.courseName][hw.themeName].push(hw);
+      return acc;
+    },
+    {} as Record<string, Record<string, any[]>>,
+  );
 
   if (isLoading) {
     return (
@@ -241,20 +280,18 @@ export default function Homework() {
     );
   }
 
-  const containerVariants = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.06 } } };
-  const itemVariants: Variants = { hidden: { opacity: 0, y: 12 }, show: { opacity: 1, y: 0, transition: { type: 'spring', stiffness: 320, damping: 26 } } };
+  const containerVariants = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.05 } } };
+  const itemVariants: Variants = {
+    hidden: { opacity: 0, y: 10 },
+    show: { opacity: 1, y: 0, transition: { type: 'spring', stiffness: 340, damping: 28 } },
+  };
 
   return (
-    <div className="w-full h-full min-h-0 max-w-[1200px] mx-auto flex flex-col gap-4 md:gap-5 pt-1 px-0 md:px-1 overflow-y-auto md:overflow-hidden pb-4 md:pb-0">
-      <div className="shrink-0">
-        <h1 className="text-[28px] md:text-[32px] font-black tracking-tight text-gray-900 leading-none mb-1.5">
-          Домашнее задание
-        </h1>
-        <p className="text-gray-500 font-medium text-sm md:text-base">
-          Отслеживайте свои домашние задания и оценки кураторов
-        </p>
-      </div>
-
+    <div
+      className="w-full h-full min-h-0 flex flex-col gap-3.5 md:gap-4 px-0 overflow-y-auto md:overflow-hidden pb-4 md:pb-0 font-[Golos_Text,system-ui,sans-serif]"
+      style={{ color: design.textPrimary }}
+    >
+      {/* Course pills + search — Figma: flush to content edge, search right */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 shrink-0">
         <div className="flex flex-wrap gap-2">
           {courseNames.length === 0 ? (
@@ -265,7 +302,10 @@ export default function Homework() {
                 key={name}
                 type="button"
                 onClick={() => setSelectedCourseFilter(name)}
-                className={`px-4 py-2.5 rounded-full border-2 text-[11px] font-black uppercase tracking-wide transition-all ${getCoursePillTheme(name, selectedCourseFilter === name)}`}
+                className={`px-5 py-2.5 rounded-full border text-[12px] font-bold uppercase tracking-[0.03em] transition-all ${getCoursePillTheme(
+                  name,
+                  selectedCourseFilter === name,
+                )}`}
               >
                 {name}
               </button>
@@ -273,21 +313,22 @@ export default function Homework() {
           )}
         </div>
 
-        <div className="relative w-full lg:w-72 shrink-0">
-          <Search className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+        <div className="relative w-full lg:w-[300px] shrink-0">
+          <Search className="w-[18px] h-[18px] text-[#B0B5C3] absolute left-4 top-1/2 -translate-y-1/2" />
           <input
             type="text"
-            placeholder="ПОИСК ЗАДАНИЙ"
+            placeholder="поиск заданий"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full bg-white border border-gray-200 rounded-full pl-10 pr-4 py-2.5 outline-none focus:border-[#6C63FF] transition-all text-sm font-medium text-gray-700 placeholder:text-gray-400 placeholder:uppercase placeholder:tracking-wide"
+            className="w-full bg-white border border-[#E6E8EF] rounded-full pl-11 pr-4 py-[11px] outline-none focus:border-[#6C63FF] transition-all text-[14px] font-medium text-[#374151] placeholder:text-[#B0B5C3] placeholder:normal-case placeholder:tracking-normal placeholder:font-medium"
           />
         </div>
       </div>
 
+      {/* Status filter chips */}
       <div className="flex flex-wrap gap-2 shrink-0">
-        {STATUS_FILTERS.map(({ key, label, active, countBg }) => {
-          const count = key === 'RON' ? null : counts[key as keyof typeof counts];
+        {STATUS_FILTERS.map(({ key, label, countClass, activeClass }) => {
+          const count = key === 'RON' ? 0 : counts[key as keyof typeof counts];
           const isActive = activeTab === key;
           return (
             <button
@@ -297,97 +338,101 @@ export default function Homework() {
                 setActiveTab(key);
                 setSearchParams(key === 'RON' ? { tab: 'ron' } : {});
               }}
-              className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full border text-[12px] font-bold transition-all whitespace-nowrap ${
+              className={`inline-flex items-center gap-2 pl-1.5 pr-3 py-1 rounded-full border text-[12px] font-bold transition-all whitespace-nowrap ${
                 isActive
-                  ? active
-                  : 'bg-[#F3F4F6] text-gray-700 border-transparent hover:bg-gray-200/70'
+                  ? activeClass
+                  : 'bg-white text-[#4B5563] border-[#E5E7EB] hover:bg-[#F9FAFB]'
               }`}
             >
-              {count !== null ? (
-                <span
-                  className={`w-5 h-5 rounded-full text-[10px] font-black flex items-center justify-center shrink-0 ${
-                    isActive ? 'bg-white/25 text-white' : countBg
-                  }`}
-                >
-                  {count}
-                </span>
-              ) : (
-                <span
-                  className={`w-2 h-2 rounded-full shrink-0 ${
-                    isActive ? 'bg-white/80' : 'bg-[#A78BFA]'
-                  }`}
-                />
-              )}
+              <span
+                className={`min-w-[22px] h-[22px] px-1 rounded-[6px] text-[11px] font-black flex items-center justify-center shrink-0 ${
+                  isActive ? 'bg-white/20 text-white' : countClass
+                }`}
+              >
+                {key === 'RON' ? '·' : count}
+              </span>
               <span>{label}</span>
             </button>
           );
         })}
       </div>
 
-      <div className="flex-1 min-h-0 overflow-y-auto pr-1">
+      <div className="flex-1 min-h-0 overflow-y-auto pr-0.5 custom-scrollbar">
         {activeTab === 'RON' ? (
           <RonWork embedded />
         ) : (
           <>
             {Object.entries(groupedHomeworks).map(([courseName, themes]) => (
-              <motion.div key={courseName} variants={containerVariants} initial="hidden" animate="show" className="space-y-5 mb-6">
-                <h2 className="text-lg md:text-xl font-black text-gray-900">{courseName}</h2>
+              <motion.div
+                key={courseName}
+                variants={containerVariants}
+                initial="hidden"
+                animate="show"
+                className="space-y-5 mb-7"
+              >
+                <h2 className="text-[20px] md:text-[22px] font-black text-[#111827] tracking-tight">
+                  {courseName}
+                </h2>
                 {Object.entries(themes).map(([themeName, hws]) => (
                   <div key={themeName}>
-                    <div className="flex items-center gap-2 mb-3">
-                      <FileText className="w-4 h-4 text-gray-400 shrink-0" />
-                      <h3 className="text-sm md:text-base font-bold text-gray-800">{themeName}</h3>
+                    <div className="flex items-center gap-2 mb-3.5">
+                      <FileText className="w-[15px] h-[15px] text-[#9CA3AF] shrink-0" strokeWidth={2} />
+                      <h3 className="text-[14px] md:text-[15px] font-bold text-[#1F2937]">{themeName}</h3>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 md:gap-4">
+                    {/* Figma: ~4 wide cards across full content width (not centered 1200px column) */}
+                    <div
+                      className="grid gap-4"
+                      style={{
+                        gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 280px), 1fr))',
+                      }}
+                    >
                       <AnimatePresence mode="popLayout">
                         {hws.map((hw) => {
                           let statusText = '';
                           let badgeClass = '';
-                          let Icon = AlertCircle;
-                          let iconClass = 'text-gray-400';
+                          let Icon = Info;
+                          let iconWrap = 'border-[#FECACA] text-[#F87171]';
                           let buttonText = 'НАЧАТЬ ВЫПОЛНЕНИЕ';
                           let buttonClass = 'bg-[#1A1D26] hover:bg-black text-white';
 
                           if (hw.status === 'TODO') {
                             statusText = 'К выполнению';
-                            badgeClass = 'border border-rose-200 text-rose-500 bg-rose-50';
+                            badgeClass = 'border border-[#FECACA] text-[#F87171] bg-white';
                             Icon = Info;
-                            iconClass = 'text-gray-400';
+                            iconWrap = 'border-[#FECACA] text-[#F87171]';
                             buttonText = 'НАЧАТЬ ВЫПОЛНЕНИЕ';
                             buttonClass = 'bg-[#1A1D26] hover:bg-black text-white';
                           } else if (hw.status === 'OVERDUE') {
                             statusText = 'Просрочено';
-                            badgeClass = 'border border-rose-200 text-rose-600 bg-rose-50';
+                            badgeClass = 'border border-[#FECACA] text-[#DC2626] bg-[#FEF2F2]';
                             Icon = XCircle;
-                            iconClass = 'text-rose-400';
+                            iconWrap = 'border-[#FECACA] text-[#EF4444]';
                             buttonText = 'СДАТЬ СЕЙЧАС';
-                            buttonClass = 'bg-rose-500 hover:bg-rose-600 text-white';
+                            buttonClass = 'bg-[#EF4444] hover:bg-rose-600 text-white';
                           } else if (hw.status === 'REVISION') {
                             statusText = 'На доработку';
-                            badgeClass = 'border border-amber-200 text-amber-700 bg-amber-50';
+                            badgeClass = 'border border-[#FDE68A] text-[#B45309] bg-[#FFFBEB]';
                             Icon = AlertCircle;
-                            iconClass = 'text-amber-500';
+                            iconWrap = 'border-[#FDE68A] text-[#F59E0B]';
                             buttonText = 'ДОРАБОТАТЬ';
-                            buttonClass = 'bg-amber-500 hover:bg-amber-600 text-white';
+                            buttonClass = 'bg-[#F59E0B] hover:bg-amber-600 text-white';
                           } else if (hw.status === 'REVIEW') {
                             statusText = 'На проверке';
-                            badgeClass = 'border border-sky-200 text-sky-700 bg-sky-50';
+                            badgeClass = 'border border-[#BFDBFE] text-[#1D4ED8] bg-[#EFF6FF]';
                             Icon = Clock;
-                            iconClass = 'text-sky-500';
+                            iconWrap = 'border-[#BFDBFE] text-[#3B82F6]';
                             buttonText = 'СМОТРЕТЬ ДЕТАЛИ';
-                            buttonClass = 'bg-gray-100 hover:bg-gray-200 text-gray-600';
+                            buttonClass = 'bg-[#F3F4F6] hover:bg-gray-200 text-[#4B5563]';
                           } else if (hw.status === 'GRADED') {
                             statusText = `Оценено ${hw.score ?? '—'}/${hw.maxScore ?? '—'}`;
-                            badgeClass = 'border border-emerald-200 text-emerald-700 bg-emerald-50';
+                            badgeClass = 'border border-[#A7F3D0] text-[#047857] bg-[#ECFDF5]';
                             Icon = CheckCircle2;
-                            iconClass = 'text-emerald-500';
+                            iconWrap = 'border-[#A7F3D0] text-[#10B981]';
                             buttonText = 'ПОСМОТРЕТЬ ОЦЕНКУ';
-                            buttonClass = 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-100';
+                            buttonClass =
+                              'bg-[#ECFDF5] hover:bg-emerald-100 text-[#047857] border border-[#A7F3D0]';
                           }
-
-                          const deadlineDate = hw.deadline ? parseSafeDate(hw.deadline) : null;
-                          const daysLeft = deadlineDate ? Math.ceil((deadlineDate.getTime() - Date.now()) / 86400000) : null;
 
                           return (
                             <motion.div
@@ -402,34 +447,33 @@ export default function Homework() {
                                   navigate(`/homework/${hw.id}`);
                                 }
                               }}
-                              className="bg-white rounded-2xl border border-gray-200 p-4 md:p-5 flex flex-col min-h-[180px] hover:shadow-md transition-shadow cursor-pointer group"
+                              className="bg-white rounded-[12px] border border-[#E5E7EB] px-5 pt-4 pb-4 flex flex-col min-h-[200px] hover:shadow-[0_8px_24px_rgba(17,24,39,0.06)] transition-shadow cursor-pointer group"
                             >
-                              <div className="flex justify-between items-start mb-4">
-                                <span className={`px-2.5 py-1 rounded-lg text-[10px] font-bold ${badgeClass}`}>
+                              <div className="flex justify-between items-start mb-5 gap-2">
+                                <span
+                                  className={`px-2.5 py-1 rounded-md text-[11px] font-semibold leading-none ${badgeClass}`}
+                                >
                                   {statusText}
                                 </span>
-                                <span className={`w-6 h-6 rounded-full border border-gray-200 flex items-center justify-center ${iconClass}`}>
-                                  <Icon className="w-3.5 h-3.5" />
+                                <span
+                                  className={`w-6 h-6 rounded-full border flex items-center justify-center shrink-0 ${iconWrap}`}
+                                >
+                                  <Icon className="w-3.5 h-3.5" strokeWidth={2.5} />
                                 </span>
                               </div>
 
-                              <h3 className="text-base md:text-lg font-black text-gray-900 leading-snug line-clamp-3 mb-auto">
+                              <h3 className="text-[18px] md:text-[20px] font-bold text-[#111827] leading-snug line-clamp-3 mb-auto pr-1 tracking-tight">
                                 {hw.title}
                               </h3>
 
-                              {deadlineDate && hw.status !== 'GRADED' && (
-                                <div className={`flex items-center gap-1.5 mt-3 text-[11px] font-bold ${daysLeft !== null && daysLeft <= 1 ? 'text-rose-500' : 'text-gray-400'}`}>
-                                  <Calendar className="w-3.5 h-3.5" />
-                                  {hw.status === 'OVERDUE'
-                                    ? `Просрочено: ${deadlineDate.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' })}`
-                                    : `До ${deadlineDate.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' })}`}
-                                </div>
-                              )}
-
-                              <div className={`mt-4 w-full py-3 rounded-xl font-black text-[11px] uppercase tracking-wide flex items-center justify-center gap-1.5 pointer-events-none ${buttonClass}`}>
+                              <div
+                                className={`mt-6 w-full py-[14px] rounded-[10px] font-bold text-[12px] uppercase tracking-[0.03em] flex items-center justify-center gap-1 pointer-events-none ${buttonClass}`}
+                              >
                                 {buttonText}
-                                {(hw.status === 'TODO' || hw.status === 'OVERDUE' || hw.status === 'REVISION') && (
-                                  <ChevronRight className="w-4 h-4" />
+                                {(hw.status === 'TODO' ||
+                                  hw.status === 'OVERDUE' ||
+                                  hw.status === 'REVISION') && (
+                                  <ChevronRight className="w-4 h-4" strokeWidth={2.5} />
                                 )}
                               </div>
                             </motion.div>
@@ -446,16 +490,18 @@ export default function Homework() {
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
-                className="flex flex-col items-center justify-center py-16 text-center bg-white rounded-2xl border border-gray-200"
+                className="flex flex-col items-center justify-center py-16 text-center bg-white rounded-[14px] border border-[#E5E7EB]"
               >
-                <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mb-4">
+                <div className="w-16 h-16 bg-[#F3F4F6] rounded-full flex items-center justify-center mb-4">
                   <FolderOpen className="w-8 h-8 text-gray-400" />
                 </div>
                 <h2 className="text-xl font-black text-gray-900 mb-2">
                   {searchQuery ? 'Ничего не найдено' : 'Пусто'}
                 </h2>
                 <p className="text-gray-500 font-medium text-sm max-w-md">
-                  {searchQuery ? 'Попробуйте изменить запрос поиска.' : 'В этом статусе пока нет заданий.'}
+                  {searchQuery
+                    ? 'Попробуйте изменить запрос поиска.'
+                    : 'В этом статусе пока нет заданий.'}
                 </p>
               </motion.div>
             )}

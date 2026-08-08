@@ -312,6 +312,7 @@ export default function Layout() {
   const isViewportLocked =
     location.pathname === '/schedule' ||
     location.pathname === '/homework' ||
+    location.pathname.startsWith('/homework/') ||
     location.pathname === '/messages' ||
     /^\/course\//.test(location.pathname);
 
@@ -350,16 +351,22 @@ export default function Layout() {
                 <Link
                   key={item.path}
                   to={item.path}
-                  className={`flex items-center gap-4 p-3 rounded-xl transition-all relative ${
+                  className={`flex items-center gap-4 p-3 transition-all relative ${
                     isActive
-                      ? 'bg-[#EEF2FF] text-[#5A4BFF] shadow-sm'
+                      ? [
+                          'bg-[#EEF2FF] text-[#5A4BFF]',
+                          // collapsed (Figma): round left, open right flush to sidebar edge
+                          'rounded-l-[14px] rounded-r-none border-y border-l-2 border-[#5A4BFF] border-r-0 -mr-5',
+                          // expanded on hover: full pill with full stroke
+                          'group-hover:rounded-xl group-hover:border group-hover:border-[#5A4BFF] group-hover:border-l group-hover:mr-0',
+                        ].join(' ')
                       : isShop
-                        ? 'text-purple-500 hover:bg-purple-50'
-                        : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'
+                        ? 'rounded-xl text-[#5A4BFF] hover:bg-[#EEF2FF]/60'
+                        : 'rounded-xl text-gray-500 hover:bg-gray-50 hover:text-gray-900'
                   }`}
                 >
                   <div className="relative">
-                    <item.icon className={`w-6 h-6 shrink-0 ${isActive ? 'text-[#5A4BFF]' : isShop ? 'text-purple-400' : 'text-gray-400'}`} />
+                    <item.icon className={`w-6 h-6 shrink-0 ${isActive || isShop ? 'text-[#5A4BFF]' : 'text-gray-400'}`} />
                     {badgeCount > 0 && (
                       <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-[9px] font-black flex items-center justify-center rounded-full border-2 border-white shadow-sm">
                         {badgeCount > 9 ? '9+' : badgeCount}
@@ -390,10 +397,14 @@ export default function Layout() {
                     <Link
                       key={item.path}
                       to={item.path}
-                      className={`flex items-center gap-4 p-3 rounded-xl transition-all ${
+                      className={`flex items-center gap-4 p-3 transition-all ${
                         isActive
-                          ? 'bg-[#EEF2FF] text-[#5A4BFF] shadow-sm'
-                          : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'
+                          ? [
+                              'bg-[#EEF2FF] text-[#5A4BFF]',
+                              'rounded-l-[14px] rounded-r-none border-y border-l-2 border-[#5A4BFF] border-r-0 -mr-5',
+                              'group-hover:rounded-xl group-hover:border group-hover:border-[#5A4BFF] group-hover:border-l group-hover:mr-0',
+                            ].join(' ')
+                          : 'rounded-xl text-gray-500 hover:bg-gray-50 hover:text-gray-900'
                       }`}
                     >
                       <div className="relative">
@@ -436,7 +447,22 @@ export default function Layout() {
       {/* ГЛАВНАЯ ЧАСТЬ С ШАПКОЙ */}
       <div className="flex-1 flex flex-col overflow-hidden">
         
-        <header className={`${hideLayoutTitle ? 'h-14 md:h-[60px]' : 'h-16 md:h-[72px]'} flex items-center justify-between px-4 md:px-8 shrink-0 gap-3`} style={{ backgroundColor: design.pageBg }}>
+        <header
+          className={`${
+            location.pathname === '/homework'
+              ? 'min-h-[72px] md:min-h-[88px] py-3 md:py-4'
+              : location.pathname === '/shop' || location.pathname === '/messages'
+                ? 'min-h-[64px] md:min-h-[72px] py-3'
+                : hideLayoutTitle
+                  ? 'h-14 md:h-[60px]'
+                  : 'h-16 md:h-[72px]'
+          } flex items-center justify-between shrink-0 gap-3 ${
+            location.pathname === '/homework' || location.pathname === '/shop' || location.pathname === '/messages'
+              ? 'px-3 md:px-5'
+              : 'px-4 md:px-8'
+          }`}
+          style={{ backgroundColor: design.pageBg }}
+        >
           <div className="flex items-center gap-2 min-w-0">
             <button
               onClick={() => setMobileNavOpen(true)}
@@ -445,8 +471,27 @@ export default function Layout() {
             >
               <Menu className="w-6 h-6" />
             </button>
-            {!hideLayoutTitle && (
-              <h1 className="text-lg md:text-2xl font-black text-gray-900 truncate">{getPageTitle()}</h1>
+            {location.pathname === '/homework' ? (
+              <div className="min-w-0">
+                <h1 className="text-[24px] md:text-[30px] font-extrabold tracking-tight text-[#111827] leading-none font-[Golos_Text,system-ui,sans-serif]">
+                  Домашнее задание
+                </h1>
+                <p className="mt-1.5 text-[13px] md:text-[14px] font-medium text-[#9CA3AF] leading-snug truncate font-[Golos_Text,system-ui,sans-serif]">
+                  Отслеживайте свои домашние задания и оценки кураторов
+                </p>
+              </div>
+            ) : location.pathname === '/shop' ? (
+              <h1 className="text-[24px] md:text-[30px] font-extrabold tracking-tight text-[#111827] leading-none font-[Golos_Text,system-ui,sans-serif]">
+                Магазин курсов
+              </h1>
+            ) : location.pathname === '/messages' ? (
+              <h1 className="text-[24px] md:text-[30px] font-extrabold tracking-tight text-[#111827] leading-none font-[Golos_Text,system-ui,sans-serif]">
+                Сообщения
+              </h1>
+            ) : (
+              !hideLayoutTitle && (
+                <h1 className="text-lg md:text-2xl font-black text-gray-900 truncate">{getPageTitle()}</h1>
+              )
             )}
           </div>
           
@@ -529,8 +574,8 @@ export default function Layout() {
                 <p className="text-sm font-bold text-gray-900 leading-tight">
                   {getDisplayName()}
                 </p>
-                <p className="text-[10px] font-bold text-gray-400 lowercase tracking-wide group-hover:text-[#5A4BFF] transition-colors">
-                  личный кабинет
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide group-hover:text-[#5A4BFF] transition-colors">
+                  ЛИЧНЫЙ КАБИНЕТ
                 </p>
               </div>
 
@@ -561,13 +606,21 @@ export default function Layout() {
         </header>
 
         <main
-          className={`flex-1 min-h-0 px-4 md:px-10 ${
+          className={`flex-1 min-h-0 flex flex-col ${
+            location.pathname === '/homework' || location.pathname === '/shop' || location.pathname === '/messages'
+              ? 'px-3 md:px-5'
+              : location.pathname.startsWith('/homework/')
+                ? 'px-0 md:px-0'
+                : 'px-4 md:px-10'
+          } ${
             isViewportLocked
               ? 'overflow-y-auto md:overflow-hidden pb-20 md:pb-4'
               : 'overflow-y-auto pb-24 md:pb-10'
           }`}
         >
+          <div className={isViewportLocked ? 'flex-1 min-h-0 h-full' : ''}>
           <Outlet />
+          </div>
         </main>
       </div>
 
@@ -601,8 +654,10 @@ export default function Layout() {
                     <Link
                       key={item.path}
                       to={item.path}
-                      className={`flex items-center gap-3 p-3 rounded-xl transition-all ${
-                        isActive ? 'bg-[#EEF2FF] text-[#5A4BFF]' : 'text-gray-600 hover:bg-gray-50'
+                      className={`flex items-center gap-3 p-3 rounded-xl transition-all border ${
+                        isActive
+                          ? 'bg-[#EEF2FF] text-[#5A4BFF] border-[#5A4BFF]'
+                          : 'text-gray-600 hover:bg-gray-50 border-transparent'
                       }`}
                     >
                       <div className="relative shrink-0">
@@ -630,8 +685,10 @@ export default function Layout() {
                         <Link
                           key={item.path}
                           to={item.path}
-                          className={`flex items-center gap-3 p-3 rounded-xl transition-all ${
-                            isActive ? 'bg-[#EEF2FF] text-[#5A4BFF]' : 'text-gray-600 hover:bg-gray-50'
+                          className={`flex items-center gap-3 p-3 rounded-xl transition-all border ${
+                            isActive
+                              ? 'bg-[#EEF2FF] text-[#5A4BFF] border-[#5A4BFF]'
+                              : 'text-gray-600 hover:bg-gray-50 border-transparent'
                           }`}
                         >
                           <item.icon className={`w-5 h-5 shrink-0 ${isActive ? 'text-[#5A4BFF]' : 'text-gray-400'}`} />

@@ -720,6 +720,52 @@ export default function AdminCourses() {
     else { setBlocks(prev => [...prev, newBlock]); setTimeout(() => document.getElementById('theory-section-end')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 100); }
   };
 
+  /** Figma «Скрипт»: 2 файла (незаполненный / заполненный) + обложки у каждого */
+  const addScriptPair = (isHw: boolean) => {
+    const ts = Date.now();
+    const blank = {
+      id: String(ts),
+      type: 'file',
+      title: 'Скрипт незаполненный',
+      url: '',
+      image: '',
+      imageName: '',
+      content:
+        '<p>Здесь лежит скрипт занятия — заполненный и незаполненный. Скачай оба варианта и работай с ними по ходу урока.</p>',
+      buttonText: 'Скачать скрипт 1',
+    };
+    const filled = {
+      id: String(ts + 1),
+      type: 'file',
+      title: 'Скрипт заполненный',
+      url: '',
+      image: '',
+      imageName: '',
+      content: '',
+      buttonText: 'Скачать скрипт 2',
+    };
+    if (isHw) {
+      setHwBlocks((prev) => [...prev, blank, filled]);
+      setTimeout(() => document.getElementById('hw-section-end')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 100);
+    } else {
+      setBlocks((prev) => [...prev, blank, filled]);
+      setTimeout(() => document.getElementById('theory-section-end')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 100);
+    }
+    showToast('Добавлена пара скриптов: загрузите 2 PDF и 2 обложки', 'success');
+  };
+
+  const applyFilePreset = (blockId: string, preset: string, isHw: boolean) => {
+    const map: Record<string, { title: string; buttonText: string }> = {
+      script_blank: { title: 'Скрипт незаполненный', buttonText: 'Скачать скрипт 1' },
+      script_filled: { title: 'Скрипт заполненный', buttonText: 'Скачать скрипт 2' },
+      textbook: { title: 'Учебник', buttonText: 'Скачать учебник' },
+      memo: { title: 'Запоминалка', buttonText: 'Скачать запоминалку' },
+      file: { title: 'Файл для скачивания', buttonText: '' },
+    };
+    const next = map[preset] || map.file;
+    updateBlock(blockId, { title: next.title, buttonText: next.buttonText || undefined }, isHw);
+  };
+
   const updateBlock = (id: string, data: any, isHw: boolean) => { 
     if (isHw) setHwBlocks(hwBlocks.map(b => b.id === id ? { ...b, ...data } : b));
     else setBlocks(blocks.map(b => b.id === id ? { ...b, ...data } : b));
@@ -1051,19 +1097,95 @@ export default function AdminCourses() {
             )}
             {block.type === 'file' && (
               <div>
-                <div className="flex items-center gap-3 mb-6 group/header bg-cyan-50 p-4 rounded-xl">
+                <div className="flex items-center gap-3 mb-4 group/header bg-cyan-50 p-4 rounded-xl">
                   <FileDown className="w-6 h-6 text-cyan-600 shrink-0" />
-                  <input value={block.title !== undefined ? block.title : 'Файл для скачивания'} onChange={(e) => updateBlock(block.id, { title: e.target.value }, isHw)} className="flex-1 bg-transparent border-b-2 border-dashed border-transparent hover:border-cyan-300 focus:border-cyan-600 outline-none font-black text-xl transition-all text-cyan-900 placeholder:text-cyan-300" placeholder="Заголовок блока..." />
+                  <input value={block.title !== undefined ? block.title : 'Файл для скачивания'} onChange={(e) => updateBlock(block.id, { title: e.target.value }, isHw)} className="flex-1 bg-transparent border-b-2 border-dashed border-transparent hover:border-cyan-300 focus:border-cyan-600 outline-none font-black text-xl transition-all text-cyan-900 placeholder:text-cyan-300" placeholder="Название: Скрипт незаполненный / Скрипт заполненный..." />
                 </div>
-                <div onDragOver={handleDragOver} onDrop={(e) => handleDrop(block.id, e, isHw)} className="flex items-center gap-4 mb-4 p-8 bg-gray-50 border-2 border-dashed border-gray-300 rounded-2xl hover:bg-cyan-50/50 transition-colors">
-                  <label className="cursor-pointer px-6 py-4 bg-white border border-gray-200 rounded-xl hover:border-cyan-500 transition-colors flex items-center gap-2 font-bold text-gray-600 shadow-sm">
-                    <UploadCloud className="w-5 h-5" /> Выбрать файл
-                    <input type="file" className="hidden" onChange={(e) => handleFileUpload(block.id, e, isHw)} />
-                  </label>
-                  {block.fileName && <span className="text-sm font-bold text-emerald-600"><CheckCircle2 className="w-4 h-4 inline" /> {block.fileName}</span>}
+                <div className="mb-4">
+                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 block">Тип материала (для макета)</label>
+                  <select
+                    className="w-full sm:w-auto min-w-[260px] p-3 rounded-xl border border-gray-200 font-bold text-sm outline-none focus:border-cyan-400 bg-white"
+                    value={
+                      /незаполн/i.test(block.title || '')
+                        ? 'script_blank'
+                        : /заполн/i.test(block.title || '')
+                          ? 'script_filled'
+                          : /учебник/i.test(block.title || '')
+                            ? 'textbook'
+                            : /запоминал/i.test(block.title || '')
+                              ? 'memo'
+                              : 'file'
+                    }
+                    onChange={(e) => applyFilePreset(block.id, e.target.value, isHw)}
+                  >
+                    <option value="file">Обычный файл</option>
+                    <option value="script_blank">Скрипт незаполненный (кнопка 1)</option>
+                    <option value="script_filled">Скрипт заполненный (кнопка 2)</option>
+                    <option value="textbook">Учебник</option>
+                    <option value="memo">Запоминалка</option>
+                  </select>
+                </div>
+                <div className="grid grid-cols-1 lg:grid-cols-[auto_1fr] gap-4 mb-4">
+                  <div
+                    onDragOver={handleDragOver}
+                    onDrop={(e) => handleDrop(block.id, e, isHw, 'image', 'imageName')}
+                    className="p-4 bg-amber-50/60 rounded-2xl border-2 border-dashed border-amber-200 hover:bg-amber-50 flex flex-col items-center gap-3 transition-colors w-full lg:w-[180px]"
+                  >
+                    <label className="text-[10px] font-black text-amber-700/80 uppercase tracking-widest text-center">
+                      Обложка слева в макете
+                    </label>
+                    {block.image ? (
+                      <div className="relative">
+                        <ExpandableImage src={getFullUrl(block.image)} className="w-[140px] aspect-[3/4] object-cover rounded-xl border border-amber-100 shadow-sm" />
+                        <button
+                          type="button"
+                          onClick={() => updateBlock(block.id, { image: '', imageName: '' }, isHw)}
+                          className="absolute -top-2 -right-2 p-1.5 bg-white rounded-lg shadow text-gray-400 hover:text-red-500"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="w-[140px] aspect-[3/4] rounded-xl border border-dashed border-amber-300 bg-white/80 flex items-center justify-center text-center px-3 text-[11px] font-bold text-amber-700/70">
+                        JPG / PNG обложки
+                      </div>
+                    )}
+                    <label className="cursor-pointer px-4 py-2.5 bg-white border border-amber-200 rounded-xl hover:border-amber-400 transition-all flex items-center gap-2 font-bold text-amber-800 text-xs shadow-sm">
+                      <ImageIcon className="w-4 h-4" /> {block.image ? 'Заменить' : 'Загрузить картинку'}
+                      <input type="file" accept="image/*" className="hidden" onChange={(e) => handleFileUpload(block.id, e, isHw, 'image', 'imageName')} />
+                    </label>
+                    {block.imageName && (
+                      <span className="text-[10px] font-bold text-emerald-600 text-center leading-snug">
+                        <CheckCircle2 className="w-3.5 h-3.5 inline" /> {block.imageName}
+                      </span>
+                    )}
+                  </div>
+                  <div
+                    onDragOver={handleDragOver}
+                    onDrop={(e) => handleDrop(block.id, e, isHw)}
+                    className="flex flex-col justify-center gap-3 p-6 bg-gray-50 border-2 border-dashed border-gray-300 rounded-2xl hover:bg-cyan-50/50 transition-colors"
+                  >
+                    <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
+                      Файл для скачивания (PDF / DOC…)
+                    </label>
+                    <div className="flex items-center gap-4 flex-wrap">
+                      <label className="cursor-pointer px-6 py-4 bg-white border border-gray-200 rounded-xl hover:border-cyan-500 transition-colors flex items-center gap-2 font-bold text-gray-600 shadow-sm">
+                        <UploadCloud className="w-5 h-5" /> Выбрать файл
+                        <input type="file" className="hidden" onChange={(e) => handleFileUpload(block.id, e, isHw)} />
+                      </label>
+                      {block.fileName && (
+                        <span className="text-sm font-bold text-emerald-600">
+                          <CheckCircle2 className="w-4 h-4 inline" /> {block.fileName}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-[11px] text-gray-400 font-medium leading-snug">
+                      Картинка ≠ файл: слева — красивая обложка на сайте, справа — то, что скачает ученик.
+                    </p>
+                  </div>
                 </div>
                 <div className="bg-white rounded-2xl overflow-visible border border-gray-200 focus-within:border-cyan-400 focus-within:ring-2 focus-within:ring-cyan-100 transition-all z-10 relative">
-                  <ReactQuill theme="snow" modules={quillModules} value={block.content || ''} onChange={(val) => updateBlock(block.id, { content: val }, isHw)} placeholder="Краткое описание файла или инструкция..." className="min-h-[100px] pb-12" />
+                  <ReactQuill theme="snow" modules={quillModules} value={block.content || ''} onChange={(val) => updateBlock(block.id, { content: val }, isHw)} placeholder="Краткое описание (для пары скриптов достаточно у первого файла или в блоке Текст выше)..." className="min-h-[100px] pb-12" />
                 </div>
               </div>
             )}
@@ -1392,13 +1514,28 @@ export default function AdminCourses() {
       <div className={`p-6 rounded-[2rem] border-2 shadow-xl flex flex-col gap-4 shadow-${color}-500/10 ${bgClass}`}>
         <h4 className={`font-black text-xs uppercase tracking-widest text-center ${titleColor}`}>Добавить {isHw ? 'в домашку' : 'в теорию'}</h4>
         {!isHw && (resolveCourseUiTheme(selectedCourseForThemes) === 'HISTORY' || resolveCourseUiTheme(selectedCourseForThemes) === 'RUSSIAN') && (
-          <p className={`text-[11px] rounded-xl px-3 py-2 leading-snug border ${
-            resolveCourseUiTheme(selectedCourseForThemes) === 'HISTORY'
-              ? 'text-orange-700 bg-orange-50 border-orange-100'
-              : 'text-violet-700 bg-violet-50 border-violet-100'
-          }`}>
-            {resolveCourseUiTheme(selectedCourseForThemes) === 'HISTORY' ? 'История' : 'Русский'} UI: в названии файла пишите «Скрипт», «Учебник» или «Запоминалка» — так секции встанут как в макете. Перед файлом можно добавить картинку-обложку.
-          </p>
+          <>
+            <button
+              type="button"
+              onClick={() => addScriptPair(isHw)}
+              className={`w-full flex items-center justify-center gap-2 px-4 py-3.5 rounded-xl border-2 font-black text-sm active:scale-[0.98] transition-all ${
+                resolveCourseUiTheme(selectedCourseForThemes) === 'HISTORY'
+                  ? 'border-orange-300 bg-orange-50 text-orange-800 hover:bg-orange-100'
+                  : 'border-violet-300 bg-violet-50 text-violet-800 hover:bg-violet-100'
+              }`}
+            >
+              <Copy className="w-4 h-4" />
+              Пара скриптов (как в макете)
+            </button>
+            <p className={`text-[11px] rounded-xl px-3 py-2 leading-snug border ${
+              resolveCourseUiTheme(selectedCourseForThemes) === 'HISTORY'
+                ? 'text-orange-700 bg-orange-50 border-orange-100'
+                : 'text-violet-700 bg-violet-50 border-violet-100'
+            }`}>
+              Кнопка выше сразу добавит 2 файла («незаполненный» и «заполненный»). В каждом: PDF для скачивания и отдельная картинка-обложка слева.
+              Учебник / запоминалка — один блок «Файл» с нужным типом в списке.
+            </p>
+          </>
         )}
         <div className="grid grid-cols-2 gap-2">
           <button type="button" onClick={() => addBlock('text', isHw)} className={btnClass}><FileText className="w-5 h-5 text-emerald-500" /> Текст</button>
