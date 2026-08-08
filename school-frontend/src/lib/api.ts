@@ -2,7 +2,28 @@ import axios from 'axios';
 import { getRefreshToken, getToken, logout, setAuthTokens } from './auth';
 import { isMobileViewport, shouldDeferHeavyLoads } from './defer';
 
-export const API_URL = 'https://prepodmgy.ru/api';
+/**
+ * API всегда с сервера (prepodmgy.ru).
+ * Локальный бэкенд: `VITE_API_URL=http://127.0.0.1:3000 npm run dev`
+ */
+export const API_URL =
+  (import.meta.env.VITE_API_URL as string) || 'https://prepodmgy.ru/api';
+
+/** Origin for uploads/static (no /api suffix). */
+export const SITE_ORIGIN = API_URL.replace(/\/api\/?$/, '') || 'https://prepodmgy.ru';
+
+/** Resolve relative upload paths to full URL. */
+export function resolveUploadUrl(url: string): string {
+  if (!url) return '';
+  let finalUrl = url;
+  if (finalUrl.startsWith('http://prepodmgy.ru')) {
+    finalUrl = finalUrl.replace('http://', 'https://');
+  }
+  if (finalUrl.startsWith('http')) return finalUrl;
+  const clean = finalUrl.startsWith('/') ? finalUrl.slice(1) : finalUrl;
+  if (clean.startsWith('uploads/')) return `${SITE_ORIGIN}/${clean}`;
+  return `${API_URL}/${clean}`;
+}
 
 const requestTimeout = typeof window !== 'undefined' && isMobileViewport() ? 35000 : 20000;
 

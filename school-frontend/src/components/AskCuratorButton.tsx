@@ -10,7 +10,7 @@ import { getTokenConfig } from '../lib/auth';
 
 
 
-const API_URL = 'https://prepodmgy.ru/api';
+import { API_URL, SITE_ORIGIN, resolveUploadUrl } from '../lib/api';
 
 
 

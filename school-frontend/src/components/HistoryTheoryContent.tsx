@@ -1,3 +1,4 @@
+import { resolveUploadUrl } from '../lib/api';
 import { useMemo, useState, type ReactNode } from 'react';
 import { ChevronDown, Download, Play } from 'lucide-react';
 import ReactQuill from 'react-quill-new';
@@ -48,8 +49,8 @@ export function SubjectLessonShell({
   const menuHover = variant === 'russian' ? 'hover:bg-violet-50' : 'hover:bg-orange-50';
 
   return (
-    <div className="w-full max-w-[1100px] mx-auto px-2 md:px-4 pb-10 pt-2 space-y-4">
-      <div className="bg-white border border-gray-200 rounded-2xl px-4 md:px-5 py-3 flex flex-wrap items-center gap-3 justify-between shadow-sm">
+    <div className="w-full h-full min-h-0 max-w-[1100px] mx-auto flex flex-col gap-3 overflow-hidden px-1 md:px-2">
+      <div className="bg-white border border-gray-200 rounded-2xl px-4 md:px-5 py-3 flex flex-wrap items-center gap-3 justify-between shadow-sm shrink-0">
         <div className="flex flex-wrap items-center gap-2 md:gap-4 min-w-0 text-sm font-bold text-gray-800">
           <span className="truncate">
             {courseTitle || fallback}. Модуль {moduleIndex}
@@ -97,7 +98,9 @@ export function SubjectLessonShell({
         </div>
       </div>
 
-      {activePart === 'theory' ? theoryContent : practiceContent}
+      <div className="flex-1 min-h-0 overflow-hidden">
+        {activePart === 'theory' ? theoryContent : practiceContent}
+      </div>
     </div>
   );
 }
@@ -108,13 +111,7 @@ export const HistoryLessonShell = (props: ShellProps) => (
 );
 
 function getFullUrl(url: string) {
-  if (!url) return '';
-  let finalUrl = url;
-  if (finalUrl.startsWith('http://prepodmgy.ru')) finalUrl = finalUrl.replace('http://', 'https://');
-  if (finalUrl.startsWith('http')) return finalUrl;
-  const clean = finalUrl.startsWith('/') ? finalUrl.slice(1) : finalUrl;
-  if (clean.startsWith('uploads/')) return `https://prepodmgy.ru/${clean}`;
-  return `https://prepodmgy.ru/api/${clean}`;
+  return resolveUploadUrl(url);
 }
 
 function getEmbedUrl(url: string) {
@@ -125,11 +122,20 @@ function getEmbedUrl(url: string) {
   return url;
 }
 
+function normalizeHtml(html?: string) {
+  if (!html) return '';
+  return html
+    .replace(/<p>(\s|&nbsp;|<br\s*\/?>)*<\/p>/gi, '')
+    .replace(/(<br\s*\/?>\s*){3,}/gi, '<br/><br/>')
+    .trim();
+}
+
 function RichText({ html }: { html?: string }) {
-  if (!html) return null;
+  const cleaned = normalizeHtml(html);
+  if (!cleaned) return null;
   return (
-    <div className="theory-read-only text-[15px] leading-relaxed text-gray-700">
-      <ReactQuill theme="snow" value={html} readOnly modules={{ toolbar: false }} />
+    <div className="theory-read-only text-[14px] md:text-[15px] leading-relaxed text-gray-700 [&_.ql-editor_p]:!mb-2">
+      <ReactQuill theme="snow" value={cleaned} readOnly modules={{ toolbar: false }} />
     </div>
   );
 }
@@ -142,7 +148,7 @@ function Cover({ src, title, variant }: { src?: string; title?: string; variant:
         : 'bg-gradient-to-br from-orange-50 to-amber-100 border-orange-100 text-orange-800/80';
     return (
       <div
-        className={`w-[140px] sm:w-[160px] aspect-[3/4] rounded-xl border flex items-center justify-center p-3 text-center ${placeholder}`}
+        className={`w-[120px] sm:w-[140px] aspect-[3/4] rounded-xl border flex items-center justify-center p-3 text-center ${placeholder}`}
       >
         <span className="text-xs font-black uppercase leading-snug">{title || 'Материал'}</span>
       </div>
@@ -152,8 +158,34 @@ function Cover({ src, title, variant }: { src?: string; title?: string; variant:
     <img
       src={getFullUrl(src)}
       alt={title || ''}
-      className="w-[140px] sm:w-[160px] aspect-[3/4] object-cover rounded-xl border border-gray-200 shadow-sm bg-white"
+      className="w-[120px] sm:w-[140px] aspect-[3/4] object-cover rounded-xl border border-gray-200 shadow-sm bg-white"
     />
+  );
+}
+
+function DownloadButtons({
+  section,
+}: {
+  section: ResourceSection;
+}) {
+  const items = section.items.filter((item) => item.url);
+  if (!items.length) return null;
+  return (
+    <div className="flex flex-wrap gap-2.5">
+      {items.map((item, i, arr) => (
+        <a
+          key={item.id}
+          href={getFullUrl(item.url!)}
+          target="_blank"
+          rel="noopener noreferrer"
+          download
+          className={BTN}
+        >
+          <Download className="w-4 h-4" />
+          {item.buttonText || downloadLabel(section.kind, item.title, i, arr.length)}
+        </a>
+      ))}
+    </div>
   );
 }
 
@@ -295,15 +327,61 @@ export function SubjectTheoryContent({
     ? `Добрый день, ${studentName}!`
     : 'Добрый день, дорогой ученик!';
 
+  const renderVideoTile = (v: any, tall?: boolean) => {
+    const isDirect =
+      /\.(mp4|mov|webm)$/i.test(v.url || '') || String(v.url || '').includes('uploads/');
+    const src = isDirect || v.type === 'video_file' ? getFullUrl(v.url) : getEmbedUrl(v.url);
+    const playing = activeVideo === v.id;
+
+    if (playing) {
+      return isDirect || v.type === 'video_file' ? (
+        <video
+          src={src}
+          controls
+          autoPlay
+          playsInline
+          className={`w-full rounded-2xl bg-black ${tall ? 'max-h-[40vh]' : 'max-h-[28vh]'}`}
+        />
+      ) : (
+        <div className={`rounded-2xl overflow-hidden bg-gray-900 relative ${tall ? 'aspect-video' : 'aspect-video'}`}>
+          <iframe
+            src={src}
+            className="absolute inset-0 w-full h-full"
+            allowFullScreen
+            allow="autoplay; fullscreen; picture-in-picture"
+            title={v.title || 'Видео'}
+          />
+        </div>
+      );
+    }
+
+    return (
+      <button
+        type="button"
+        onClick={() => setActiveVideo(v.id)}
+        className={`w-full rounded-2xl bg-[#ECEFF5] hover:bg-[#E4E8F0] transition-colors flex items-center justify-center relative overflow-hidden border border-gray-100 ${
+          tall ? 'aspect-[21/9] min-h-[120px]' : 'aspect-video min-h-[100px]'
+        }`}
+      >
+        <span
+          className="w-14 h-14 md:w-16 md:h-16 rounded-full border-[3px] flex items-center justify-center bg-white/80 shadow-sm"
+          style={{ borderColor: accent }}
+        >
+          <Play className="w-6 h-6 md:w-7 md:h-7 fill-current ml-1" style={{ color: accent }} />
+        </span>
+      </button>
+    );
+  };
+
   return (
-    <div className="bg-white border border-gray-200 rounded-2xl p-5 md:p-8 shadow-sm space-y-10">
-      <div className="space-y-3">
-        <h1 className="text-2xl md:text-3xl font-black text-gray-900 leading-tight pb-3 border-b border-gray-100">
+    <div className="bg-white border border-gray-200 rounded-2xl p-4 md:p-6 shadow-sm h-full min-h-0 overflow-y-auto space-y-6 md:space-y-7">
+      <div className="space-y-2">
+        <h1 className="text-xl md:text-2xl font-black text-gray-900 leading-tight">
           {themeTitle}
         </h1>
         <p className="font-bold text-gray-900">{greeting}</p>
         {model.intro.length > 0 ? (
-          <div className="space-y-3">
+          <div className="space-y-2">
             {model.intro.map((b) => (
               <div key={b.id}>
                 {b.title && b.title !== 'Текст' && (
@@ -314,99 +392,70 @@ export function SubjectTheoryContent({
             ))}
           </div>
         ) : (
-          <p className="text-[15px] leading-relaxed text-gray-700">
+          <p className="text-[14px] md:text-[15px] leading-relaxed text-gray-700">
             Каждая тема состоит из двух занятий: теории и практики. Ниже — материалы урока: скрипты,
             учебник, запоминалки и видео. Пожалуйста, ознакомься со всем внимательно!
           </p>
         )}
       </div>
 
-      {model.sections.map((section, sIdx) => (
-        <div key={`${section.kind}-${sIdx}`} className="space-y-4 pt-2 border-t border-gray-100">
-          <div className="flex flex-col md:flex-row gap-5 md:gap-8 items-start">
-            <div className="flex flex-wrap gap-3 shrink-0">
-              {section.items.map((item) => (
-                <Cover key={item.id} src={item.image} title={item.title} variant={variant} />
-              ))}
-            </div>
-            <div className="flex-1 min-w-0 space-y-3">
-              <h2 className="text-xl font-black text-gray-900">{section.heading}</h2>
-              {section.description ? (
-                <RichText html={section.description} />
-              ) : section.items[0]?.content ? (
-                <RichText html={section.items[0].content} />
-              ) : null}
+      {model.sections.map((section, sIdx) => {
+        const desc = section.description || section.items[0]?.content;
+        // Figma: textbook always under cover; russian memo also under cover; script under text
+        const buttonsUnderCover =
+          section.kind === 'textbook' || (variant === 'russian' && section.kind === 'memo');
 
-              <div className="flex flex-wrap gap-3 pt-1">
-                {section.items
-                  .filter((item) => item.url)
-                  .map((item, i, arr) => (
-                    <a
-                      key={item.id}
-                      href={getFullUrl(item.url!)}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      download
-                      className={BTN}
-                    >
-                      <Download className="w-4 h-4" />
-                      {item.buttonText || downloadLabel(section.kind, item.title, i, arr.length)}
-                    </a>
+        return (
+          <div key={`${section.kind}-${sIdx}`} className="space-y-3">
+            <div className="flex flex-col md:flex-row gap-4 md:gap-6 items-start">
+              <div className="flex flex-col gap-2.5 shrink-0">
+                <div className="flex flex-wrap gap-2.5">
+                  {section.items.map((item) => (
+                    <Cover key={item.id} src={item.image} title={item.title} variant={variant} />
                   ))}
+                </div>
+                {buttonsUnderCover && <DownloadButtons section={section} />}
+              </div>
+              <div className="flex-1 min-w-0 space-y-2.5">
+                <h2 className="text-lg md:text-xl font-black text-gray-900">{section.heading}</h2>
+                {desc ? <RichText html={desc} /> : null}
+                {!buttonsUnderCover && <DownloadButtons section={section} />}
               </div>
             </div>
           </div>
-        </div>
-      ))}
+        );
+      })}
 
       {model.videos.length > 0 && (
-        <div className="space-y-4 pt-4 border-t border-gray-100">
-          {model.videos.map((v) => {
-            const isDirect =
-              /\.(mp4|mov|webm)$/i.test(v.url || '') || String(v.url || '').includes('uploads/');
-            const src = isDirect || v.type === 'video_file' ? getFullUrl(v.url) : getEmbedUrl(v.url);
-            const playing = activeVideo === v.id;
-
-            return (
-              <div key={v.id} className="space-y-2">
-                {v.title && <h3 className="font-black text-gray-900">{v.title}</h3>}
-                {playing ? (
-                  isDirect || v.type === 'video_file' ? (
-                    <video
-                      src={src}
-                      controls
-                      autoPlay
-                      playsInline
-                      className="w-full max-h-[70vh] rounded-2xl bg-black"
-                    />
-                  ) : (
-                    <div className="aspect-video rounded-2xl overflow-hidden bg-gray-900 relative">
-                      <iframe
-                        src={src}
-                        className="absolute inset-0 w-full h-full"
-                        allowFullScreen
-                        allow="autoplay; fullscreen; picture-in-picture"
-                        title={v.title || 'Видео'}
-                      />
-                    </div>
-                  )
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => setActiveVideo(v.id)}
-                    className="w-full aspect-video md:aspect-[21/9] rounded-2xl bg-[#ECEFF5] hover:bg-[#E4E8F0] transition-colors flex items-center justify-center relative overflow-hidden border border-gray-100"
-                  >
-                    <span
-                      className="w-16 h-16 rounded-full border-[3px] flex items-center justify-center bg-white/80 shadow-sm"
-                      style={{ borderColor: accent }}
-                    >
-                      <Play className="w-7 h-7 fill-current ml-1" style={{ color: accent }} />
-                    </span>
-                  </button>
-                )}
-              </div>
-            );
-          })}
+        <div className="space-y-3 pt-1">
+          {model.videos[0] && (
+            <div className="space-y-1.5">
+              {model.videos[0].title && (
+                <h3 className="font-black text-gray-900 text-sm">{model.videos[0].title}</h3>
+              )}
+              {renderVideoTile(model.videos[0], true)}
+            </div>
+          )}
+          {model.videos.length > 1 && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {model.videos.slice(1, 3).map((v) => (
+                <div key={v.id} className="space-y-1.5">
+                  {v.title && <h3 className="font-black text-gray-900 text-sm">{v.title}</h3>}
+                  {renderVideoTile(v, false)}
+                </div>
+              ))}
+            </div>
+          )}
+          {model.videos.length > 3 && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {model.videos.slice(3).map((v) => (
+                <div key={v.id} className="space-y-1.5">
+                  {v.title && <h3 className="font-black text-gray-900 text-sm">{v.title}</h3>}
+                  {renderVideoTile(v, false)}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 

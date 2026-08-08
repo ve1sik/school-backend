@@ -5,7 +5,7 @@ import { decodeJwtPayload, setAuthTokens } from '../lib/auth';
 import { Mail, Lock, GraduationCap, Sparkles, ShieldCheck, Loader2, ArrowRight, MessageSquare } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-const API_URL = 'https://prepodmgy.ru/api';
+import { API_URL, SITE_ORIGIN, resolveUploadUrl } from '../lib/api';
 
 export default function Auth() {
   const navigate = useNavigate();

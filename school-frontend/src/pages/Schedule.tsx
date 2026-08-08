@@ -5,7 +5,7 @@ import axios from 'axios';
 import { decodeToken, getToken } from '../lib/auth';
 import { parseSafeDate } from '../lib/parseDate';
 
-const API_URL = 'https://prepodmgy.ru/api';
+import { API_URL, SITE_ORIGIN, resolveUploadUrl } from '../lib/api';
 
 const DEFAULT_TYPE_LABELS: Record<string, string> = {
   WEBINAR: 'Лекция',
@@ -30,18 +30,24 @@ const getSubjectTheme = (ev: any) => {
     return {
       key: 'history' as const,
       short: 'ИСТОРИЯ',
-      badge: 'bg-[#F97316] text-white',
-      border: 'border-[#F97316]',
-      pill: 'bg-[#F97316] text-white',
+      color: '#EF6C35',
+      badge: 'bg-[#EF6C35] text-white',
+      border: 'border-[#EF6C35]/45',
+      pill: 'bg-[#EF6C35] text-white',
+      title: 'text-[#EF6C35]',
+      datePill: 'border-[#EF6C35]/50 text-[#EF6C35]',
     };
   }
   // русский / по умолчанию
   return {
     key: 'russian' as const,
     short: 'РУССКИЙ ЯЗЫК',
+    color: '#6C63FF',
     badge: 'bg-[#6C63FF] text-white',
-    border: 'border-[#6C63FF]',
+    border: 'border-[#6C63FF]/45',
     pill: 'bg-[#6C63FF] text-white',
+    title: 'text-[#6C63FF]',
+    datePill: 'border-[#6C63FF]/50 text-[#6C63FF]',
   };
 };
 
@@ -269,7 +275,6 @@ export default function Schedule() {
   firstDayOfMonth--; 
 
   const monthNames = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
-  const dayNames = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
 
   const prevMonth = () => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1));
   const nextMonth = () => setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1));
@@ -296,16 +301,16 @@ export default function Schedule() {
 
   if (isLoading) {
     return (
-      <div className="h-[60vh] flex items-center justify-center">
+      <div className="h-full flex items-center justify-center">
         <Loader2 className="w-10 h-10 animate-spin text-[#6C63FF]" />
       </div>
     );
   }
 
   return (
-    <div className="w-full max-w-[1200px] mx-auto pb-8 px-2 md:px-4 pt-2 space-y-5">
+    <div className="w-full h-full min-h-0 max-w-[1200px] mx-auto px-0 md:px-1 pt-1 flex flex-col gap-3 md:gap-4 overflow-y-auto md:overflow-hidden pb-4 md:pb-0">
       {/* Заголовок + кнопка */}
-      <div className="flex flex-wrap items-center gap-3">
+      <div className="flex flex-wrap items-center gap-3 shrink-0">
         <h1 className="text-[28px] md:text-[32px] font-black tracking-tight text-gray-900 leading-none">
           Расписание
         </h1>
@@ -313,16 +318,16 @@ export default function Schedule() {
           <button
             type="button"
             onClick={() => { resetForm(); setShowAddModal(true); }}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-[#1A1D26] hover:bg-black text-white text-[11px] font-black uppercase tracking-wide rounded-lg transition-colors active:scale-95"
+            className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-[#1A1D26] hover:bg-black text-white text-[11px] font-black uppercase tracking-wide rounded-xl md:rounded-full transition-colors active:scale-95"
           >
-            <Plus className="w-3.5 h-3.5" /> Добавить событие
+            <Plus className="w-3.5 h-3.5" /> ДОБАВИТЬ СОБЫТИЕ
           </button>
         )}
       </div>
 
-      {/* Карточки ближайших */}
+      {/* Карточки ближайших — до 4 */}
       {upcomingEvents.length > 0 && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 shrink-0">
           {upcomingEvents.map((ev) => {
             const theme = getSubjectTheme(ev);
             const evDate = parseSafeDate(ev.date);
@@ -340,37 +345,37 @@ export default function Schedule() {
                   setSelectedDateTitle(`${d.getDate()} ${monthNames[d.getMonth()].toLowerCase()}`);
                   setShowDayModal(true);
                 }}
-                className={`text-left bg-white border ${theme.border} rounded-xl p-4 hover:shadow-md transition-shadow`}
+                className={`text-left bg-white border ${theme.border} rounded-xl p-3.5 hover:shadow-md transition-shadow`}
               >
-                <div className="flex items-start justify-between gap-2 mb-3">
+                <div className="flex items-start justify-between gap-2 mb-2.5">
                   <span className={`text-[9px] font-black uppercase tracking-wider px-2 py-1 rounded-md ${theme.badge}`}>
                     {theme.short}
                   </span>
-                  <span className="text-[10px] font-bold text-gray-500 whitespace-nowrap shrink-0">
+                  <span className={`text-[9px] font-bold whitespace-nowrap shrink-0 px-2 py-1 rounded-full border ${theme.datePill}`}>
                     {formatEventCardDate(evDate)}
                   </span>
                 </div>
-                <p className="font-black text-[15px] text-gray-900 uppercase leading-snug mb-2 line-clamp-2">
+                <p className="font-black text-[13px] md:text-[14px] uppercase leading-snug mb-1.5 line-clamp-2 text-gray-900">
                   {ev.title}
                 </p>
-                <p className="text-sm font-medium text-gray-500">{getEventTypeLabel(ev)}</p>
+                <p className="text-sm font-medium text-gray-400">{getEventTypeLabel(ev)}</p>
               </button>
             );
           })}
         </div>
       )}
 
-      {/* Календарь */}
-      <div className="bg-white border border-gray-200/80 rounded-2xl shadow-sm p-4 md:p-6">
-        <div className="flex justify-between items-center mb-5">
+      {/* Календарь — занимает оставшуюся высоту */}
+      <div className="bg-white border border-gray-200/80 rounded-2xl shadow-sm p-3 md:p-5 flex-1 min-h-0 flex flex-col overflow-hidden">
+        <div className="flex justify-between items-center mb-3 shrink-0">
           <h2 className="text-xl md:text-2xl font-black text-gray-900">
             {monthNames[currentDate.getMonth()]} {currentDate.getFullYear()}
           </h2>
-          <div className="flex gap-2">
+          <div className="flex gap-0">
             <button
               type="button"
               onClick={prevMonth}
-              className="w-9 h-9 rounded-full bg-[#1A1D26] text-white flex items-center justify-center hover:bg-black transition-colors"
+              className="w-10 h-10 bg-[#1A1D26] text-white flex items-center justify-center hover:bg-black transition-colors rounded-l-xl"
               aria-label="Предыдущий месяц"
             >
               <ChevronLeft className="w-5 h-5" />
@@ -378,7 +383,7 @@ export default function Schedule() {
             <button
               type="button"
               onClick={nextMonth}
-              className="w-9 h-9 rounded-full bg-[#1A1D26] text-white flex items-center justify-center hover:bg-black transition-colors"
+              className="w-10 h-10 bg-[#1A1D26] text-white flex items-center justify-center hover:bg-black transition-colors rounded-r-xl border-l border-white/10"
               aria-label="Следующий месяц"
             >
               <ChevronRight className="w-5 h-5" />
@@ -386,21 +391,11 @@ export default function Schedule() {
           </div>
         </div>
 
-        <div className="grid grid-cols-7 border border-gray-200 rounded-xl overflow-hidden">
-          {dayNames.map((day) => (
-            <div
-              key={day}
-              className="hidden md:block text-center text-[11px] font-bold text-gray-400 uppercase tracking-wider py-2 border-b border-gray-200 bg-gray-50/80"
-            >
-              {day}
-            </div>
-          ))}
-
+        <div
+          className="grid grid-cols-7 gap-1.5 md:gap-2 flex-1 min-h-0 auto-rows-fr"
+        >
           {Array(firstDayOfMonth).fill(null).map((_, i) => (
-            <div
-              key={`empty-${i}`}
-              className="min-h-[72px] md:min-h-[96px] border-b border-r border-gray-100 bg-gray-50/40"
-            />
+            <div key={`empty-${i}`} className="min-h-[52px] md:min-h-0 rounded-xl bg-transparent" />
           ))}
 
           {Array.from({ length: daysInMonth }, (_, i) => i + 1).map((day) => {
@@ -415,25 +410,25 @@ export default function Schedule() {
               <div
                 key={day}
                 onClick={() => handleDayClick(day, thisDate)}
-                className={`min-h-[72px] md:min-h-[96px] p-1.5 md:p-2 border-b border-r border-gray-100 relative cursor-pointer transition-colors hover:bg-gray-50/80
-                  ${isSelected ? 'ring-2 ring-inset ring-[#6C63FF] bg-[#6C63FF]/[0.03]' : ''}`}
+                className={`min-h-[52px] md:min-h-0 p-1.5 md:p-2 rounded-xl bg-[#F8F9FC] relative cursor-pointer transition-colors hover:bg-[#F0F2F8] overflow-hidden
+                  ${isSelected ? 'ring-2 ring-[#4A5CFF] bg-white' : 'border border-gray-100'}`}
               >
-                <div className="font-black text-sm text-gray-900 mb-1">{day}</div>
-                <div className="space-y-1">
-                  {dayEvents.slice(0, 3).map((ev) => {
+                <div className="font-black text-xs md:text-sm text-gray-900 mb-1 leading-none">{day}</div>
+                <div className="space-y-0.5">
+                  {dayEvents.slice(0, 2).map((ev) => {
                     const theme = getSubjectTheme(ev);
                     return (
                       <div
                         key={ev.id}
-                        className={`text-[8px] md:text-[9px] font-black uppercase tracking-wide px-1.5 py-0.5 rounded truncate ${theme.pill}`}
+                        className={`text-[7px] md:text-[8px] font-black uppercase tracking-wide px-1 py-0.5 rounded truncate ${theme.pill}`}
                         title={ev.title}
                       >
                         {theme.short}
                       </div>
                     );
                   })}
-                  {dayEvents.length > 3 && (
-                    <div className="text-[8px] font-bold text-gray-400 px-1">+{dayEvents.length - 3}</div>
+                  {dayEvents.length > 2 && (
+                    <div className="text-[8px] font-bold text-gray-400 px-0.5">+{dayEvents.length - 2}</div>
                   )}
                 </div>
               </div>

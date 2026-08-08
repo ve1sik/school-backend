@@ -54,7 +54,7 @@ const SpellErrorsPanel = ({ errors }: { errors: SpellError[] }) => (
   </div>
 );
 
-const API_URL = 'https://prepodmgy.ru/api';
+import { API_URL, SITE_ORIGIN, resolveUploadUrl } from '../lib/api';
 
 const getFullUrl = (url: string) => {
   if (!url) return '';
@@ -1144,8 +1144,17 @@ export default function CourseView() {
   };
 
   // 🔥 ИДЕАЛЬНОЕ ВЫРАВНИВАНИЕ СЕТКИ
+  const showSubjectTheory =
+    isSubjectUi && (theoryBlocks.length === 0 ? 'practice' : russianPart) === 'theory';
+
   return (
-    <div className="flex flex-col lg:flex-row h-auto lg:h-screen bg-[#F4F7FE] font-sans text-gray-900 p-3 md:p-6 lg:p-8 gap-3 lg:gap-8 overflow-visible lg:overflow-hidden">
+    <div
+      className={`flex flex-col lg:flex-row font-sans text-gray-900 gap-3 lg:gap-6 ${
+        showSubjectTheory
+          ? 'h-full min-h-0 overflow-hidden p-0 md:p-1 bg-transparent'
+          : 'h-auto lg:h-full min-h-0 bg-[#F4F7FE] p-3 md:p-4 lg:p-2 overflow-visible lg:overflow-hidden'
+      }`}
+    >
       
       {/* 🔥 ГЛОБАЛЬНЫЕ СТИЛИ ДЛЯ РЕДАКТОРА */}
       <style>{`
@@ -1203,7 +1212,8 @@ export default function CourseView() {
   ${LESSON_TEST_STYLES}
 `}</style>
 
-      {/* 🔥 БОКОВАЯ ПАНЕЛЬ: Одинаковая высота и стиль с главным блоком */}
+      {/* Lesson list — hidden on subject theory (matches design: app nav only) */}
+      {!showSubjectTheory && (
       <aside className="w-full lg:w-[300px] xl:w-[340px] bg-white rounded-3xl lg:rounded-[2rem] border border-gray-100 flex flex-col h-auto max-h-[55vh] lg:max-h-none lg:h-full shrink-0 z-20 shadow-sm overflow-hidden">
         <div className="p-6 md:p-8 pb-5 border-b border-gray-100 bg-white">
           <button type="button" onClick={() => navigate(`/course/${courseId}`)} className="text-[11px] font-black tracking-wider text-gray-400 hover:text-[#5A4BFF] flex items-center gap-2 mb-4 transition-colors uppercase">
@@ -1306,13 +1316,26 @@ export default function CourseView() {
           })}
         </div>
       </aside>
+      )}
 
       {/* 🔥 MAIN БЛОК: Выровнен с боковой панелью */}
-      <main className="flex-1 w-full bg-white rounded-3xl lg:rounded-[2rem] border border-gray-100 shadow-sm overflow-visible lg:overflow-y-auto relative scroll-smooth h-auto lg:h-full custom-scrollbar">
+      <main
+        className={`flex-1 w-full relative min-h-0 h-auto lg:h-full ${
+          showSubjectTheory
+            ? 'overflow-hidden bg-transparent border-0 shadow-none rounded-none'
+            : 'bg-white rounded-3xl lg:rounded-[2rem] border border-gray-100 shadow-sm overflow-visible lg:overflow-y-auto scroll-smooth'
+        }`}
+      >
         <AnimatePresence mode="wait">
           {activeLesson ? (
             isSubjectUi ? (
-              <motion.div key={`subj-${activeLesson.id}-${courseUiThemeResolved}`} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="py-4">
+              <motion.div
+                key={`subj-${activeLesson.id}-${courseUiThemeResolved}`}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                className={showSubjectTheory ? 'h-full min-h-0' : 'py-4'}
+              >
                 {(isHistoryUi || isRussianUi) && (theoryBlocks.length === 0 ? 'practice' : russianPart) === 'theory' ? (
                   <SubjectLessonShell
                     variant={isHistoryUi ? 'history' : 'russian'}
@@ -1326,22 +1349,11 @@ export default function CourseView() {
                     }}
                     hasPractice={practiceBlocks.length > 0}
                     theoryContent={
-                      <div className="space-y-4">
-                        <SubjectTheoryContent
-                          variant={isHistoryUi ? 'history' : 'russian'}
-                          themeTitle={themeTitle}
-                          blocks={theoryBlocks}
-                        />
-                        {homeworkBlocks.length > 0 && (
-                          <button
-                            type="button"
-                            onClick={() => navigate(`/homework/${activeLesson.id}`)}
-                            className="w-full md:w-auto px-6 py-3 bg-[#1A1D26] text-white rounded-xl font-black text-sm"
-                          >
-                            Открыть домашнее задание
-                          </button>
-                        )}
-                      </div>
+                      <SubjectTheoryContent
+                        variant={isHistoryUi ? 'history' : 'russian'}
+                        themeTitle={themeTitle}
+                        blocks={theoryBlocks}
+                      />
                     }
                     practiceContent={null}
                   />
@@ -1378,15 +1390,6 @@ export default function CourseView() {
                     ) : (
                       <div className="space-y-8">
                         {theoryBlocks.map((block) => renderTheoryBlock(block))}
-                        {homeworkBlocks.length > 0 && (
-                          <button
-                            type="button"
-                            onClick={() => navigate(`/homework/${activeLesson.id}`)}
-                            className="w-full md:w-auto px-6 py-3 bg-[#1A1D26] text-white rounded-xl font-black text-sm"
-                          >
-                            Открыть домашнее задание
-                          </button>
-                        )}
                       </div>
                     )
                   }

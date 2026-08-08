@@ -17,7 +17,7 @@ import {
 import ReactQuill from 'react-quill-new';
 import 'react-quill-new/dist/quill.snow.css';
 
-const API_URL = 'https://prepodmgy.ru/api';
+import { API_URL, SITE_ORIGIN, resolveUploadUrl } from '../lib/api';
 
 const getEmbedUrl = (url: string) => {
   if (!url) return '';

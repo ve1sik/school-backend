@@ -6,13 +6,13 @@ import axios from 'axios';
 import { decodeToken, getToken, getTokenConfig } from '../lib/auth';
 import { parseSafeDate } from '../lib/parseDate';
 
-const API_URL = 'https://prepodmgy.ru/api';
+import { API_URL, SITE_ORIGIN, resolveUploadUrl } from '../lib/api';
 
 const getFullUrl = (url: string) => {
   if (!url) return '';
   if (url.startsWith('http')) return url;
   const cleanPath = url.startsWith('/') ? url.slice(1) : url;
-  return `${API_URL.replace('/api', '')}/${cleanPath}`;
+  return `${SITE_ORIGIN}/${cleanPath}`;
 };
 
 const roleLabel = (role?: string) => {
@@ -151,7 +151,7 @@ export default function Messages() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto h-[calc(100dvh-5rem)] flex flex-col min-h-0">
+    <div className="max-w-7xl mx-auto h-full min-h-0 flex flex-col">
       <div className="shrink-0 mb-3 md:mb-4">
         <h1 className="text-2xl md:text-[28px] font-black tracking-tight text-gray-900">Сообщения</h1>
       </div>
@@ -176,7 +176,7 @@ export default function Messages() {
               <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
               <input
                 type="text"
-                placeholder="Поиск диалога"
+                placeholder="ПОИСК ДИАЛОГА"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full bg-gray-50 border border-gray-200 rounded-xl py-2.5 pl-10 pr-3 outline-none focus:bg-white focus:border-[#6C63FF] transition-all font-medium text-sm text-gray-700 placeholder:text-gray-400 placeholder:uppercase placeholder:text-[11px] placeholder:tracking-wide"
@@ -184,7 +184,7 @@ export default function Messages() {
             </div>
           </div>
 
-          <div className="flex-1 overflow-y-auto custom-scrollbar">
+          <div className="flex-1 overflow-y-auto custom-scrollbar px-3 py-2 space-y-1.5">
             {filteredAndSortedContacts.length === 0 ? (
               <p className="p-6 text-sm text-gray-400 font-medium text-center">Диалоги не найдены</p>
             ) : (
@@ -196,8 +196,10 @@ export default function Messages() {
                     key={contact.id}
                     type="button"
                     onClick={() => setActiveChatId(contact.id)}
-                    className={`w-full text-left px-5 py-3.5 flex items-center gap-3 transition-colors border-b border-gray-50 ${
-                      isActive ? 'bg-[#EEF4FF]' : 'hover:bg-gray-50'
+                    className={`w-full text-left px-4 py-3 flex items-center gap-3 transition-colors rounded-xl border-2 ${
+                      isActive
+                        ? 'bg-[#EEF4FF] border-[#4A5CFF]'
+                        : 'border-transparent hover:bg-gray-50'
                     }`}
                   >
                     <Avatar contact={contact} />
@@ -313,7 +315,7 @@ export default function Messages() {
                   <button
                     type="submit"
                     disabled={!newMessage.trim()}
-                    className="w-12 h-12 shrink-0 rounded-full bg-[#1A1D26] hover:bg-black text-white flex items-center justify-center transition-all disabled:opacity-40 active:scale-95"
+                    className="w-12 h-12 shrink-0 rounded-xl bg-[#1A1D26] hover:bg-black text-white flex items-center justify-center transition-all disabled:opacity-40 active:scale-95"
                     aria-label="Отправить"
                   >
                     <Send className="w-5 h-5 ml-0.5" />

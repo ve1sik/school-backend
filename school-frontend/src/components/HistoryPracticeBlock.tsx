@@ -1,3 +1,4 @@
+import { resolveUploadUrl } from '../lib/api';
 import { type ReactNode } from 'react';
 import { CheckCircle2, Clock, XCircle } from 'lucide-react';
 import { ExplanationBlock, OptionText, safeHtml } from './LessonTestUI';
@@ -46,10 +47,10 @@ function stripHtml(html: string) {
 function getImage(block: any): string {
   const raw = block.questionImage || block.image || '';
   if (!raw) return '';
-  if (raw.startsWith('http')) return raw.replace('http://prepodmgy.ru', 'https://prepodmgy.ru');
+  if (raw.startsWith('http')) return raw.replace('http://prepodmgy.ru', 'SITE_ORIGIN_PLACEHOLDER');
   const clean = raw.startsWith('/') ? raw.slice(1) : raw;
-  if (clean.startsWith('uploads/')) return `https://prepodmgy.ru/${clean}`;
-  return `https://prepodmgy.ru/api/${clean}`;
+  if (clean.startsWith('uploads/')) return `SITE_ORIGIN_PLACEHOLDER/${clean}`;
+  return `SITE_ORIGIN_PLACEHOLDER/api/${clean}`;
 }
 
 function resolveBlockState(

@@ -6,13 +6,13 @@ import axios from 'axios';
 import { decodeToken, getToken, getTokenConfig } from '../lib/auth';
 import { parseSafeDate, parseSafeDateMs } from '../lib/parseDate';
 
-const API_URL = 'https://prepodmgy.ru/api';
+import { API_URL, SITE_ORIGIN, resolveUploadUrl } from '../lib/api';
 
 const getFullUrl = (url: string) => {
   if (!url) return '';
   if (url.startsWith('http')) return url;
   const cleanPath = url.startsWith('/') ? url.slice(1) : url;
-  return `${API_URL.replace('/api', '')}/${cleanPath}`;
+  return `${SITE_ORIGIN}/${cleanPath}`;
 };
 
 export default function CuratorMessages() {

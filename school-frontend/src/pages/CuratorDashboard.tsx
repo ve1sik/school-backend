@@ -32,7 +32,7 @@ import WrittenGradingPanel from '../components/WrittenGradingPanel';
 import { EGE_ESSAY_MAX_SCORE, FINAL_ESSAY_MAX_SCORE, criteriaKindFromBlockType, detectCriteriaKindFromSubmission } from '../utils/essayCriteria';
 import { parseSubmissionQuestion } from '../utils/submissionQuestion';
 
-const API_URL = 'https://prepodmgy.ru/api';
+import { API_URL, SITE_ORIGIN, resolveUploadUrl } from '../lib/api';
 
 type AnswerTab = 'written' | 'tests' | 'history';
 

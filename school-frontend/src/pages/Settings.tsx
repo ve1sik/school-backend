@@ -7,7 +7,7 @@ import {
 import axios from 'axios';
 import { getAuthHeaders, getToken, safeStorageGet, safeStorageRemove, safeStorageSet } from '../lib/auth';
 
-const API_URL = 'https://prepodmgy.ru/api';
+import { API_URL, SITE_ORIGIN, resolveUploadUrl } from '../lib/api';
 
 const ToggleSwitch = ({ checked, onChange }: { checked: boolean; onChange: () => void }) => (
   <button

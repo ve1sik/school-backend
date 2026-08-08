@@ -5,7 +5,7 @@ import axios from 'axios';
 import { getToken } from '../lib/auth';
 import { api } from '../lib/api';
 
-const API_URL = 'https://prepodmgy.ru/api';
+import { API_URL, SITE_ORIGIN, resolveUploadUrl } from '../lib/api';
 
 const getFullUrl = (url: string) => {
   if (!url) return '';

@@ -5,7 +5,7 @@ import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import { DEFAULT_ROLE_PERMISSIONS, type AdminPermission, getTokenConfig } from '../lib/auth';
 
-const API_URL = 'https://prepodmgy.ru/api';
+import { API_URL, SITE_ORIGIN, resolveUploadUrl } from '../lib/api';
 
 type Role = 'STUDENT' | 'CURATOR' | 'ADMIN' | 'PARENT' | 'TEACHER';
 

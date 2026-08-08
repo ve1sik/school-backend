@@ -6,8 +6,11 @@ import { publicApi } from '../lib/api';
 
 type Mode = 'login' | 'register_student' | 'register_parent';
 
-const inputCls =
-  'w-full pl-11 pr-4 py-3.5 bg-[#F7F8FA] border border-gray-200 rounded-xl outline-none focus:border-[#6C63FF] focus:bg-white focus:ring-2 focus:ring-[#6C63FF]/15 font-medium text-gray-800 placeholder:text-gray-400 transition-all';
+/** Figma «Страница – вход» */
+const inputBase =
+  'w-full pl-11 pr-4 py-[14px] rounded-[12px] outline-none font-medium text-[15px] text-[#1A1D26] placeholder:text-[#A0A4B0] transition-all';
+const inputIdle = `${inputBase} bg-[#F3F4F8] border border-transparent focus:bg-white focus:border-[#B8B4FF]`;
+const inputActive = `${inputBase} bg-white border border-[#B8B4FF] focus:border-[#6C63FF]`;
 
 function VkIcon({ className = 'w-5 h-5' }: { className?: string }) {
   return (
@@ -73,16 +76,42 @@ export default function Login() {
   const title =
     mode === 'login' ? 'Вход' : mode === 'register_student' ? 'Регистрация' : 'Аккаунт родителя';
 
+  const emailLooksActive = mode === 'login';
+
   return (
-    <div className="min-h-screen w-full flex bg-white font-sans overflow-hidden">
-      {/* Левая колонка — форма */}
-      <div className="w-full lg:w-[48%] xl:w-[44%] flex flex-col justify-center items-center px-6 sm:px-10 py-10 relative z-10 bg-white">
-        <div className="w-full max-w-[400px]">
-          <div className="w-14 h-14 bg-[#6C63FF] rounded-2xl flex items-center justify-center mb-6 shadow-lg shadow-[#6C63FF]/25">
-            <GraduationCap className="w-7 h-7 text-white" />
+    <div className="relative min-h-[100dvh] w-full overflow-hidden font-sans bg-white lg:bg-[#E8E8EC]">
+      {/* Desktop: full-bleed Figma composition — overscan so edges stay flush */}
+      <div
+        className="pointer-events-none absolute inset-0 hidden lg:block"
+        style={{
+          backgroundColor: '#E8E8EC',
+          backgroundImage: 'url(/login-bg.jpg)',
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+          backgroundRepeat: 'no-repeat',
+          transform: 'scale(1.045)',
+          transformOrigin: 'center center',
+        }}
+        aria-hidden
+      />
+
+      {/* Mobile background */}
+      <div
+        className="lg:hidden absolute inset-0"
+        style={{
+          background: 'linear-gradient(180deg, #F0F2FF 0%, #FFFFFF 48%, #FFFFFF 100%)',
+        }}
+      />
+
+      <div className="relative z-10 min-h-[100dvh] flex items-center justify-center lg:justify-start px-4 sm:px-6 py-8 lg:pl-[7.5%] xl:pl-[9.5%]">
+        <div className="w-full max-w-[400px] bg-white border border-[#E5E7EB] rounded-[18px] shadow-[0_10px_36px_rgba(17,24,39,0.10)] px-6 py-8 sm:px-8 sm:py-9">
+          <div className="w-12 h-12 bg-[#6C63FF] rounded-[12px] flex items-center justify-center mb-5 mx-auto shadow-[0_6px_18px_rgba(108,99,255,0.32)]">
+            <GraduationCap className="w-6 h-6 text-white" strokeWidth={2} />
           </div>
 
-          <h1 className="text-3xl md:text-4xl font-black text-gray-900 mb-7">{title}</h1>
+          <h1 className="text-[28px] sm:text-[32px] font-black text-[#111827] mb-6 text-center tracking-tight leading-none">
+            {title}
+          </h1>
 
           {showTelegramHint && (
             <div className="mb-5 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
@@ -104,32 +133,30 @@ export default function Login() {
           {showIosHint && (
             <div className="mb-5 rounded-2xl border border-sky-200 bg-sky-50 p-4 text-sm text-sky-900">
               <p className="font-bold mb-1">Если страница не загружается</p>
-              <p className="leading-relaxed">
-                Обновите iOS и откройте сайт в Safari, не из Telegram.
-              </p>
+              <p className="leading-relaxed">Обновите iOS и откройте сайт в Safari, не из Telegram.</p>
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-3.5">
+          <form onSubmit={handleSubmit} className="space-y-3">
             {(mode === 'register_student' || mode === 'register_parent') && (
               <div className="grid grid-cols-2 gap-3">
                 <div className="relative">
-                  <User className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <User className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#A0A4B0]" />
                   <input
                     required
                     placeholder="Имя"
                     value={formData.name}
-                    className={inputCls}
+                    className={inputIdle}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   />
                 </div>
                 <div className="relative">
-                  <User className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <User className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#A0A4B0]" />
                   <input
                     required
                     placeholder="Фамилия"
                     value={formData.surname}
-                    className={inputCls}
+                    className={inputIdle}
                     onChange={(e) => setFormData({ ...formData, surname: e.target.value })}
                   />
                 </div>
@@ -137,26 +164,26 @@ export default function Login() {
             )}
 
             <div className="relative">
-              <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+              <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-[18px] h-[18px] text-[#A0A4B0]" />
               <input
                 type="email"
                 required
                 placeholder="Email"
                 value={formData.email}
-                className={`${inputCls} ${mode === 'login' ? 'border-[#6C63FF]/70' : ''}`}
+                className={emailLooksActive ? inputActive : inputIdle}
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
               />
             </div>
 
             <div className="relative">
-              <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+              <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-[18px] h-[18px] text-[#A0A4B0]" />
               <input
                 type="password"
                 required
                 minLength={6}
                 placeholder="Пароль (минимум 6 символов)"
                 value={formData.password}
-                className={inputCls}
+                className={inputIdle}
                 onChange={(e) => setFormData({ ...formData, password: e.target.value })}
               />
             </div>
@@ -180,36 +207,36 @@ export default function Login() {
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full py-3.5 mt-1 bg-[#1A1D26] hover:bg-black text-white rounded-xl font-black uppercase tracking-wide text-sm flex items-center justify-center gap-2 transition-all active:scale-[0.99] disabled:opacity-60"
+              className="w-full py-[15px] mt-1 bg-[#12151C] hover:bg-black text-white rounded-[12px] font-black uppercase tracking-[0.04em] text-[13px] sm:text-sm flex items-center justify-center gap-2.5 transition-all active:scale-[0.99] disabled:opacity-60"
             >
               {isLoading ? (
                 <Loader2 className="w-5 h-5 animate-spin" />
               ) : (
                 <>
-                  <LogIn className="w-5 h-5" />
-                  {mode === 'login' ? 'Войти' : 'Создать аккаунт'}
+                  <LogIn className="w-[18px] h-[18px]" strokeWidth={2.25} />
+                  {mode === 'login' ? 'ВОЙТИ' : 'СОЗДАТЬ АККАУНТ'}
                 </>
               )}
             </button>
           </form>
 
           {mode === 'login' && (
-            <div className="mt-7">
+            <div className="mt-6">
               <div className="relative flex items-center mb-4">
-                <div className="flex-grow border-t border-gray-200" />
-                <span className="flex-shrink mx-3 text-gray-400 text-xs font-medium">или войти через</span>
-                <div className="flex-grow border-t border-gray-200" />
+                <div className="flex-grow border-t border-[#E6E8EF]" />
+                <span className="flex-shrink mx-3 text-[#A0A4B0] text-[11px] font-medium">или войти через</span>
+                <div className="flex-grow border-t border-[#E6E8EF]" />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <button
                   type="button"
-                  className="flex items-center justify-center gap-2 py-3 border border-gray-200 rounded-xl hover:bg-gray-50 transition-all font-bold text-sm text-[#0077FF]"
+                  className="flex items-center justify-center gap-2 py-[12px] border border-[#E6E8EF] rounded-[12px] bg-white hover:bg-[#F8F9FC] transition-all font-bold text-sm text-[#0077FF]"
                 >
                   <VkIcon className="w-5 h-5" /> VK
                 </button>
                 <button
                   type="button"
-                  className="flex items-center justify-center gap-2 py-3 border border-gray-200 rounded-xl hover:bg-gray-50 transition-all font-bold text-sm text-[#24A1DE]"
+                  className="flex items-center justify-center gap-2 py-[12px] border border-[#E6E8EF] rounded-[12px] bg-white hover:bg-[#F8F9FC] transition-all font-bold text-sm text-[#24A1DE]"
                 >
                   <MessageCircle className="w-5 h-5" /> Telegram
                 </button>
@@ -217,15 +244,15 @@ export default function Login() {
             </div>
           )}
 
-          <div className="mt-7 flex flex-col gap-3 text-center">
+          <div className="mt-6 flex flex-col gap-3.5 text-center">
             {mode === 'login' ? (
               <>
-                <p className="text-sm text-gray-500">
+                <p className="text-[14px] text-[#6B7280]">
                   Нет аккаунта?{' '}
                   <button
                     type="button"
                     onClick={() => setMode('register_student')}
-                    className="font-bold text-gray-900 hover:text-[#6C63FF]"
+                    className="font-bold text-[#111827] hover:text-[#6C63FF]"
                   >
                     Зарегистрироваться
                   </button>
@@ -233,7 +260,7 @@ export default function Login() {
                 <button
                   type="button"
                   onClick={() => setMode('register_parent')}
-                  className="text-sm font-bold text-[#6C63FF] inline-flex items-center justify-center gap-2 hover:opacity-80"
+                  className="text-[14px] font-bold text-[#6C63FF] inline-flex items-center justify-center gap-2 hover:opacity-80"
                 >
                   <Users className="w-4 h-4" /> Я родитель
                 </button>
@@ -242,46 +269,13 @@ export default function Login() {
               <button
                 type="button"
                 onClick={() => setMode('login')}
-                className="text-sm font-bold text-gray-500 hover:text-[#6C63FF]"
+                className="text-[14px] font-bold text-[#6B7280] hover:text-[#6C63FF]"
               >
                 Уже есть аккаунт? Войти
               </button>
             )}
           </div>
         </div>
-      </div>
-
-      {/* Правая колонка — сетка + иллюстрация */}
-      <div className="hidden lg:flex relative flex-1 min-h-screen items-center justify-center overflow-hidden bg-[#DDE5EF]">
-        <svg
-          className="absolute left-0 top-0 h-full w-[100px] xl:w-[140px] z-20 pointer-events-none"
-          viewBox="0 0 140 900"
-          preserveAspectRatio="none"
-          aria-hidden
-        >
-          <path d="M140 0 C70 180, 30 320, 85 470 C130 600, 25 760, 0 900 L0 0 Z" fill="white" />
-        </svg>
-
-        <div
-          className="absolute inset-0 z-0"
-          style={{
-            backgroundImage: `
-              linear-gradient(rgba(70,90,120,0.12) 1px, transparent 1px),
-              linear-gradient(90deg, rgba(70,90,120,0.12) 1px, transparent 1px)
-            `,
-            backgroundSize: '32px 32px',
-            backgroundColor: '#E4EBF3',
-          }}
-        />
-
-        <img
-          src="/login-hero.png"
-          alt=""
-          className="relative z-10 max-h-[90vh] w-auto max-w-[min(92%,560px)] object-contain drop-shadow-sm ml-8 xl:ml-12"
-          onError={(e) => {
-            (e.currentTarget as HTMLImageElement).style.display = 'none';
-          }}
-        />
       </div>
     </div>
   );

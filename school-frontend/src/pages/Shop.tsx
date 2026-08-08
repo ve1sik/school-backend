@@ -4,13 +4,13 @@ import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 import { getTokenConfig } from '../lib/auth';
 
-const API_URL = 'https://prepodmgy.ru/api';
+import { API_URL, SITE_ORIGIN, resolveUploadUrl } from '../lib/api';
 
 const getFullUrl = (url: string) => {
   if (!url) return '';
   if (url.startsWith('http')) return url;
   const cleanPath = url.startsWith('/') ? url.slice(1) : url;
-  return `${API_URL.replace('/api', '')}/${cleanPath}`;
+  return `${SITE_ORIGIN}/${cleanPath}`;
 };
 
 const formatShopDate = (dateString: string) => {
@@ -281,10 +281,10 @@ export default function Shop() {
         <Search className="w-4 h-4 text-gray-400 absolute left-4 top-1/2 -translate-y-1/2" />
         <input
           type="text"
-          placeholder="найти поток или курс"
+          placeholder="НАЙТИ ПОТОК ИЛИ КУРС"
           value={searchQuery}
           onChange={e => setSearchQuery(e.target.value)}
-          className="w-full bg-white border border-gray-200 rounded-full pl-11 pr-10 py-3 outline-none focus:border-[#6C63FF] transition-all font-medium text-sm text-gray-700 placeholder:text-gray-400"
+          className="w-full bg-white border border-gray-200 rounded-full pl-11 pr-10 py-3 outline-none focus:border-[#6C63FF] transition-all font-medium text-sm text-gray-700 placeholder:text-gray-400 placeholder:uppercase placeholder:tracking-wide placeholder:text-[12px]"
         />
         {searchQuery && (
           <button onClick={() => setSearchQuery('')} className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors">
@@ -372,18 +372,19 @@ export default function Shop() {
                   </h3>
 
                   {mentorName && (
-                    <div className="flex items-center gap-3 mb-4 p-3 bg-[#EEF0FF] rounded-xl">
-                      <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center overflow-hidden shrink-0 border border-indigo-100">
+                    <div className="flex items-center gap-2.5 mb-4 px-3 py-2.5 bg-[#EEF0FF] rounded-xl">
+                      <div className="w-9 h-9 bg-white rounded-full flex items-center justify-center overflow-hidden shrink-0 border border-indigo-100">
                         {group.curator?.avatar ? (
                           <img src={getFullUrl(group.curator.avatar)} alt="Куратор" className="w-full h-full object-cover" />
                         ) : (
-                          <UserCircle className="w-6 h-6 text-gray-300" />
+                          <UserCircle className="w-5 h-5 text-gray-300" />
                         )}
                       </div>
-                      <div className="min-w-0">
-                        <p className="text-[10px] font-black text-[#6C63FF] uppercase tracking-wider mb-0.5">Личный наставник</p>
-                        <p className="text-sm font-bold text-gray-900 truncate">{mentorName}</p>
-                      </div>
+                      <p className="text-[12px] font-bold text-gray-900 leading-snug min-w-0">
+                        <span className="font-black text-[#6C63FF] uppercase tracking-wider">Личный наставник</span>
+                        {' '}
+                        <span className="text-gray-900">{mentorName}</span>
+                      </p>
                     </div>
                   )}
 
@@ -458,7 +459,7 @@ export default function Shop() {
                       className="w-full py-3.5 bg-[#1A1D26] hover:bg-black text-white rounded-xl font-black text-sm transition-all active:scale-[.98] flex items-center justify-center gap-2"
                     >
                       <CreditCard className="w-4 h-4" />
-                      {group.price > 0 ? 'Записаться' : 'Вступить'}
+                      {group.price > 0 ? 'ЗАПИСАТЬСЯ' : 'ВСТУПИТЬ'}
                     </button>
                   )}
                 </div>

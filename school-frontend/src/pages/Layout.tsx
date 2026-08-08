@@ -25,9 +25,8 @@ import {
   Clock,
   X,
   Menu,
-  Trophy,
-  RotateCcw,
 } from 'lucide-react';
+import { design } from '../lib/designTokens';
 
 const SITE_URL = 'https://prepodmgy.ru';
 
@@ -239,6 +238,18 @@ export default function Layout() {
   ]);
   const can = (permission: AdminPermission) => effectivePermissions.has(permission);
 
+  const isNavActive = (path: string) => {
+    if (path === '/') return location.pathname === '/';
+    if (path === '/courses') {
+      return location.pathname === '/courses' || location.pathname.startsWith('/course/');
+    }
+    if (path === '/homework') {
+      return location.pathname === '/homework' || location.pathname.startsWith('/homework/') || location.pathname === '/ron';
+    }
+    if (path === '/messages') return location.pathname.startsWith('/messages');
+    return location.pathname === path;
+  };
+
   const menuItems = [
     { path: '/schedule', icon: Calendar, label: 'Расписание' },
     { path: '/', icon: Home, label: 'Аналитика' },
@@ -290,6 +301,20 @@ export default function Layout() {
     return 'Платформа';
   };
 
+  // Title lives in the page body on these routes (avoids duplicate h1 vs design)
+  const hideLayoutTitle =
+    location.pathname === '/schedule' ||
+    location.pathname === '/homework' ||
+    location.pathname === '/messages' ||
+    location.pathname === '/shop';
+
+  // Desktop: fit mockups without page scrollbar. Mobile keeps normal scroll.
+  const isViewportLocked =
+    location.pathname === '/schedule' ||
+    location.pathname === '/homework' ||
+    location.pathname === '/messages' ||
+    /^\/course\//.test(location.pathname);
+
   useEffect(() => {
     const onDocClick = (e: MouseEvent) => {
       if (profileMenuRef.current && !profileMenuRef.current.contains(e.target as Node)) {
@@ -303,12 +328,9 @@ export default function Layout() {
   return (
     <div className="flex h-screen bg-[#F4F7FE] font-sans">
       
-      {/* АВТОМАТИЧЕСКАЯ ВЫДВИЖНАЯ ПАНЕЛЬ */}
-      {/* 🔥 ИЗМЕНЕНО: Ширина при наведении стала w-[320px] вместо w-72 */}
+      {/* Выдвижная панель — как раньше: 92px → 320px при наведении */}
       <aside className="group w-[92px] hover:w-[320px] bg-white border-r border-gray-100 hidden md:flex flex-col shadow-sm shrink-0 transition-all duration-300 ease-in-out overflow-hidden z-20">
-        {/* 🔥 ИЗМЕНЕНО: Внутренний контейнер тоже стал w-[320px] */}
         <div className="p-5 flex flex-col h-full w-[320px]">
-          
           <div className="flex items-center gap-4 mb-8 pl-1.5">
             <div className="w-10 h-10 bg-[#5A4BFF] rounded-xl flex items-center justify-center shadow-md shadow-indigo-500/30 shrink-0">
               <GraduationCap className="w-6 h-6 text-white" />
@@ -320,38 +342,36 @@ export default function Layout() {
 
           <nav className="space-y-1.5 w-full flex-1 pr-5 overflow-y-auto custom-scrollbar">
             {menuItems.map((item) => {
-              const isActive = location.pathname === item.path;
+              const isActive = isNavActive(item.path);
               const isShop = item.path === '/shop';
               const badgeCount = item.badge || 0;
-              
+
               return (
                 <Link
                   key={item.path}
                   to={item.path}
                   className={`flex items-center gap-4 p-3 rounded-xl transition-all relative ${
-                    isActive 
-                      ? 'bg-[#EEF2FF] text-[#5A4BFF] shadow-sm' 
-                      : isShop 
-                        ? 'text-purple-500 hover:bg-purple-50' 
+                    isActive
+                      ? 'bg-[#EEF2FF] text-[#5A4BFF] shadow-sm'
+                      : isShop
+                        ? 'text-purple-500 hover:bg-purple-50'
                         : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'
                   }`}
                 >
                   <div className="relative">
                     <item.icon className={`w-6 h-6 shrink-0 ${isActive ? 'text-[#5A4BFF]' : isShop ? 'text-purple-400' : 'text-gray-400'}`} />
-                    
                     {badgeCount > 0 && (
                       <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-[9px] font-black flex items-center justify-center rounded-full border-2 border-white shadow-sm">
                         {badgeCount > 9 ? '9+' : badgeCount}
                       </span>
                     )}
                   </div>
-
                   <span className="text-sm font-bold whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center gap-2">
                     {item.label}
                     {badgeCount > 0 && (
-                       <span className="bg-red-500 text-white text-[10px] px-1.5 py-0.5 rounded-md leading-none">
-                         {badgeCount}
-                       </span>
+                      <span className="bg-red-500 text-white text-[10px] px-1.5 py-0.5 rounded-md leading-none">
+                        {badgeCount}
+                      </span>
                     )}
                   </span>
                 </Link>
@@ -361,9 +381,10 @@ export default function Layout() {
             {hasAdminItems && (
               <div className="pt-2 mt-2 border-t border-gray-50 space-y-1.5">
                 {adminItems.map((item) => {
-                  const isActive = item.path === '/curator'
-                    ? location.pathname.startsWith('/curator')
-                    : location.pathname === item.path;
+                  const isActive =
+                    item.path === '/curator'
+                      ? location.pathname.startsWith('/curator')
+                      : location.pathname === item.path;
                   const badgeCount = item.badge || 0;
                   return (
                     <Link
@@ -399,7 +420,7 @@ export default function Layout() {
           </nav>
 
           <div className="mt-auto pr-5 pt-4 hidden">
-            <button 
+            <button
               onClick={handleLogout}
               className="flex items-center gap-4 p-3 w-full rounded-xl text-red-500 hover:bg-red-50 transition-all group/logout"
             >
@@ -415,7 +436,7 @@ export default function Layout() {
       {/* ГЛАВНАЯ ЧАСТЬ С ШАПКОЙ */}
       <div className="flex-1 flex flex-col overflow-hidden">
         
-        <header className="h-16 md:h-24 bg-[#F4F7FE] flex items-center justify-between px-4 md:px-10 shrink-0 gap-3">
+        <header className={`${hideLayoutTitle ? 'h-14 md:h-[60px]' : 'h-16 md:h-[72px]'} flex items-center justify-between px-4 md:px-8 shrink-0 gap-3`} style={{ backgroundColor: design.pageBg }}>
           <div className="flex items-center gap-2 min-w-0">
             <button
               onClick={() => setMobileNavOpen(true)}
@@ -424,7 +445,9 @@ export default function Layout() {
             >
               <Menu className="w-6 h-6" />
             </button>
-            <h1 className="text-lg md:text-2xl font-black text-gray-900 truncate">{getPageTitle()}</h1>
+            {!hideLayoutTitle && (
+              <h1 className="text-lg md:text-2xl font-black text-gray-900 truncate">{getPageTitle()}</h1>
+            )}
           </div>
           
           <div className="flex items-center gap-3 md:gap-6 shrink-0">
@@ -506,8 +529,8 @@ export default function Layout() {
                 <p className="text-sm font-bold text-gray-900 leading-tight">
                   {getDisplayName()}
                 </p>
-                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider group-hover:text-[#5A4BFF] transition-colors">
-                  Личный кабинет
+                <p className="text-[10px] font-bold text-gray-400 lowercase tracking-wide group-hover:text-[#5A4BFF] transition-colors">
+                  личный кабинет
                 </p>
               </div>
 
@@ -537,7 +560,13 @@ export default function Layout() {
           </div>
         </header>
 
-        <main className="flex-1 overflow-y-auto px-4 md:px-10 pb-24 md:pb-10">
+        <main
+          className={`flex-1 min-h-0 px-4 md:px-10 ${
+            isViewportLocked
+              ? 'overflow-y-auto md:overflow-hidden pb-20 md:pb-4'
+              : 'overflow-y-auto pb-24 md:pb-10'
+          }`}
+        >
           <Outlet />
         </main>
       </div>

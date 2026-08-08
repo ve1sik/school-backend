@@ -4,7 +4,7 @@ import { ArrowLeft, BrainCircuit, AlertTriangle, BookOpen } from 'lucide-react';
 import axios from 'axios';
 import { getToken } from '../lib/auth';
 
-const API_URL = 'https://prepodmgy.ru/api';
+import { API_URL, SITE_ORIGIN, resolveUploadUrl } from '../lib/api';
 
 export default function Mistakes() {
   const { themeId } = useParams();

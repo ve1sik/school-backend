@@ -95,24 +95,19 @@ export default function RussianHomeworkLayout({
   };
 
   return (
-    <div className="w-full max-w-[1200px] mx-auto px-2 md:px-4 pb-10 pt-2 space-y-4">
-      <div className="bg-white border border-gray-200 rounded-2xl p-3 md:p-4 space-y-3">
+    <div className="w-full h-full min-h-0 max-w-[1200px] mx-auto px-1 md:px-2 flex flex-col gap-3 overflow-hidden">
+      <div className="bg-white border border-gray-200 rounded-2xl p-3 md:p-4 space-y-3 shrink-0">
         <div className="flex flex-wrap items-center gap-2 md:gap-3">
-          {variant === 'history' ? (
-            <span
-              className="px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider bg-white"
-              style={{ color: resolvedAccent, border: `1.5px solid ${resolvedAccent}` }}
-            >
-              модуль {moduleIndex}
-            </span>
-          ) : (
-            <span
-              className="px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider text-white"
-              style={{ backgroundColor: resolvedAccent }}
-            >
-              Модуль {moduleIndex}
-            </span>
-          )}
+          <span
+            className="px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider"
+            style={
+              variant === 'history'
+                ? { color: resolvedAccent, border: `1.5px solid ${resolvedAccent}`, backgroundColor: 'white' }
+                : { backgroundColor: resolvedAccent, color: 'white' }
+            }
+          >
+            модуль {moduleIndex}
+          </span>
           <div className="flex items-center gap-2 min-w-0 text-sm font-bold text-gray-800">
             <BookOpen className="w-4 h-4 shrink-0" style={{ color: resolvedAccent }} />
             <span className="truncate">{themeTitle}</span>
@@ -216,7 +211,7 @@ export default function RussianHomeworkLayout({
         </div>
       </div>
 
-      <div className="bg-white border border-gray-200 rounded-2xl p-4 md:p-8 shadow-sm">
+      <div className="bg-white border border-gray-200 rounded-2xl p-4 md:p-8 shadow-sm flex-1 min-h-0 overflow-y-auto custom-scrollbar">
         <div className="flex flex-wrap items-start justify-between gap-3 mb-5">
           <h1 className="text-2xl md:text-3xl font-black text-gray-900 leading-tight">{themeTitle}</h1>
           {!noText && passage && activePart === 'practice' && (

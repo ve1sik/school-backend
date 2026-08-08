@@ -5,7 +5,7 @@ import axios from 'axios';
 import { getTokenConfig } from '../lib/auth';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 
-const API_URL = 'https://prepodmgy.ru/api';
+import { API_URL, SITE_ORIGIN, resolveUploadUrl } from '../lib/api';
 
 interface Card {
   id: string;

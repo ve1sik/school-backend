@@ -5,7 +5,7 @@ import { getToken } from '../lib/auth';
 import { ArrowLeft, Loader2, PlayCircle, Layers } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-const API_URL = 'https://prepodmgy.ru/api';
+import { API_URL, SITE_ORIGIN, resolveUploadUrl } from '../lib/api';
 
 export default function CourseThemes() {
   const { courseId } = useParams();

@@ -25,13 +25,14 @@ const STATUS_FILTERS: {
   label: string;
   dot: string;
   active: string;
+  countBg: string;
 }[] = [
-  { key: 'TODO', label: 'К выполнению', dot: 'bg-[#1A1D26]', active: 'bg-[#1A1D26] text-white border-[#1A1D26]' },
-  { key: 'OVERDUE', label: 'Просрочено', dot: 'bg-rose-500', active: 'bg-rose-500 text-white border-rose-500' },
-  { key: 'REVISION', label: 'На доработку', dot: 'bg-amber-400', active: 'bg-amber-400 text-white border-amber-400' },
-  { key: 'REVIEW', label: 'На проверке', dot: 'bg-sky-500', active: 'bg-sky-500 text-white border-sky-500' },
-  { key: 'GRADED', label: 'Оценено', dot: 'bg-emerald-500', active: 'bg-emerald-500 text-white border-emerald-500' },
-  { key: 'RON', label: 'Работа над ошибками', dot: 'bg-[#A78BFA]', active: 'bg-[#8B5CF6] text-white border-[#8B5CF6]' },
+  { key: 'TODO', label: 'К выполнению', dot: 'bg-[#1A1D26]', active: 'bg-[#1A1D26] text-white border-[#1A1D26]', countBg: 'bg-[#1A1D26] text-white' },
+  { key: 'OVERDUE', label: 'Просрочено', dot: 'bg-rose-500', active: 'bg-rose-500 text-white border-rose-500', countBg: 'bg-rose-500 text-white' },
+  { key: 'REVISION', label: 'На доработку', dot: 'bg-amber-400', active: 'bg-amber-400 text-white border-amber-400', countBg: 'bg-amber-400 text-white' },
+  { key: 'REVIEW', label: 'На проверке', dot: 'bg-sky-500', active: 'bg-sky-500 text-white border-sky-500', countBg: 'bg-sky-500 text-white' },
+  { key: 'GRADED', label: 'Оценено', dot: 'bg-emerald-500', active: 'bg-emerald-500 text-white border-emerald-500', countBg: 'bg-emerald-500 text-white' },
+  { key: 'RON', label: 'Работа над ошибками', dot: 'bg-[#A78BFA]', active: 'bg-[#8B5CF6] text-white border-[#8B5CF6]', countBg: 'bg-[#A78BFA] text-white' },
 ];
 
 export default function Homework() {
@@ -234,7 +235,7 @@ export default function Homework() {
 
   if (isLoading) {
     return (
-      <div className="h-[calc(100vh-100px)] flex flex-col items-center justify-center space-y-4">
+      <div className="h-full flex flex-col items-center justify-center space-y-4">
         <Loader2 className="w-10 h-10 animate-spin text-[#6C63FF]" />
       </div>
     );
@@ -244,9 +245,9 @@ export default function Homework() {
   const itemVariants: Variants = { hidden: { opacity: 0, y: 12 }, show: { opacity: 1, y: 0, transition: { type: 'spring', stiffness: 320, damping: 26 } } };
 
   return (
-    <div className="w-full max-w-[1200px] mx-auto space-y-6 pb-10 pt-2 px-2 md:px-4">
-      <div>
-        <h1 className="text-[28px] md:text-[32px] font-black tracking-tight text-gray-900 leading-none mb-2">
+    <div className="w-full h-full min-h-0 max-w-[1200px] mx-auto flex flex-col gap-4 md:gap-5 pt-1 px-0 md:px-1 overflow-y-auto md:overflow-hidden pb-4 md:pb-0">
+      <div className="shrink-0">
+        <h1 className="text-[28px] md:text-[32px] font-black tracking-tight text-gray-900 leading-none mb-1.5">
           Домашнее задание
         </h1>
         <p className="text-gray-500 font-medium text-sm md:text-base">
@@ -254,7 +255,7 @@ export default function Homework() {
         </p>
       </div>
 
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 shrink-0">
         <div className="flex flex-wrap gap-2">
           {courseNames.length === 0 ? (
             <span className="text-sm font-medium text-gray-400">Пока нет курсов с заданиями</span>
@@ -276,16 +277,16 @@ export default function Homework() {
           <Search className="w-4 h-4 text-gray-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
           <input
             type="text"
-            placeholder="поиск заданий"
+            placeholder="ПОИСК ЗАДАНИЙ"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full bg-white border border-gray-200 rounded-full pl-10 pr-4 py-2.5 outline-none focus:border-[#6C63FF] transition-all text-sm font-medium text-gray-700 placeholder:text-gray-400"
+            className="w-full bg-white border border-gray-200 rounded-full pl-10 pr-4 py-2.5 outline-none focus:border-[#6C63FF] transition-all text-sm font-medium text-gray-700 placeholder:text-gray-400 placeholder:uppercase placeholder:tracking-wide"
           />
         </div>
       </div>
 
-      <div className="flex flex-wrap gap-2">
-        {STATUS_FILTERS.map(({ key, label, dot, active }) => {
+      <div className="flex flex-wrap gap-2 shrink-0">
+        {STATUS_FILTERS.map(({ key, label, active, countBg }) => {
           const count = key === 'RON' ? null : counts[key as keyof typeof counts];
           const isActive = activeTab === key;
           return (
@@ -296,153 +297,171 @@ export default function Homework() {
                 setActiveTab(key);
                 setSearchParams(key === 'RON' ? { tab: 'ron' } : {});
               }}
-              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-[12px] font-bold transition-all whitespace-nowrap ${
+              className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full border text-[12px] font-bold transition-all whitespace-nowrap ${
                 isActive
                   ? active
-                  : 'bg-white text-gray-700 border-gray-200 hover:border-gray-300'
+                  : 'bg-[#F3F4F6] text-gray-700 border-transparent hover:bg-gray-200/70'
               }`}
             >
-              {!isActive && <span className={`w-2 h-2 rounded-full shrink-0 ${dot}`} />}
-              {count !== null && <span className={isActive ? 'opacity-90' : 'text-gray-900'}>{count}</span>}
+              {count !== null ? (
+                <span
+                  className={`w-5 h-5 rounded-full text-[10px] font-black flex items-center justify-center shrink-0 ${
+                    isActive ? 'bg-white/25 text-white' : countBg
+                  }`}
+                >
+                  {count}
+                </span>
+              ) : (
+                <span
+                  className={`w-2 h-2 rounded-full shrink-0 ${
+                    isActive ? 'bg-white/80' : 'bg-[#A78BFA]'
+                  }`}
+                />
+              )}
               <span>{label}</span>
             </button>
           );
         })}
       </div>
 
-      {activeTab === 'RON' ? (
-        <RonWork embedded />
-      ) : (
-        <>
-          {Object.entries(groupedHomeworks).map(([courseName, themes]) => (
-            <motion.div key={courseName} variants={containerVariants} initial="hidden" animate="show" className="space-y-8">
-              {Object.entries(themes).map(([themeName, hws]) => (
-                <div key={themeName}>
-                  <div className="flex items-center gap-2 mb-4">
-                    <FileText className="w-4 h-4 text-gray-500 shrink-0" />
-                    <h3 className="text-base md:text-lg font-black text-gray-900">{themeName}</h3>
-                  </div>
+      <div className="flex-1 min-h-0 overflow-y-auto pr-1">
+        {activeTab === 'RON' ? (
+          <RonWork embedded />
+        ) : (
+          <>
+            {Object.entries(groupedHomeworks).map(([courseName, themes]) => (
+              <motion.div key={courseName} variants={containerVariants} initial="hidden" animate="show" className="space-y-5 mb-6">
+                <h2 className="text-lg md:text-xl font-black text-gray-900">{courseName}</h2>
+                {Object.entries(themes).map(([themeName, hws]) => (
+                  <div key={themeName}>
+                    <div className="flex items-center gap-2 mb-3">
+                      <FileText className="w-4 h-4 text-gray-400 shrink-0" />
+                      <h3 className="text-sm md:text-base font-bold text-gray-800">{themeName}</h3>
+                    </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                    <AnimatePresence mode="popLayout">
-                      {hws.map((hw) => {
-                        let statusText = '';
-                        let badgeClass = '';
-                        let Icon = AlertCircle;
-                        let iconClass = 'text-gray-400';
-                        let buttonText = 'НАЧАТЬ ВЫПОЛНЕНИЕ';
-                        let buttonClass = 'bg-[#1A1D26] hover:bg-black text-white';
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 md:gap-4">
+                      <AnimatePresence mode="popLayout">
+                        {hws.map((hw) => {
+                          let statusText = '';
+                          let badgeClass = '';
+                          let Icon = AlertCircle;
+                          let iconClass = 'text-gray-400';
+                          let buttonText = 'НАЧАТЬ ВЫПОЛНЕНИЕ';
+                          let buttonClass = 'bg-[#1A1D26] hover:bg-black text-white';
 
-                        if (hw.status === 'TODO') {
-                          statusText = 'К выполнению';
-                          badgeClass = 'border border-[#F4A261]/60 text-[#E07A3D] bg-[#FFF7F0]';
-                          Icon = Info;
-                          iconClass = 'text-gray-400';
-                          buttonText = 'НАЧАТЬ ВЫПОЛНЕНИЕ';
-                          buttonClass = 'bg-[#1A1D26] hover:bg-black text-white';
-                        } else if (hw.status === 'OVERDUE') {
-                          statusText = 'Просрочено';
-                          badgeClass = 'border border-rose-200 text-rose-600 bg-rose-50';
-                          Icon = XCircle;
-                          iconClass = 'text-rose-400';
-                          buttonText = 'СДАТЬ СЕЙЧАС';
-                          buttonClass = 'bg-rose-500 hover:bg-rose-600 text-white';
-                        } else if (hw.status === 'REVISION') {
-                          statusText = 'На доработку';
-                          badgeClass = 'border border-amber-200 text-amber-700 bg-amber-50';
-                          Icon = AlertCircle;
-                          iconClass = 'text-amber-500';
-                          buttonText = 'ДОРАБОТАТЬ';
-                          buttonClass = 'bg-amber-500 hover:bg-amber-600 text-white';
-                        } else if (hw.status === 'REVIEW') {
-                          statusText = 'На проверке';
-                          badgeClass = 'border border-sky-200 text-sky-700 bg-sky-50';
-                          Icon = Clock;
-                          iconClass = 'text-sky-500';
-                          buttonText = 'СМОТРЕТЬ ДЕТАЛИ';
-                          buttonClass = 'bg-gray-100 hover:bg-gray-200 text-gray-600';
-                        } else if (hw.status === 'GRADED') {
-                          statusText = `Оценено ${hw.score ?? '—'}/${hw.maxScore ?? '—'}`;
-                          badgeClass = 'border border-emerald-200 text-emerald-700 bg-emerald-50';
-                          Icon = CheckCircle2;
-                          iconClass = 'text-emerald-500';
-                          buttonText = 'ПОСМОТРЕТЬ ОЦЕНКУ';
-                          buttonClass = 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-100';
-                        }
+                          if (hw.status === 'TODO') {
+                            statusText = 'К выполнению';
+                            badgeClass = 'border border-rose-200 text-rose-500 bg-rose-50';
+                            Icon = Info;
+                            iconClass = 'text-gray-400';
+                            buttonText = 'НАЧАТЬ ВЫПОЛНЕНИЕ';
+                            buttonClass = 'bg-[#1A1D26] hover:bg-black text-white';
+                          } else if (hw.status === 'OVERDUE') {
+                            statusText = 'Просрочено';
+                            badgeClass = 'border border-rose-200 text-rose-600 bg-rose-50';
+                            Icon = XCircle;
+                            iconClass = 'text-rose-400';
+                            buttonText = 'СДАТЬ СЕЙЧАС';
+                            buttonClass = 'bg-rose-500 hover:bg-rose-600 text-white';
+                          } else if (hw.status === 'REVISION') {
+                            statusText = 'На доработку';
+                            badgeClass = 'border border-amber-200 text-amber-700 bg-amber-50';
+                            Icon = AlertCircle;
+                            iconClass = 'text-amber-500';
+                            buttonText = 'ДОРАБОТАТЬ';
+                            buttonClass = 'bg-amber-500 hover:bg-amber-600 text-white';
+                          } else if (hw.status === 'REVIEW') {
+                            statusText = 'На проверке';
+                            badgeClass = 'border border-sky-200 text-sky-700 bg-sky-50';
+                            Icon = Clock;
+                            iconClass = 'text-sky-500';
+                            buttonText = 'СМОТРЕТЬ ДЕТАЛИ';
+                            buttonClass = 'bg-gray-100 hover:bg-gray-200 text-gray-600';
+                          } else if (hw.status === 'GRADED') {
+                            statusText = `Оценено ${hw.score ?? '—'}/${hw.maxScore ?? '—'}`;
+                            badgeClass = 'border border-emerald-200 text-emerald-700 bg-emerald-50';
+                            Icon = CheckCircle2;
+                            iconClass = 'text-emerald-500';
+                            buttonText = 'ПОСМОТРЕТЬ ОЦЕНКУ';
+                            buttonClass = 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-100';
+                          }
 
-                        const deadlineDate = hw.deadline ? parseSafeDate(hw.deadline) : null;
-                        const daysLeft = deadlineDate ? Math.ceil((deadlineDate.getTime() - Date.now()) / 86400000) : null;
+                          const deadlineDate = hw.deadline ? parseSafeDate(hw.deadline) : null;
+                          const daysLeft = deadlineDate ? Math.ceil((deadlineDate.getTime() - Date.now()) / 86400000) : null;
 
-                        return (
-                          <motion.div
-                            key={hw.id}
-                            variants={itemVariants}
-                            role="button"
-                            tabIndex={0}
-                            onClick={() => navigate(`/homework/${hw.id}`)}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter' || e.key === ' ') {
-                                e.preventDefault();
-                                navigate(`/homework/${hw.id}`);
-                              }
-                            }}
-                            className="bg-white rounded-2xl border border-gray-200 p-5 flex flex-col min-h-[220px] hover:shadow-md transition-shadow cursor-pointer group"
-                          >
-                            <div className="flex justify-between items-start mb-5">
-                              <span className={`px-2.5 py-1 rounded-lg text-[10px] font-bold ${badgeClass}`}>
-                                {statusText}
-                              </span>
-                              <Icon className={`w-5 h-5 ${iconClass}`} />
-                            </div>
-
-                            <h3 className="text-lg font-black text-gray-900 leading-snug line-clamp-3 mb-auto">
-                              {hw.title}
-                            </h3>
-
-                            {deadlineDate && hw.status !== 'GRADED' && (
-                              <div className={`flex items-center gap-1.5 mt-3 text-[11px] font-bold ${daysLeft !== null && daysLeft <= 1 ? 'text-rose-500' : 'text-gray-400'}`}>
-                                <Calendar className="w-3.5 h-3.5" />
-                                {hw.status === 'OVERDUE'
-                                  ? `Просрочено: ${deadlineDate.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' })}`
-                                  : `До ${deadlineDate.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' })}`}
+                          return (
+                            <motion.div
+                              key={hw.id}
+                              variants={itemVariants}
+                              role="button"
+                              tabIndex={0}
+                              onClick={() => navigate(`/homework/${hw.id}`)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter' || e.key === ' ') {
+                                  e.preventDefault();
+                                  navigate(`/homework/${hw.id}`);
+                                }
+                              }}
+                              className="bg-white rounded-2xl border border-gray-200 p-4 md:p-5 flex flex-col min-h-[180px] hover:shadow-md transition-shadow cursor-pointer group"
+                            >
+                              <div className="flex justify-between items-start mb-4">
+                                <span className={`px-2.5 py-1 rounded-lg text-[10px] font-bold ${badgeClass}`}>
+                                  {statusText}
+                                </span>
+                                <span className={`w-6 h-6 rounded-full border border-gray-200 flex items-center justify-center ${iconClass}`}>
+                                  <Icon className="w-3.5 h-3.5" />
+                                </span>
                               </div>
-                            )}
 
-                            <div className={`mt-5 w-full py-3 rounded-xl font-black text-[11px] uppercase tracking-wide flex items-center justify-center gap-1.5 pointer-events-none ${buttonClass}`}>
-                              {buttonText}
-                              {(hw.status === 'TODO' || hw.status === 'OVERDUE' || hw.status === 'REVISION') && (
-                                <ChevronRight className="w-4 h-4" />
+                              <h3 className="text-base md:text-lg font-black text-gray-900 leading-snug line-clamp-3 mb-auto">
+                                {hw.title}
+                              </h3>
+
+                              {deadlineDate && hw.status !== 'GRADED' && (
+                                <div className={`flex items-center gap-1.5 mt-3 text-[11px] font-bold ${daysLeft !== null && daysLeft <= 1 ? 'text-rose-500' : 'text-gray-400'}`}>
+                                  <Calendar className="w-3.5 h-3.5" />
+                                  {hw.status === 'OVERDUE'
+                                    ? `Просрочено: ${deadlineDate.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' })}`
+                                    : `До ${deadlineDate.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' })}`}
+                                </div>
                               )}
-                            </div>
-                          </motion.div>
-                        );
-                      })}
-                    </AnimatePresence>
-                  </div>
-                </div>
-              ))}
-            </motion.div>
-          ))}
 
-          {filteredHomeworks.length === 0 && !isLoading && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              className="flex flex-col items-center justify-center py-24 text-center bg-white rounded-2xl border border-gray-200 mt-4"
-            >
-              <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mb-4">
-                <FolderOpen className="w-8 h-8 text-gray-400" />
-              </div>
-              <h2 className="text-xl font-black text-gray-900 mb-2">
-                {searchQuery ? 'Ничего не найдено' : 'Пусто'}
-              </h2>
-              <p className="text-gray-500 font-medium text-sm max-w-md">
-                {searchQuery ? 'Попробуйте изменить запрос поиска.' : 'В этом статусе пока нет заданий.'}
-              </p>
-            </motion.div>
-          )}
-        </>
-      )}
+                              <div className={`mt-4 w-full py-3 rounded-xl font-black text-[11px] uppercase tracking-wide flex items-center justify-center gap-1.5 pointer-events-none ${buttonClass}`}>
+                                {buttonText}
+                                {(hw.status === 'TODO' || hw.status === 'OVERDUE' || hw.status === 'REVISION') && (
+                                  <ChevronRight className="w-4 h-4" />
+                                )}
+                              </div>
+                            </motion.div>
+                          );
+                        })}
+                      </AnimatePresence>
+                    </div>
+                  </div>
+                ))}
+              </motion.div>
+            ))}
+
+            {filteredHomeworks.length === 0 && !isLoading && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="flex flex-col items-center justify-center py-16 text-center bg-white rounded-2xl border border-gray-200"
+              >
+                <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mb-4">
+                  <FolderOpen className="w-8 h-8 text-gray-400" />
+                </div>
+                <h2 className="text-xl font-black text-gray-900 mb-2">
+                  {searchQuery ? 'Ничего не найдено' : 'Пусто'}
+                </h2>
+                <p className="text-gray-500 font-medium text-sm max-w-md">
+                  {searchQuery ? 'Попробуйте изменить запрос поиска.' : 'В этом статусе пока нет заданий.'}
+                </p>
+              </motion.div>
+            )}
+          </>
+        )}
+      </div>
     </div>
   );
 }

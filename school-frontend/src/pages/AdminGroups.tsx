@@ -5,7 +5,7 @@ import axios from 'axios';
 import { getTokenConfig } from '../lib/auth';
 import Cropper from 'react-easy-crop';
 
-const API_URL = 'https://prepodmgy.ru/api';
+import { API_URL, SITE_ORIGIN, resolveUploadUrl } from '../lib/api';
 
 const createImage = (url: string): Promise<HTMLImageElement> =>
   new Promise((resolve, reject) => {
@@ -282,7 +282,7 @@ export default function AdminGroups() {
   const getFullUrl = (url: string) => {
     if (!url) return '';
     if (url.startsWith('http')) return url;
-    return `${API_URL.replace('/api', '')}/${url.startsWith('/') ? url.slice(1) : url}`;
+    return `${SITE_ORIGIN}/${url.startsWith('/') ? url.slice(1) : url}`;
   };
 
   const filteredCourses = courses.filter(course => course.title.toLowerCase().includes(courseSearch.toLowerCase()));
@@ -356,7 +356,7 @@ export default function AdminGroups() {
                 <div className="flex items-center gap-6">
                   {group.cover_url ? (
                     <div className="w-16 h-16 rounded-xl bg-gray-100 overflow-hidden shrink-0 border border-gray-200">
-                      <img src={group.cover_url.startsWith('http') ? group.cover_url : `${API_URL.replace('/api', '')}/${group.cover_url}`} alt="Обложка" className="w-full h-full object-cover" />
+                      <img src={group.cover_url.startsWith('http') ? group.cover_url : `${SITE_ORIGIN}/${group.cover_url}`} alt="Обложка" className="w-full h-full object-cover" />
                     </div>
                   ) : (
                     <div className="w-16 h-16 rounded-xl bg-indigo-50 flex items-center justify-center shrink-0 border border-indigo-100">
@@ -445,7 +445,7 @@ export default function AdminGroups() {
                   <div className="bg-gray-50 rounded-3xl p-2 border-2 border-dashed border-gray-200">
                     <div className="relative w-full aspect-video bg-gray-200 rounded-[1.5rem] overflow-hidden group">
                       {selectedCoverUrl ? (
-                        <img src={selectedCoverUrl.startsWith('http') ? selectedCoverUrl : `${API_URL.replace('/api', '')}/${selectedCoverUrl}`} className="w-full h-full object-cover" alt="Preview" />
+                        <img src={selectedCoverUrl.startsWith('http') ? selectedCoverUrl : `${SITE_ORIGIN}/${selectedCoverUrl}`} className="w-full h-full object-cover" alt="Preview" />
                       ) : (
                         <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-400">
                           <UploadCloud className="w-10 h-10 mb-2" />
