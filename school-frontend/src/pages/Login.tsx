@@ -1,21 +1,30 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Mail, Lock, LogIn, Loader2, GraduationCap, Users, MessageCircle, User } from 'lucide-react';
+import { Mail, Lock, LogIn, Loader2, GraduationCap, Users, User } from 'lucide-react';
 import { decodeJwtPayload, setAuthTokens } from '../lib/auth';
 import { publicApi } from '../lib/api';
 
 type Mode = 'login' | 'register_student' | 'register_parent';
 
-/** Figma «Страница – вход» */
+/** Figma «Страница – вход» — exact field styles */
 const inputBase =
   'w-full pl-11 pr-4 py-[14px] rounded-[12px] outline-none font-medium text-[15px] text-[#1A1D26] placeholder:text-[#A0A4B0] transition-all';
 const inputIdle = `${inputBase} bg-[#F3F4F8] border border-transparent focus:bg-white focus:border-[#B8B4FF]`;
+/** Email in Figma mock: white fill + soft purple border (active/focused look) */
 const inputActive = `${inputBase} bg-white border border-[#B8B4FF] focus:border-[#6C63FF]`;
 
 function VkIcon({ className = 'w-5 h-5' }: { className?: string }) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="currentColor" aria-hidden>
       <path d="M12.785 16.241s.288-.032.436-.194c.136-.148.132-.427.132-.427s-.02-1.304.587-1.496c.596-.19 1.363 1.26 2.174 1.818.613.422 1.078.33 1.078.33l2.163-.03s1.13-.07.594-.958c-.044-.072-.312-.658-1.61-1.86-1.36-1.26-1.177-1.055.46-3.234.997-1.326 1.396-2.136 1.271-2.483-.119-.33-.85-.243-.85-.243l-2.437.015s-.18-.025-.314.056c-.13.078-.214.26-.214.26s-.384 1.022-.895 1.89c-1.078 1.83-1.51 1.928-1.687 1.814-.41-.266-.308-1.07-.308-1.64 0-1.782.27-2.523-.527-2.715-.265-.064-.46-.106-1.138-.113-.87-.009-1.605.003-2.022.207-.278.136-.492.438-.361.456.162.022.528.099.723.364.251.343.242 1.114.242 1.114s.144 2.115-.337 2.377c-.33.18-.783-.187-1.757-1.862-.498-.857-.874-1.806-.874-1.806s-.072-.177-.202-.272c-.157-.115-.377-.151-.377-.151l-2.316.015s-.347.01-.475.16c-.114.134-.009.41-.009.41s1.804 4.222 3.845 6.35c1.872 1.95 3.995 1.822 3.995 1.822h.964z" />
+    </svg>
+  );
+}
+
+function TelegramIcon({ className = 'w-5 h-5' }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+      <path d="M21.5 3.4 2.9 10.6c-1.3.5-1.3 1.2-.2 1.5l4.7 1.5 1.8 5.6c.2.7.4 1 1 1 .6 0 .9-.3 1.2-.6l2.8-2.7 5.8 4.3c1.1.6 1.8.3 2.1-1l3.4-16c.3-1.3-.5-1.9-1.6-1.5zM9.4 14.7l-.2 3.2-1.3-4.4 12.4-7.8-11 9z" />
     </svg>
   );
 }
@@ -76,26 +85,24 @@ export default function Login() {
   const title =
     mode === 'login' ? 'Вход' : mode === 'register_student' ? 'Регистрация' : 'Аккаунт родителя';
 
-  const emailLooksActive = mode === 'login';
-
   return (
-    <div className="relative min-h-[100dvh] w-full overflow-hidden font-sans bg-white lg:bg-[#E8E8EC]">
-      {/* Desktop: full-bleed Figma composition — overscan so edges stay flush */}
+    <div className="relative min-h-[100dvh] w-full overflow-hidden font-sans bg-white">
+      {/*
+        Desktop art: illustration + wave ONLY (form area painted white in login-bg.jpg).
+        One interactive card overlays the white left — never bake the form into the image.
+      */}
       <div
-        className="pointer-events-none absolute inset-0 hidden lg:block"
+        className="pointer-events-none absolute inset-0 hidden lg:block bg-white"
         style={{
-          backgroundColor: '#E8E8EC',
           backgroundImage: 'url(/login-bg.jpg)',
           backgroundSize: 'cover',
-          backgroundPosition: 'center',
+          backgroundPosition: 'center center',
           backgroundRepeat: 'no-repeat',
-          transform: 'scale(1.045)',
-          transformOrigin: 'center center',
         }}
         aria-hidden
       />
 
-      {/* Mobile background */}
+      {/* Mobile */}
       <div
         className="lg:hidden absolute inset-0"
         style={{
@@ -103,8 +110,9 @@ export default function Login() {
         }}
       />
 
-      <div className="relative z-10 min-h-[100dvh] flex items-center justify-center lg:justify-start px-4 sm:px-6 py-8 lg:pl-[7.5%] xl:pl-[9.5%]">
-        <div className="w-full max-w-[400px] bg-white border border-[#E5E7EB] rounded-[18px] shadow-[0_10px_36px_rgba(17,24,39,0.10)] px-6 py-8 sm:px-8 sm:py-9">
+      <div className="relative z-10 min-h-[100dvh] flex items-center justify-center lg:justify-start px-4 sm:px-6 py-8 lg:pl-[7%] xl:pl-[9%]">
+        {/* Single interactive card — Figma; never duplicate in background image */}
+        <div className="w-full max-w-[400px] bg-white border border-[#E8EAF0] rounded-[18px] shadow-[0_12px_40px_rgba(17,24,39,0.10)] px-6 py-8 sm:px-8 sm:py-9">
           <div className="w-12 h-12 bg-[#6C63FF] rounded-[12px] flex items-center justify-center mb-5 mx-auto shadow-[0_6px_18px_rgba(108,99,255,0.32)]">
             <GraduationCap className="w-6 h-6 text-white" strokeWidth={2} />
           </div>
@@ -170,7 +178,7 @@ export default function Login() {
                 required
                 placeholder="Email"
                 value={formData.email}
-                className={emailLooksActive ? inputActive : inputIdle}
+                className={mode === 'login' ? inputActive : inputIdle}
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
               />
             </div>
@@ -207,7 +215,7 @@ export default function Login() {
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full py-[15px] mt-1 bg-[#12151C] hover:bg-black text-white rounded-[12px] font-black uppercase tracking-[0.04em] text-[13px] sm:text-sm flex items-center justify-center gap-2.5 transition-all active:scale-[0.99] disabled:opacity-60"
+              className="w-full py-[15px] mt-1 bg-[#1A1F2B] hover:bg-[#12151C] text-white rounded-[12px] font-black uppercase tracking-[0.04em] text-[13px] sm:text-sm flex items-center justify-center gap-2.5 transition-all active:scale-[0.99] disabled:opacity-60"
             >
               {isLoading ? (
                 <Loader2 className="w-5 h-5 animate-spin" />
@@ -238,7 +246,7 @@ export default function Login() {
                   type="button"
                   className="flex items-center justify-center gap-2 py-[12px] border border-[#E6E8EF] rounded-[12px] bg-white hover:bg-[#F8F9FC] transition-all font-bold text-sm text-[#24A1DE]"
                 >
-                  <MessageCircle className="w-5 h-5" /> Telegram
+                  <TelegramIcon className="w-5 h-5" /> Telegram
                 </button>
               </div>
             </div>
