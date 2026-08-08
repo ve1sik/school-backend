@@ -94,9 +94,10 @@ export default function Login() {
       <div
         className="pointer-events-none absolute inset-0 hidden lg:block bg-white"
         style={{
+          /* Asset ~1.83 aspect (near 16:9): cover + right keeps full strip height (Peter/Pushkin) */
           backgroundImage: 'url(/login-bg.jpg)',
           backgroundSize: 'cover',
-          backgroundPosition: 'center center',
+          backgroundPosition: 'right center',
           backgroundRepeat: 'no-repeat',
         }}
         aria-hidden
