@@ -17,5 +17,8 @@ export function getHomeworkBlocksFromLesson(lesson: any): any[] {
 export function lessonHasHomework(lesson: any): boolean {
   if (lesson?.hasHomework === true) return true;
   if (lesson?.is_homework === true) return true;
+  if (Array.isArray(lesson?.blocksMeta) && lesson.blocksMeta.some((b: any) => b?.isHomework)) {
+    return true;
+  }
   return getHomeworkBlocksFromLesson(lesson).length > 0;
 }

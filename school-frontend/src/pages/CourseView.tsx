@@ -1012,6 +1012,40 @@ export default function CourseView() {
     return items;
   }, [isSubjectUiEarly, course?.themes]);
 
+  // Must run before any early return (Rules of Hooks)
+  useEffect(() => {
+    if (isLoading || !course || !activeLesson?.id) return;
+    if (!isSubjectUiEarly) return;
+
+    let blocks: any[] = [];
+    if (activeLesson.content) {
+      try {
+        const parsed = JSON.parse(activeLesson.content);
+        blocks = Array.isArray(parsed) ? parsed : [{ id: 'text-1', type: 'text', content: activeLesson.content }];
+      } catch {
+        blocks = [{ id: 'text-1', type: 'text', content: activeLesson.content }];
+      }
+    }
+
+    const theoryCount = blocks.filter(
+      (b) => !['test', 'test_short', 'written', 'matching', 'essay', 'essay_final'].includes(b.type) && !b.isHomework,
+    ).length;
+    const practiceCount = blocks.filter(
+      (b) => ['test', 'test_short', 'written', 'matching', 'essay', 'essay_final'].includes(b.type) && !b.isHomework,
+    ).length;
+    const hwCount =
+      blocks.filter((b) => b.isHomework).length > 0
+        ? blocks.filter((b) => b.isHomework).length
+        : getHomeworkBlocksFromLesson(activeLesson).length;
+    const lessonHasHw = hwCount > 0 || lessonHasHomework(activeLesson);
+    const practiceIsHomework = lessonHasHw && practiceCount === 0;
+
+    if (!practiceIsHomework) return;
+    if (practiceCount > 0) return;
+    if (russianPart !== 'practice' && theoryCount > 0) return;
+    navigate(`/homework/${activeLesson.id}`, { state: { openPractice: true }, replace: true });
+  }, [isLoading, course, activeLesson, isSubjectUiEarly, russianPart, navigate]);
+
   if (isLoading) return <div className="h-screen flex items-center justify-center bg-[#F4F7FE]"><Loader2 className="w-12 h-12 animate-spin text-[#5A4BFF]" /></div>;
   if (!course) return <div className="p-8 text-center font-bold">Курс не найден</div>;
 
@@ -1472,7 +1506,24 @@ export default function CourseView() {
                     }
                     practiceSlot={
                       practiceBlocks.length === 0 ? (
-                        <p className="text-gray-500 font-medium">Практических заданий пока нет.</p>
+                        practiceIsHomework ? (
+                          <div className="flex flex-col items-start gap-3 py-2">
+                            <span className="inline-flex items-center px-3 py-1.5 rounded-lg text-[11px] font-black uppercase tracking-wider bg-orange-50 text-[#EF6C35]">
+                              Домашнее задание
+                            </span>
+                            <p className="text-gray-600 font-medium">Открываем домашнее задание…</p>
+                            <button
+                              type="button"
+                              onClick={() => openSubjectPractice()}
+                              className="px-5 py-3 rounded-xl text-white text-sm font-black"
+                              style={{ backgroundColor: isHistoryUi ? '#EF6C35' : '#6C63FF' }}
+                            >
+                              Перейти к ДЗ
+                            </button>
+                          </div>
+                        ) : (
+                          <p className="text-gray-500 font-medium">Практических заданий пока нет.</p>
+                        )
                       ) : isHistoryUi ? (
                         <HistoryPracticeBlock
                           key={`hi-cv-${activeLesson.id}-${practiceBlocks[russianStepSafe]?.id}`}

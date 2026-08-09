@@ -1139,7 +1139,26 @@ export default function HomeworkView() {
 
     const practiceNode =
       practiceBlocksFlat.length === 0 ? (
-        <p className="text-gray-500 font-medium">Практических заданий пока нет.</p>
+        hwBlocks.length > 0 ? (
+          <div className="space-y-4">
+            <div
+              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-[11px] font-black uppercase tracking-wider"
+              style={{
+                color: isHistoryUi ? '#EF6C35' : '#6C63FF',
+                backgroundColor: isHistoryUi ? 'rgba(239,108,53,0.1)' : 'rgba(108,99,255,0.1)',
+              }}
+            >
+              Домашнее задание
+            </div>
+            <SubjectTheoryContent
+              variant={isHistoryUi ? 'history' : 'russian'}
+              themeTitle={hwThemeTitle}
+              blocks={hwBlocks}
+            />
+          </div>
+        ) : (
+          <p className="text-gray-500 font-medium">Практических заданий пока нет.</p>
+        )
       ) : isHistoryUi ? (
         <HistoryPracticeBlock
           key={`hi-${homework.id}-${practiceBlocksFlat[russianStepSafe]?.id}`}
