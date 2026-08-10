@@ -1,7 +1,9 @@
 import { resolveUploadUrl } from '../lib/api';
 import { design } from '../lib/designTokens';
+import { isVideoUrl } from '../lib/videoEmbed';
+import { TheoryVideoGrid } from './TheoryVideoPlayer';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { ArrowLeft, ChevronDown, ChevronLeft, ChevronRight, Download, Play } from 'lucide-react';
+import { ArrowLeft, ChevronDown, ChevronLeft, ChevronRight, Download } from 'lucide-react';
 import ReactQuill from 'react-quill-new';
 import type { CourseLessonNavItem } from './RussianHomeworkLayout';
 
@@ -12,8 +14,9 @@ const ACCENTS: Record<TheoryUiVariant, string> = {
   russian: design.brandPurple,
 };
 
+/** Figma Group 133: 156×26 download CTA */
 const BTN =
-  'inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl text-white text-[11px] font-black uppercase tracking-wide transition-colors hover:bg-black';
+  'inline-flex items-center justify-center gap-1.5 h-[26px] min-w-[156px] px-3 rounded-[6px] text-white text-[10px] font-bold uppercase tracking-[0.04em] transition-colors hover:bg-black leading-none whitespace-nowrap';
 
 type Part = 'theory' | 'practice';
 
@@ -100,9 +103,9 @@ export function SubjectLessonShell({
   };
 
   return (
-    <div className="w-full h-full min-h-0 max-w-[1180px] mx-auto flex flex-col gap-3 md:gap-4 overflow-hidden px-1 md:px-2 font-[Golos_Text,system-ui,sans-serif]">
+    <div className="w-full h-full min-h-0 max-w-[829px] mx-auto flex flex-col gap-3 md:gap-4 overflow-hidden px-0 font-[Golos_Text,system-ui,sans-serif]">
       <div
-        className="bg-white rounded-2xl px-4 md:px-5 py-3 flex flex-col gap-2.5 shadow-sm shrink-0 border"
+        className="bg-white rounded-[16px] px-4 md:px-5 py-3 flex flex-col gap-2.5 shadow-sm shrink-0 border"
         style={{ borderColor: design.border }}
       >
         {courseNav && (
@@ -299,14 +302,6 @@ function getFullUrl(url: string) {
   return resolveUploadUrl(url);
 }
 
-function getEmbedUrl(url: string) {
-  if (!url) return '';
-  if (url.includes('vk.com/video_ext.php')) return url;
-  if (url.includes('youtube.com/watch?v=')) return url.replace('watch?v=', 'embed/');
-  if (url.includes('youtu.be/')) return url.replace('youtu.be/', 'youtube.com/embed/');
-  return url;
-}
-
 function normalizeHtml(html?: string) {
   if (!html) return '';
   return html
@@ -325,7 +320,9 @@ function RichText({ html }: { html?: string }) {
   );
 }
 
+/** Figma textbook cover ≈ 202×288 — scales with viewport, keeps ratio */
 function Cover({ src, title, variant }: { src?: string; title?: string; variant: TheoryUiVariant }) {
+  const size = 'w-[clamp(148px,24.5vw,202px)] h-[clamp(211px,35vw,288px)] shrink-0';
   if (!src) {
     const placeholder =
       variant === 'russian'
@@ -333,9 +330,9 @@ function Cover({ src, title, variant }: { src?: string; title?: string; variant:
         : 'bg-gradient-to-br from-orange-50 to-amber-100 border-orange-100 text-orange-800/80';
     return (
       <div
-        className={`w-[158px] md:w-[172px] aspect-[3/4] rounded-[12px] border flex items-center justify-center p-3 text-center ${placeholder}`}
+        className={`${size} rounded-[9px] border flex items-center justify-center p-3 text-center ${placeholder}`}
       >
-        <span className="text-xs font-black uppercase leading-snug">{title || 'Материал'}</span>
+        <span className="text-xs font-extrabold uppercase leading-snug">{title || 'Материал'}</span>
       </div>
     );
   }
@@ -343,7 +340,7 @@ function Cover({ src, title, variant }: { src?: string; title?: string; variant:
     <img
       src={getFullUrl(src)}
       alt={title || ''}
-      className="w-[158px] md:w-[172px] aspect-[3/4] object-cover rounded-[12px] border shadow-sm bg-white"
+      className={`${size} object-cover rounded-[9px] border shadow-sm bg-white`}
       style={{ borderColor: design.border }}
     />
   );
@@ -353,7 +350,7 @@ function DownloadButtons({ section }: { section: ResourceSection }) {
   const items = section.items.filter((item) => item.url);
   if (!items.length) return null;
   return (
-    <div className="flex flex-wrap gap-2.5">
+    <div className="flex flex-wrap gap-2">
       {items.map((item, i, arr) => (
         <a
           key={item.id}
@@ -362,10 +359,10 @@ function DownloadButtons({ section }: { section: ResourceSection }) {
           rel="noopener noreferrer"
           download
           className={BTN}
-          style={{ backgroundColor: design.ink }}
+          style={{ backgroundColor: '#0E1829' }}
         >
           {item.buttonText || downloadLabel(section.kind, item.title, i, arr.length)}
-          <Download className="w-4 h-4" />
+          <Download className="w-3.5 h-3.5 shrink-0" strokeWidth={2.5} />
         </a>
       ))}
     </div>
@@ -447,6 +444,11 @@ export function buildSubjectTheoryModel(blocks: any[]) {
       videos.push(block);
       continue;
     }
+    // Link pasted as video URL → same Figma player
+    if ((block.type === 'link' || block.type === 'button') && isVideoUrl(block.url || '')) {
+      videos.push({ ...block, type: 'video' });
+      continue;
+    }
     if (block.type === 'image' || block.type === 'img') {
       const src = block.url || block.image;
       if (src) pendingImages.push(src);
@@ -509,90 +511,34 @@ export function SubjectTheoryContent({
 }: TheoryProps) {
   const accent = ACCENTS[variant];
   const model = useMemo(() => buildSubjectTheoryModel(blocks), [blocks]);
-  const [activeVideo, setActiveVideo] = useState<string | null>(null);
 
   const greeting = studentName
     ? `Добрый день, ${studentName}!`
     : 'Добрый день, дорогой ученик!';
 
-  const renderVideoTile = (v: any, tall?: boolean) => {
-    const isDirect =
-      /\.(mp4|mov|webm)$/i.test(v.url || '') || String(v.url || '').includes('uploads/');
-    const src = isDirect || v.type === 'video_file' ? getFullUrl(v.url) : getEmbedUrl(v.url);
-    const playing = activeVideo === v.id;
-
-    if (playing) {
-      return isDirect || v.type === 'video_file' ? (
-        <video
-          src={src}
-          controls
-          autoPlay
-          playsInline
-          className={`w-full rounded-2xl bg-black ${tall ? 'max-h-[40vh]' : 'max-h-[28vh]'}`}
-        />
-      ) : (
-        <div
-          className={`rounded-2xl overflow-hidden bg-gray-900 relative ${tall ? 'aspect-video' : 'aspect-video'}`}
-        >
-          <iframe
-            src={src}
-            className="absolute inset-0 w-full h-full"
-            allowFullScreen
-            allow="autoplay; fullscreen; picture-in-picture"
-            title={v.title || 'Видео'}
-          />
-        </div>
-      );
-    }
-
-    return (
-      <button
-        type="button"
-        onClick={() => setActiveVideo(v.id)}
-        className={`w-full rounded-2xl bg-[#E8EDF5] hover:bg-[#DEE5F0] transition-colors flex items-center justify-center relative overflow-hidden ${
-          tall ? 'aspect-[2/1] min-h-[140px] md:min-h-[168px]' : 'aspect-video min-h-[110px] md:min-h-[128px]'
-        }`}
-      >
-        <span
-          className="w-14 h-14 md:w-16 md:h-16 rounded-full border-[3px] flex items-center justify-center bg-white shadow-sm"
-          style={{ borderColor: accent }}
-        >
-          <Play className="w-6 h-6 md:w-7 md:h-7 fill-current ml-1" style={{ color: accent }} />
-        </span>
-      </button>
-    );
-  };
-
   return (
     <div
-      className="bg-white rounded-2xl p-5 md:p-8 lg:p-10 shadow-sm h-full min-h-0 overflow-y-auto space-y-8 md:space-y-10 border font-[Golos_Text,system-ui,sans-serif]"
+      className="bg-white rounded-[16px] px-4 md:px-6 py-5 md:py-6 shadow-sm h-full min-h-0 overflow-y-auto space-y-8 border font-[Golos_Text,system-ui,sans-serif] antialiased scrollbar-hide"
       style={{ borderColor: design.border }}
     >
-      <div className="space-y-3 md:space-y-4">
-        <h1
-          className="text-2xl md:text-[28px] font-black leading-tight tracking-tight"
-          style={{ color: design.textPrimary }}
-        >
+      <div className="space-y-3">
+        <h1 className="theory-theme-title text-[28px] font-extrabold leading-[1.05] tracking-tight text-[#0E1829]">
           {themeTitle}
         </h1>
-        <p className="font-bold text-[15px] md:text-base" style={{ color: design.textPrimary }}>
-          {greeting}
-        </p>
+        <p className="font-bold text-[15px] text-[#0E1829]">{greeting}</p>
         {model.intro.length > 0 ? (
           <div className="space-y-3">
             {model.intro.map((b) => (
               <div key={b.id}>
                 {b.title && b.title !== 'Текст' && (
-                  <h3 className="font-black mb-1.5" style={{ color: design.textPrimary }}>
-                    {b.title}
-                  </h3>
+                  <h3 className="font-extrabold mb-1.5 text-[#0E1829]">{b.title}</h3>
                 )}
                 <RichText html={b.content} />
               </div>
             ))}
           </div>
         ) : (
-          <p className="text-[14px] md:text-[15px] leading-relaxed text-gray-700 max-w-3xl">
+          <p className="text-[14px] leading-relaxed text-gray-700">
             Каждая тема состоит из двух занятий: теории и практики. Ниже — материалы урока: скрипты,
             учебник, запоминалки и видео. Пожалуйста, ознакомься со всем внимательно!
           </p>
@@ -601,25 +547,22 @@ export function SubjectTheoryContent({
 
       {model.sections.map((section, sIdx) => {
         const desc = section.description || section.items[0]?.content;
-        // Figma: script downloads under text; textbook + memo under covers
+        // Figma: script buttons under text; textbook + memo buttons under covers (156×26)
         const buttonsUnderCover = section.kind === 'textbook' || section.kind === 'memo';
 
         return (
-          <div key={`${section.kind}-${sIdx}`} className="space-y-4">
-            <div className="flex flex-col md:flex-row gap-5 md:gap-8 items-start">
-              <div className="flex flex-col gap-3 shrink-0">
-                <div className="flex flex-wrap gap-3">
+          <div key={`${section.kind}-${sIdx}`} className="w-full max-w-[778px]">
+            <div className="flex flex-col sm:flex-row gap-4 sm:gap-5 md:gap-6 items-start">
+              <div className="flex flex-col gap-2.5 shrink-0">
+                <div className="flex flex-row flex-wrap gap-3">
                   {section.items.map((item) => (
                     <Cover key={item.id} src={item.image} title={item.title} variant={variant} />
                   ))}
                 </div>
                 {buttonsUnderCover && <DownloadButtons section={section} />}
               </div>
-              <div className="flex-1 min-w-0 space-y-3">
-                <h2
-                  className="text-xl md:text-2xl font-black"
-                  style={{ color: design.textPrimary }}
-                >
+              <div className="min-w-0 flex-1 max-w-[535px] space-y-2.5 pt-0">
+                <h2 className="theory-section-title text-[22px] font-extrabold leading-none text-[#0E1829]">
                   {section.heading}
                 </h2>
                 {desc ? <RichText html={desc} /> : null}
@@ -631,22 +574,8 @@ export function SubjectTheoryContent({
       })}
 
       {model.videos.length > 0 && (
-        <div className="space-y-4 pt-2 pb-2">
-          {model.videos[0] && renderVideoTile(model.videos[0], true)}
-          {model.videos.length > 1 && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {model.videos.slice(1, 3).map((v) => (
-                <div key={v.id}>{renderVideoTile(v, false)}</div>
-              ))}
-            </div>
-          )}
-          {model.videos.length > 3 && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {model.videos.slice(3).map((v) => (
-                <div key={v.id}>{renderVideoTile(v, false)}</div>
-              ))}
-            </div>
-          )}
+        <div className="w-full pt-1 pb-2">
+          <TheoryVideoGrid videos={model.videos} accent={accent} />
         </div>
       )}
 

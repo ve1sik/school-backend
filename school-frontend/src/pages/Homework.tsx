@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { FileText, AlertCircle, Clock, CheckCircle2, Loader2, FolderOpen, ChevronRight, Search, XCircle, Info } from 'lucide-react';
+import { FileText, AlertCircle, Clock, CheckCircle2, Loader2, FolderOpen, Search, XCircle } from 'lucide-react';
 import { motion, AnimatePresence, type Variants } from 'framer-motion';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { cachedGet } from '../lib/api';
@@ -10,59 +10,69 @@ import RonWork from './RonWork';
 
 type TabType = 'TODO' | 'OVERDUE' | 'REVISION' | 'REVIEW' | 'GRADED' | 'RON';
 
-/** Figma pdf-page-02 — course subject pills */
+/** Figma Inspect — course pills: h=36, radius 17, history #D3412E */
 const getCoursePillTheme = (name: string, active: boolean) => {
   const isHistory = /истор/.test(name.toLowerCase());
   if (active) {
-    if (isHistory) return 'bg-[#EF6C35] text-white border-[#EF6C35] shadow-sm';
-    return 'bg-[#6C63FF] text-white border-[#6C63FF] shadow-sm';
+    if (isHistory) return 'bg-[#D3412E] text-white border-[#D3412E]';
+    return 'bg-[#6C63FF] text-white border-[#5C38A3]';
   }
-  if (isHistory) return 'bg-white text-[#EF6C35] border-[#EF6C35] hover:bg-orange-50';
-  return 'bg-white text-[#6C63FF] border-[#6C63FF]/35 hover:border-[#6C63FF]';
+  if (isHistory) return 'bg-white text-[#D3412E] border-[#D3412E] hover:bg-[#FFF5F3]';
+  return 'bg-white text-[#6C63FF] border-[#5C38A3]/60 hover:border-[#5C38A3]';
 };
 
-/** Figma status chips: colored count box + label; active = filled ink */
+/** Figma pdf-page-02 status chips: 16px count square + label; active = filled */
 const STATUS_FILTERS: {
   key: TabType;
   label: string;
+  /** inactive count box */
   countClass: string;
+  /** active chip shell */
   activeClass: string;
+  /** count box when chip is active */
+  activeCountClass: string;
 }[] = [
   {
     key: 'TODO',
     label: 'К выполнению',
-    countClass: 'bg-[#1A1D26] text-white',
-    activeClass: 'bg-[#1A1D26] text-white border-[#1A1D26]',
+    countClass: 'bg-[#0D1728] text-white',
+    activeClass: 'bg-[#0D1728] text-white border-[#0D1728]',
+    activeCountClass: 'bg-[#5C49FE] text-white',
   },
   {
     key: 'OVERDUE',
     label: 'Просрочено',
-    countClass: 'bg-[#EF4444] text-white',
-    activeClass: 'bg-[#EF4444] text-white border-[#EF4444]',
+    countClass: 'bg-[#FC2504] text-white',
+    activeClass: 'bg-[#FC2504] text-white border-[#FC2504]',
+    activeCountClass: 'bg-white/25 text-white',
   },
   {
     key: 'REVISION',
     label: 'На доработку',
-    countClass: 'bg-[#FBBF24] text-[#1A1D26]',
-    activeClass: 'bg-[#FBBF24] text-[#1A1D26] border-[#FBBF24]',
+    countClass: 'bg-[#F3F210] text-[#0D1728]',
+    activeClass: 'bg-[#F3F210] text-[#0D1728] border-[#F3F210]',
+    activeCountClass: 'bg-[#0D1728]/15 text-[#0D1728]',
   },
   {
     key: 'REVIEW',
     label: 'На проверке',
-    countClass: 'bg-[#1E3A8A] text-white',
-    activeClass: 'bg-[#1E3A8A] text-white border-[#1E3A8A]',
+    countClass: 'bg-[#3433B0] text-white',
+    activeClass: 'bg-[#3433B0] text-white border-[#3433B0]',
+    activeCountClass: 'bg-white/25 text-white',
   },
   {
     key: 'GRADED',
     label: 'Оценено',
-    countClass: 'bg-[#10B981] text-white',
-    activeClass: 'bg-[#10B981] text-white border-[#10B981]',
+    countClass: 'bg-[#31D430] text-white',
+    activeClass: 'bg-[#31D430] text-white border-[#31D430]',
+    activeCountClass: 'bg-white/25 text-white',
   },
   {
     key: 'RON',
     label: 'Работа над ошибками',
-    countClass: 'bg-[#C4B5FD] text-white',
-    activeClass: 'bg-[#A78BFA] text-white border-[#A78BFA]',
+    countClass: 'bg-[#DCDEE6] text-[#3433B0]',
+    activeClass: 'bg-[#DCDEE6] text-[#3433B0] border-[#DCDEE6]',
+    activeCountClass: 'bg-white text-[#3433B0]',
   },
 ];
 
@@ -288,10 +298,10 @@ export default function Homework() {
 
   return (
     <div
-      className="w-full h-full min-h-0 flex flex-col gap-3.5 md:gap-4 px-0 overflow-y-auto md:overflow-hidden pb-4 md:pb-0 font-[Golos_Text,system-ui,sans-serif]"
+      className="w-full h-full min-h-0 flex flex-col gap-3.5 px-0 overflow-y-auto md:overflow-hidden pb-4 md:pb-0 font-[Golos_Text,system-ui,sans-serif] scrollbar-hide"
       style={{ color: design.textPrimary }}
     >
-      {/* Course pills + search — Figma: flush to content edge, search right */}
+      {/* Course pills 36×… radius 17 + search 223×36 */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 shrink-0">
         <div className="flex flex-wrap gap-2">
           {courseNames.length === 0 ? (
@@ -302,7 +312,7 @@ export default function Homework() {
                 key={name}
                 type="button"
                 onClick={() => setSelectedCourseFilter(name)}
-                className={`px-5 py-2.5 rounded-full border text-[12px] font-bold uppercase tracking-[0.03em] transition-all ${getCoursePillTheme(
+                className={`h-9 px-4 rounded-[17px] border-[0.5px] text-[11px] font-semibold uppercase tracking-[0.04em] outline-none focus:outline-none focus-visible:ring-0 transition-colors ${getCoursePillTheme(
                   name,
                   selectedCourseFilter === name,
                 )}`}
@@ -313,21 +323,21 @@ export default function Homework() {
           )}
         </div>
 
-        <div className="relative w-full lg:w-[300px] shrink-0">
-          <Search className="w-[18px] h-[18px] text-[#B0B5C3] absolute left-4 top-1/2 -translate-y-1/2" />
+        <div className="relative w-full lg:w-[223px] shrink-0">
+          <Search className="w-4 h-4 text-[#98A1B0] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" strokeWidth={1.75} />
           <input
             type="text"
-            placeholder="поиск заданий"
+            placeholder="ПОИСК ЗАДАНИЙ"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full bg-white border border-[#E6E8EF] rounded-full pl-11 pr-4 py-[11px] outline-none focus:border-[#6C63FF] transition-all text-[14px] font-medium text-[#374151] placeholder:text-[#B0B5C3] placeholder:normal-case placeholder:tracking-normal placeholder:font-medium"
+            className="w-full h-9 bg-white border-[0.5px] border-[#98A1B0] rounded-full pl-9 pr-3 outline-none focus:border-[#6C63FF] transition-all text-[12px] font-medium text-[#374151] placeholder:text-[#98A1B0] placeholder:uppercase placeholder:tracking-[0.04em] placeholder:font-medium"
           />
         </div>
       </div>
 
-      {/* Status filter chips */}
+      {/* Status chips — Figma Group 31: h=24, border #C0C6DD */}
       <div className="flex flex-wrap gap-2 shrink-0">
-        {STATUS_FILTERS.map(({ key, label, countClass, activeClass }) => {
+        {STATUS_FILTERS.map(({ key, label, countClass, activeClass, activeCountClass }) => {
           const count = key === 'RON' ? 0 : counts[key as keyof typeof counts];
           const isActive = activeTab === key;
           return (
@@ -338,26 +348,26 @@ export default function Homework() {
                 setActiveTab(key);
                 setSearchParams(key === 'RON' ? { tab: 'ron' } : {});
               }}
-              className={`inline-flex items-center gap-2 pl-1.5 pr-3 py-1 rounded-full border text-[12px] font-bold transition-all whitespace-nowrap ${
+              className={`inline-flex items-center gap-[6px] h-6 pl-1 pr-2.5 rounded-full border-[0.5px] text-[12px] font-medium leading-none outline-none focus:outline-none transition-colors whitespace-nowrap ${
                 isActive
                   ? activeClass
-                  : 'bg-white text-[#4B5563] border-[#E5E7EB] hover:bg-[#F9FAFB]'
+                  : 'bg-white text-[#1A1D26] border-[#C0C6DD] hover:bg-[#F9FAFB]'
               }`}
             >
               <span
-                className={`min-w-[22px] h-[22px] px-1 rounded-[6px] text-[11px] font-black flex items-center justify-center shrink-0 ${
-                  isActive ? 'bg-white/20 text-white' : countClass
+                className={`hw-chip-num w-4 h-4 rounded-[3px] flex items-center justify-center shrink-0 ${
+                  isActive ? activeCountClass : countClass
                 }`}
               >
-                {key === 'RON' ? '·' : count}
+                {key === 'RON' ? (count || '·') : count}
               </span>
-              <span>{label}</span>
+              <span className="leading-none font-medium">{label}</span>
             </button>
           );
         })}
       </div>
 
-      <div className="flex-1 min-h-0 overflow-y-auto pr-0.5 custom-scrollbar">
+      <div className="flex-1 min-h-0 overflow-y-auto scrollbar-hide">
         {activeTab === 'RON' ? (
           <RonWork embedded />
         ) : (
@@ -370,68 +380,72 @@ export default function Homework() {
                 animate="show"
                 className="space-y-5 mb-7"
               >
-                <h2 className="text-[20px] md:text-[22px] font-black text-[#111827] tracking-tight">
-                  {courseName}
-                </h2>
+                <h2 className="hw-course-title">{courseName}</h2>
                 {Object.entries(themes).map(([themeName, hws]) => (
                   <div key={themeName}>
-                    <div className="flex items-center gap-2 mb-3.5">
-                      <FileText className="w-[15px] h-[15px] text-[#9CA3AF] shrink-0" strokeWidth={2} />
-                      <h3 className="text-[14px] md:text-[15px] font-bold text-[#1F2937]">{themeName}</h3>
+                    <div className="flex items-center gap-2 mb-3">
+                      <FileText className="w-3.5 h-3.5 text-[#9CA3AF] shrink-0" strokeWidth={1.75} />
+                      <h3 className="hw-theme-title">{themeName}</h3>
                     </div>
 
-                    {/* Figma: ~4 wide cards across full content width (not centered 1200px column) */}
+                    {/* Figma Group 33: card 324×149, radius 18 */}
                     <div
                       className="grid gap-4"
                       style={{
-                        gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 280px), 1fr))',
+                        gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 324px), 1fr))',
                       }}
                     >
                       <AnimatePresence mode="popLayout">
                         {hws.map((hw) => {
                           let statusText = '';
                           let badgeClass = '';
-                          let Icon = Info;
-                          let iconWrap = 'border-[#FECACA] text-[#F87171]';
+                          let Icon: typeof AlertCircle | typeof XCircle | typeof Clock | typeof CheckCircle2 = AlertCircle;
+                          let iconWrap = 'border-[#F07171] text-[#F07171]';
                           let buttonText = 'НАЧАТЬ ВЫПОЛНЕНИЕ';
                           let buttonClass = 'bg-[#1A1D26] hover:bg-black text-white';
+                          let useBang = true;
 
                           if (hw.status === 'TODO') {
                             statusText = 'К выполнению';
-                            badgeClass = 'border border-[#FECACA] text-[#F87171] bg-white';
-                            Icon = Info;
-                            iconWrap = 'border-[#FECACA] text-[#F87171]';
+                            badgeClass = 'border border-[#D3412E] text-[#D3412E] bg-white';
+                            Icon = AlertCircle;
+                            iconWrap = 'border-[#D3412E] text-[#D3412E]';
+                            useBang = true;
                             buttonText = 'НАЧАТЬ ВЫПОЛНЕНИЕ';
-                            buttonClass = 'bg-[#1A1D26] hover:bg-black text-white';
+                            buttonClass = 'bg-[#0E1829] text-white';
                           } else if (hw.status === 'OVERDUE') {
                             statusText = 'Просрочено';
-                            badgeClass = 'border border-[#FECACA] text-[#DC2626] bg-[#FEF2F2]';
+                            badgeClass = 'border border-[#FC2504] text-[#FC2504] bg-white';
                             Icon = XCircle;
-                            iconWrap = 'border-[#FECACA] text-[#EF4444]';
+                            iconWrap = 'border-[#FC2504] text-[#FC2504]';
+                            useBang = false;
                             buttonText = 'СДАТЬ СЕЙЧАС';
-                            buttonClass = 'bg-[#EF4444] hover:bg-rose-600 text-white';
+                            buttonClass = 'bg-[#FC2504] hover:bg-rose-600 text-white';
                           } else if (hw.status === 'REVISION') {
                             statusText = 'На доработку';
-                            badgeClass = 'border border-[#FDE68A] text-[#B45309] bg-[#FFFBEB]';
+                            badgeClass = 'border border-[#E8B80E] text-[#B45309] bg-white';
                             Icon = AlertCircle;
-                            iconWrap = 'border-[#FDE68A] text-[#F59E0B]';
+                            iconWrap = 'border-[#E8B80E] text-[#E8B80E]';
+                            useBang = true;
                             buttonText = 'ДОРАБОТАТЬ';
-                            buttonClass = 'bg-[#F59E0B] hover:bg-amber-600 text-white';
+                            buttonClass = 'bg-[#F3F210] hover:bg-yellow-300 text-[#0D1728]';
                           } else if (hw.status === 'REVIEW') {
                             statusText = 'На проверке';
-                            badgeClass = 'border border-[#BFDBFE] text-[#1D4ED8] bg-[#EFF6FF]';
+                            badgeClass = 'border border-[#3433B0] text-[#3433B0] bg-white';
                             Icon = Clock;
-                            iconWrap = 'border-[#BFDBFE] text-[#3B82F6]';
+                            iconWrap = 'border-[#3433B0] text-[#3433B0]';
+                            useBang = false;
                             buttonText = 'СМОТРЕТЬ ДЕТАЛИ';
                             buttonClass = 'bg-[#F3F4F6] hover:bg-gray-200 text-[#4B5563]';
                           } else if (hw.status === 'GRADED') {
                             statusText = `Оценено ${hw.score ?? '—'}/${hw.maxScore ?? '—'}`;
-                            badgeClass = 'border border-[#A7F3D0] text-[#047857] bg-[#ECFDF5]';
+                            badgeClass = 'border border-[#31D430] text-[#1FA01F] bg-white';
                             Icon = CheckCircle2;
-                            iconWrap = 'border-[#A7F3D0] text-[#10B981]';
+                            iconWrap = 'border-[#31D430] text-[#31D430]';
+                            useBang = false;
                             buttonText = 'ПОСМОТРЕТЬ ОЦЕНКУ';
                             buttonClass =
-                              'bg-[#ECFDF5] hover:bg-emerald-100 text-[#047857] border border-[#A7F3D0]';
+                              'bg-white hover:bg-emerald-50 text-[#1FA01F] border border-[#31D430]';
                           }
 
                           return (
@@ -447,34 +461,40 @@ export default function Homework() {
                                   navigate(`/homework/${hw.id}`);
                                 }
                               }}
-                              className="bg-white rounded-[12px] border border-[#E5E7EB] px-5 pt-4 pb-4 flex flex-col min-h-[200px] hover:shadow-[0_8px_24px_rgba(17,24,39,0.06)] transition-shadow cursor-pointer group"
+                              className="bg-white rounded-[18px] border border-[#E5E7EB] w-full max-w-[324px] h-[149px] px-2 pt-4 pb-4 flex flex-col hover:shadow-[0_6px_18px_rgba(17,24,39,0.05)] transition-shadow cursor-pointer group"
                             >
-                              <div className="flex justify-between items-start mb-5 gap-2">
+                              <div className="flex justify-between items-start gap-2 shrink-0">
                                 <span
-                                  className={`px-2.5 py-1 rounded-md text-[11px] font-semibold leading-none ${badgeClass}`}
+                                  className={`px-2 py-[3px] rounded-full text-[10px] font-medium leading-none ${badgeClass}`}
                                 >
                                   {statusText}
                                 </span>
                                 <span
-                                  className={`w-6 h-6 rounded-full border flex items-center justify-center shrink-0 ${iconWrap}`}
+                                  className={`w-5 h-5 rounded-full border flex items-center justify-center shrink-0 ${iconWrap}`}
                                 >
-                                  <Icon className="w-3.5 h-3.5" strokeWidth={2.5} />
+                                  {useBang ? (
+                                    <span className="text-[11px] font-semibold leading-none">!</span>
+                                  ) : (
+                                    <Icon className="w-2.5 h-2.5" strokeWidth={2.25} />
+                                  )}
                                 </span>
                               </div>
 
-                              <h3 className="text-[18px] md:text-[20px] font-bold text-[#111827] leading-snug line-clamp-3 mb-auto pr-1 tracking-tight">
-                                {hw.title}
-                              </h3>
-
-                              <div
-                                className={`mt-6 w-full py-[14px] rounded-[10px] font-bold text-[12px] uppercase tracking-[0.03em] flex items-center justify-center gap-1 pointer-events-none ${buttonClass}`}
-                              >
-                                {buttonText}
-                                {(hw.status === 'TODO' ||
-                                  hw.status === 'OVERDUE' ||
-                                  hw.status === 'REVISION') && (
-                                  <ChevronRight className="w-4 h-4" strokeWidth={2.5} />
-                                )}
+                              {/* Figma: title just above button */}
+                              <div className="mt-auto shrink-0">
+                                <h3 className="hw-card-title line-clamp-2 pr-1 mb-2">{hw.title}</h3>
+                                <div
+                                  className={`w-full h-9 rounded-[10px] font-bold text-[10px] uppercase tracking-[0.04em] flex items-center justify-center gap-1 pointer-events-none ${buttonClass}`}
+                                >
+                                  {buttonText}
+                                  {(hw.status === 'TODO' ||
+                                    hw.status === 'OVERDUE' ||
+                                    hw.status === 'REVISION') && (
+                                    <span className="text-[11px] font-bold leading-none" aria-hidden>
+                                      &gt;
+                                    </span>
+                                  )}
+                                </div>
                               </div>
                             </motion.div>
                           );

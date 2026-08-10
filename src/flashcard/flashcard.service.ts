@@ -86,6 +86,35 @@ export class FlashcardService {
     };
   }
 
+  /** Повтор «ещё раз» — все карточки колоды (или все колоды), без фильтра due */
+  async getPracticeCards(userId: string, deckId?: string) {
+    const deckFilter = deckId ? { deck_id: deckId } : {};
+    const cards = await this.prisma.flashcard.findMany({
+      where: deckFilter,
+      include: {
+        progress: { where: { user_id: userId } },
+        deck: { select: { title: true } },
+      },
+      orderBy: [{ deck_id: 'asc' }, { order_index: 'asc' }],
+      take: 200,
+    });
+
+    // Shuffle lightly so practice isn't always the same order
+    for (let i = cards.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [cards[i], cards[j]] = [cards[j], cards[i]];
+    }
+
+    return {
+      review: cards.map((c) => ({
+        ...c,
+        isNew: !c.progress?.length || c.progress.every((p) => p.repetitions === 0),
+      })),
+      new: [] as any[],
+      totalDue: cards.length,
+    };
+  }
+
   async submitReview(userId: string, flashcardId: string, rating: 0 | 1 | 2) {
     const existing = await this.prisma.flashcardProgress.findUnique({
       where: { user_id_flashcard_id: { user_id: userId, flashcard_id: flashcardId } },

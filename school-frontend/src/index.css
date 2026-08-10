@@ -66,4 +66,120 @@
     -webkit-appearance: none;
     margin: 0;
   }
+
+  /* Hide scrollbar, keep scroll (Figma pages) */
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+    width: 0;
+    height: 0;
+  }
+
+  .custom-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .custom-scrollbar::-webkit-scrollbar {
+    display: none;
+    width: 0;
+    height: 0;
+  }
+
+  /* Chip counts — Inter (Figma digit shape) */
+  .hw-chip-num {
+    font-family: Inter, "Golos Text", sans-serif !important;
+    font-weight: 500 !important;
+    font-size: 10px !important;
+    line-height: 1 !important;
+    font-variant-numeric: lining-nums proportional-nums;
+    font-feature-settings: "lnum" 1, "tnum" 0;
+    -webkit-font-smoothing: antialiased;
+    letter-spacing: 0;
+  }
+
+  /* Figma Inspect: Merriweather Sans ExtraBold for HW titles */
+  .hw-course-title {
+    font-family: "Merriweather Sans", "Golos Text", sans-serif !important;
+    font-weight: 800 !important;
+    font-size: 22.23px !important;
+    line-height: 87% !important;
+    letter-spacing: -0.04em !important;
+    color: #0e1829 !important;
+  }
+
+  .hw-theme-title {
+    font-family: "Merriweather Sans", "Golos Text", sans-serif !important;
+    font-weight: 800 !important;
+    font-size: 10.85px !important;
+    line-height: 87% !important;
+    letter-spacing: 0 !important;
+    color: #0e1829 !important;
+  }
+
+  .hw-card-title {
+    font-family: "Merriweather Sans", "Golos Text", sans-serif !important;
+    font-weight: 800 !important;
+    font-size: 14.98px !important;
+    line-height: 87% !important;
+    letter-spacing: 0 !important;
+    color: #0e1829 !important;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /*
+   * Sidebar → content gutter (Figma: content ~134px, sidebar 92px → ~42px).
+   * Scales with viewport so zoom/resize keep the same proportion.
+   */
+  .figma-content-pad {
+    padding-left: clamp(1rem, 2.9vw, 2.625rem);
+    padding-right: clamp(1rem, 2.9vw, 2.625rem);
+  }
+
+  /* Schedule — Figma Inspect */
+  .sched-page-title {
+    font-family: "Merriweather Sans", "Golos Text", sans-serif !important;
+    font-weight: 800 !important;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .sched-month-title {
+    font-family: "Merriweather Sans", "Golos Text", sans-serif !important;
+    font-weight: 800 !important;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .sched-card-title {
+    font-family: "Merriweather Sans", "Golos Text", sans-serif !important;
+    font-weight: 800 !important;
+    font-size: 12px !important;
+    line-height: 115% !important;
+    letter-spacing: 0.01em !important;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Theory lesson (Figma p.8) — sharp headings, narrow column */
+  .theory-theme-title,
+  .theory-section-title {
+    font-family: "Merriweather Sans", "Golos Text", sans-serif !important;
+    font-weight: 800 !important;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: geometricPrecision;
+  }
+
+  .theory-section-title {
+    font-size: 22px !important;
+    line-height: 1 !important;
+    letter-spacing: -0.02em !important;
+    color: #0e1829 !important;
+  }
+
+  .theory-read-only .ql-editor {
+    font-family: "Golos Text", system-ui, sans-serif !important;
+    -webkit-font-smoothing: antialiased;
+    padding: 0 !important;
+  }
 }

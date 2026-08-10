@@ -1,11 +1,11 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Flame, Star, RotateCcw, ChevronLeft, Layers, BookOpen, Loader2, Trophy, Zap } from 'lucide-react';
+import { Flame, Star, RotateCcw, ChevronLeft, ChevronRight, Layers, BookOpen, Loader2, Trophy, Zap } from 'lucide-react';
 import axios from 'axios';
 import { getTokenConfig } from '../lib/auth';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 
-import { API_URL, SITE_ORIGIN, resolveUploadUrl } from '../lib/api';
+import { API_URL, resolveUploadUrl } from '../lib/api';
 
 interface Card {
   id: string;
@@ -39,8 +39,30 @@ const RATINGS: { rating: Rating; label: string; color: string; bg: string }[] = 
   { rating: 2, label: 'Легко!', bg: 'bg-emerald-50 hover:bg-emerald-100 border-emerald-200', color: 'text-emerald-600' },
 ];
 
+function cardImageUrl(src?: string) {
+  if (!src) return '';
+  return src.startsWith('http') ? src : resolveUploadUrl(src);
+}
+
+function cardsWord(n: number) {
+  const abs = Math.abs(n) % 100;
+  const d = abs % 10;
+  if (abs > 10 && abs < 20) return 'карточек';
+  if (d === 1) return 'карточка';
+  if (d >= 2 && d <= 4) return 'карточки';
+  return 'карточек';
+}
+
+function shuffle<T>(arr: T[]): T[] {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
 export default function FlashcardStudy() {
-  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const deckIdParam = searchParams.get('deckId') ?? undefined;
 
@@ -53,7 +75,8 @@ export default function FlashcardStudy() {
   const [isLoading, setIsLoading] = useState(true);
   const [sessionStats, setSessionStats] = useState({ easy: 0, hard: 0, forgot: 0 });
   const [selectedDeckId, setSelectedDeckId] = useState<string | undefined>(deckIdParam);
-  const [direction, setDirection] = useState<1 | -1>(1);
+  const lastQueueRef = useRef<Card[]>([]);
+  const lastDeckIdRef = useRef<string | undefined>(deckIdParam);
 
   const cfg = () => getTokenConfig();
 
@@ -73,19 +96,93 @@ export default function FlashcardStudy() {
 
   useEffect(() => { fetchHome(); }, [fetchHome]);
 
-  const startStudy = async (deckId?: string) => {
+  /** Load cards for a deck (works even if /practice not deployed yet). */
+  const fetchDeckCards = async (deckId: string): Promise<Card[]> => {
+    const res = await axios.get(`${API_URL}/decks/${deckId}`, cfg());
+    const title = res.data?.title || 'Колода';
+    return (res.data?.cards || []).map((c: any) => ({
+      id: c.id,
+      front: c.front,
+      back: c.back,
+      front_image: c.front_image,
+      back_image: c.back_image,
+      isNew: false,
+      deck: { title },
+    }));
+  };
+
+  const beginQueue = (cards: Card[], deckId?: string) => {
+    const next = shuffle(cards);
+    lastQueueRef.current = next;
+    if (deckId) {
+      lastDeckIdRef.current = deckId;
+      setSelectedDeckId(deckId);
+    }
+    setQueue(next);
+    setCurrentIdx(0);
+    setIsFlipped(false);
+    setSessionStats({ easy: 0, hard: 0, forgot: 0 });
+    setPhase('study');
+  };
+
+  const startStudy = async (deckId?: string, opts?: { practice?: boolean }) => {
+    const id = deckId || lastDeckIdRef.current || selectedDeckId;
+    const wantPractice = !!opts?.practice;
     setIsLoading(true);
     try {
-      const url = deckId ? `${API_URL}/flashcards/due?deckId=${deckId}` : `${API_URL}/flashcards/due`;
-      const res = await axios.get(url, cfg());
-      const all: Card[] = [...res.data.review, ...res.data.new];
-      if (!all.length) { setPhase('done'); setIsLoading(false); return; }
-      setQueue(all);
-      setCurrentIdx(0);
-      setIsFlipped(false);
-      setSessionStats({ easy: 0, hard: 0, forgot: 0 });
-      setPhase('study');
-    } catch { /* silent */ } finally {
+      // 1) Explicit practice / repeat — prefer deck cards (always available on prod)
+      if (wantPractice) {
+        if (id) {
+          try {
+            const deckCards = await fetchDeckCards(id);
+            if (deckCards.length) {
+              beginQueue(deckCards, id);
+              return;
+            }
+          } catch { /* fall through */ }
+        }
+        try {
+          const url = id ? `${API_URL}/flashcards/practice?deckId=${id}` : `${API_URL}/flashcards/practice`;
+          const res = await axios.get(url, cfg());
+          const all: Card[] = [...(res.data.review || []), ...(res.data.new || [])];
+          if (all.length) {
+            beginQueue(all, id);
+            return;
+          }
+        } catch { /* fall through */ }
+        if (lastQueueRef.current.length) {
+          beginQueue(lastQueueRef.current, id);
+          return;
+        }
+        setPhase('done');
+        return;
+      }
+
+      // 2) Normal due session
+      const dueUrl = id ? `${API_URL}/flashcards/due?deckId=${id}` : `${API_URL}/flashcards/due`;
+      const res = await axios.get(dueUrl, cfg());
+      let all: Card[] = [...(res.data.review || []), ...(res.data.new || [])];
+
+      // If this deck has no due cards today — open full deck for practice
+      if (!all.length && id) {
+        try {
+          all = await fetchDeckCards(id);
+        } catch { /* ignore */ }
+      }
+
+      if (!all.length) {
+        setPhase('done');
+        return;
+      }
+      beginQueue(all, id);
+    } catch {
+      // Last resort: replay last session
+      if (lastQueueRef.current.length) {
+        beginQueue(lastQueueRef.current, id);
+      } else {
+        setPhase('done');
+      }
+    } finally {
       setIsLoading(false);
     }
   };
@@ -109,7 +206,6 @@ export default function FlashcardStudy() {
       setQueue((q) => [...q, card]);
     }
 
-    setDirection(1);
     setIsFlipped(false);
 
     setTimeout(() => {
@@ -163,12 +259,18 @@ export default function FlashcardStudy() {
         )}
 
         <div className="space-y-3">
-          <button onClick={() => startStudy(selectedDeckId)}
-            className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-black transition-all active:scale-95 flex items-center justify-center gap-2">
+          <button
+            type="button"
+            onClick={() => startStudy(selectedDeckId || lastDeckIdRef.current, { practice: true })}
+            className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-black transition-all active:scale-95 flex items-center justify-center gap-2"
+          >
             <RotateCcw className="w-5 h-5" /> Повторить ещё раз
           </button>
-          <button onClick={() => { setPhase('home'); fetchHome(); }}
-            className="w-full py-4 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl font-black transition-all">
+          <button
+            type="button"
+            onClick={() => { setPhase('home'); fetchHome(); }}
+            className="w-full py-4 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl font-black transition-all"
+          >
             К колодам
           </button>
         </div>
@@ -220,14 +322,14 @@ export default function FlashcardStudy() {
           <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3">Колоды</p>
           <div className="space-y-2">
             {decks.map((deck) => (
-              <button key={deck.id} onClick={() => { setSelectedDeckId(deck.id); startStudy(deck.id); }}
+              <button key={deck.id} type="button" onClick={() => { lastDeckIdRef.current = deck.id; setSelectedDeckId(deck.id); startStudy(deck.id); }}
                 className="w-full bg-gray-50 hover:bg-indigo-50 border border-gray-100 hover:border-indigo-200 rounded-2xl p-4 transition-all text-left flex items-center gap-3 group">
                 <div className="w-9 h-9 bg-white rounded-xl flex items-center justify-center group-hover:bg-indigo-100 transition-colors shrink-0 border border-gray-100">
                   <BookOpen className="w-4 h-4 text-indigo-500" />
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="font-black text-gray-900 text-sm truncate">{deck.title}</p>
-                  <p className="text-xs text-gray-400 font-medium">{deck._count.cards} карточек</p>
+                  <p className="text-xs text-gray-400 font-medium">{deck._count.cards} {cardsWord(deck._count.cards)}</p>
                 </div>
                 <ChevronLeft className="w-4 h-4 text-gray-300 rotate-180 group-hover:text-indigo-400 transition-colors shrink-0" />
               </button>
@@ -295,7 +397,7 @@ export default function FlashcardStudy() {
 
       {/* TOP BAR */}
       <div className="flex items-center gap-4 p-3 md:p-4 shrink-0">
-        <button onClick={() => { setPhase('home'); fetchHome(); }}
+        <button type="button" onClick={() => { setPhase('home'); fetchHome(); }}
           className="p-2 text-white/60 hover:text-white transition-colors">
           <ChevronLeft className="w-6 h-6" />
         </button>
@@ -311,70 +413,128 @@ export default function FlashcardStudy() {
           <>
             <p className="text-white/40 font-bold text-xs uppercase tracking-widest shrink-0">{current.deck.title}</p>
 
-            {/* 3D FLIP CARD */}
-            <div className="flex-1 min-h-0 w-full max-w-4xl cursor-pointer" style={{ perspective: '1000px' }}
-              onClick={() => !isFlipped && setIsFlipped(true)}>
+            {/* 3D FLIP CARD — faces use separate layer; badge in flow (not over image) */}
+            <div
+              className="flex-1 min-h-0 w-full max-w-4xl cursor-pointer"
+              style={{ perspective: '1200px' }}
+              onClick={() => !isFlipped && setIsFlipped(true)}
+            >
               <motion.div
                 animate={{ rotateY: isFlipped ? 180 : 0 }}
-                transition={{ duration: 0.5, type: 'spring', stiffness: 200, damping: 25 }}
-                style={{ transformStyle: 'preserve-3d', width: '100%', height: '100%', position: 'relative' }}
+                transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+                className="relative w-full h-full"
+                style={{ transformStyle: 'preserve-3d' }}
               >
                 {/* FRONT */}
-                <div style={{ backfaceVisibility: 'hidden', position: 'absolute', inset: 0 }}
-                  className="bg-white rounded-[2rem] flex flex-col min-h-0 p-4 md:p-6 shadow-2xl shadow-black/30 overflow-hidden">
-                  <div className="absolute top-3 left-3 px-3 py-1 bg-indigo-50 rounded-full text-indigo-500 text-xs font-black z-10">Вопрос</div>
-                  <div className="flex-1 min-h-0 flex flex-col items-center justify-center w-full gap-3">
-                    {current.front_image && (
-                      <img
-                        src={current.front_image.startsWith('http') ? current.front_image : `https://prepodmgy.ru/${current.front_image}`}
-                        alt="front"
-                        className="w-full h-full max-h-full object-contain rounded-2xl bg-gray-50 border border-gray-100"
-                      />
+                <div
+                  className="absolute inset-0 bg-white rounded-[2rem] flex flex-col min-h-0 shadow-2xl shadow-black/30 overflow-hidden"
+                  style={{
+                    backfaceVisibility: 'hidden',
+                    WebkitBackfaceVisibility: 'hidden',
+                    transform: 'rotateY(0deg)',
+                  }}
+                >
+                  <div className="shrink-0 px-5 pt-4 pb-2 flex items-center justify-between gap-2 border-b border-gray-100">
+                    <span className="px-3 py-1 bg-indigo-50 rounded-full text-indigo-600 text-[11px] font-bold uppercase tracking-wide">
+                      Вопрос
+                    </span>
+                    {!isFlipped && (
+                      <span className="text-[11px] text-gray-400 font-medium">Нажми, чтобы увидеть ответ</span>
                     )}
-                    {current.front && <p className="text-xl md:text-2xl font-black text-gray-900 text-center leading-tight">{current.front}</p>}
-                    {!current.front && !current.front_image && <p className="text-gray-300 font-bold">—</p>}
                   </div>
-                  {!isFlipped && (
-                    <p className="text-xs text-gray-400 font-medium text-center shrink-0">Нажми, чтобы увидеть ответ</p>
-                  )}
+                  <div className="flex-1 min-h-0 flex flex-col items-center justify-center gap-3 px-5 py-4 overflow-hidden">
+                    {current.front_image && (
+                      <div className={`w-full flex items-center justify-center min-h-0 ${current.front ? 'max-h-[55%]' : 'flex-1'}`}>
+                        <img
+                          src={cardImageUrl(current.front_image)}
+                          alt=""
+                          className="max-w-full max-h-full object-contain rounded-xl bg-gray-50 border border-gray-100"
+                        />
+                      </div>
+                    )}
+                    {current.front ? (
+                      <p className="text-xl md:text-2xl font-extrabold text-gray-900 text-center leading-snug shrink-0 px-2">
+                        {current.front}
+                      </p>
+                    ) : !current.front_image ? (
+                      <p className="text-gray-300 font-bold">—</p>
+                    ) : null}
+                  </div>
                 </div>
 
-                {/* BACK */}
-                <div style={{ backfaceVisibility: 'hidden', transform: 'rotateY(180deg)', position: 'absolute', inset: 0 }}
-                  className="bg-gradient-to-br from-indigo-600 to-violet-600 rounded-[2rem] flex flex-col min-h-0 p-4 md:p-6 shadow-2xl shadow-black/30 overflow-hidden">
-                  <div className="absolute top-3 left-3 px-3 py-1 bg-white/20 rounded-full text-white text-xs font-black z-10">Ответ</div>
-                  <div className="flex-1 min-h-0 flex flex-col items-center justify-center w-full gap-3">
+                {/* BACK — rotateY(180) so text is readable when card is flipped (not mirrored) */}
+                <div
+                  className="absolute inset-0 bg-gradient-to-br from-indigo-600 to-violet-600 rounded-[2rem] flex flex-col min-h-0 shadow-2xl shadow-black/30 overflow-hidden"
+                  style={{
+                    backfaceVisibility: 'hidden',
+                    WebkitBackfaceVisibility: 'hidden',
+                    transform: 'rotateY(180deg)',
+                  }}
+                >
+                  <div className="shrink-0 px-5 pt-4 pb-2 flex items-center border-b border-white/15">
+                    <span className="px-3 py-1 bg-white/20 rounded-full text-white text-[11px] font-bold uppercase tracking-wide">
+                      Ответ
+                    </span>
+                  </div>
+                  <div className="flex-1 min-h-0 flex flex-col items-center justify-center gap-3 px-5 py-4 overflow-hidden">
                     {current.back_image && (
-                      <img
-                        src={current.back_image.startsWith('http') ? current.back_image : `https://prepodmgy.ru/${current.back_image}`}
-                        alt="back"
-                        className="w-full h-full max-h-full object-contain rounded-2xl bg-white/10 border border-white/20"
-                      />
+                      <div className={`w-full flex items-center justify-center min-h-0 ${current.back ? 'max-h-[48%]' : 'flex-1'}`}>
+                        <img
+                          src={cardImageUrl(current.back_image)}
+                          alt=""
+                          className="max-w-full max-h-full object-contain rounded-xl bg-white/10 border border-white/20"
+                        />
+                      </div>
                     )}
-                    {current.back && <p className="text-xl md:text-2xl font-black text-white text-center leading-tight">{current.back}</p>}
-                    {!current.back && !current.back_image && <p className="text-white/50 font-bold">—</p>}
+                    {current.back ? (
+                      <p className="text-xl md:text-2xl font-extrabold text-white text-center leading-snug shrink-0 px-2">
+                        {current.back}
+                      </p>
+                    ) : !current.back_image ? (
+                      <p className="text-white/50 font-bold">—</p>
+                    ) : null}
                   </div>
                 </div>
               </motion.div>
             </div>
 
-            {/* RATING BUTTONS */}
+            {/* ACTIONS */}
             <AnimatePresence>
               {isFlipped && (
-                <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }}
-                  className="w-full max-w-lg grid grid-cols-3 gap-2 shrink-0">
-                  {RATINGS.map(({ rating, label, color, bg }) => (
-                    <button key={rating} onClick={() => handleRate(rating)}
-                      className={`py-4 rounded-2xl font-black border-2 transition-all active:scale-95 ${bg} ${color}`}>
-                      {label}
-                    </button>
-                  ))}
+                <motion.div
+                  initial={{ opacity: 0, y: 16 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: 8 }}
+                  className="w-full max-w-lg flex flex-col gap-2.5 shrink-0"
+                >
+                  <button
+                    type="button"
+                    onClick={() => handleRate(2)}
+                    className="w-full py-3.5 rounded-2xl font-bold text-white bg-indigo-500 hover:bg-indigo-400 border-2 border-indigo-300/40 transition-all active:scale-[0.98] flex items-center justify-center gap-2 shadow-lg shadow-indigo-900/30"
+                  >
+                    Далее
+                    <ChevronRight className="w-5 h-5" strokeWidth={2.5} />
+                  </button>
+                  <div className="grid grid-cols-3 gap-2">
+                    {RATINGS.map(({ rating, label, color, bg }) => (
+                      <button
+                        key={rating}
+                        type="button"
+                        onClick={() => handleRate(rating)}
+                        className={`py-3 rounded-2xl text-sm font-bold border-2 transition-all active:scale-95 ${bg} ${color}`}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
                 </motion.div>
               )}
             </AnimatePresence>
 
             {!isFlipped && (
-              <p className="text-white/30 font-medium text-xs shrink-0">Сначала вспомни ответ, затем переверни карточку</p>
+              <p className="text-white/30 font-medium text-xs shrink-0">
+                Сначала вспомни ответ, затем переверни карточку
+              </p>
             )}
           </>
         )}

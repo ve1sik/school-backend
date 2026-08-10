@@ -368,7 +368,7 @@ export default function Layout() {
                   <div className="relative">
                     <item.icon className={`w-6 h-6 shrink-0 ${isActive || isShop ? 'text-[#5A4BFF]' : 'text-gray-400'}`} />
                     {badgeCount > 0 && (
-                      <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-[9px] font-black flex items-center justify-center rounded-full border-2 border-white shadow-sm">
+                      <span className="absolute -top-1 -right-1 w-[14px] h-[14px] bg-[#EF4444] text-white text-[8px] font-bold flex items-center justify-center rounded-full border-[1.5px] border-white leading-none font-[Golos_Text,system-ui,sans-serif]">
                         {badgeCount > 9 ? '9+' : badgeCount}
                       </span>
                     )}
@@ -410,7 +410,7 @@ export default function Layout() {
                       <div className="relative">
                         <item.icon className={`w-6 h-6 shrink-0 ${isActive ? 'text-[#5A4BFF]' : 'text-gray-400'}`} />
                         {badgeCount > 0 && (
-                          <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-[9px] font-black flex items-center justify-center rounded-full border-2 border-white shadow-sm">
+                          <span className="absolute -top-1 -right-1 w-[14px] h-[14px] bg-[#EF4444] text-white text-[8px] font-bold flex items-center justify-center rounded-full border-[1.5px] border-white leading-none font-[Golos_Text,system-ui,sans-serif]">
                             {badgeCount > 9 ? '9+' : badgeCount}
                           </span>
                         )}
@@ -457,8 +457,11 @@ export default function Layout() {
                   ? 'h-14 md:h-[60px]'
                   : 'h-16 md:h-[72px]'
           } flex items-center justify-between shrink-0 gap-3 ${
-            location.pathname === '/homework' || location.pathname === '/shop' || location.pathname === '/messages'
-              ? 'px-3 md:px-5'
+            location.pathname === '/homework' ||
+            location.pathname === '/schedule' ||
+            location.pathname === '/shop' ||
+            location.pathname === '/messages'
+              ? 'figma-content-pad'
               : 'px-4 md:px-8'
           }`}
           style={{ backgroundColor: design.pageBg }}
@@ -473,24 +476,24 @@ export default function Layout() {
             </button>
             {location.pathname === '/homework' ? (
               <div className="min-w-0">
-                <h1 className="text-[24px] md:text-[30px] font-extrabold tracking-tight text-[#111827] leading-none font-[Golos_Text,system-ui,sans-serif]">
+                <h1 className="text-[22px] md:text-[28px] font-bold tracking-tight text-[#111827] leading-none font-[Golos_Text,system-ui,sans-serif]">
                   Домашнее задание
                 </h1>
-                <p className="mt-1.5 text-[13px] md:text-[14px] font-medium text-[#9CA3AF] leading-snug truncate font-[Golos_Text,system-ui,sans-serif]">
+                <p className="mt-1 text-[12px] md:text-[13px] font-medium text-[#9CA3AF] leading-snug truncate font-[Golos_Text,system-ui,sans-serif]">
                   Отслеживайте свои домашние задания и оценки кураторов
                 </p>
               </div>
             ) : location.pathname === '/shop' ? (
-              <h1 className="text-[24px] md:text-[30px] font-extrabold tracking-tight text-[#111827] leading-none font-[Golos_Text,system-ui,sans-serif]">
+              <h1 className="text-[22px] md:text-[28px] font-bold tracking-tight text-[#111827] leading-none font-[Golos_Text,system-ui,sans-serif]">
                 Магазин курсов
               </h1>
             ) : location.pathname === '/messages' ? (
-              <h1 className="text-[24px] md:text-[30px] font-extrabold tracking-tight text-[#111827] leading-none font-[Golos_Text,system-ui,sans-serif]">
+              <h1 className="text-[22px] md:text-[28px] font-bold tracking-tight text-[#111827] leading-none font-[Golos_Text,system-ui,sans-serif]">
                 Сообщения
               </h1>
             ) : (
               !hideLayoutTitle && (
-                <h1 className="text-lg md:text-2xl font-black text-gray-900 truncate">{getPageTitle()}</h1>
+                <h1 className="text-lg md:text-2xl font-bold text-gray-900 truncate">{getPageTitle()}</h1>
               )
             )}
           </div>
@@ -607,14 +610,17 @@ export default function Layout() {
 
         <main
           className={`flex-1 min-h-0 flex flex-col ${
-            location.pathname === '/homework' || location.pathname === '/shop' || location.pathname === '/messages'
-              ? 'px-3 md:px-5'
+            location.pathname === '/homework' ||
+            location.pathname === '/schedule' ||
+            location.pathname === '/shop' ||
+            location.pathname === '/messages'
+              ? 'figma-content-pad'
               : location.pathname.startsWith('/homework/')
                 ? 'px-0 md:px-0'
                 : 'px-4 md:px-10'
           } ${
             isViewportLocked
-              ? 'overflow-y-auto md:overflow-hidden pb-20 md:pb-4'
+              ? 'overflow-y-auto md:overflow-hidden pb-20 md:pb-4 scrollbar-hide'
               : 'overflow-y-auto pb-24 md:pb-10'
           }`}
         >

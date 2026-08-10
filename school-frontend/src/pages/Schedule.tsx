@@ -23,31 +23,30 @@ const getEventTypeLabel = (ev: any) => {
   return DEFAULT_TYPE_LABELS[ev.type] || ev.type || 'Событие';
 };
 
-/** Тема предмета по группе/названию — фиолетовый (РЯ) / оранжевый (История) */
+/** Figma Inspect Groups 15–18 — card 327×100, border 0.5px #5C38A3 / #D3412E */
 const getSubjectTheme = (ev: any) => {
   const hay = `${ev?.group?.title || ''} ${ev?.title || ''}`.toLowerCase();
   if (/истор/.test(hay)) {
     return {
       key: 'history' as const,
       short: 'ИСТОРИЯ',
-      color: '#EF6C35',
-      badge: 'bg-[#EF6C35] text-white',
-      border: 'border-[#EF6C35]/45',
-      pill: 'bg-[#EF6C35] text-white',
-      title: 'text-[#EF6C35]',
-      datePill: 'border-[#EF6C35]/50 text-[#EF6C35]',
+      color: '#D3412E',
+      badge: 'bg-[#D3412E] text-white',
+      border: 'border-[#D3412E]',
+      pill: 'bg-[#D3412E] text-white',
+      title: 'text-[#D3412E]',
+      datePill: 'border-[#D3412E] text-[#D3412E]',
     };
   }
-  // русский / по умолчанию
   return {
     key: 'russian' as const,
     short: 'РУССКИЙ ЯЗЫК',
-    color: '#6C63FF',
-    badge: 'bg-[#6C63FF] text-white',
-    border: 'border-[#6C63FF]/45',
-    pill: 'bg-[#6C63FF] text-white',
-    title: 'text-[#6C63FF]',
-    datePill: 'border-[#6C63FF]/50 text-[#6C63FF]',
+    color: '#5C38A3',
+    badge: 'bg-[#5C38A3] text-white',
+    border: 'border-[#5C38A3]',
+    pill: 'bg-[#5C38A3] text-white',
+    title: 'text-[#5C38A3]',
+    datePill: 'border-[#5C38A3] text-[#5C38A3]',
   };
 };
 
@@ -308,26 +307,26 @@ export default function Schedule() {
   }
 
   return (
-    <div className="w-full h-full min-h-0 max-w-[1200px] mx-auto px-0 md:px-1 pt-1 flex flex-col gap-3 md:gap-4 overflow-y-auto md:overflow-hidden pb-4 md:pb-0">
-      {/* Заголовок + кнопка */}
+    <div className="w-full h-full min-h-0 px-0 pt-0.5 flex flex-col gap-[clamp(0.75rem,1.5vw,1rem)] overflow-y-auto md:overflow-hidden pb-4 md:pb-0 font-[Golos_Text,system-ui,sans-serif] scrollbar-hide">
+      {/* Title + Add — Figma Group 19: h 26, radius 6 */}
       <div className="flex flex-wrap items-center gap-3 shrink-0">
-        <h1 className="text-[28px] md:text-[32px] font-black tracking-tight text-gray-900 leading-none">
+        <h1 className="sched-page-title text-[clamp(1.35rem,2vw,1.75rem)] font-extrabold tracking-tight text-[#0E1829] leading-none">
           Расписание
         </h1>
         {canManageSchedule && (
           <button
             type="button"
             onClick={() => { resetForm(); setShowAddModal(true); }}
-            className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-[#1A1D26] hover:bg-black text-white text-[11px] font-black uppercase tracking-wide rounded-xl md:rounded-full transition-colors active:scale-95"
+            className="inline-flex items-center gap-1.5 h-[26px] px-3 bg-[#0E1829] hover:bg-black text-white text-[10px] font-bold uppercase tracking-[0.04em] rounded-[6px] transition-colors active:scale-95"
           >
-            <Plus className="w-3.5 h-3.5" /> ДОБАВИТЬ СОБЫТИЕ
+            <Plus className="w-3 h-3" /> ДОБАВИТЬ СОБЫТИЕ
           </button>
         )}
       </div>
 
-      {/* Карточки ближайших — до 4 */}
+      {/* Cards — Figma 327×100 @ full width; scale with page (4-col fluid grid) */}
       {upcomingEvents.length > 0 && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 shrink-0">
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-[clamp(0.5rem,1vw,0.75rem)] shrink-0 w-full">
           {upcomingEvents.map((ev) => {
             const theme = getSubjectTheme(ev);
             const evDate = parseSafeDate(ev.date);
@@ -345,57 +344,56 @@ export default function Schedule() {
                   setSelectedDateTitle(`${d.getDate()} ${monthNames[d.getMonth()].toLowerCase()}`);
                   setShowDayModal(true);
                 }}
-                className={`text-left bg-white border ${theme.border} rounded-xl p-3.5 hover:shadow-md transition-shadow`}
+                className={`text-left bg-white border-[0.5px] ${theme.border} rounded-[13px] w-full aspect-[327/100] min-h-[88px] max-h-[110px] px-[clamp(0.5rem,1.2vw,1rem)] py-[clamp(0.5rem,1vw,0.75rem)] hover:shadow-sm transition-shadow flex flex-col`}
               >
-                <div className="flex items-start justify-between gap-2 mb-2.5">
-                  <span className={`text-[9px] font-black uppercase tracking-wider px-2 py-1 rounded-md ${theme.badge}`}>
+                <div className="flex items-start justify-between gap-2 shrink-0">
+                  <span className={`text-[8px] font-bold uppercase tracking-[0.04em] px-1.5 py-[3px] rounded-[4px] leading-none ${theme.badge}`}>
                     {theme.short}
                   </span>
-                  <span className={`text-[9px] font-bold whitespace-nowrap shrink-0 px-2 py-1 rounded-full border ${theme.datePill}`}>
+                  <span className={`text-[8px] font-semibold whitespace-nowrap shrink-0 px-1.5 py-[2px] rounded-full border-[0.5px] leading-none ${theme.datePill}`}>
                     {formatEventCardDate(evDate)}
                   </span>
                 </div>
-                <p className="font-black text-[13px] md:text-[14px] uppercase leading-snug mb-1.5 line-clamp-2 text-gray-900">
+                <p className={`sched-card-title mt-auto uppercase line-clamp-2 ${theme.title}`}>
                   {ev.title}
                 </p>
-                <p className="text-sm font-medium text-gray-400">{getEventTypeLabel(ev)}</p>
+                <p className="mt-1 text-[11px] font-medium text-[#0E1829] leading-none">{getEventTypeLabel(ev)}</p>
               </button>
             );
           })}
         </div>
       )}
 
-      {/* Календарь — занимает оставшуюся высоту */}
-      <div className="bg-white border border-gray-200/80 rounded-2xl shadow-sm p-3 md:p-5 flex-1 min-h-0 flex flex-col overflow-hidden">
+      {/* Calendar — border #98A1B0/40; cells ~175×95 radius 9; selected #5C38A3 */}
+      <div className="bg-white border border-[#98A1B0]/40 rounded-[12px] p-3 md:p-4 flex-1 min-h-0 flex flex-col overflow-hidden">
         <div className="flex justify-between items-center mb-3 shrink-0">
-          <h2 className="text-xl md:text-2xl font-black text-gray-900">
-            {monthNames[currentDate.getMonth()]} {currentDate.getFullYear()}
+          <h2 className="sched-month-title text-[20px] text-[#0E1829]">
+            {monthNames[currentDate.getMonth()]}{' '}
+            <span className="font-medium text-[#98A1B0]">{currentDate.getFullYear()}</span>
           </h2>
-          <div className="flex gap-0">
+          <div className="flex gap-1.5">
             <button
               type="button"
               onClick={prevMonth}
-              className="w-10 h-10 bg-[#1A1D26] text-white flex items-center justify-center hover:bg-black transition-colors rounded-l-xl"
+              className="w-8 h-8 bg-[#0E1829] text-white flex items-center justify-center hover:bg-black transition-colors rounded-[8px]"
               aria-label="Предыдущий месяц"
             >
-              <ChevronLeft className="w-5 h-5" />
+              <ChevronLeft className="w-4 h-4" />
             </button>
             <button
               type="button"
               onClick={nextMonth}
-              className="w-10 h-10 bg-[#1A1D26] text-white flex items-center justify-center hover:bg-black transition-colors rounded-r-xl border-l border-white/10"
+              className="w-8 h-8 bg-[#0E1829] text-white flex items-center justify-center hover:bg-black transition-colors rounded-[8px]"
               aria-label="Следующий месяц"
             >
-              <ChevronRight className="w-5 h-5" />
+              <ChevronRight className="w-4 h-4" />
             </button>
           </div>
         </div>
 
-        <div
-          className="grid grid-cols-7 gap-1.5 md:gap-2 flex-1 min-h-0 auto-rows-fr"
-        >
+        <div className="grid grid-cols-7 gap-1.5 flex-1 min-h-0 md:auto-rows-[minmax(95px,1fr)] auto-rows-fr">
           {Array(firstDayOfMonth).fill(null).map((_, i) => (
-            <div key={`empty-${i}`} className="min-h-[52px] md:min-h-0 rounded-xl bg-transparent" />
+            <div key={`empty-${i}`} className="min-h-[52px] md:min-h-0 rounded-[9px] bg-transparent" />
           ))}
 
           {Array.from({ length: daysInMonth }, (_, i) => i + 1).map((day) => {
@@ -410,17 +408,17 @@ export default function Schedule() {
               <div
                 key={day}
                 onClick={() => handleDayClick(day, thisDate)}
-                className={`min-h-[52px] md:min-h-0 p-1.5 md:p-2 rounded-xl bg-[#F8F9FC] relative cursor-pointer transition-colors hover:bg-[#F0F2F8] overflow-hidden
-                  ${isSelected ? 'ring-2 ring-[#4A5CFF] bg-white' : 'border border-gray-100'}`}
+                className={`min-h-[52px] md:min-h-0 p-1.5 rounded-[9px] bg-white relative cursor-pointer transition-colors hover:bg-[#F8F9FC] overflow-hidden flex flex-col
+                  ${isSelected ? 'border border-[#5C38A3]' : 'border border-[#EEF0F4]'}`}
               >
-                <div className="font-black text-xs md:text-sm text-gray-900 mb-1 leading-none">{day}</div>
-                <div className="space-y-0.5">
+                <div className="font-semibold text-[12px] text-[#0E1829] mb-1 leading-none tabular-nums shrink-0">{day}</div>
+                <div className="space-y-0.5 mt-auto">
                   {dayEvents.slice(0, 2).map((ev) => {
                     const theme = getSubjectTheme(ev);
                     return (
                       <div
                         key={ev.id}
-                        className={`text-[7px] md:text-[8px] font-black uppercase tracking-wide px-1 py-0.5 rounded truncate ${theme.pill}`}
+                        className={`text-[6px] md:text-[7px] font-bold uppercase tracking-[0.02em] px-1 py-[2px] rounded-[3px] truncate ${theme.pill}`}
                         title={ev.title}
                       >
                         {theme.short}
@@ -428,7 +426,7 @@ export default function Schedule() {
                     );
                   })}
                   {dayEvents.length > 2 && (
-                    <div className="text-[8px] font-bold text-gray-400 px-0.5">+{dayEvents.length - 2}</div>
+                    <div className="text-[7px] font-semibold text-gray-400 px-0.5">+{dayEvents.length - 2}</div>
                   )}
                 </div>
               </div>

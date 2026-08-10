@@ -56,6 +56,7 @@ const SpellErrorsPanel = ({ errors }: { errors: SpellError[] }) => (
 );
 
 import { API_URL, SITE_ORIGIN, resolveUploadUrl } from '../lib/api';
+import { TheoryVideoTile } from '../components/TheoryVideoPlayer';
 
 const getFullUrl = (url: string) => {
   if (!url) return '';
@@ -69,14 +70,6 @@ const getFullUrl = (url: string) => {
     return `https://prepodmgy.ru/${cleanPath}`;
   }
   return `${API_URL}/${cleanPath}`;
-};
-
-const getEmbedUrl = (url: string) => {
-  if (!url) return '';
-  if (url.includes('vk.com/video_ext.php')) return url;
-  if (url.includes('youtube.com/watch?v=')) return url.replace('watch?v=', 'embed/');
-  if (url.includes('youtu.be/')) return url.replace('youtu.be/', 'youtube.com/embed/');
-  return url;
 };
 
 const safeHtml = (text: any) => {
@@ -1121,34 +1114,18 @@ export default function CourseView() {
   const renderTheoryBlock = (block: any) => {
     if (block.type === 'video_file' && block.url) {
       return (
-        <div key={block.id} className="space-y-3">
+        <div key={block.id} className="space-y-3 max-w-[778px]">
           {block.title && <h3 className="text-xl font-black text-gray-900 break-words">{block.title}</h3>}
-          <div className="bg-black rounded-[1.5rem] overflow-hidden shadow-lg border border-gray-100 relative w-full flex justify-center">
-            <video src={getFullUrl(block.url)} controls playsInline preload="metadata" className="w-full max-h-[70vh] object-contain outline-none" />
-          </div>
+          <TheoryVideoTile url={block.url} title={block.title} type="video_file" size="large" />
         </div>
       );
     }
 
     if (block.type === 'video' && block.url) {
-      const isDirect = block.url.toLowerCase().match(/\.(mp4|mov|webm)$/) || block.url.includes('uploads/');
-      if (isDirect) {
-        return (
-          <div key={block.id} className="space-y-3">
-            {block.title && <h3 className="text-xl font-black text-gray-900 break-words">{block.title}</h3>}
-            <div className="bg-black rounded-[1.5rem] overflow-hidden shadow-lg border border-gray-100 relative w-full flex justify-center">
-              <video src={getFullUrl(block.url)} controls playsInline preload="metadata" className="w-full max-h-[70vh] object-contain outline-none" />
-            </div>
-          </div>
-        );
-      }
-      
       return (
-        <div key={block.id} className="space-y-3">
+        <div key={block.id} className="space-y-3 max-w-[778px]">
           {block.title && <h3 className="text-xl font-black text-gray-900 break-words">{block.title}</h3>}
-          <div className="aspect-video bg-gray-900 rounded-[1.5rem] overflow-hidden shadow-lg relative border border-gray-100">
-            <iframe src={getEmbedUrl(block.url)} className="w-full h-full absolute inset-0" allowFullScreen allow="autoplay; fullscreen; picture-in-picture; encrypted-media"></iframe>
-          </div>
+          <TheoryVideoTile url={block.url} title={block.title} type="video" size="large" />
         </div>
       );
     }

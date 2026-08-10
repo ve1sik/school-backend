@@ -13,6 +13,12 @@ export class FlashcardController {
     return this.flashcardService.getDueCards(userId, deckId);
   }
 
+  @Get('practice')
+  getPractice(@Request() req, @Query('deckId') deckId?: string) {
+    const userId = req.user.sub || req.user.id || req.user.userId;
+    return this.flashcardService.getPracticeCards(userId, deckId);
+  }
+
   @Get('stats')
   getStats(@Request() req) {
     const userId = req.user.sub || req.user.id || req.user.userId;

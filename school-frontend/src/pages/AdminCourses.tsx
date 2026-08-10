@@ -18,14 +18,8 @@ import ReactQuill from 'react-quill-new';
 import 'react-quill-new/dist/quill.snow.css';
 
 import { API_URL, SITE_ORIGIN, resolveUploadUrl } from '../lib/api';
-
-const getEmbedUrl = (url: string) => {
-  if (!url) return '';
-  if (url.includes('vk.com/video_ext.php')) return url;
-  if (url.includes('youtube.com/watch?v=')) return url.replace('watch?v=', 'embed/');
-  if (url.includes('youtu.be/')) return url.replace('youtu.be/', 'youtube.com/embed/');
-  return url;
-};
+import { isVideoUrl } from '../lib/videoEmbed';
+import { TheoryVideoTile } from '../components/TheoryVideoPlayer';
 
 const getFullUrl = (url: string) => {
   if (!url) return '';
@@ -1041,7 +1035,29 @@ export default function AdminCourses() {
                   <PlayCircle className="w-6 h-6 text-indigo-600 shrink-0" />
                   <input value={block.title !== undefined ? block.title : 'Видео'} onChange={(e) => updateBlock(block.id, { title: e.target.value }, isHw)} className="flex-1 bg-transparent border-b-2 border-dashed border-transparent hover:border-indigo-300 focus:border-indigo-600 outline-none font-black text-xl transition-all text-indigo-900 placeholder:text-indigo-300" placeholder="Заголовок блока..." />
                 </div>
-                <input value={block.url} onChange={(e) => updateBlock(block.id, { url: e.target.value }, isHw)} placeholder="Вставьте ссылку на YouTube/VK/Яндекс.Диск..." className="w-full p-4 rounded-xl border border-gray-200 outline-none mb-4 font-medium focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition-all" />
+                <input
+                  value={block.url || ''}
+                  onChange={(e) => updateBlock(block.id, { url: e.target.value }, isHw)}
+                  placeholder="Ссылка: YouTube / VK / Rutube / Vimeo…"
+                  className="w-full p-4 rounded-xl border border-gray-200 outline-none mb-3 font-medium focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition-all"
+                />
+                <p className="text-[11px] font-semibold text-gray-400 mb-3">
+                  У ученика ссылка откроется как плеер из макета (серая плашка + play). 1 / 2 / 3 видео — разные сетки.
+                </p>
+                <div className="max-w-xl">
+                  <TheoryVideoTile
+                    url={block.url || ''}
+                    title={block.title}
+                    accent="#6C63FF"
+                    size="large"
+                    type="video"
+                  />
+                </div>
+                {block.url && !isVideoUrl(block.url) && (
+                  <p className="mt-2 text-xs font-bold text-amber-600">
+                    Ссылка не похожа на видео — проверьте YouTube / VK / Rutube.
+                  </p>
+                )}
               </div>
             )}
             {block.type === 'text' && (
