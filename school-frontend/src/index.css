@@ -160,26 +160,61 @@
     -webkit-font-smoothing: antialiased;
   }
 
-  /* Theory lesson (Figma p.8) — sharp headings, narrow column */
+  /* Theory lesson (Figma p.8 history) — Merriweather Sans, narrow 778px column */
   .theory-theme-title,
-  .theory-section-title {
+  .theory-section-title,
+  .theory-greeting,
+  .theory-body-text {
     font-family: "Merriweather Sans", "Golos Text", sans-serif !important;
-    font-weight: 800 !important;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     text-rendering: geometricPrecision;
-  }
-
-  .theory-section-title {
-    font-size: 22px !important;
-    line-height: 1 !important;
-    letter-spacing: -0.02em !important;
     color: #0e1829 !important;
   }
 
+  .theory-theme-title {
+    font-weight: 800 !important;
+    font-size: clamp(22px, 2.2vw, 28px) !important;
+    line-height: 105% !important;
+    letter-spacing: -0.01em !important;
+  }
+
+  /* Figma «Учебник» / «Запоминалки»: 16.69px / 800 / 141% */
+  .theory-section-title {
+    font-weight: 800 !important;
+    font-size: 16.69px !important;
+    line-height: 141% !important;
+    letter-spacing: 0 !important;
+  }
+
+  .theory-greeting {
+    font-weight: 800 !important;
+    font-size: 10.85px !important;
+    line-height: 141% !important;
+  }
+
+  /* Figma body: 10.85px / 400 / 120% */
+  .theory-body-text {
+    font-weight: 400 !important;
+    font-size: 10.85px !important;
+    line-height: 120% !important;
+  }
+
   .theory-read-only .ql-editor {
-    font-family: "Golos Text", system-ui, sans-serif !important;
+    font-family: "Merriweather Sans", "Golos Text", sans-serif !important;
+    font-weight: 400 !important;
+    font-size: 10.85px !important;
+    line-height: 120% !important;
+    color: #0e1829 !important;
     -webkit-font-smoothing: antialiased;
     padding: 0 !important;
+  }
+
+  .theory-read-only .ql-editor p {
+    margin-bottom: 0.65em !important;
+  }
+
+  .theory-read-only .ql-editor p:last-child {
+    margin-bottom: 0 !important;
   }
 }

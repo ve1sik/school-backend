@@ -757,7 +757,17 @@ export default function AdminCourses() {
       file: { title: 'Файл для скачивания', buttonText: '' },
     };
     const next = map[preset] || map.file;
-    updateBlock(blockId, { title: next.title, buttonText: next.buttonText || undefined }, isHw);
+    const kindMap: Record<string, 'script' | 'textbook' | 'memo' | undefined> = {
+      script_blank: 'script',
+      script_filled: 'script',
+      textbook: 'textbook',
+      memo: 'memo',
+    };
+    updateBlock(
+      blockId,
+      { title: next.title, buttonText: next.buttonText || undefined, resourceKind: kindMap[preset] },
+      isHw,
+    );
   };
 
   const updateBlock = (id: string, data: any, isHw: boolean) => { 
@@ -1122,15 +1132,23 @@ export default function AdminCourses() {
                   <select
                     className="w-full sm:w-auto min-w-[260px] p-3 rounded-xl border border-gray-200 font-bold text-sm outline-none focus:border-cyan-400 bg-white"
                     value={
-                      /незаполн/i.test(block.title || '')
-                        ? 'script_blank'
-                        : /заполн/i.test(block.title || '')
-                          ? 'script_filled'
-                          : /учебник/i.test(block.title || '')
-                            ? 'textbook'
-                            : /запоминал/i.test(block.title || '')
-                              ? 'memo'
-                              : 'file'
+                      block.resourceKind === 'textbook'
+                        ? 'textbook'
+                        : block.resourceKind === 'memo'
+                          ? 'memo'
+                          : block.resourceKind === 'script'
+                            ? /заполн/i.test(block.title || '')
+                              ? 'script_filled'
+                              : 'script_blank'
+                            : /незаполн/i.test(block.title || '')
+                              ? 'script_blank'
+                              : /заполн/i.test(block.title || '')
+                                ? 'script_filled'
+                                : /учебник/i.test(block.title || '')
+                                  ? 'textbook'
+                                  : /запоминал/i.test(block.title || '')
+                                    ? 'memo'
+                                    : 'file'
                     }
                     onChange={(e) => applyFilePreset(block.id, e.target.value, isHw)}
                   >

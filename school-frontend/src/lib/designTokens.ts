@@ -77,12 +77,17 @@ export const design = {
     selectedBorder: '#5C38A3',
   },
 
-  /** Theory lesson column — Figma ~778–829px (file-like, not landscape) */
+  /** Theory lesson column — Figma ~778px content, 829px shell */
   theoryCol: 829,
   theoryBlock: 778,
-  theoryCover: { w: 202, h: 288 },
-  theoryBtn: { w: 156, h: 26 },
-  theoryVideoLarge: { w: 778, h: 408 },
+  theoryCover: { w: 202, h: 288, radius: 4.34 },
+  theoryBtn: { w: 156, wWide: 183, h: 26, radius: 3 },
+  theorySectionTitle: { size: 16.69, weight: 800, lineHeight: 1.41 },
+  theoryBody: { size: 10.85, weight: 400, lineHeight: 1.2 },
+  theoryTextCol: 542,
+  theoryVideoLarge: { w: 778.06, h: 408.28, radius: 8.97 },
+  theoryVideoHalf: { w: 381, h: 200, radius: 8.97 },
+  theoryVideoGap: 16,
 
   /** Layout */
   sidebarWidth: '92px',

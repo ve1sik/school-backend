@@ -30,8 +30,8 @@ export function TheoryVideoTile({
   const src = direct ? resolveUploadUrl(url) : getEmbedUrl(url);
   const box =
     size === 'large'
-      ? 'w-full aspect-[778/408] rounded-[9px]'
-      : 'w-full aspect-[378/200] rounded-[9px]';
+      ? 'w-full aspect-[778/408] rounded-[8.97px]'
+      : 'w-full aspect-[381/200] rounded-[8.97px]';
 
   if (!url?.trim()) {
     return (
@@ -108,7 +108,7 @@ export function TheoryVideoGrid({ videos, accent = '#6C63FF' }: GridProps) {
 
   if (vids.length === 2) {
     return (
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full max-w-[778px]">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 w-full max-w-[778px]">
         {vids.map((v) => (
           <TheoryVideoTile key={v.id} url={v.url!} title={v.title} accent={accent} size="half" type={v.type} />
         ))}
@@ -117,15 +117,15 @@ export function TheoryVideoGrid({ videos, accent = '#6C63FF' }: GridProps) {
   }
 
   return (
-    <div className="space-y-3 w-full max-w-[778px]">
+    <div className="space-y-4 w-full max-w-[778px]">
       <TheoryVideoTile url={vids[0].url!} title={vids[0].title} accent={accent} size="large" type={vids[0].type} />
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         {vids.slice(1, 3).map((v) => (
           <TheoryVideoTile key={v.id} url={v.url!} title={v.title} accent={accent} size="half" type={v.type} />
         ))}
       </div>
       {vids.length > 3 && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {vids.slice(3).map((v) => (
             <TheoryVideoTile key={v.id} url={v.url!} title={v.title} accent={accent} size="half" type={v.type} />
           ))}

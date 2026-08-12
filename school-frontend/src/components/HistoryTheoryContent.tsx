@@ -14,9 +14,9 @@ const ACCENTS: Record<TheoryUiVariant, string> = {
   russian: design.brandPurple,
 };
 
-/** Figma Group 133: 156×26 download CTA */
+/** Figma Group 133: 156×26 (wide labels ≈183×26), radius 3px, #0E1829 */
 const BTN =
-  'inline-flex items-center justify-center gap-1.5 h-[26px] min-w-[156px] px-3 rounded-[6px] text-white text-[10px] font-bold uppercase tracking-[0.04em] transition-colors hover:bg-black leading-none whitespace-nowrap';
+  'inline-flex items-center justify-center gap-1 h-[26px] min-w-[156px] px-2 rounded-[3px] text-white text-[10px] font-bold uppercase tracking-[0.02em] transition-colors hover:bg-black/90 leading-none whitespace-nowrap';
 
 type Part = 'theory' | 'practice';
 
@@ -314,15 +314,17 @@ function RichText({ html }: { html?: string }) {
   const cleaned = normalizeHtml(html);
   if (!cleaned) return null;
   return (
-    <div className="theory-read-only text-[14px] md:text-[15px] leading-relaxed text-gray-700 [&_.ql-editor_p]:!mb-2">
+    <div className="theory-read-only theory-body-text">
       <ReactQuill theme="snow" value={cleaned} readOnly modules={{ toolbar: false }} />
     </div>
   );
 }
 
-/** Figma textbook cover ≈ 202×288 — scales with viewport, keeps ratio */
+/** Figma cover: 202×288, radius 4.34px */
 function Cover({ src, title, variant }: { src?: string; title?: string; variant: TheoryUiVariant }) {
-  const size = 'w-[clamp(148px,24.5vw,202px)] h-[clamp(211px,35vw,288px)] shrink-0';
+  const size =
+    'w-[clamp(148px,24.5vw,202px)] h-[clamp(211px,35vw,288px)] max-w-[202px] max-h-[288px] shrink-0';
+  const radius = 'rounded-[4.34px]';
   if (!src) {
     const placeholder =
       variant === 'russian'
@@ -330,9 +332,9 @@ function Cover({ src, title, variant }: { src?: string; title?: string; variant:
         : 'bg-gradient-to-br from-orange-50 to-amber-100 border-orange-100 text-orange-800/80';
     return (
       <div
-        className={`${size} rounded-[9px] border flex items-center justify-center p-3 text-center ${placeholder}`}
+        className={`${size} ${radius} border flex items-center justify-center p-3 text-center ${placeholder}`}
       >
-        <span className="text-xs font-extrabold uppercase leading-snug">{title || 'Материал'}</span>
+        <span className="text-[10px] font-extrabold uppercase leading-snug">{title || 'Материал'}</span>
       </div>
     );
   }
@@ -340,31 +342,41 @@ function Cover({ src, title, variant }: { src?: string; title?: string; variant:
     <img
       src={getFullUrl(src)}
       alt={title || ''}
-      className={`${size} object-cover rounded-[9px] border shadow-sm bg-white`}
+      className={`${size} ${radius} object-cover border bg-white`}
       style={{ borderColor: design.border }}
     />
   );
 }
 
-function DownloadButtons({ section }: { section: ResourceSection }) {
+function DownloadButtons({
+  section,
+  underCover = false,
+}: {
+  section: ResourceSection;
+  underCover?: boolean;
+}) {
   const items = section.items.filter((item) => item.url);
   if (!items.length) return null;
   return (
-    <div className="flex flex-wrap gap-2">
-      {items.map((item, i, arr) => (
-        <a
-          key={item.id}
-          href={getFullUrl(item.url!)}
-          target="_blank"
-          rel="noopener noreferrer"
-          download
-          className={BTN}
-          style={{ backgroundColor: '#0E1829' }}
-        >
-          {item.buttonText || downloadLabel(section.kind, item.title, i, arr.length)}
-          <Download className="w-3.5 h-3.5 shrink-0" strokeWidth={2.5} />
-        </a>
-      ))}
+    <div className={`flex flex-wrap gap-2 ${underCover ? 'w-[202px] max-w-full' : ''}`}>
+      {items.map((item, i, arr) => {
+        const label = item.buttonText || downloadLabel(section.kind, item.title, i, arr.length);
+        const wide = label.length > 18;
+        return (
+          <a
+            key={item.id}
+            href={getFullUrl(item.url!)}
+            target="_blank"
+            rel="noopener noreferrer"
+            download
+            className={`${BTN}${wide ? ' min-w-[183px]' : ''}${underCover ? ' w-full max-w-[202px]' : ''}`}
+            style={{ backgroundColor: '#0E1829' }}
+          >
+            {label}
+            <Download className="w-3 h-3 shrink-0" strokeWidth={2.5} />
+          </a>
+        );
+      })}
     </div>
   );
 }
@@ -385,12 +397,16 @@ type ResourceSection = {
   items: ResourceItem[];
 };
 
-function kindFromTitle(title: string): ResourceSection['kind'] {
-  const t = (title || '').toLowerCase();
+function kindFromSignals(title: string, buttonText?: string, hint?: string | null): ResourceSection['kind'] {
+  const t = `${title || ''} ${buttonText || ''} ${hint || ''}`.toLowerCase();
   if (/скрипт|конспект|outline/.test(t)) return 'script';
-  if (/учебник/.test(t)) return 'textbook';
-  if (/запоминал|мнемон/.test(t)) return 'memo';
+  if (/учебник|textbook/.test(t)) return 'textbook';
+  if (/запоминал|мнемон|memo/.test(t)) return 'memo';
   return 'other';
+}
+
+function kindFromTitle(title: string) {
+  return kindFromSignals(title);
 }
 
 function headingFor(kind: ResourceSection['kind'], fallback: string) {
@@ -398,6 +414,13 @@ function headingFor(kind: ResourceSection['kind'], fallback: string) {
   if (kind === 'textbook') return 'Учебник';
   if (kind === 'memo') return 'Запоминалки';
   return fallback || 'Материал';
+}
+
+/** Figma: кнопка под обложкой — одиночный файл (учебник, теория…); под текстом — скрипт (2+) и запоминалки */
+function sectionButtonsUnderCover(section: ResourceSection): boolean {
+  if (section.kind === 'memo') return false;
+  if (section.kind === 'script' || section.items.length > 1) return false;
+  return section.items.some((i) => i.url);
 }
 
 function downloadLabel(kind: ResourceSection['kind'], title: string, index: number, total: number) {
@@ -419,24 +442,32 @@ export function buildSubjectTheoryModel(blocks: any[]) {
   const sections: ResourceSection[] = [];
   let pendingImages: string[] = [];
   let pendingTexts: string[] = [];
+  let pendingHeading: string | null = null;
 
   const pushSection = (kind: ResourceSection['kind'], item: ResourceItem) => {
+    const resolvedKind = kind !== 'other' ? kind : kindFromSignals(item.title, item.buttonText, pendingHeading);
     const last = sections[sections.length - 1];
-    if (last && last.kind === kind && kind !== 'other') {
+    if (last && last.kind === resolvedKind && resolvedKind !== 'other') {
       last.items.push(item);
       if (!last.description && pendingTexts.length) {
         last.description = pendingTexts.join('');
         pendingTexts = [];
       }
+      pendingHeading = null;
       return;
     }
+    const heading =
+      resolvedKind !== 'other'
+        ? headingFor(resolvedKind, item.title)
+        : pendingHeading || item.title;
     sections.push({
-      kind,
-      heading: headingFor(kind, item.title),
+      kind: resolvedKind,
+      heading,
       description: pendingTexts.length ? pendingTexts.join('') : item.content,
       items: [item],
     });
     pendingTexts = [];
+    pendingHeading = null;
   };
 
   for (const block of blocks) {
@@ -458,13 +489,18 @@ export function buildSubjectTheoryModel(blocks: any[]) {
       if (sections.length === 0 && videos.length === 0) {
         intro.push(block);
       } else {
+        if (block.title && block.title !== 'Текст') {
+          pendingHeading = block.title;
+        }
         pendingTexts.push(block.content || '');
       }
       if (block.image || block.url) pendingImages.push(block.image || block.url);
       continue;
     }
     if (block.type === 'file' || block.type === 'link' || block.type === 'button') {
-      const kind = kindFromTitle(block.title || '');
+      const kind =
+        block.resourceKind ||
+        kindFromSignals(block.title || '', block.buttonText, pendingHeading);
       // One cover per file: prefer block.image, else take next pending image (do NOT wipe the queue)
       const cover = block.image || block.cover || pendingImages.shift();
       pushSection(kind, {
@@ -518,27 +554,25 @@ export function SubjectTheoryContent({
 
   return (
     <div
-      className="bg-white rounded-[16px] px-4 md:px-6 py-5 md:py-6 shadow-sm h-full min-h-0 overflow-y-auto space-y-8 border font-[Golos_Text,system-ui,sans-serif] antialiased scrollbar-hide"
+      className="bg-white rounded-[16px] px-4 md:px-5 py-5 md:py-6 shadow-sm h-full min-h-0 overflow-y-auto space-y-7 border font-[Merriweather_Sans,Golos_Text,system-ui,sans-serif] antialiased scrollbar-hide"
       style={{ borderColor: design.border }}
     >
-      <div className="space-y-3">
-        <h1 className="theory-theme-title text-[28px] font-extrabold leading-[1.05] tracking-tight text-[#0E1829]">
-          {themeTitle}
-        </h1>
-        <p className="font-bold text-[15px] text-[#0E1829]">{greeting}</p>
+      <div className="w-full max-w-[778px] space-y-2">
+        <h1 className="theory-theme-title">{themeTitle}</h1>
+        <p className="theory-greeting">{greeting}</p>
         {model.intro.length > 0 ? (
-          <div className="space-y-3">
+          <div className="space-y-2 theory-body-text">
             {model.intro.map((b) => (
               <div key={b.id}>
                 {b.title && b.title !== 'Текст' && (
-                  <h3 className="font-extrabold mb-1.5 text-[#0E1829]">{b.title}</h3>
+                  <h3 className="theory-section-title mb-1">{b.title}</h3>
                 )}
                 <RichText html={b.content} />
               </div>
             ))}
           </div>
         ) : (
-          <p className="text-[14px] leading-relaxed text-gray-700">
+          <p className="theory-body-text">
             Каждая тема состоит из двух занятий: теории и практики. Ниже — материалы урока: скрипты,
             учебник, запоминалки и видео. Пожалуйста, ознакомься со всем внимательно!
           </p>
@@ -547,24 +581,27 @@ export function SubjectTheoryContent({
 
       {model.sections.map((section, sIdx) => {
         const desc = section.description || section.items[0]?.content;
-        // Figma: script buttons under text; textbook + memo buttons under covers (156×26)
-        const buttonsUnderCover = section.kind === 'textbook' || section.kind === 'memo';
+        const buttonsUnderCover = sectionButtonsUnderCover(section);
 
         return (
           <div key={`${section.kind}-${sIdx}`} className="w-full max-w-[778px]">
-            <div className="flex flex-col sm:flex-row gap-4 sm:gap-5 md:gap-6 items-start">
-              <div className="flex flex-col gap-2.5 shrink-0">
-                <div className="flex flex-row flex-wrap gap-3">
+            <div className="flex flex-col sm:flex-row gap-4 sm:gap-[27px] items-start">
+              <div
+                className={`flex flex-col shrink-0 max-w-full ${
+                  section.kind === 'script' ? 'w-auto gap-2' : 'w-[202px] gap-2'
+                }`}
+              >
+                <div
+                  className={`flex flex-row flex-wrap ${section.kind === 'script' ? 'gap-3' : 'gap-0'}`}
+                >
                   {section.items.map((item) => (
                     <Cover key={item.id} src={item.image} title={item.title} variant={variant} />
                   ))}
                 </div>
-                {buttonsUnderCover && <DownloadButtons section={section} />}
+                {buttonsUnderCover && <DownloadButtons section={section} underCover />}
               </div>
-              <div className="min-w-0 flex-1 max-w-[535px] space-y-2.5 pt-0">
-                <h2 className="theory-section-title text-[22px] font-extrabold leading-none text-[#0E1829]">
-                  {section.heading}
-                </h2>
+              <div className="min-w-0 flex-1 max-w-[542px] space-y-2 pt-0">
+                <h2 className="theory-section-title">{section.heading}</h2>
                 {desc ? <RichText html={desc} /> : null}
                 {!buttonsUnderCover && <DownloadButtons section={section} />}
               </div>
@@ -574,7 +611,7 @@ export function SubjectTheoryContent({
       })}
 
       {model.videos.length > 0 && (
-        <div className="w-full pt-1 pb-2">
+        <div className="w-full max-w-[778px] pt-0.5 pb-1">
           <TheoryVideoGrid videos={model.videos} accent={accent} />
         </div>
       )}
