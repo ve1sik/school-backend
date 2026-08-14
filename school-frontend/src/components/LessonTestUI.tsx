@@ -41,7 +41,12 @@ export const LESSON_TEST_STYLES = `
     margin-bottom: 0.85em !important;
   }
   .test-prose .ql-editor strong,
-  .test-prose-body strong { font-weight: 800 !important; color: #0f172a !important; }
+  .test-prose-body strong { font-weight: 800 !important; }
+  /* Не затираем зелёный/цветной текст из Quill (Правильный вариант: и т.д.) */
+  .test-prose .ql-editor [style*="color:"] strong:not([style*="color:"]),
+  .test-prose-body [style*="color:"] strong:not([style*="color:"]) {
+    color: inherit !important;
+  }
   .test-prose .ql-editor em,
   .test-prose-body em { font-style: italic !important; }
   .test-prose .ql-editor u,

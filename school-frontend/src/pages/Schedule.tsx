@@ -26,32 +26,37 @@ const getEventTypeLabel = (ev: any) => {
 const WEEKDAYS = ['ПН', 'ВТ', 'СР', 'ЧТ', 'ПТ', 'СБ', 'ВС'];
 const WEEKDAYS_MOBILE = ['пн', 'вт', 'ср', 'чт', 'пт', 'сб', 'вс'];
 
-/** Figma Inspect Groups 15–18 — card 327×100, border 0.5px #5C38A3 / #D3412E */
+/** Figma Inspect Groups 15–18 — card 327×100; cal pill h=16 r=23 */
+const subjectFromEventText = (...parts: (string | null | undefined)[]) => {
+  const hay = parts.filter(Boolean).join(' ').toLowerCase();
+  if (/истор/i.test(hay)) return 'history' as const;
+  if (/русск|литератур|орфограф|граммат|сочинен/i.test(hay)) return 'russian' as const;
+  return 'russian' as const;
+};
+
 const getSubjectTheme = (ev: any) => {
-  const hay = `${ev?.group?.title || ''} ${ev?.title || ''}`.toLowerCase();
-  if (/истор/.test(hay)) {
+  const subject = subjectFromEventText(ev?.group?.title, ev?.title, ev?.description, ev?.custom_type);
+  if (subject === 'history') {
     return {
       key: 'history' as const,
       short: 'ИСТОРИЯ',
       shortCal: 'ИСТ',
-      color: '#D3412E',
-      badge: 'bg-[#D3412E] text-white',
       border: 'border-[#D3412E]',
-      pill: 'bg-[#D3412E] text-white',
-      title: 'text-[#D3412E]',
-      datePill: 'border-[#D3412E] text-[#D3412E]',
+      badge: 'sched-subject-badge sched-subject-badge--history',
+      calPill: 'sched-cal-pill sched-cal-pill--history',
+      title: 'sched-card-title sched-card-title--history',
+      datePill: 'sched-date-pill sched-date-pill--history',
     };
   }
   return {
     key: 'russian' as const,
     short: 'РУССКИЙ ЯЗЫК',
     shortCal: 'РУС',
-    color: '#5C38A3',
-    badge: 'bg-[#5C38A3] text-white',
     border: 'border-[#5C38A3]',
-    pill: 'bg-[#5C38A3] text-white',
-    title: 'text-[#5C38A3]',
-    datePill: 'border-[#5C38A3] text-[#5C38A3]',
+    badge: 'sched-subject-badge sched-subject-badge--russian',
+    calPill: 'sched-cal-pill sched-cal-pill--russian',
+    title: 'sched-card-title sched-card-title--russian',
+    datePill: 'sched-date-pill sched-date-pill--russian',
   };
 };
 
@@ -313,9 +318,10 @@ export default function Schedule() {
   }
 
   return (
-    <div className="w-full h-full min-h-0 px-0 pt-0.5 flex flex-col gap-3 md:gap-[clamp(0.75rem,1.5vw,1rem)] overflow-y-auto md:overflow-hidden pb-4 md:pb-0 font-[Golos_Text,system-ui,sans-serif] scrollbar-hide">
-      {/* Desktop: title + add. Mobile: full-width add (title is in Layout header) */}
-      <div className="flex flex-col md:flex-row md:flex-wrap md:items-center gap-2.5 md:gap-3 shrink-0">
+    <div className="w-full h-full min-h-0 px-0 pt-0.5 flex flex-col gap-3 md:gap-4 overflow-y-auto md:overflow-hidden pb-4 md:pb-0 font-[Golos_Text,system-ui,sans-serif] scrollbar-hide">
+      {/* Figma: gradient panel — заголовок + карточки семинаров */}
+      <div className="sched-hero-panel shrink-0 rounded-[16px] md:rounded-[20px] px-3 py-3 md:px-5 md:py-4 flex flex-col gap-3 md:gap-[clamp(0.75rem,1.5vw,1rem)]">
+      <div className="flex flex-col md:flex-row md:flex-wrap md:items-center gap-2.5 md:gap-3">
         <h1 className="hidden md:block sched-page-title text-[clamp(1.35rem,2vw,1.75rem)] font-extrabold tracking-tight text-[#0E1829] leading-none">
           Расписание
         </h1>
@@ -353,20 +359,20 @@ export default function Schedule() {
                       setSelectedDateTitle(`${d.getDate()} ${monthNames[d.getMonth()].toLowerCase()}`);
                       setShowDayModal(true);
                     }}
-                    className="text-left bg-white border border-[#98A1B0]/40 rounded-[16px] w-full min-h-[100px] px-2 py-4 hover:shadow-sm transition-shadow flex flex-col gap-2"
+                    className={`text-left bg-white border-[0.5px] ${theme.border} rounded-[13px] w-full min-h-[100px] px-2 py-4 hover:shadow-sm transition-shadow flex flex-col gap-2`}
                   >
-                    <div className="flex items-start justify-between gap-2 shrink-0">
-                      <span className={`text-[9px] font-bold uppercase tracking-[0.04em] px-2 py-1 rounded-[4px] leading-none ${theme.badge}`}>
+                    <div className="flex items-center justify-between gap-2 shrink-0">
+                      <span className={`sched-subject-badge sched-subject-badge--card-mobile ${theme.badge}`}>
                         {theme.short}
                       </span>
-                      <span className="text-[9px] font-semibold whitespace-nowrap shrink-0 text-[#98A1B0] leading-none uppercase">
+                      <span className={theme.datePill}>
                         {formatEventCardDate(evDate)}
                       </span>
                     </div>
-                    <p className={`sched-card-title uppercase line-clamp-2 ${theme.title}`}>
+                    <p className={`${theme.title} uppercase line-clamp-2 mt-1`}>
                       {ev.title}
                     </p>
-                    <p className="text-[12px] font-medium text-[#0E1829] leading-none">{getEventTypeLabel(ev)}</p>
+                    <p className="sched-card-type">{getEventTypeLabel(ev)}</p>
                   </button>
                 );
               })()}
@@ -393,24 +399,25 @@ export default function Schedule() {
                   }}
                   className={`text-left bg-white border-[0.5px] ${theme.border} rounded-[13px] w-full aspect-[327/100] min-h-[88px] max-h-[110px] px-[clamp(0.5rem,1.2vw,1rem)] py-[clamp(0.5rem,1vw,0.75rem)] hover:shadow-sm transition-shadow flex flex-col`}
                 >
-                  <div className="flex items-start justify-between gap-2 shrink-0">
-                    <span className={`text-[8px] font-bold uppercase tracking-[0.04em] px-1.5 py-[3px] rounded-[4px] leading-none ${theme.badge}`}>
+                  <div className="flex items-center justify-between gap-2 shrink-0">
+                    <span className={`sched-subject-badge sched-subject-badge--card-desktop ${theme.badge}`}>
                       {theme.short}
                     </span>
-                    <span className={`text-[8px] font-semibold whitespace-nowrap shrink-0 px-1.5 py-[2px] rounded-full border-[0.5px] leading-none ${theme.datePill}`}>
+                    <span className={theme.datePill}>
                       {formatEventCardDate(evDate)}
                     </span>
                   </div>
-                  <p className={`sched-card-title mt-auto uppercase line-clamp-2 text-[12px] ${theme.title}`}>
+                  <p className={`${theme.title} mt-auto uppercase line-clamp-2`}>
                     {ev.title}
                   </p>
-                  <p className="mt-1 text-[11px] font-medium text-[#0E1829] leading-none">{getEventTypeLabel(ev)}</p>
+                  <p className="sched-card-type mt-1">{getEventTypeLabel(ev)}</p>
                 </button>
               );
             })}
           </div>
         </>
       )}
+      </div>
 
       {/* Calendar — Figma mobile: weekdays + РУС/ИСТ pills */}
       <div className="bg-white border border-[#98A1B0]/40 rounded-[12px] p-3 md:p-4 flex-1 min-h-0 flex flex-col overflow-hidden">
@@ -471,14 +478,14 @@ export default function Schedule() {
                 className={`min-h-[44px] md:min-h-0 p-1 md:p-1.5 rounded-[8px] md:rounded-[9px] bg-white relative cursor-pointer transition-colors hover:bg-[#F8F9FC] overflow-hidden flex flex-col
                   ${isSelected ? 'border border-[#5C38A3]' : 'border border-[#EEF0F4]'}`}
               >
-                <div className="font-semibold text-[12px] md:text-[12px] text-[#0E1829] mb-0.5 md:mb-1 leading-none tabular-nums shrink-0">{day}</div>
-                <div className="space-y-0.5 mt-auto">
+                <div className="font-semibold text-[12px] md:text-[12px] text-[#0E1829] mb-1 md:mb-1.5 leading-none tabular-nums shrink-0">{day}</div>
+                <div className="flex flex-col items-start gap-[3px] mt-auto min-w-0 w-full">
                   {dayEvents.slice(0, 2).map((ev) => {
                     const theme = getSubjectTheme(ev);
                     return (
                       <div
                         key={ev.id}
-                        className={`text-[7px] md:text-[7px] font-bold uppercase tracking-[0.02em] px-0.5 md:px-1 py-[2px] rounded-[3px] truncate text-center ${theme.pill}`}
+                        className={theme.calPill}
                         title={ev.title}
                       >
                         <span className="md:hidden">{theme.shortCal}</span>
@@ -487,7 +494,7 @@ export default function Schedule() {
                     );
                   })}
                   {dayEvents.length > 2 && (
-                    <div className="text-[7px] font-semibold text-gray-400 px-0.5 text-center">+{dayEvents.length - 2}</div>
+                    <div className="text-[8px] font-semibold text-[#98A1B0] px-0.5 text-center leading-none">+{dayEvents.length - 2}</div>
                   )}
                 </div>
               </div>
@@ -535,7 +542,7 @@ export default function Schedule() {
                     )}
                     
                     <div className="flex items-center gap-2 mb-3 md:mb-4 flex-wrap pr-16 md:pr-0">
-                      <span className={`px-2.5 py-1 text-[10px] font-black uppercase tracking-widest rounded-lg ${theme.badge}`}>
+                      <span className={`sched-subject-badge sched-subject-badge--card-mobile ${theme.badge}`}>
                         {theme.short}
                       </span>
                       <span className="px-2.5 py-1 bg-gray-50 text-gray-600 text-[10px] font-black uppercase tracking-widest rounded-lg border border-gray-100">
@@ -544,7 +551,7 @@ export default function Schedule() {
                       <span className="text-sm font-bold text-gray-500 bg-gray-50 px-2.5 py-1 rounded-lg flex items-center gap-1.5"><Clock className="w-3.5 h-3.5"/> {parseSafeDate(ev.date).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}</span>
                     </div>
                     
-                    <h4 className={`text-lg md:text-xl font-black mb-2 ${theme.title}`}>{ev.title}</h4>
+                    <h4 className={`${theme.title} mb-2`}>{ev.title}</h4>
                     {ev.description && <p className="text-sm md:text-base font-medium text-gray-600 mb-4 md:mb-6 leading-relaxed">{ev.description}</p>}
                     
                     {ev.link && (

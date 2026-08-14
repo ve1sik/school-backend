@@ -151,18 +151,149 @@
     -webkit-font-smoothing: antialiased;
   }
 
+  /* Schedule — Figma gradient hero + subject pills (sampled from Figma export) */
+  .sched-hero-panel {
+    background: linear-gradient(
+      180deg,
+      #d5e0ef 0%,
+      #e0e9f4 18%,
+      #ebf1f8 42%,
+      #f4f7fe 68%,
+      #ffffff 100%
+    );
+  }
+
+  /* Card subject badge — Figma Groups 15–18, horizontal gradient */
+  .sched-subject-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-family: "Golos Text", system-ui, sans-serif;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: #ffffff;
+    white-space: nowrap;
+    border-radius: 17px;
+    line-height: 1;
+    flex-shrink: 0;
+  }
+
+  .sched-subject-badge--card-desktop {
+    height: 18px;
+    min-height: 18px;
+    border-radius: 17px;
+    font-size: 9.17px;
+    letter-spacing: 0;
+    padding: 0 8px;
+  }
+
+  .sched-subject-badge--card-mobile {
+    height: 18px;
+    min-height: 18px;
+    border-radius: 17px;
+    font-size: 9.17px;
+    letter-spacing: 0;
+    padding: 0 10px;
+  }
+
+  /* Figma Group 14 — date pill 102×18, r=17, border 0.5px #D3412E */
+  .sched-date-pill {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+    height: 18px;
+    min-height: 18px;
+    border-radius: 17px;
+    font-family: "Golos Text", system-ui, sans-serif;
+    font-size: 9.17px;
+    font-weight: 700;
+    line-height: 18px;
+    letter-spacing: 0;
+    text-transform: uppercase;
+    white-space: nowrap;
+    padding: 0 7px;
+    border: 0.5px solid;
+    background: #ffffff;
+    flex-shrink: 0;
+  }
+
+  .sched-date-pill--history {
+    border-color: #d3412e;
+    color: #d3412e;
+  }
+
+  .sched-date-pill--russian {
+    border-color: #5c38a3;
+    color: #5c38a3;
+  }
+
+  .sched-subject-badge--russian {
+    background: linear-gradient(90deg, #9b82ce 0%, #8e74c3 100%);
+  }
+
+  .sched-subject-badge--history {
+    background: linear-gradient(90deg, #f1945e 0%, #de5c37 100%);
+  }
+
+  /* Calendar day pill — Figma Inspect: 16×h, r=23, font 9.17px, w=fit-content */
+  .sched-cal-pill {
+    height: 16px;
+    max-width: 100%;
+    width: fit-content;
+    border-radius: 23px;
+    font-family: "Golos Text", system-ui, sans-serif;
+    font-size: 9.17px;
+    font-weight: 700;
+    line-height: 16px;
+    letter-spacing: 0;
+    padding: 0 6px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    white-space: nowrap;
+    text-transform: uppercase;
+    color: #ffffff;
+    flex-shrink: 0;
+  }
+
+  .sched-cal-pill--russian {
+    background: linear-gradient(90deg, #9b82ce 0%, #8e74c3 100%);
+  }
+
+  .sched-cal-pill--history {
+    background: linear-gradient(90deg, #f1945e 0%, #de5c37 100%);
+  }
+
+  /* Card title — Figma Groups 15–18: Merriweather Sans 800, ~14.98px */
   .sched-card-title {
     font-family: "Merriweather Sans", "Golos Text", sans-serif !important;
     font-weight: 800 !important;
-    font-size: 13px !important;
-    line-height: 115% !important;
-    letter-spacing: 0.01em !important;
+    font-size: 14.98px !important;
+    line-height: 1.1 !important;
+    letter-spacing: 0.02em !important;
     -webkit-font-smoothing: antialiased;
   }
-  @media (min-width: 768px) {
-    .sched-card-title {
-      font-size: 12px !important;
-    }
+
+  .sched-card-title--russian {
+    background: linear-gradient(180deg, #9b82ce 0%, #5c38a3 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  .sched-card-title--history {
+    background: linear-gradient(180deg, #e36738 0%, #c4432e 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  .sched-card-type {
+    font-size: 11px;
+    font-weight: 500;
+    line-height: 1;
+    color: #0e1829;
   }
 
   /* Theory lesson (Figma p.8 history) — Merriweather Sans, narrow 778px column */
