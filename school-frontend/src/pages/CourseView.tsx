@@ -1195,8 +1195,8 @@ export default function CourseView() {
 
   // History + Russian theory: SubjectLessonShell (Figma p.8 / p.9); practice stays on RussianHomeworkLayout
   const showSubjectShell = isSubjectUi;
-  const subjectActivePart = theoryBlocks.length === 0 ? 'practice' : russianPart;
-  const showSubjectTheoryShell = isSubjectUi && subjectActivePart === 'theory';
+  const subjectActivePart = russianPart;
+  const showSubjectTheoryShell = isSubjectUi && russianPart === 'theory';
   const subjectUiVariant = isHistoryUi ? 'history' : 'russian';
   const subjectCourseFallback = isHistoryUi ? 'История ЕГЭ' : 'Русский язык ЕГЭ';
 
@@ -1216,12 +1216,36 @@ export default function CourseView() {
         }
       }
       if (found) {
+        let lessonBlocks: any[] = [];
+        if (found.content) {
+          try {
+            const parsed = JSON.parse(found.content);
+            lessonBlocks = Array.isArray(parsed) ? parsed : [];
+          } catch {
+            lessonBlocks = [];
+          }
+        }
+        const hasTheory = lessonBlocks.some(
+          (b) => !['test', 'test_short', 'written', 'matching', 'essay', 'essay_final'].includes(b.type) && !b.isHomework,
+        );
+        const hasPractice = lessonBlocks.some(
+          (b) => ['test', 'test_short', 'written', 'matching', 'essay', 'essay_final'].includes(b.type) && !b.isHomework,
+        );
         setActiveLesson(found);
-        setRussianPart('theory');
+        setRussianPart(hasTheory ? 'theory' : hasPractice ? 'practice' : 'theory');
         setRussianStep(0);
-        setAreTestsRevealed(false);
+        setAreTestsRevealed(hasPractice && !hasTheory);
       }
     },
+  };
+
+  const finishSubjectPractice = () => {
+    const idx = subjectLessonNav.findIndex((l) => String(l.id) === String(activeLesson?.id));
+    if (idx >= 0 && idx < subjectLessonNav.length - 1) {
+      subjectCourseNav.onSelectLesson(subjectLessonNav[idx + 1].id);
+      return;
+    }
+    navigate(`/course/${courseId}`);
   };
 
   return (
@@ -1520,6 +1544,7 @@ export default function CourseView() {
                           handleMatchingChange={handleMatchingChange}
                           handleSubmitTest={handleSubmitTest}
                           onNext={() => setRussianStep((s) => Math.min(s + 1, practiceBlocks.length - 1))}
+                          onComplete={finishSubjectPractice}
                           setTestAnswers={setTestAnswers}
                           answersKey="demo_answers"
                           setSafeLocal={setSafeLocal}
@@ -1542,6 +1567,7 @@ export default function CourseView() {
                           handleMatchingChange={handleMatchingChange}
                           handleSubmitTest={handleSubmitTest}
                           onNext={() => setRussianStep((s) => Math.min(s + 1, practiceBlocks.length - 1))}
+                          onComplete={finishSubjectPractice}
                           setTestAnswers={setTestAnswers}
                           answersKey="demo_answers"
                           setSafeLocal={setSafeLocal}

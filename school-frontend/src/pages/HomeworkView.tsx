@@ -13,6 +13,7 @@ import {
   QuestionBlock,
   OptionText,
   ExplanationBlock,
+  AnswerSummary,
   getOptionLetter,
   getOptionLetterClass,
   LESSON_TEST_STYLES,
@@ -633,6 +634,16 @@ const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswer
       </div>
 
       <AnimatePresence>
+        {(isLocked || isExhausted) && ['test', 'test_short', 'matching'].includes(block.type) && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mb-4">
+            <AnswerSummary
+              block={block}
+              selected={selected}
+              serverAnswer={serverSubmission?.answer}
+              showCorrect={isExhausted || result === 'GRADED' || result === 'ERROR'}
+            />
+          </motion.div>
+        )}
         {(isLocked || isExhausted) && block.explanation && (
           <motion.div initial={{ opacity: 0, height: 0, marginTop: 0 }} animate={{ opacity: 1, height: 'auto', marginTop: 24 }} exit={{ opacity: 0, height: 0, marginTop: 0 }} className="overflow-hidden">
             <ExplanationBlock content={block.explanation || ''} mode="quill" />

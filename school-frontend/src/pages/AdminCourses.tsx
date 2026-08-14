@@ -1048,11 +1048,11 @@ export default function AdminCourses() {
                 <input
                   value={block.url || ''}
                   onChange={(e) => updateBlock(block.id, { url: e.target.value }, isHw)}
-                  placeholder="Ссылка: YouTube / VK / Rutube / Vimeo…"
+                  placeholder="Ссылка или код вставки: YouTube / VK / Rutube / Google Drive / iframe…"
                   className="w-full p-4 rounded-xl border border-gray-200 outline-none mb-3 font-medium focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition-all"
                 />
                 <p className="text-[11px] font-semibold text-gray-400 mb-3">
-                  У ученика ссылка откроется как плеер из макета (серая плашка + play). 1 / 2 / 3 видео — разные сетки.
+                  Можно вставить ссылку или код iframe с VK. Яндекс.Диск откроется в новой вкладке (встроить нельзя).
                 </p>
                 <div className="max-w-xl">
                   <TheoryVideoTile

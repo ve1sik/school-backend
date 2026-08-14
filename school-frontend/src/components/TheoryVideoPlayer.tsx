@@ -1,7 +1,7 @@
-import { Play } from 'lucide-react';
+import { ExternalLink, Play } from 'lucide-react';
 import { useState } from 'react';
 import { resolveUploadUrl } from '../lib/api';
-import { getEmbedUrl, isDirectVideoFile } from '../lib/videoEmbed';
+import { isDirectVideoFile, resolveVideoEmbed } from '../lib/videoEmbed';
 
 type Size = 'large' | 'half';
 
@@ -26,8 +26,17 @@ export function TheoryVideoTile({
   type,
 }: Props) {
   const [playing, setPlaying] = useState(false);
+  const [embedFailed, setEmbedFailed] = useState(false);
+
   const direct = isDirectVideoFile(url) || type === 'video_file';
-  const src = direct ? resolveUploadUrl(url) : getEmbedUrl(url);
+  const resolved = direct
+    ? { embedUrl: resolveUploadUrl(url), fallbackUrl: resolveUploadUrl(url), kind: 'video' as const, provider: 'file' }
+    : resolveVideoEmbed(url);
+
+  const src = resolved.embedUrl;
+  const fallbackUrl = resolved.fallbackUrl || url;
+  const isExternalOnly = resolved.kind === 'external' || embedFailed;
+
   const box =
     size === 'large'
       ? 'w-full aspect-[778/408] rounded-[8.97px]'
@@ -46,8 +55,30 @@ export function TheoryVideoTile({
     );
   }
 
+  if (playing && isExternalOnly) {
+    return (
+      <div className={`${box} bg-[#F5F7FF] flex flex-col items-center justify-center gap-3 p-4 text-center`}>
+        <p className="text-sm font-semibold text-gray-700 max-w-md">
+          {resolved.provider === 'yandex-disk'
+            ? 'Яндекс.Диск не разрешает встроить плеер на сайт. Откройте видео по ссылке.'
+            : 'Это видео нельзя встроить — откройте по ссылке.'}
+        </p>
+        <a
+          href={fallbackUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg text-white text-sm font-bold"
+          style={{ backgroundColor: accent }}
+        >
+          <ExternalLink className="w-4 h-4" />
+          Открыть видео
+        </a>
+      </div>
+    );
+  }
+
   if (playing) {
-    if (direct) {
+    if (resolved.kind === 'video' || direct) {
       return (
         <video
           src={src}
@@ -65,8 +96,25 @@ export function TheoryVideoTile({
           className="absolute inset-0 w-full h-full"
           allowFullScreen
           allow="autoplay; fullscreen; picture-in-picture; encrypted-media"
+          referrerPolicy="no-referrer-when-downgrade"
           title={title || 'Видео'}
+          onError={() => setEmbedFailed(true)}
         />
+        {embedFailed && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-[#F5F7FF] p-4 text-center">
+            <p className="text-sm font-semibold text-gray-700">Не удалось загрузить плеер</p>
+            <a
+              href={fallbackUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg text-white text-sm font-bold"
+              style={{ backgroundColor: accent }}
+            >
+              <ExternalLink className="w-4 h-4" />
+              Открыть видео
+            </a>
+          </div>
+        )}
       </div>
     );
   }
@@ -84,6 +132,11 @@ export function TheoryVideoTile({
       >
         <Play className="w-5 h-5 md:w-6 md:h-6 fill-current ml-0.5" style={{ color: accent }} />
       </span>
+      {resolved.provider === 'yandex-disk' && (
+        <span className="absolute bottom-2 left-2 right-2 text-[10px] font-semibold text-gray-500 bg-white/80 rounded px-2 py-1">
+          Яндекс.Диск — откроется в новой вкладке
+        </span>
+      )}
     </button>
   );
 }

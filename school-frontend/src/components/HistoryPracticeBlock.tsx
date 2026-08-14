@@ -2,7 +2,7 @@
 import { Check, CheckCircle2, Clock, XCircle } from 'lucide-react';
 import { resolveUploadUrl } from '../lib/api';
 import { design } from '../lib/designTokens';
-import { ExplanationBlock, OptionText, safeHtml } from './LessonTestUI';
+import { ExplanationBlock, OptionText, safeHtml, AnswerSummary } from './LessonTestUI';
 import EssayPlainEditor from './EssayPlainEditor';
 import EssayStudentTask from './EssayStudentTask';
 import EssayResultView from './EssayResultView';
@@ -36,6 +36,7 @@ type Props = {
   handleMatchingChange: (blockId: string, leftText: string, rightText: string) => void;
   handleSubmitTest: (block: any) => void | Promise<void>;
   onNext: () => void;
+  onComplete?: () => void;
   setTestAnswers: (next: Record<string, string[]>) => void;
   answersKey?: string;
   setSafeLocal?: (key: string, value: unknown) => void;
@@ -208,6 +209,7 @@ export default function HistoryPracticeBlock({
   handleMatchingChange,
   handleSubmitTest,
   onNext,
+  onComplete,
   setTestAnswers,
   answersKey,
   setSafeLocal,
@@ -239,7 +241,11 @@ export default function HistoryPracticeBlock({
 
   const goNext = async () => {
     if (!isLocked && hasAnswer) await handleSubmitTest(block);
-    if (stepIndex < totalSteps - 1) onNext();
+    if (stepIndex < totalSteps - 1) {
+      onNext();
+    } else if (isLocked && onComplete) {
+      onComplete();
+    }
   };
 
   const textValue =
@@ -496,6 +502,15 @@ export default function HistoryPracticeBlock({
       )}
 
       {body}
+
+      {(isLocked || isExhausted) && ['test', 'test_short', 'matching'].includes(block.type) && (
+        <AnswerSummary
+          block={block}
+          selected={selected}
+          serverAnswer={serverSubmission?.answer}
+          showCorrect={isExhausted || result === 'GRADED' || result === 'ERROR'}
+        />
+      )}
 
       {(isLocked || isExhausted) && block.explanation && (
         <ExplanationBlock content={block.explanation || ''} mode="html" />

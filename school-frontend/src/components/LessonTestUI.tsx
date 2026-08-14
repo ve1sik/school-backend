@@ -164,3 +164,88 @@ export function getOptionLetterClass(
   }
   return 'bg-white border-gray-200 text-gray-600 group-hover:border-purple-300 group-hover:text-purple-700';
 }
+
+function stripPlain(html: string) {
+  return (html || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+function optionIndexLabel(block: any, answerText: string): string {
+  const idx = (block.options || []).findIndex((o: any) => o.text === answerText);
+  return idx >= 0 ? String(idx + 1) : stripPlain(answerText);
+}
+
+export function formatUserAnswer(block: any, selected: string[], serverAnswer?: string): string {
+  if (block.type === 'test' && Array.isArray(block.options)) {
+    const picks = selected.length
+      ? selected
+      : (serverAnswer || '')
+          .split(',')
+          .map((s) => s.trim())
+          .filter(Boolean);
+    if (!picks.length) return '—';
+    return picks.map((a) => optionIndexLabel(block, a)).join(', ');
+  }
+  if (block.type === 'test_short' || block.type === 'written') {
+    const raw = serverAnswer || selected[0] || '';
+    return stripPlain(raw) || '—';
+  }
+  if (block.type === 'matching' && block.pairs) {
+    const pairs = selected.length
+      ? selected
+      : (serverAnswer || '').split(', ').map((s) => s.replace(' - ', '|||'));
+    if (!pairs.length) return '—';
+    return pairs
+      .map((p) => {
+        const [left, right] = String(p).includes('|||') ? String(p).split('|||') : ['', p];
+        return left ? `${left} → ${right || '?'}` : String(p);
+      })
+      .join('; ');
+  }
+  return serverAnswer || selected.join(', ') || '—';
+}
+
+export function formatCorrectAnswer(block: any): string {
+  if (block.type === 'test' && Array.isArray(block.options)) {
+    const correct = block.options.filter((o: any) => o.isCorrect);
+    if (!correct.length) return '—';
+    return correct.map((o: any, i: number) => {
+      const idx = block.options.indexOf(o);
+      return idx >= 0 ? String(idx + 1) : stripPlain(o.text);
+    }).join(', ');
+  }
+  if (block.type === 'test_short' || block.type === 'written') {
+    return (block.correctAnswers || []).join(' / ') || '—';
+  }
+  if (block.type === 'matching' && block.pairs) {
+    return block.pairs.map((p: any) => `${p.left} → ${p.right}`).join('; ');
+  }
+  return '—';
+}
+
+type AnswerSummaryProps = {
+  block: any;
+  selected: string[];
+  serverAnswer?: string;
+  showCorrect?: boolean;
+};
+
+export function AnswerSummary({ block, selected, serverAnswer, showCorrect = true }: AnswerSummaryProps) {
+  const userText = formatUserAnswer(block, selected, serverAnswer);
+  const correctText = formatCorrectAnswer(block);
+  if (userText === '—' && correctText === '—') return null;
+
+  return (
+    <div className="space-y-3 mb-4">
+      <div className="p-4 rounded-xl border border-gray-200 bg-gray-50">
+        <p className="text-[10px] font-black uppercase tracking-[0.14em] text-gray-400 mb-1.5">Ваш ответ</p>
+        <p className="text-[15px] font-semibold text-gray-900">{userText}</p>
+      </div>
+      {showCorrect && (
+        <div className="p-4 rounded-xl border border-emerald-200 bg-emerald-50">
+          <p className="text-[10px] font-black uppercase tracking-[0.14em] text-emerald-600 mb-1.5">Правильный ответ</p>
+          <p className="text-[15px] font-semibold text-emerald-900">{correctText}</p>
+        </div>
+      )}
+    </div>
+  );
+}

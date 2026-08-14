@@ -83,14 +83,6 @@ export default function RussianHomeworkLayout({
     [practiceCount],
   );
 
-  const insertAfterIdx = noText
-    ? null
-    : typeof textNavAfter === 'number' && textNavAfter > 0
-      ? textNavAfter - 1
-      : practiceCount >= 23
-        ? 21
-        : null;
-
   const lessonIdx = useMemo(() => {
     if (!courseNav?.lessons?.length) return -1;
     return courseNav.lessons.findIndex((l) => String(l.id) === String(courseNav.activeLessonId));
@@ -148,21 +140,6 @@ export default function RussianHomeworkLayout({
     );
   };
 
-  const textNavBtn = () => (
-    <button
-      type="button"
-      onClick={() => {
-        if (passage) setTextOpen(true);
-        onPartChange(passage ? 'practice' : 'theory');
-      }}
-      title="Текст"
-      className="w-8 h-8 shrink-0 rounded-[8px] text-[12px] font-bold border border-transparent text-white mx-0.5"
-      style={{ backgroundColor: resolvedAccent }}
-    >
-      T
-    </button>
-  );
-
   return (
     <div className="w-full h-full min-h-0 flex flex-col gap-2.5 sm:gap-3.5 overflow-hidden font-[Golos_Text,system-ui,sans-serif]">
       <div
@@ -203,7 +180,7 @@ export default function RussianHomeworkLayout({
                     aria-haspopup="listbox"
                   >
                     <span className="min-w-0 truncate text-[12px] font-semibold text-[#111827]">
-                      {activeLessonMeta ? activeLessonMeta.themeTitle : themeTitle}
+                      {activeLessonMeta ? activeLessonMeta.title : themeTitle}
                     </span>
                     <span className="text-[10px] font-bold text-gray-400 shrink-0 tabular-nums">
                       {lessonIdx >= 0 ? `${lessonIdx + 1}/${courseNav.lessons.length}` : ''}
@@ -245,13 +222,7 @@ export default function RussianHomeworkLayout({
                               {item.title && item.title !== item.themeTitle ? ` · Урок ${i + 1}` : ''}
                             </span>
                             <span className="block text-[13px] font-semibold leading-snug line-clamp-2">
-                              {item.themeTitle}
-                              {item.title && item.title !== item.themeTitle ? (
-                                <span className={active ? 'text-white/90' : 'text-gray-500'}>
-                                  {' — '}
-                                  {item.title}
-                                </span>
-                              ) : null}
+                              {item.title || item.themeTitle}
                             </span>
                           </button>
                         );
@@ -360,20 +331,7 @@ export default function RussianHomeworkLayout({
                 <ChevronRight className="w-4 h-4" strokeWidth={2.5} />
               </button>
 
-              {numbers.map((i) => {
-                const node = navBtn(i);
-                if (insertAfterIdx !== null && i === insertAfterIdx) {
-                  return (
-                    <span key={`wrap-${i}`} className="contents">
-                      {node}
-                      {textNavBtn()}
-                    </span>
-                  );
-                }
-                return node;
-              })}
-
-              {insertAfterIdx === null && !noText && textNavBtn()}
+              {numbers.map((i) => navBtn(i))}
             </div>
           )}
         </div>

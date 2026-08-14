@@ -1,6 +1,6 @@
 import { useMemo, useState, type FocusEvent } from 'react';
 import { CheckCircle2, Clock, XCircle } from 'lucide-react';
-import { ExplanationBlock, OptionText, safeHtml } from './LessonTestUI';
+import { ExplanationBlock, OptionText, safeHtml, AnswerSummary } from './LessonTestUI';
 import EssayPlainEditor from './EssayPlainEditor';
 import EssayStudentTask from './EssayStudentTask';
 import EssayResultView from './EssayResultView';
@@ -31,6 +31,7 @@ type Props = {
   handleMatchingChange: (blockId: string, leftText: string, rightText: string) => void;
   handleSubmitTest: (block: any) => void | Promise<void>;
   onNext: () => void;
+  onComplete?: () => void;
   setTestAnswers: (next: Record<string, string[]>) => void;
   answersKey?: string;
   setSafeLocal?: (key: string, value: unknown) => void;
@@ -232,6 +233,7 @@ export default function RussianPracticeBlock({
   handleMatchingChange,
   handleSubmitTest,
   onNext,
+  onComplete,
   setTestAnswers,
   answersKey,
   setSafeLocal,
@@ -309,7 +311,11 @@ export default function RussianPracticeBlock({
     if (!isLocked && hasAnswer) {
       await handleSubmitTest(block);
     }
-    if (stepIndex < totalSteps - 1) onNext();
+    if (stepIndex < totalSteps - 1) {
+      onNext();
+    } else if (isLocked && onComplete) {
+      onComplete();
+    }
   };
 
   const passageHtml = block.passage || block.sourceText || block.source_text || '';
@@ -616,6 +622,15 @@ export default function RussianPracticeBlock({
         renderWritten()
       ) : (
         renderShortOrTest()
+      )}
+
+      {(isLocked || isExhausted) && ['test', 'test_short', 'matching'].includes(block.type) && (
+        <AnswerSummary
+          block={block}
+          selected={selected}
+          serverAnswer={serverSubmission?.answer}
+          showCorrect={isExhausted || result === 'GRADED' || result === 'ERROR'}
+        />
       )}
 
       {(isLocked || isExhausted) && block.explanation && (

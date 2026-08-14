@@ -1379,8 +1379,8 @@ export default function Dashboard() {
             </motion.div>
           )}
 
-          {/* АНАЛИЗ ПО ПРАВИЛАМ ОРФОГРАФИИ — отключён (пре/при, корни и т.п.) */}
-          {false && spellAnalyticsEnabled && spellRuleRec && spellRuleRec.totalErrors > 0 && (
+          {/* АНАЛИЗ ПО ПРАВИЛАМ ОРФОГРАФИИ */}
+          {spellAnalyticsEnabled && spellRuleRec && spellRuleRec.totalErrors > 0 && (
             <motion.div
               variants={itemVariants}
               initial="hidden"
@@ -1425,8 +1425,8 @@ export default function Dashboard() {
             </motion.div>
           )}
 
-          {/* ГДЕ ОШИБСЯ — умная аналитика по пре/при, корням и т.п. отключена по запросу */}
-          {false && spellAnalyticsEnabled && (
+          {/* ГДЕ ОШИБСЯ — орфография и словарные слова */}
+          {spellAnalyticsEnabled && currentSpellWeakSpots.length > 0 && (
             <motion.div
               variants={itemVariants}
               initial="hidden"
@@ -1545,7 +1545,11 @@ export default function Dashboard() {
                   <button
                     key={`${selectedCourseId}-${module.id}`}
                     type="button"
-                    onClick={() => { setActiveTab(module.id); setSelectedLessonRow(null); }}
+                    onClick={() => {
+                      setActiveTab(module.id);
+                      setSelectedLessonRow(null);
+                      setModulesExpanded(true);
+                    }}
                     className="w-full text-left p-4 bg-white rounded-2xl border-2 border-amber-100 hover:border-amber-300 hover:shadow-md transition-all flex items-center gap-4"
                   >
                     <div className="text-2xl font-black text-rose-500 w-14 text-center shrink-0">

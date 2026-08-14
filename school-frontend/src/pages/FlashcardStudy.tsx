@@ -444,11 +444,11 @@ export default function FlashcardStudy() {
                   </div>
                   <div className="flex-1 min-h-0 flex flex-col items-center justify-center gap-3 px-5 py-4 overflow-hidden">
                     {current.front_image && (
-                      <div className={`w-full flex items-center justify-center min-h-0 ${current.front ? 'max-h-[55%]' : 'flex-1'}`}>
+                      <div className={`w-full flex items-center justify-center min-h-0 ${current.front ? 'max-h-[62%]' : 'flex-1'}`}>
                         <img
                           src={cardImageUrl(current.front_image)}
                           alt=""
-                          className="max-w-full max-h-full object-contain rounded-xl bg-gray-50 border border-gray-100"
+                          className="max-w-full max-h-[min(42vh,320px)] object-contain rounded-xl bg-gray-50 border border-gray-100"
                         />
                       </div>
                     )}
@@ -478,16 +478,16 @@ export default function FlashcardStudy() {
                   </div>
                   <div className="flex-1 min-h-0 flex flex-col items-center justify-center gap-3 px-5 py-4 overflow-hidden">
                     {current.back_image && (
-                      <div className={`w-full flex items-center justify-center min-h-0 ${current.back ? 'max-h-[48%]' : 'flex-1'}`}>
+                      <div className={`w-full flex items-center justify-center min-h-0 ${current.back ? 'max-h-[58%]' : 'flex-1'}`}>
                         <img
                           src={cardImageUrl(current.back_image)}
                           alt=""
-                          className="max-w-full max-h-full object-contain rounded-xl bg-white/10 border border-white/20"
+                          className="max-w-full max-h-[min(42vh,320px)] object-contain rounded-xl bg-white/10 border border-white/20"
                         />
                       </div>
                     )}
                     {current.back ? (
-                      <p className="text-xl md:text-2xl font-extrabold text-white text-center leading-snug shrink-0 px-2">
+                      <p className="text-2xl md:text-3xl font-extrabold text-white text-center leading-snug shrink-0 px-2">
                         {current.back}
                       </p>
                     ) : !current.back_image ? (
@@ -498,14 +498,15 @@ export default function FlashcardStudy() {
               </motion.div>
             </div>
 
-            {/* ACTIONS */}
+            {/* ACTIONS — fixed min-height prevents layout jump */}
+            <div className="w-full max-w-lg shrink-0 min-h-[148px] flex flex-col justify-end">
             <AnimatePresence>
               {isFlipped && (
                 <motion.div
                   initial={{ opacity: 0, y: 16 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: 8 }}
-                  className="w-full max-w-lg flex flex-col gap-2.5 shrink-0"
+                  className="w-full flex flex-col gap-2.5"
                 >
                   <button
                     type="button"
@@ -530,6 +531,7 @@ export default function FlashcardStudy() {
                 </motion.div>
               )}
             </AnimatePresence>
+            </div>
 
             {!isFlipped && (
               <p className="text-white/30 font-medium text-xs shrink-0">

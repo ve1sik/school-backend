@@ -63,10 +63,10 @@ export function SubjectLessonShell({
   const lessonMenuRef = useRef<HTMLDivElement>(null);
   const label =
     activePart === 'theory'
-      ? 'Теория + практика'
+      ? 'Часть 1. Теория'
       : practiceIsHomework
         ? 'Практика · ДЗ'
-        : 'Практика';
+        : 'Часть 2. Практика';
   const fallback =
     courseTitleFallback || (variant === 'russian' ? 'Русский язык ЕГЭ' : 'История ЕГЭ');
   const menuHover = variant === 'russian' ? 'hover:bg-violet-50' : 'hover:bg-orange-50';
@@ -146,7 +146,7 @@ export function SubjectLessonShell({
                       className="min-w-0 truncate text-[12px] font-semibold"
                       style={{ color: design.textPrimary }}
                     >
-                      {activeLessonMeta ? activeLessonMeta.themeTitle : themeTitle}
+                      {activeLessonMeta ? activeLessonMeta.title : themeTitle}
                     </span>
                     <span className="text-[10px] font-bold text-gray-400 shrink-0 tabular-nums">
                       {lessonIdx >= 0 ? `${lessonIdx + 1}/${courseNav.lessons.length}` : ''}
@@ -192,13 +192,7 @@ export function SubjectLessonShell({
                               {item.title && item.title !== item.themeTitle ? ` · Урок ${i + 1}` : ''}
                             </span>
                             <span className="block text-[13px] font-semibold leading-snug line-clamp-2">
-                              {item.themeTitle}
-                              {item.title && item.title !== item.themeTitle ? (
-                                <span className={active ? 'text-white/90' : 'text-gray-500'}>
-                                  {' — '}
-                                  {item.title}
-                                </span>
-                              ) : null}
+                              {item.title || item.themeTitle}
                             </span>
                           </button>
                         );
@@ -259,7 +253,7 @@ export function SubjectLessonShell({
                       setMenuOpen(false);
                     }}
                   >
-                    Теория + практика
+                    Теория
                   </button>
                   {hasPractice && (
                     <button
@@ -271,7 +265,7 @@ export function SubjectLessonShell({
                         setMenuOpen(false);
                       }}
                     >
-                      <span className="block text-sm font-bold">Практика</span>
+                      <span className="block text-sm font-bold">Часть 2. Практика</span>
                       {practiceIsHomework && (
                         <span className="block text-[11px] font-semibold text-gray-400 mt-0.5">
                           Домашнее задание

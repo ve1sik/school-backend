@@ -12,6 +12,15 @@ type CreateEventInput = {
   group_id?: string;
 };
 
+type CourseSubject = 'history' | 'russian' | 'other';
+
+function subjectFromText(...parts: (string | null | undefined)[]): CourseSubject {
+  const hay = parts.filter(Boolean).join(' ').toLowerCase();
+  if (/истор/i.test(hay)) return 'history';
+  if (/русск|литератур|орфограф|граммат|сочинен/i.test(hay)) return 'russian';
+  return 'other';
+}
+
 @Injectable()
 export class ScheduleService {
   constructor(private prisma: PrismaService) {}
@@ -52,9 +61,12 @@ export class ScheduleService {
       }
 
       where.OR = [
-        { group_id: null },
         ...(relatedGroupIds.length > 0 ? [{ group_id: { in: relatedGroupIds } }] : []),
       ];
+
+      if (relatedGroupIds.length === 0 && courseIds.length === 0) {
+        where.OR = [{ group_id: null }];
+      }
     } else if (role === Role.CURATOR) {
       const groups = await this.prisma.group.findMany({
         where: { curator_id: userId },
@@ -71,13 +83,49 @@ export class ScheduleService {
       where.OR = [{ group_id: null }, ...(groupIds.length > 0 ? [{ group_id: { in: groupIds } }] : [])];
     }
 
-    return this.prisma.event.findMany({
+    const events = await this.prisma.event.findMany({
       where,
       include: {
         group: { select: { id: true, title: true } },
       },
       orderBy: { date: 'asc' },
     });
+
+    if (role === Role.STUDENT) {
+      const user = await this.prisma.user.findUnique({
+        where: { id: userId },
+        select: { enrollments: { select: { course_id: true } } },
+      });
+      const courseIds = user?.enrollments.map((e) => e.course_id) ?? [];
+      if (courseIds.length > 0) {
+        const courses = await this.prisma.course.findMany({
+          where: { id: { in: courseIds } },
+          select: { title: true },
+        });
+        const allowed = new Set(
+          courses.map((c) => subjectFromText(c.title)).filter((s) => s !== 'other'),
+        );
+        if (allowed.size > 0) {
+          const globalMatches = await this.prisma.event.findMany({
+            where: { group_id: null },
+            include: { group: { select: { id: true, title: true } } },
+            orderBy: { date: 'asc' },
+          });
+          const filteredGlobal = globalMatches.filter((e) => {
+            const sub = subjectFromText(e.title, e.description, e.group?.title);
+            return sub === 'other' || allowed.has(sub);
+          });
+          const merged = [...events];
+          for (const ev of filteredGlobal) {
+            if (!merged.some((m) => m.id === ev.id)) merged.push(ev);
+          }
+          merged.sort((a, b) => a.date.getTime() - b.date.getTime());
+          return merged;
+        }
+      }
+    }
+
+    return events;
   }
 
   async createEvent(data: CreateEventInput) {
