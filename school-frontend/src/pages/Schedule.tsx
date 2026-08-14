@@ -23,6 +23,9 @@ const getEventTypeLabel = (ev: any) => {
   return DEFAULT_TYPE_LABELS[ev.type] || ev.type || 'Событие';
 };
 
+const WEEKDAYS = ['ПН', 'ВТ', 'СР', 'ЧТ', 'ПТ', 'СБ', 'ВС'];
+const WEEKDAYS_MOBILE = ['пн', 'вт', 'ср', 'чт', 'пт', 'сб', 'вс'];
+
 /** Figma Inspect Groups 15–18 — card 327×100, border 0.5px #5C38A3 / #D3412E */
 const getSubjectTheme = (ev: any) => {
   const hay = `${ev?.group?.title || ''} ${ev?.title || ''}`.toLowerCase();
@@ -30,6 +33,7 @@ const getSubjectTheme = (ev: any) => {
     return {
       key: 'history' as const,
       short: 'ИСТОРИЯ',
+      shortCal: 'ИСТ',
       color: '#D3412E',
       badge: 'bg-[#D3412E] text-white',
       border: 'border-[#D3412E]',
@@ -41,6 +45,7 @@ const getSubjectTheme = (ev: any) => {
   return {
     key: 'russian' as const,
     short: 'РУССКИЙ ЯЗЫК',
+    shortCal: 'РУС',
     color: '#5C38A3',
     badge: 'bg-[#5C38A3] text-white',
     border: 'border-[#5C38A3]',
@@ -291,12 +296,13 @@ export default function Schedule() {
     }
   };
 
-  // Ближайшие события — до 4 карточек как в макете
+  // Ближайшие события — mobile: 1 карточка; desktop: до 4
   const now = new Date();
   const upcomingEvents = events
     .filter(e => parseSafeDate(e.date) >= new Date(now.getFullYear(), now.getMonth(), now.getDate()))
     .sort((a, b) => parseSafeDate(a.date).getTime() - parseSafeDate(b.date).getTime())
     .slice(0, 4);
+  const mobileFeaturedEvent = upcomingEvents[0] ?? null;
 
   if (isLoading) {
     return (
@@ -307,67 +313,109 @@ export default function Schedule() {
   }
 
   return (
-    <div className="w-full h-full min-h-0 px-0 pt-0.5 flex flex-col gap-[clamp(0.75rem,1.5vw,1rem)] overflow-y-auto md:overflow-hidden pb-4 md:pb-0 font-[Golos_Text,system-ui,sans-serif] scrollbar-hide">
-      {/* Title + Add — Figma Group 19: h 26, radius 6 */}
-      <div className="flex flex-wrap items-center gap-3 shrink-0">
-        <h1 className="sched-page-title text-[clamp(1.35rem,2vw,1.75rem)] font-extrabold tracking-tight text-[#0E1829] leading-none">
+    <div className="w-full h-full min-h-0 px-0 pt-0.5 flex flex-col gap-3 md:gap-[clamp(0.75rem,1.5vw,1rem)] overflow-y-auto md:overflow-hidden pb-4 md:pb-0 font-[Golos_Text,system-ui,sans-serif] scrollbar-hide">
+      {/* Desktop: title + add. Mobile: full-width add (title is in Layout header) */}
+      <div className="flex flex-col md:flex-row md:flex-wrap md:items-center gap-2.5 md:gap-3 shrink-0">
+        <h1 className="hidden md:block sched-page-title text-[clamp(1.35rem,2vw,1.75rem)] font-extrabold tracking-tight text-[#0E1829] leading-none">
           Расписание
         </h1>
         {canManageSchedule && (
           <button
             type="button"
             onClick={() => { resetForm(); setShowAddModal(true); }}
-            className="inline-flex items-center gap-1.5 h-[26px] px-3 bg-[#0E1829] hover:bg-black text-white text-[10px] font-bold uppercase tracking-[0.04em] rounded-[6px] transition-colors active:scale-95"
+            className="inline-flex items-center justify-center gap-1.5 w-full md:w-auto h-11 md:h-[26px] px-4 md:px-3 bg-[#0E1829] hover:bg-black text-white text-[12px] md:text-[10px] font-bold uppercase tracking-[0.04em] rounded-[10px] md:rounded-[6px] transition-colors active:scale-[0.98]"
           >
-            <Plus className="w-3 h-3" /> ДОБАВИТЬ СОБЫТИЕ
+            <Plus className="w-4 h-4 md:w-3 md:h-3" /> ДОБАВИТЬ СОБЫТИЕ
           </button>
         )}
       </div>
 
-      {/* Cards — Figma 327×100 @ full width; scale with page (4-col fluid grid) */}
+      {/* Cards — mobile: одна карточка (Figma); desktop: до 4 в ряд */}
       {upcomingEvents.length > 0 && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-[clamp(0.5rem,1vw,0.75rem)] shrink-0 w-full">
-          {upcomingEvents.map((ev) => {
-            const theme = getSubjectTheme(ev);
-            const evDate = parseSafeDate(ev.date);
-            return (
-              <button
-                key={ev.id}
-                type="button"
-                onClick={() => {
-                  if (ev.link) {
-                    window.open(ev.link, '_blank', 'noopener,noreferrer');
-                    return;
-                  }
-                  const d = parseSafeDate(ev.date);
-                  setSelectedDayEvents([ev]);
-                  setSelectedDateTitle(`${d.getDate()} ${monthNames[d.getMonth()].toLowerCase()}`);
-                  setShowDayModal(true);
-                }}
-                className={`text-left bg-white border-[0.5px] ${theme.border} rounded-[13px] w-full aspect-[327/100] min-h-[88px] max-h-[110px] px-[clamp(0.5rem,1.2vw,1rem)] py-[clamp(0.5rem,1vw,0.75rem)] hover:shadow-sm transition-shadow flex flex-col`}
-              >
-                <div className="flex items-start justify-between gap-2 shrink-0">
-                  <span className={`text-[8px] font-bold uppercase tracking-[0.04em] px-1.5 py-[3px] rounded-[4px] leading-none ${theme.badge}`}>
-                    {theme.short}
-                  </span>
-                  <span className={`text-[8px] font-semibold whitespace-nowrap shrink-0 px-1.5 py-[2px] rounded-full border-[0.5px] leading-none ${theme.datePill}`}>
-                    {formatEventCardDate(evDate)}
-                  </span>
-                </div>
-                <p className={`sched-card-title mt-auto uppercase line-clamp-2 ${theme.title}`}>
-                  {ev.title}
-                </p>
-                <p className="mt-1 text-[11px] font-medium text-[#0E1829] leading-none">{getEventTypeLabel(ev)}</p>
-              </button>
-            );
-          })}
-        </div>
+        <>
+          {mobileFeaturedEvent && (
+            <div className="md:hidden shrink-0 w-full">
+              {(() => {
+                const ev = mobileFeaturedEvent;
+                const theme = getSubjectTheme(ev);
+                const evDate = parseSafeDate(ev.date);
+                return (
+                  <button
+                    key={ev.id}
+                    type="button"
+                    onClick={() => {
+                      if (ev.link) {
+                        window.open(ev.link, '_blank', 'noopener,noreferrer');
+                        return;
+                      }
+                      const d = parseSafeDate(ev.date);
+                      setSelectedDayEvents([ev]);
+                      setSelectedDateTitle(`${d.getDate()} ${monthNames[d.getMonth()].toLowerCase()}`);
+                      setShowDayModal(true);
+                    }}
+                    className="text-left bg-white border border-[#98A1B0]/40 rounded-[16px] w-full min-h-[100px] px-2 py-4 hover:shadow-sm transition-shadow flex flex-col gap-2"
+                  >
+                    <div className="flex items-start justify-between gap-2 shrink-0">
+                      <span className={`text-[9px] font-bold uppercase tracking-[0.04em] px-2 py-1 rounded-[4px] leading-none ${theme.badge}`}>
+                        {theme.short}
+                      </span>
+                      <span className="text-[9px] font-semibold whitespace-nowrap shrink-0 text-[#98A1B0] leading-none uppercase">
+                        {formatEventCardDate(evDate)}
+                      </span>
+                    </div>
+                    <p className={`sched-card-title uppercase line-clamp-2 ${theme.title}`}>
+                      {ev.title}
+                    </p>
+                    <p className="text-[12px] font-medium text-[#0E1829] leading-none">{getEventTypeLabel(ev)}</p>
+                  </button>
+                );
+              })()}
+            </div>
+          )}
+
+          <div className="hidden md:grid grid-cols-2 xl:grid-cols-4 gap-[clamp(0.5rem,1vw,0.75rem)] shrink-0 w-full">
+            {upcomingEvents.map((ev) => {
+              const theme = getSubjectTheme(ev);
+              const evDate = parseSafeDate(ev.date);
+              return (
+                <button
+                  key={ev.id}
+                  type="button"
+                  onClick={() => {
+                    if (ev.link) {
+                      window.open(ev.link, '_blank', 'noopener,noreferrer');
+                      return;
+                    }
+                    const d = parseSafeDate(ev.date);
+                    setSelectedDayEvents([ev]);
+                    setSelectedDateTitle(`${d.getDate()} ${monthNames[d.getMonth()].toLowerCase()}`);
+                    setShowDayModal(true);
+                  }}
+                  className={`text-left bg-white border-[0.5px] ${theme.border} rounded-[13px] w-full aspect-[327/100] min-h-[88px] max-h-[110px] px-[clamp(0.5rem,1.2vw,1rem)] py-[clamp(0.5rem,1vw,0.75rem)] hover:shadow-sm transition-shadow flex flex-col`}
+                >
+                  <div className="flex items-start justify-between gap-2 shrink-0">
+                    <span className={`text-[8px] font-bold uppercase tracking-[0.04em] px-1.5 py-[3px] rounded-[4px] leading-none ${theme.badge}`}>
+                      {theme.short}
+                    </span>
+                    <span className={`text-[8px] font-semibold whitespace-nowrap shrink-0 px-1.5 py-[2px] rounded-full border-[0.5px] leading-none ${theme.datePill}`}>
+                      {formatEventCardDate(evDate)}
+                    </span>
+                  </div>
+                  <p className={`sched-card-title mt-auto uppercase line-clamp-2 text-[12px] ${theme.title}`}>
+                    {ev.title}
+                  </p>
+                  <p className="mt-1 text-[11px] font-medium text-[#0E1829] leading-none">{getEventTypeLabel(ev)}</p>
+                </button>
+              );
+            })}
+          </div>
+        </>
       )}
 
-      {/* Calendar — border #98A1B0/40; cells ~175×95 radius 9; selected #5C38A3 */}
+      {/* Calendar — Figma mobile: weekdays + РУС/ИСТ pills */}
       <div className="bg-white border border-[#98A1B0]/40 rounded-[12px] p-3 md:p-4 flex-1 min-h-0 flex flex-col overflow-hidden">
         <div className="flex justify-between items-center mb-3 shrink-0">
-          <h2 className="sched-month-title text-[20px] text-[#0E1829]">
+          <h2 className="sched-month-title text-[18px] md:text-[20px] text-[#0E1829]">
             {monthNames[currentDate.getMonth()]}{' '}
             <span className="font-medium text-[#98A1B0]">{currentDate.getFullYear()}</span>
           </h2>
@@ -391,9 +439,21 @@ export default function Schedule() {
           </div>
         </div>
 
-        <div className="grid grid-cols-7 gap-1.5 flex-1 min-h-0 md:auto-rows-[minmax(95px,1fr)] auto-rows-fr">
+        <div className="grid grid-cols-7 gap-1 md:gap-1.5 mb-1.5 shrink-0">
+          {WEEKDAYS.map((d, i) => (
+            <div
+              key={d}
+              className="text-center text-[10px] md:text-[11px] font-semibold tracking-[0.04em] text-[#98A1B0] py-1 uppercase md:uppercase"
+            >
+              <span className="md:hidden">{WEEKDAYS_MOBILE[i]}</span>
+              <span className="hidden md:inline">{d}</span>
+            </div>
+          ))}
+        </div>
+
+        <div className="grid grid-cols-7 gap-1 md:gap-1.5 flex-1 min-h-0 md:auto-rows-[minmax(95px,1fr)] auto-rows-fr">
           {Array(firstDayOfMonth).fill(null).map((_, i) => (
-            <div key={`empty-${i}`} className="min-h-[52px] md:min-h-0 rounded-[9px] bg-transparent" />
+            <div key={`empty-${i}`} className="min-h-[44px] md:min-h-0 rounded-[9px] bg-transparent" />
           ))}
 
           {Array.from({ length: daysInMonth }, (_, i) => i + 1).map((day) => {
@@ -408,25 +468,26 @@ export default function Schedule() {
               <div
                 key={day}
                 onClick={() => handleDayClick(day, thisDate)}
-                className={`min-h-[52px] md:min-h-0 p-1.5 rounded-[9px] bg-white relative cursor-pointer transition-colors hover:bg-[#F8F9FC] overflow-hidden flex flex-col
+                className={`min-h-[44px] md:min-h-0 p-1 md:p-1.5 rounded-[8px] md:rounded-[9px] bg-white relative cursor-pointer transition-colors hover:bg-[#F8F9FC] overflow-hidden flex flex-col
                   ${isSelected ? 'border border-[#5C38A3]' : 'border border-[#EEF0F4]'}`}
               >
-                <div className="font-semibold text-[12px] text-[#0E1829] mb-1 leading-none tabular-nums shrink-0">{day}</div>
+                <div className="font-semibold text-[12px] md:text-[12px] text-[#0E1829] mb-0.5 md:mb-1 leading-none tabular-nums shrink-0">{day}</div>
                 <div className="space-y-0.5 mt-auto">
                   {dayEvents.slice(0, 2).map((ev) => {
                     const theme = getSubjectTheme(ev);
                     return (
                       <div
                         key={ev.id}
-                        className={`text-[6px] md:text-[7px] font-bold uppercase tracking-[0.02em] px-1 py-[2px] rounded-[3px] truncate ${theme.pill}`}
+                        className={`text-[7px] md:text-[7px] font-bold uppercase tracking-[0.02em] px-0.5 md:px-1 py-[2px] rounded-[3px] truncate text-center ${theme.pill}`}
                         title={ev.title}
                       >
-                        {theme.short}
+                        <span className="md:hidden">{theme.shortCal}</span>
+                        <span className="hidden md:inline">{theme.short}</span>
                       </div>
                     );
                   })}
                   {dayEvents.length > 2 && (
-                    <div className="text-[7px] font-semibold text-gray-400 px-0.5">+{dayEvents.length - 2}</div>
+                    <div className="text-[7px] font-semibold text-gray-400 px-0.5 text-center">+{dayEvents.length - 2}</div>
                   )}
                 </div>
               </div>
@@ -437,52 +498,63 @@ export default function Schedule() {
 
       <AnimatePresence>
         {showDayModal && (
-          <motion.div className="fixed inset-0 z-50 bg-gray-900/40 backdrop-blur-md flex justify-center items-center p-4">
-            <motion.div initial={{ opacity: 0, scale: 0.9, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 10 }} className="bg-white rounded-[2.5rem] w-full max-w-xl overflow-hidden shadow-2xl relative p-8 md:p-10 border border-white/20">
-              <button onClick={() => setShowDayModal(false)} className="absolute top-6 right-6 p-2.5 bg-gray-100 hover:bg-gray-200 rounded-full transition-colors"><X className="w-5 h-5 text-gray-600" /></button>
+          <motion.div
+            className="fixed inset-0 z-50 bg-gray-900/40 backdrop-blur-md flex justify-center items-end md:items-center p-0 md:p-4"
+            onClick={() => setShowDayModal(false)}
+          >
+            <motion.div
+              initial={{ opacity: 0, y: 40, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 24, scale: 0.98 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white rounded-t-[1.5rem] md:rounded-[2.5rem] w-full max-w-xl overflow-hidden shadow-2xl relative p-5 md:p-10 border border-white/20 max-h-[85dvh] md:max-h-none pb-[calc(1.25rem+env(safe-area-inset-bottom))] md:pb-10"
+            >
+              <div className="md:hidden w-10 h-1 rounded-full bg-gray-200 mx-auto mb-4" />
+              <button onClick={() => setShowDayModal(false)} className="absolute top-4 right-4 md:top-6 md:right-6 p-2.5 bg-gray-100 hover:bg-gray-200 rounded-full transition-colors"><X className="w-5 h-5 text-gray-600" /></button>
               
-              <div className="flex items-center gap-3 mb-8">
-                <div className="w-12 h-12 bg-indigo-50 rounded-2xl flex items-center justify-center">
-                  <Sparkles className="w-6 h-6 text-[#5A4BFF]" />
+              <div className="flex items-center gap-3 mb-5 md:mb-8 pr-10">
+                <div className="w-10 h-10 md:w-12 md:h-12 bg-indigo-50 rounded-2xl flex items-center justify-center shrink-0">
+                  <Sparkles className="w-5 h-5 md:w-6 md:h-6 text-[#5A4BFF]" />
                 </div>
-                <div>
-                  <h3 className="text-2xl font-black text-gray-900">{selectedDateTitle}</h3>
-                  <p className="text-sm font-bold text-gray-400 uppercase tracking-widest">Запланировано событий: {selectedDayEvents.length}</p>
+                <div className="min-w-0">
+                  <h3 className="text-xl md:text-2xl font-black text-gray-900 truncate">{selectedDateTitle}</h3>
+                  <p className="text-xs md:text-sm font-bold text-gray-400 uppercase tracking-widest">Запланировано: {selectedDayEvents.length}</p>
                 </div>
               </div>
               
-              <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2 custom-scrollbar">
-                {selectedDayEvents.map(ev => (
-                  <div key={ev.id} className="p-6 rounded-[2rem] border border-gray-100 bg-white shadow-sm hover:shadow-md transition-shadow relative group">
+              <div className="space-y-3 md:space-y-4 max-h-[55vh] overflow-y-auto pr-1 custom-scrollbar">
+                {selectedDayEvents.map(ev => {
+                  const theme = getSubjectTheme(ev);
+                  return (
+                  <div key={ev.id} className={`p-4 md:p-6 rounded-[1.25rem] md:rounded-[2rem] border-[0.5px] ${theme.border} bg-white shadow-sm relative group`}>
                     {canManageSchedule && (
-                      <div className="absolute top-6 right-6 flex gap-1 opacity-0 group-hover:opacity-100 transition-all">
+                      <div className="absolute top-3 right-3 md:top-6 md:right-6 flex gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-all">
                         <button type="button" onClick={() => openEditEvent(ev)} className="p-2 text-gray-300 hover:bg-indigo-50 hover:text-indigo-600 rounded-xl"><Pencil className="w-5 h-5"/></button>
                         <button type="button" onClick={() => handleDeleteEvent(ev.id)} className="p-2 text-gray-300 hover:bg-rose-50 hover:text-rose-500 rounded-xl"><Trash2 className="w-5 h-5"/></button>
                       </div>
                     )}
                     
-                    <div className="flex items-center gap-2 mb-4 flex-wrap">
-                      <span className="px-3 py-1.5 bg-indigo-50 text-indigo-700 text-[10px] font-black uppercase tracking-widest rounded-xl border border-indigo-100">
+                    <div className="flex items-center gap-2 mb-3 md:mb-4 flex-wrap pr-16 md:pr-0">
+                      <span className={`px-2.5 py-1 text-[10px] font-black uppercase tracking-widest rounded-lg ${theme.badge}`}>
+                        {theme.short}
+                      </span>
+                      <span className="px-2.5 py-1 bg-gray-50 text-gray-600 text-[10px] font-black uppercase tracking-widest rounded-lg border border-gray-100">
                         {getEventTypeLabel(ev)}
                       </span>
-                      {ev.group?.title && (
-                        <span className="px-3 py-1.5 bg-gray-50 text-gray-600 text-[10px] font-black uppercase tracking-widest rounded-xl border border-gray-100">
-                          {ev.group.title}
-                        </span>
-                      )}
-                      <span className="text-sm font-bold text-gray-500 bg-gray-50 px-3 py-1.5 rounded-xl flex items-center gap-1.5"><Clock className="w-3.5 h-3.5"/> {parseSafeDate(ev.date).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}</span>
+                      <span className="text-sm font-bold text-gray-500 bg-gray-50 px-2.5 py-1 rounded-lg flex items-center gap-1.5"><Clock className="w-3.5 h-3.5"/> {parseSafeDate(ev.date).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}</span>
                     </div>
                     
-                    <h4 className="text-xl font-black text-gray-900 mb-2">{ev.title}</h4>
-                    {ev.description && <p className="text-base font-medium text-gray-600 mb-6 leading-relaxed">{ev.description}</p>}
+                    <h4 className={`text-lg md:text-xl font-black mb-2 ${theme.title}`}>{ev.title}</h4>
+                    {ev.description && <p className="text-sm md:text-base font-medium text-gray-600 mb-4 md:mb-6 leading-relaxed">{ev.description}</p>}
                     
                     {ev.link && (
-                      <a href={ev.link} target="_blank" rel="noreferrer" className="inline-flex px-6 py-3 bg-[#5A4BFF] hover:bg-[#4a3dec] text-white text-sm font-black rounded-xl transition-all shadow-lg shadow-indigo-500/20 items-center gap-2 w-full justify-center sm:w-auto active:scale-95">
+                      <a href={ev.link} target="_blank" rel="noreferrer" className="inline-flex px-5 py-3 bg-[#5A4BFF] hover:bg-[#4a3dec] text-white text-sm font-black rounded-xl transition-all shadow-lg shadow-indigo-500/20 items-center gap-2 w-full justify-center sm:w-auto active:scale-95">
                         ПЕРЕЙТИ К СОБЫТИЮ <LinkIcon className="w-4 h-4" />
                       </a>
                     )}
                   </div>
-                ))}
+                  );
+                })}
               </div>
             </motion.div>
           </motion.div>
@@ -491,16 +563,17 @@ export default function Schedule() {
 
       <AnimatePresence>
         {showAddModal && canManageSchedule && (
-          <motion.div className="fixed inset-0 z-50 bg-gray-900/40 backdrop-blur-md flex justify-center items-center p-4">
-            <motion.div initial={{ opacity: 0, scale: 0.9, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.95, y: 10 }} className="bg-white rounded-[2.5rem] w-full max-w-lg max-h-[min(90dvh,820px)] flex flex-col overflow-hidden shadow-2xl relative border border-white/20">
-              <button onClick={() => { setShowAddModal(false); resetForm(); }} className="absolute top-5 right-5 z-10 p-2.5 bg-gray-100 hover:bg-gray-200 rounded-full transition-colors"><X className="w-5 h-5 text-gray-600" /></button>
+          <motion.div className="fixed inset-0 z-50 bg-gray-900/40 backdrop-blur-md flex justify-center items-end md:items-center p-0 md:p-4">
+            <motion.div initial={{ opacity: 0, y: 40, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 24, scale: 0.98 }} className="bg-white rounded-t-[1.5rem] md:rounded-[2.5rem] w-full max-w-lg max-h-[min(92dvh,820px)] flex flex-col overflow-hidden shadow-2xl relative border border-white/20 pb-[env(safe-area-inset-bottom)] md:pb-0">
+              <div className="md:hidden w-10 h-1 rounded-full bg-gray-200 mx-auto mt-3" />
+              <button onClick={() => { setShowAddModal(false); resetForm(); }} className="absolute top-4 right-4 md:top-5 md:right-5 z-10 p-2.5 bg-gray-100 hover:bg-gray-200 rounded-full transition-colors"><X className="w-5 h-5 text-gray-600" /></button>
               
-              <div className="shrink-0 px-8 pt-8 pb-4">
-                <h3 className="text-2xl md:text-3xl font-black text-gray-900 pr-10">{editingEventId ? 'Редактировать событие' : 'Новое событие'}</h3>
+              <div className="shrink-0 px-5 md:px-8 pt-5 md:pt-8 pb-3 md:pb-4">
+                <h3 className="text-xl md:text-3xl font-black text-gray-900 pr-10">{editingEventId ? 'Редактировать событие' : 'Новое событие'}</h3>
               </div>
               
               <form onSubmit={handleCreateEvent} className="flex flex-col flex-1 min-h-0">
-                <div className="flex-1 overflow-y-auto px-8 space-y-4 custom-scrollbar">
+                <div className="flex-1 overflow-y-auto px-5 md:px-8 space-y-4 custom-scrollbar">
                 <div>
                   <label className="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-2 ml-1">Название</label>
                   <input type="text" value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} required className="w-full px-5 py-4 bg-gray-50 border border-gray-100 focus:border-[#5A4BFF] focus:bg-white rounded-2xl outline-none font-bold transition-all text-lg" placeholder="Разбор варианта №5" />
@@ -662,7 +735,7 @@ export default function Schedule() {
                 </div>
                 </div>
 
-                <div className="shrink-0 px-8 py-5 border-t border-gray-100 bg-white space-y-3">
+                <div className="shrink-0 px-5 md:px-8 py-4 md:py-5 border-t border-gray-100 bg-white space-y-3">
                   {saveError && (
                     <div className="flex items-start gap-2 p-3 rounded-xl bg-rose-50 border border-rose-100 text-rose-800 text-sm font-medium">
                       <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />

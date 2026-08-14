@@ -453,6 +453,8 @@ export default function Layout() {
               ? 'min-h-[72px] md:min-h-[88px] py-3 md:py-4'
               : location.pathname === '/shop' || location.pathname === '/messages'
                 ? 'min-h-[64px] md:min-h-[72px] py-3'
+                : location.pathname === '/schedule'
+                  ? 'min-h-[56px] md:h-[60px] py-2.5 md:py-0'
                 : hideLayoutTitle
                   ? 'h-14 md:h-[60px]'
                   : 'h-16 md:h-[72px]'
@@ -490,6 +492,10 @@ export default function Layout() {
             ) : location.pathname === '/messages' ? (
               <h1 className="text-[22px] md:text-[28px] font-bold tracking-tight text-[#111827] leading-none font-[Golos_Text,system-ui,sans-serif]">
                 Сообщения
+              </h1>
+            ) : location.pathname === '/schedule' ? (
+              <h1 className="md:hidden text-[22px] font-bold tracking-tight text-[#111827] leading-none font-[Golos_Text,system-ui,sans-serif]">
+                Расписание
               </h1>
             ) : (
               !hideLayoutTitle && (

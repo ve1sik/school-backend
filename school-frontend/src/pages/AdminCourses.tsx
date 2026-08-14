@@ -71,6 +71,35 @@ const quillModules = {
   ],
 };
 
+const MATCHING_LETTERS = ['А', 'Б', 'В', 'Г', 'Д'];
+
+function defaultMatchingPairs() {
+  return MATCHING_LETTERS.map(() => ({ left: '', right: '' }));
+}
+
+function splitColumnLines(raw: string) {
+  return raw.split('\n').map((s) => s.trimEnd()).filter((s, i, arr) => s || i < arr.length - 1);
+}
+
+function syncMatchingPairs(leftLines: string[], existingPairs: any[] = []) {
+  const count = Math.max(leftLines.length, existingPairs.length, MATCHING_LETTERS.length);
+  return Array.from({ length: count }, (_, i) => ({
+    left: leftLines[i] ?? existingPairs[i]?.left ?? '',
+    right: existingPairs[i]?.right ?? '',
+    spellRule: existingPairs[i]?.spellRule ?? null,
+  }));
+}
+
+function matchingLeftColumnText(block: any) {
+  if (Array.isArray(block.leftColumn) && block.leftColumn.length) {
+    return block.leftColumn.join('\n');
+  }
+  if (Array.isArray(block.pairs)) {
+    return block.pairs.map((p: any) => p.left || '').join('\n');
+  }
+  return '';
+}
+
 export default function AdminCourses() {
   const [items, setItems] = useState<any[]>([]);
   const [title, setTitle] = useState('');
@@ -708,7 +737,19 @@ export default function AdminCourses() {
     if (type === 'written') { newBlock.question = ''; newBlock.maxScore = 3; newBlock.explanation = ''; newBlock.source = ''; newBlock.title = 'Развернутый ответ'; }
     if (type === 'essay') { newBlock.question = ''; newBlock.maxScore = 22; newBlock.explanation = ''; newBlock.source = ''; newBlock.title = 'Сочинение (ЕГЭ)'; }
     if (type === 'essay_final') { newBlock.question = ''; newBlock.maxScore = 30; newBlock.explanation = ''; newBlock.source = ''; newBlock.title = 'Итоговое сочинение'; }
-    if (type === 'matching') { newBlock.question = ''; newBlock.maxAttempts = 3; newBlock.maxScore = 3; newBlock.pairs = [{ left: '', right: '' }]; newBlock.explanation = ''; newBlock.source = ''; newBlock.title = 'Таблица (Впиши ответ)'; }
+    if (type === 'matching') {
+      newBlock.question = '';
+      newBlock.maxAttempts = 3;
+      newBlock.maxScore = 3;
+      newBlock.pairs = defaultMatchingPairs();
+      newBlock.leftColumn = [];
+      newBlock.rightColumn = [];
+      newBlock.leftTitle = 'Грамматические ошибки';
+      newBlock.rightTitle = 'Предложения';
+      newBlock.explanation = '';
+      newBlock.source = '';
+      newBlock.title = 'Таблица (Впиши ответ)';
+    }
     
     if (isHw) { setHwBlocks(prev => [...prev, newBlock]); setTimeout(() => document.getElementById('hw-section-end')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 100); } 
     else { setBlocks(prev => [...prev, newBlock]); setTimeout(() => document.getElementById('theory-section-end')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 100); }
@@ -1052,7 +1093,7 @@ export default function AdminCourses() {
                   className="w-full p-4 rounded-xl border border-gray-200 outline-none mb-3 font-medium focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition-all"
                 />
                 <p className="text-[11px] font-semibold text-gray-400 mb-3">
-                  Можно вставить ссылку или код iframe с VK. Яндекс.Диск откроется в новой вкладке (встроить нельзя).
+                  Можно вставить ссылку или код iframe с VK (лучше — «Код для вставки»). Яндекс.Диск и Google Drive воспроизводятся на сайте, если ссылка публичная.
                 </p>
                 <div className="max-w-xl">
                   <TheoryVideoTile
@@ -1432,20 +1473,58 @@ export default function AdminCourses() {
 
             {block.type === 'matching' && (
               <div className="space-y-4 mb-6">
-                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block">Таблица ответов</label>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 p-4 rounded-2xl border border-indigo-100 bg-indigo-50/40">
+                  <p className="md:col-span-2 text-[10px] font-black text-indigo-600 uppercase tracking-widest">Задание 8 — соответствие (ЕГЭ)</p>
+                  <div>
+                    <label className="text-[10px] font-bold text-gray-500 uppercase block mb-1">Заголовок слева</label>
+                    <input value={block.leftTitle || ''} onChange={(e) => updateBlock(block.id, { leftTitle: e.target.value }, isHw)} placeholder="Грамматические ошибки" className="w-full p-3 rounded-xl border border-gray-200 outline-none font-medium text-sm" />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold text-gray-500 uppercase block mb-1">Заголовок справа</label>
+                    <input value={block.rightTitle || ''} onChange={(e) => updateBlock(block.id, { rightTitle: e.target.value }, isHw)} placeholder="Предложения" className="w-full p-3 rounded-xl border border-gray-200 outline-none font-medium text-sm" />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold text-gray-500 uppercase block mb-1">Левая колонка — нарушения (по строке = А…Д)</label>
+                    <textarea
+                      value={matchingLeftColumnText(block)}
+                      onChange={(e) => {
+                        const leftColumn = splitColumnLines(e.target.value);
+                        const pairs = syncMatchingPairs(leftColumn, block.pairs || []);
+                        updateBlock(block.id, { leftColumn, pairs }, isHw);
+                      }}
+                      placeholder={'нарушение связи между подлежащим и сказуемым\nнарушение в построении предложения с однородными членами\n...'}
+                      rows={6}
+                      className="w-full p-3 rounded-xl border border-gray-200 outline-none font-medium text-sm resize-y"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] font-bold text-gray-500 uppercase block mb-1">Правая колонка — предложения (по строке = 1…9)</label>
+                    <textarea
+                      value={Array.isArray(block.rightColumn) ? block.rightColumn.join('\n') : ''}
+                      onChange={(e) => updateBlock(block.id, { rightColumn: splitColumnLines(e.target.value) }, isHw)}
+                      placeholder={"Предложение 1\nПредложение 2\n..."}
+                      rows={6}
+                      className="w-full p-3 rounded-xl border border-gray-200 outline-none font-medium text-sm resize-y"
+                    />
+                  </div>
+                </div>
+
+                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block">Ключи ответов (А–Д → номер предложения)</label>
                 <div className="flex overflow-x-auto gap-3 pb-4 custom-scrollbar">
-                  {block.pairs?.map((pair: any, idx: number) => (
-                    <div key={idx} className="flex flex-col gap-2 p-3 rounded-2xl border-2 shrink-0 w-32 transition-all border-gray-200 bg-white">
+                  {(block.pairs?.length ? block.pairs : defaultMatchingPairs()).map((pair: any, idx: number) => (
+                    <div key={idx} className="flex flex-col gap-2 p-3 rounded-2xl border-2 shrink-0 w-36 transition-all border-gray-200 bg-white">
                       <div className="flex justify-between items-center mb-1">
-                        <span className="text-[10px] font-bold text-gray-400 uppercase">Пара {idx + 1}</span>
-                        <button type="button" onClick={() => { const newPairs = block.pairs.filter((_:any, i:number) => i !== idx); updateBlock(block.id, { pairs: newPairs }, isHw); }} className="text-gray-400 hover:text-red-500"><X className="w-4 h-4" /></button>
+                        <span className="text-[11px] font-black text-indigo-700 uppercase">{MATCHING_LETTERS[idx] || idx + 1}</span>
+                        {(block.pairs?.length || 0) > MATCHING_LETTERS.length && (
+                          <button type="button" onClick={() => { const newPairs = block.pairs.filter((_:any, i:number) => i !== idx); const leftColumn = newPairs.map((p: any) => p.left || ''); updateBlock(block.id, { pairs: newPairs, leftColumn }, isHw); }} className="text-gray-400 hover:text-red-500"><X className="w-4 h-4" /></button>
+                        )}
                       </div>
-                      <input value={pair.left} onChange={(e) => { const newPairs = [...block.pairs]; newPairs[idx].left = e.target.value; updateBlock(block.id, { pairs: newPairs }, isHw); }} placeholder="Ключ" className="w-full p-3 bg-gray-50 rounded-xl outline-none font-black text-center text-indigo-700 focus:bg-white focus:ring-2 focus:ring-indigo-400 transition-all border border-transparent" />
-                      <input value={pair.right} onChange={(e) => { const newPairs = [...block.pairs]; newPairs[idx].right = e.target.value; updateBlock(block.id, { pairs: newPairs }, isHw); }} placeholder="Значение" className="w-full p-3 bg-gray-50 rounded-xl outline-none font-black text-center text-emerald-700 focus:bg-white focus:ring-2 focus:ring-emerald-400 transition-all border border-transparent" />
+                      <p className="text-[10px] text-gray-500 leading-snug min-h-[2.5rem] line-clamp-3" title={pair.left}>{pair.left || '— строка слева —'}</p>
+                      <input value={pair.right} onChange={(e) => { const newPairs = [...(block.pairs || defaultMatchingPairs())]; newPairs[idx] = { ...newPairs[idx], right: e.target.value }; updateBlock(block.id, { pairs: newPairs }, isHw); }} placeholder="№ предл." className="w-full p-3 bg-gray-50 rounded-xl outline-none font-black text-center text-emerald-700 focus:bg-white focus:ring-2 focus:ring-emerald-400 transition-all border border-transparent" />
                       <select
                         value={pair.spellRule || block.spellRule || ''}
                         onChange={(e) => {
-                          const newPairs = [...block.pairs];
+                          const newPairs = [...(block.pairs || defaultMatchingPairs())];
                           newPairs[idx] = { ...newPairs[idx], spellRule: e.target.value || null };
                           updateBlock(block.id, { pairs: newPairs }, isHw);
                         }}
@@ -1459,32 +1538,11 @@ export default function AdminCourses() {
                       </select>
                     </div>
                   ))}
-                  <button type="button" onClick={() => { updateBlock(block.id, { pairs: [...(block.pairs || []), { left: '', right: '' }] }, isHw); }} className="w-32 shrink-0 flex flex-col items-center justify-center border-2 border-dashed border-indigo-300 text-indigo-500 hover:bg-indigo-50 hover:border-indigo-400 rounded-2xl font-black transition-all">
-                    <Plus className="w-6 h-6 mb-1" /> Добавить
+                  <button type="button" onClick={() => { const pairs = [...(block.pairs || defaultMatchingPairs()), { left: '', right: '' }]; updateBlock(block.id, { pairs }, isHw); }} className="w-32 shrink-0 flex flex-col items-center justify-center border-2 border-dashed border-indigo-300 text-indigo-500 hover:bg-indigo-50 hover:border-indigo-400 rounded-2xl font-black transition-all">
+                    <Plus className="w-6 h-6 mb-1" /> Строка
                   </button>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 p-4 rounded-2xl border border-indigo-100 bg-indigo-50/40">
-                  <p className="md:col-span-2 text-[10px] font-black text-indigo-600 uppercase tracking-widest">Русский UI — соответствие (ЕГЭ)</p>
-                  <div>
-                    <label className="text-[10px] font-bold text-gray-500 uppercase block mb-1">Заголовок слева</label>
-                    <input value={block.leftTitle || ''} onChange={(e) => updateBlock(block.id, { leftTitle: e.target.value }, isHw)} placeholder="Грамматические ошибки" className="w-full p-3 rounded-xl border border-gray-200 outline-none font-medium text-sm" />
-                  </div>
-                  <div>
-                    <label className="text-[10px] font-bold text-gray-500 uppercase block mb-1">Заголовок справа</label>
-                    <input value={block.rightTitle || ''} onChange={(e) => updateBlock(block.id, { rightTitle: e.target.value }, isHw)} placeholder="Предложения" className="w-full p-3 rounded-xl border border-gray-200 outline-none font-medium text-sm" />
-                  </div>
-                  <div className="md:col-span-2">
-                    <label className="text-[10px] font-bold text-gray-500 uppercase block mb-1">Правая колонка (по строке = 1) … 9)</label>
-                    <textarea
-                      value={Array.isArray(block.rightColumn) ? block.rightColumn.join('\n') : ''}
-                      onChange={(e) => updateBlock(block.id, { rightColumn: e.target.value.split('\n').map((s) => s.trimEnd()).filter((s, i, arr) => s || i < arr.length - 1) }, isHw)}
-                      placeholder={"Предложение 1\nПредложение 2\n..."}
-                      rows={5}
-                      className="w-full p-3 rounded-xl border border-gray-200 outline-none font-medium text-sm resize-y"
-                    />
-                    <p className="text-[11px] text-gray-500 mt-1">В «Значение» пары укажите номер предложения (например 3). Ученик вводит цифры в поля А–Д.</p>
-                  </div>
-                </div>
+                <p className="text-[11px] text-gray-500">В «Текст задания» выше — общая инструкция для ученика. Нарушения и предложения — в колонках. В ключах укажите правильный номер предложения для каждой буквы А–Д.</p>
               </div>
             )}
 

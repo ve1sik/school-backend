@@ -2,7 +2,7 @@
 import { Check, CheckCircle2, Clock, XCircle } from 'lucide-react';
 import { resolveUploadUrl } from '../lib/api';
 import { design } from '../lib/designTokens';
-import { ExplanationBlock, OptionText, safeHtml, AnswerSummary } from './LessonTestUI';
+import { ExplanationBlock, OptionText, safeHtml, formatQuestionHtml, AnswerSummary } from './LessonTestUI';
 import EssayPlainEditor from './EssayPlainEditor';
 import EssayStudentTask from './EssayStudentTask';
 import EssayResultView from './EssayResultView';
@@ -15,7 +15,7 @@ export { isRussianStepDone as isHistoryStepDone };
 
 const ACCENT = design.historyOrange;
 const BTN =
-  'inline-flex items-center justify-center gap-1 px-5 sm:px-6 py-3 sm:py-[14px] rounded-[10px] hover:bg-black text-white text-[11px] sm:text-[12px] font-bold uppercase tracking-[0.04em] transition-colors disabled:opacity-40 shrink-0 max-w-full';
+  'inline-flex items-center justify-center gap-1 w-full sm:w-auto px-5 sm:px-6 py-3 sm:py-[14px] rounded-[10px] hover:bg-black text-white text-[11px] sm:text-[12px] font-bold uppercase tracking-[0.04em] transition-colors disabled:opacity-40 shrink-0 max-w-full';
 const INPUT =
   'w-full px-4 py-3.5 rounded-[10px] border bg-white text-[15px] placeholder:text-[#9CA3AF] outline-none transition-all resize-y';
 
@@ -102,8 +102,8 @@ function QuestionHtml({ content, className = '' }: { content: string; className?
   return (
     <div className={`ql-snow ${className}`}>
       <div
-        className="ql-editor !p-0 text-[15px] md:text-[16px] leading-relaxed text-[#111827] font-medium [&_p]:mb-2.5 [&_strong]:font-bold [&_table]:w-full [&_table]:border-collapse [&_table]:text-[13px] md:[&_table]:text-[14px] [&_td]:border [&_td]:border-[#D1D5DB] [&_td]:px-2.5 [&_td]:py-2 [&_th]:border [&_th]:border-[#D1D5DB] [&_th]:px-2.5 [&_th]:py-2 [&_th]:font-bold [&_th]:bg-[#F9FAFB]"
-        dangerouslySetInnerHTML={{ __html: safeHtml(content) }}
+        className="ql-editor !p-0 text-[15px] md:text-[16px] leading-relaxed text-[#111827] font-medium [&_p]:mb-3 [&_p.ql-blank-line]:min-h-[1.1em] [&_strong]:font-bold [&_table]:w-full [&_table]:border-collapse [&_table]:text-[13px] md:[&_table]:text-[14px] [&_td]:border [&_td]:border-[#D1D5DB] [&_td]:px-2.5 [&_td]:py-2 [&_th]:border [&_th]:border-[#D1D5DB] [&_th]:px-2.5 [&_th]:py-2 [&_th]:font-bold [&_th]:bg-[#F9FAFB]"
+        dangerouslySetInnerHTML={{ __html: formatQuestionHtml(content) }}
       />
     </div>
   );
@@ -382,7 +382,7 @@ export default function HistoryPracticeBlock({
 
   const mapFrame = imageSrc ? (
     <div className="rounded-[12px] overflow-hidden border border-[#E5E7EB] bg-[#F9FAFB]">
-      <img src={imageSrc} alt="" className="w-full h-auto object-contain max-h-[min(42vh,420px)] mx-auto block" />
+      <img src={imageSrc} alt="" className="w-full h-auto object-contain max-h-[min(52vh,520px)] md:max-h-[min(42vh,420px)] mx-auto block" />
     </div>
   ) : null;
 
@@ -436,7 +436,7 @@ export default function HistoryPracticeBlock({
           <div className="min-w-0 space-y-3">
             <QuestionHtml content={block.question || ''} />
             {imageSrc && !/<table/i.test(block.question || '') && (
-              <img src={imageSrc} alt="" className="max-h-[min(28vh,16rem)] rounded-[12px] object-contain border border-[#E5E7EB]" />
+              <img src={imageSrc} alt="" className="w-full max-h-[min(40vh,20rem)] md:max-h-[min(28vh,16rem)] rounded-[12px] object-contain border border-[#E5E7EB]" />
             )}
           </div>
           <div className="space-y-3 min-w-0">
@@ -461,7 +461,7 @@ export default function HistoryPracticeBlock({
         {taskLabel}
         <QuestionHtml content={block.question || ''} className="font-semibold [&_.ql-editor]:font-semibold" />
         {imageSrc && (
-          <img src={imageSrc} alt="" className="max-h-72 rounded-[12px] object-contain border border-[#E5E7EB]" />
+          <img src={imageSrc} alt="" className="w-full max-h-80 md:max-h-72 rounded-[12px] object-contain border border-[#E5E7EB]" />
         )}
         {answerInput(block.type === 'written' ? 5 : 3, block.type === 'written' ? 'min-h-[min(22vh,140px)] max-h-[36vh]' : 'min-h-[min(14vh,100px)] max-h-[28vh]')}
         {courseSpellCheck && spellErrors?.[block.id]?.length > 0 && (

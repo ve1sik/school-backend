@@ -54,6 +54,8 @@ export type VideoEmbedResult = {
   fallbackUrl: string;
   kind: VideoEmbedKind;
   provider?: string;
+  /** Direct thumbnail URL when known without network (YouTube, Google Drive…). */
+  thumbnailUrl?: string;
 };
 
 export function getEmbedUrl(url: string): string {
@@ -73,10 +75,19 @@ export function resolveVideoEmbed(raw: string): VideoEmbedResult {
   }
 
   if (trimmed.includes('youtube.com/embed/')) {
-    return { embedUrl: trimmed, fallbackUrl: trimmed, kind: 'iframe', provider: 'youtube' };
+    const ytId = youtubeIdFromUrl(trimmed);
+    return {
+      embedUrl: trimmed,
+      fallbackUrl: trimmed,
+      kind: 'iframe',
+      provider: 'youtube',
+      thumbnailUrl: ytId ? `https://img.youtube.com/vi/${ytId}/hqdefault.jpg` : undefined,
+    };
   }
-  if (trimmed.includes('vk.com/video_ext.php')) {
-    return { embedUrl: trimmed, fallbackUrl: trimmed, kind: 'iframe', provider: 'vk' };
+  if (trimmed.includes('vk.com/video_ext.php') || trimmed.includes('vkvideo.ru/video_ext.php')) {
+    const normalized = trimmed.replace(/^\/\//, 'https://').replace('vkvideo.ru', 'vk.com');
+    const withHd = /[?&]hd=/.test(normalized) ? normalized : `${normalized}${normalized.includes('?') ? '&' : '?'}hd=2`;
+    return { embedUrl: withHd, fallbackUrl: trimmed, kind: 'iframe', provider: 'vk' };
   }
   if (trimmed.includes('rutube.ru/play/embed/')) {
     return { embedUrl: trimmed, fallbackUrl: trimmed, kind: 'iframe', provider: 'rutube' };
@@ -88,19 +99,37 @@ export function resolveVideoEmbed(raw: string): VideoEmbedResult {
   const ytWatch = trimmed.match(/[?&]v=([\w-]{6,})/);
   if (ytWatch) {
     const embed = `https://www.youtube.com/embed/${ytWatch[1]}`;
-    return { embedUrl: embed, fallbackUrl: trimmed, kind: 'iframe', provider: 'youtube' };
+    return {
+      embedUrl: embed,
+      fallbackUrl: trimmed,
+      kind: 'iframe',
+      provider: 'youtube',
+      thumbnailUrl: `https://img.youtube.com/vi/${ytWatch[1]}/hqdefault.jpg`,
+    };
   }
 
   const ytBe = trimmed.match(/youtu\.be\/([\w-]{6,})/);
   if (ytBe) {
     const embed = `https://www.youtube.com/embed/${ytBe[1]}`;
-    return { embedUrl: embed, fallbackUrl: trimmed, kind: 'iframe', provider: 'youtube' };
+    return {
+      embedUrl: embed,
+      fallbackUrl: trimmed,
+      kind: 'iframe',
+      provider: 'youtube',
+      thumbnailUrl: `https://img.youtube.com/vi/${ytBe[1]}/hqdefault.jpg`,
+    };
   }
 
   const ytShorts = trimmed.match(/youtube\.com\/shorts\/([\w-]{6,})/);
   if (ytShorts) {
     const embed = `https://www.youtube.com/embed/${ytShorts[1]}`;
-    return { embedUrl: embed, fallbackUrl: trimmed, kind: 'iframe', provider: 'youtube' };
+    return {
+      embedUrl: embed,
+      fallbackUrl: trimmed,
+      kind: 'iframe',
+      provider: 'youtube',
+      thumbnailUrl: `https://img.youtube.com/vi/${ytShorts[1]}/hqdefault.jpg`,
+    };
   }
 
   const vk =
@@ -131,7 +160,13 @@ export function resolveVideoEmbed(raw: string): VideoEmbedResult {
   if (gDrive) {
     const embed = `https://drive.google.com/file/d/${gDrive[1]}/preview`;
     const fallback = `https://drive.google.com/file/d/${gDrive[1]}/view`;
-    return { embedUrl: embed, fallbackUrl: fallback, kind: 'iframe', provider: 'google-drive' };
+    return {
+      embedUrl: embed,
+      fallbackUrl: fallback,
+      kind: 'iframe',
+      provider: 'google-drive',
+      thumbnailUrl: `https://drive.google.com/thumbnail?id=${gDrive[1]}&sz=w1280`,
+    };
   }
 
   if (lower.includes('disk.yandex') || lower.includes('yadi.sk')) {
@@ -140,4 +175,76 @@ export function resolveVideoEmbed(raw: string): VideoEmbedResult {
   }
 
   return { embedUrl: trimmed, fallbackUrl: trimmed, kind: 'iframe' };
+}
+
+function youtubeIdFromUrl(trimmed: string): string | null {
+  const ytWatch = trimmed.match(/[?&]v=([\w-]{6,})/);
+  if (ytWatch) return ytWatch[1];
+  const ytBe = trimmed.match(/youtu\.be\/([\w-]{6,})/);
+  if (ytBe) return ytBe[1];
+  const ytShorts = trimmed.match(/youtube\.com\/shorts\/([\w-]{6,})/);
+  if (ytShorts) return ytShorts[1];
+  const ytEmbed = trimmed.match(/youtube\.com\/embed\/([\w-]{6,})/);
+  if (ytEmbed) return ytEmbed[1];
+  return null;
+}
+
+function googleDriveIdFromUrl(trimmed: string): string | null {
+  const m =
+    trimmed.match(/drive\.google\.com\/file\/d\/([a-zA-Z0-9_-]+)/) ||
+    trimmed.match(/drive\.google\.com\/open\?id=([a-zA-Z0-9_-]+)/);
+  return m?.[1] ?? null;
+}
+
+function vkIdsFromUrl(trimmed: string): { oid: string; id: string } | null {
+  const vk =
+    trimmed.match(/vk\.com\/video(-?\d+)_(\d+)/) ||
+    trimmed.match(/vkvideo\.ru\/video(-?\d+)_(\d+)/) ||
+    trimmed.match(/vk\.com\/video_ext\.php\?[^#]*\boid=(-?\d+)[^#]*\bid=(\d+)/) ||
+    trimmed.match(/vkvideo\.ru\/video_ext\.php\?[^#]*\boid=(-?\d+)[^#]*\bid=(\d+)/);
+  return vk ? { oid: vk[1], id: vk[2] } : null;
+}
+
+function rutubeIdFromUrl(trimmed: string): string | null {
+  const rt = trimmed.match(/rutube\.ru\/(?:video|embed)\/([a-f0-9-]+)/i);
+  return rt?.[1] ?? null;
+}
+
+/** Thumbnail URL without extra requests (YouTube, Google Drive). */
+export function getDirectVideoThumbnail(raw: string): string | null {
+  const url = extractVideoUrl(raw);
+  if (!url) return null;
+
+  const yt = youtubeIdFromUrl(url);
+  if (yt) return `https://img.youtube.com/vi/${yt}/hqdefault.jpg`;
+
+  const gId = googleDriveIdFromUrl(url);
+  if (gId) return `https://drive.google.com/thumbnail?id=${gId}&sz=w1280`;
+
+  return null;
+}
+
+export function needsVideoThumbnailFetch(raw: string): boolean {
+  const url = extractVideoUrl(raw);
+  if (!url || getDirectVideoThumbnail(url)) return false;
+  const lower = url.toLowerCase();
+  return (
+    !!vkIdsFromUrl(url) ||
+    !!rutubeIdFromUrl(url) ||
+    lower.includes('vimeo.com') ||
+    lower.includes('disk.yandex') ||
+    lower.includes('yadi.sk')
+  );
+}
+
+/** Нужен запрос /video/resolve (VK без hash, Яндекс.Диск…). */
+export function needsPlaybackResolve(raw: string): boolean {
+  const url = extractVideoUrl(raw);
+  if (!url) return false;
+  const lower = url.toLowerCase();
+  if (lower.includes('disk.yandex') || lower.includes('yadi.sk')) return true;
+  if (lower.includes('video_ext.php') && !/[?&]hash=[a-f0-9]+/i.test(url)) return true;
+  const vk = vkIdsFromUrl(url);
+  if (vk && !/[?&]hash=[a-f0-9]+/i.test(url)) return true;
+  return false;
 }

@@ -9,7 +9,7 @@ type Mode = 'login' | 'register_student' | 'register_parent';
 /** Figma «Страница – вход» — exact field styles */
 const inputBase =
   'w-full pl-11 pr-4 py-[14px] rounded-[12px] outline-none font-medium text-[15px] text-[#1A1D26] placeholder:text-[#A0A4B0] transition-all';
-const inputIdle = `${inputBase} bg-[#F3F4F8] border border-transparent focus:bg-white focus:border-[#B8B4FF]`;
+const inputIdle = `${inputBase} bg-[#F3F4F8] border border-[#E6E8EF] focus:bg-white focus:border-[#B8B4FF]`;
 /** Email in Figma mock: white fill + soft purple border (active/focused look) */
 const inputActive = `${inputBase} bg-white border border-[#B8B4FF] focus:border-[#6C63FF]`;
 
@@ -86,15 +86,11 @@ export default function Login() {
     mode === 'login' ? 'Вход' : mode === 'register_student' ? 'Регистрация' : 'Аккаунт родителя';
 
   return (
-    <div className="relative min-h-[100dvh] w-full overflow-hidden font-sans bg-white">
-      {/*
-        Desktop art: illustration + wave ONLY (form area painted white in login-bg.jpg).
-        One interactive card overlays the white left — never bake the form into the image.
-      */}
+    <div className="relative min-h-[100dvh] w-full overflow-hidden font-[Golos_Text,system-ui,sans-serif] bg-[#ECEEF2]">
+      {/* Desktop — login-bg.jpg, форма слева на белой зоне */}
       <div
         className="pointer-events-none absolute inset-0 hidden lg:block bg-white"
         style={{
-          /* Asset ~1.83 aspect (near 16:9): cover + right keeps full strip height (Peter/Pushkin) */
           backgroundImage: 'url(/login-bg.jpg)',
           backgroundSize: 'cover',
           backgroundPosition: 'right center',
@@ -103,16 +99,19 @@ export default function Login() {
         aria-hidden
       />
 
-      {/* Mobile */}
+      {/* Mobile — Figma «фон 12»: полный эскиз без затемнения */}
       <div
-        className="lg:hidden absolute inset-0"
+        className="lg:hidden pointer-events-none absolute inset-0"
         style={{
-          background: 'linear-gradient(180deg, #F0F2FF 0%, #FFFFFF 48%, #FFFFFF 100%)',
+          backgroundImage: 'url(/login-bg-mobile.png)',
+          backgroundSize: 'cover',
+          backgroundPosition: 'center 42%',
+          backgroundRepeat: 'no-repeat',
         }}
+        aria-hidden
       />
 
       <div className="relative z-10 min-h-[100dvh] flex items-center justify-center lg:justify-start px-4 sm:px-6 py-8 lg:pl-[7%] xl:pl-[9%]">
-        {/* Single interactive card — Figma; never duplicate in background image */}
         <div className="w-full max-w-[400px] bg-white border border-[#E8EAF0] rounded-[18px] shadow-[0_12px_40px_rgba(17,24,39,0.10)] px-6 py-8 sm:px-8 sm:py-9">
           <div className="w-12 h-12 bg-[#6C63FF] rounded-[12px] flex items-center justify-center mb-5 mx-auto shadow-[0_6px_18px_rgba(108,99,255,0.32)]">
             <GraduationCap className="w-6 h-6 text-white" strokeWidth={2} />
@@ -233,7 +232,9 @@ export default function Login() {
             <div className="mt-6">
               <div className="relative flex items-center mb-4">
                 <div className="flex-grow border-t border-[#E6E8EF]" />
-                <span className="flex-shrink mx-3 text-[#A0A4B0] text-[11px] font-medium">или войти через</span>
+                <span className="flex-shrink mx-3 text-[#A0A4B0] text-[10px] font-semibold uppercase tracking-[0.08em]">
+                  или войти через
+                </span>
                 <div className="flex-grow border-t border-[#E6E8EF]" />
               </div>
               <div className="grid grid-cols-2 gap-3">

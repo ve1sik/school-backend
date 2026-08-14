@@ -154,10 +154,15 @@
   .sched-card-title {
     font-family: "Merriweather Sans", "Golos Text", sans-serif !important;
     font-weight: 800 !important;
-    font-size: 12px !important;
+    font-size: 13px !important;
     line-height: 115% !important;
     letter-spacing: 0.01em !important;
     -webkit-font-smoothing: antialiased;
+  }
+  @media (min-width: 768px) {
+    .sched-card-title {
+      font-size: 12px !important;
+    }
   }
 
   /* Theory lesson (Figma p.8 history) — Merriweather Sans, narrow 778px column */

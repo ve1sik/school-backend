@@ -245,8 +245,8 @@ export default function Homework() {
 
   useEffect(() => {
     if (!courseNames.length) return;
-    if (!selectedCourseFilter || !courseNames.includes(selectedCourseFilter)) {
-      setSelectedCourseFilter(courseNames[0]);
+    if (selectedCourseFilter && !courseNames.includes(selectedCourseFilter)) {
+      setSelectedCourseFilter('');
     }
   }, [courseNames, selectedCourseFilter]);
 
@@ -301,25 +301,38 @@ export default function Homework() {
       className="w-full h-full min-h-0 flex flex-col gap-3.5 px-0 overflow-y-auto md:overflow-hidden pb-4 md:pb-0 font-[Golos_Text,system-ui,sans-serif] scrollbar-hide"
       style={{ color: design.textPrimary }}
     >
-      {/* Course pills 36×… radius 17 + search 223×36 */}
+      {/* Course pills — mobile: horizontal scroll; desktop: wrap */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 shrink-0">
-        <div className="flex flex-wrap gap-2">
+        <div className="flex gap-2 overflow-x-auto pb-0.5 -mx-0.5 px-0.5 custom-scrollbar flex-nowrap lg:flex-wrap lg:overflow-visible">
           {courseNames.length === 0 ? (
             <span className="text-sm font-medium text-gray-400">Пока нет курсов с заданиями</span>
           ) : (
-            courseNames.map((name) => (
+            <>
               <button
-                key={name}
                 type="button"
-                onClick={() => setSelectedCourseFilter(name)}
-                className={`h-9 px-4 rounded-[17px] border-[0.5px] text-[11px] font-semibold uppercase tracking-[0.04em] outline-none focus:outline-none focus-visible:ring-0 transition-colors ${getCoursePillTheme(
-                  name,
-                  selectedCourseFilter === name,
-                )}`}
+                onClick={() => setSelectedCourseFilter('')}
+                className={`h-9 px-4 rounded-[17px] border-[0.5px] text-[11px] font-semibold uppercase tracking-[0.04em] outline-none shrink-0 transition-colors ${
+                  !selectedCourseFilter
+                    ? 'bg-[#0E1829] text-white border-[#0E1829]'
+                    : 'bg-white text-[#6B7280] border-[#C0C6DD] hover:bg-gray-50'
+                }`}
               >
-                {name}
+                Все предметы
               </button>
-            ))
+              {courseNames.map((name) => (
+                <button
+                  key={name}
+                  type="button"
+                  onClick={() => setSelectedCourseFilter(name)}
+                  className={`h-9 px-4 rounded-[17px] border-[0.5px] text-[11px] font-semibold uppercase tracking-[0.04em] outline-none focus:outline-none focus-visible:ring-0 transition-colors shrink-0 ${getCoursePillTheme(
+                    name,
+                    selectedCourseFilter === name,
+                  )}`}
+                >
+                  {name}
+                </button>
+              ))}
+            </>
           )}
         </div>
 
@@ -335,8 +348,8 @@ export default function Homework() {
         </div>
       </div>
 
-      {/* Status chips — Figma Group 31: h=24, border #C0C6DD */}
-      <div className="flex flex-wrap gap-2 shrink-0">
+      {/* Status chips — mobile: single-row scroll */}
+      <div className="flex gap-2 overflow-x-auto pb-0.5 -mx-0.5 px-0.5 custom-scrollbar shrink-0 flex-nowrap">
         {STATUS_FILTERS.map(({ key, label, countClass, activeClass, activeCountClass }) => {
           const count = key === 'RON' ? 0 : counts[key as keyof typeof counts];
           const isActive = activeTab === key;
@@ -348,7 +361,7 @@ export default function Homework() {
                 setActiveTab(key);
                 setSearchParams(key === 'RON' ? { tab: 'ron' } : {});
               }}
-              className={`inline-flex items-center gap-[6px] h-6 pl-1 pr-2.5 rounded-full border-[0.5px] text-[12px] font-medium leading-none outline-none focus:outline-none transition-colors whitespace-nowrap ${
+              className={`inline-flex items-center gap-[6px] h-7 md:h-6 pl-1 pr-2.5 rounded-full border-[0.5px] text-[12px] font-medium leading-none outline-none focus:outline-none transition-colors whitespace-nowrap shrink-0 ${
                 isActive
                   ? activeClass
                   : 'bg-white text-[#1A1D26] border-[#C0C6DD] hover:bg-[#F9FAFB]'
@@ -388,13 +401,7 @@ export default function Homework() {
                       <h3 className="hw-theme-title">{themeName}</h3>
                     </div>
 
-                    {/* Figma Group 33: card 324×149, radius 18 */}
-                    <div
-                      className="grid gap-4"
-                      style={{
-                        gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 324px), 1fr))',
-                      }}
-                    >
+                    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 md:gap-4">
                       <AnimatePresence mode="popLayout">
                         {hws.map((hw) => {
                           let statusText = '';
@@ -461,7 +468,7 @@ export default function Homework() {
                                   navigate(`/homework/${hw.id}`);
                                 }
                               }}
-                              className="bg-white rounded-[18px] border border-[#E5E7EB] w-full max-w-[324px] h-[149px] px-2 pt-4 pb-4 flex flex-col hover:shadow-[0_6px_18px_rgba(17,24,39,0.05)] transition-shadow cursor-pointer group"
+                              className="bg-white rounded-[18px] border border-[#E5E7EB] w-full max-w-none md:max-w-[324px] min-h-[149px] h-auto md:h-[149px] px-3 md:px-2 pt-4 pb-4 flex flex-col hover:shadow-[0_6px_18px_rgba(17,24,39,0.05)] transition-shadow cursor-pointer group"
                             >
                               <div className="flex justify-between items-start gap-2 shrink-0">
                                 <span

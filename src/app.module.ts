@@ -22,6 +22,7 @@ import { GamificationModule } from './gamification/gamification.module';
 import { TelegramModule } from './telegram/telegram.module';
 import { RonModule } from './ron/ron.module';
 import { AppModule as AppShellModule } from './app/app.module';
+import { VideoModule } from './video/video.module';
 
 // Контроллер загрузки
 import { UploadController } from './upload/upload.controller';
@@ -54,6 +55,7 @@ import { ClientLogController } from './client-log/client-log.controller';
     TelegramModule,
     RonModule,
     AppShellModule,
+    VideoModule,
   ],
   controllers: [
     UploadController,

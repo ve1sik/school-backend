@@ -191,7 +191,7 @@ export default function Shop() {
   return (
     <div className="w-full min-h-0 pb-16 font-[Golos_Text,system-ui,sans-serif] space-y-5">
       {/* Toasts */}
-      <div className="fixed bottom-6 right-6 z-50 flex flex-col gap-3 pointer-events-none">
+      <div className="fixed bottom-24 md:bottom-6 left-4 right-4 md:left-auto md:right-6 z-50 flex flex-col gap-3 pointer-events-none items-stretch md:items-end">
         <AnimatePresence>
           {toasts.map((t) => (
             <motion.div
@@ -199,7 +199,7 @@ export default function Shop() {
               initial={{ opacity: 0, y: 20, scale: 0.95 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 10, scale: 0.95 }}
-              className={`pointer-events-auto flex items-center gap-3 px-5 py-4 rounded-2xl shadow-2xl font-bold text-sm max-w-xs ${
+              className={`pointer-events-auto flex items-center gap-3 px-5 py-4 rounded-2xl shadow-2xl font-bold text-sm w-full md:max-w-xs ${
                 t.type === 'success' ? 'bg-emerald-500 text-white' : 'bg-rose-500 text-white'
               }`}
             >
@@ -221,25 +221,26 @@ export default function Shop() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 bg-gray-900/70 backdrop-blur-sm flex items-center justify-center p-4"
+            className="fixed inset-0 z-50 bg-gray-900/70 backdrop-blur-sm flex items-end md:items-center justify-center p-0 md:p-4"
             onClick={(e) => {
               if (e.target === e.currentTarget) setPaymentModal(null);
             }}
           >
             <motion.div
-              initial={{ scale: 0.95, opacity: 0, y: 20 }}
+              initial={{ scale: 0.98, opacity: 0, y: 40 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
-              exit={{ scale: 0.95, opacity: 0, y: 20 }}
-              className="bg-white rounded-[2rem] w-full max-w-lg shadow-2xl overflow-hidden"
+              exit={{ scale: 0.98, opacity: 0, y: 24 }}
+              className="bg-white rounded-t-[1.5rem] md:rounded-[2rem] w-full max-w-lg shadow-2xl overflow-hidden max-h-[92dvh] flex flex-col pb-[env(safe-area-inset-bottom)] md:pb-0"
             >
-              <div className="bg-[#1A1D26] p-8 relative">
+              <div className="bg-[#1A1D26] p-6 md:p-8 relative shrink-0">
+                <div className="md:hidden w-10 h-1 rounded-full bg-white/30 mx-auto mb-4" />
                 <button
                   onClick={() => setPaymentModal(null)}
                   className="absolute top-4 right-4 p-2 bg-white/10 hover:bg-white/20 rounded-full text-white transition-colors"
                 >
                   <X className="w-4 h-4" />
                 </button>
-                <h2 className="text-2xl font-black text-white mb-1">Запись на поток</h2>
+                <h2 className="text-xl md:text-2xl font-black text-white mb-1">Запись на поток</h2>
                 <p className="text-white/60 font-bold text-sm">{paymentModal.title}</p>
                 <div className="mt-4 inline-flex items-center gap-2 bg-white/10 rounded-2xl px-4 py-2">
                   <CreditCard className="w-5 h-5 text-white/80" />
@@ -249,7 +250,7 @@ export default function Shop() {
                 </div>
               </div>
 
-              <div className="p-8 space-y-6">
+              <div className="p-5 md:p-8 space-y-5 md:space-y-6 overflow-y-auto flex-1 min-h-0">
                 {paymentModal.payment_qr_url && (
                   <div className="bg-amber-50 border border-amber-200 rounded-[2rem] p-5 text-center">
                     <p className="text-xs font-black text-amber-600 uppercase tracking-widest mb-4 flex items-center justify-center gap-2">
@@ -356,7 +357,7 @@ export default function Shop() {
       </div>
 
       {/* Figma: search */}
-      <div className="relative w-full max-w-[520px]">
+      <div className="relative w-full max-w-none md:max-w-[520px]">
         <Search className="w-[18px] h-[18px] text-[#B0B5C3] absolute left-4 top-1/2 -translate-y-1/2" />
         <input
           type="text"
@@ -412,7 +413,7 @@ export default function Shop() {
                 className="bg-white rounded-[16px] border border-[#E5E7EB] overflow-hidden flex flex-col hover:shadow-[0_8px_24px_rgba(17,24,39,0.06)] transition-shadow"
               >
                 {/* Cover — Figma dark header */}
-                <div className="relative h-[168px] bg-[#1A1D26] overflow-hidden">
+                <div className="relative h-[180px] md:h-[168px] bg-[#1A1D26] overflow-hidden">
                   {group.cover_url ? (
                     <img
                       src={getFullUrl(group.cover_url)}
@@ -425,7 +426,7 @@ export default function Shop() {
                     </div>
                   )}
 
-                  <div className="absolute top-3 left-3 right-3 flex justify-between items-start gap-2">
+                  <div className="absolute top-3 left-3 right-3 flex flex-wrap justify-between items-start gap-2">
                     {group.start_date ? (
                       <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-white rounded-full text-[10px] font-bold text-[#6C63FF] uppercase tracking-wide shadow-sm">
                         <Calendar className="w-3 h-3" />

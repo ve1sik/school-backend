@@ -1,6 +1,6 @@
 import { useMemo, useState, type FocusEvent } from 'react';
 import { CheckCircle2, Clock, XCircle } from 'lucide-react';
-import { ExplanationBlock, OptionText, safeHtml, AnswerSummary } from './LessonTestUI';
+import { ExplanationBlock, OptionText, safeHtml, formatQuestionHtml, AnswerSummary } from './LessonTestUI';
 import EssayPlainEditor from './EssayPlainEditor';
 import EssayStudentTask from './EssayStudentTask';
 import EssayResultView from './EssayResultView';
@@ -11,7 +11,7 @@ import { design } from '../lib/designTokens';
 
 const CYR_LETTERS = ['А', 'Б', 'В', 'Г', 'Д', 'Е', 'Ж', 'З', 'И', 'К', 'Л', 'М', 'Н', 'О'];
 const BTN =
-  'inline-flex items-center justify-center gap-1 px-6 py-[14px] rounded-[10px] hover:bg-black text-white text-[12px] font-bold uppercase tracking-[0.04em] transition-colors disabled:opacity-40';
+  'inline-flex items-center justify-center gap-1 w-full sm:w-auto px-5 sm:px-6 py-3 sm:py-[14px] rounded-[10px] hover:bg-black text-white text-[11px] sm:text-[12px] font-bold uppercase tracking-[0.04em] transition-colors disabled:opacity-40';
 const INPUT =
   'w-full px-4 py-3.5 rounded-[10px] border bg-white text-[15px] placeholder:text-[#9CA3AF] outline-none focus:ring-2 transition-all';
 
@@ -108,8 +108,8 @@ function QuestionHtml({ content }: { content: string }) {
   return (
     <div className="ql-snow mb-5">
       <div
-        className="ql-editor !p-0 text-[15px] md:text-[16px] leading-relaxed text-[#111827] font-bold [&_p]:mb-2 [&_strong]:font-extrabold"
-        dangerouslySetInnerHTML={{ __html: safeHtml(content) }}
+        className="ql-editor !p-0 text-[15px] md:text-[16px] leading-relaxed text-[#111827] font-bold [&_p]:mb-3 [&_p.ql-blank-line]:min-h-[1.1em] [&_strong]:font-extrabold"
+        dangerouslySetInnerHTML={{ __html: formatQuestionHtml(content) }}
       />
     </div>
   );
@@ -249,6 +249,12 @@ export default function RussianPracticeBlock({
   const notesCount = Number(block.notesCount || block.notes_count || 0) || 0;
   const [notes, setNotes] = useState<string[]>(() => Array.from({ length: Math.max(notesCount, 0) }, () => ''));
 
+  const leftColumn: string[] = useMemo(() => {
+    if (Array.isArray(block.leftColumn) && block.leftColumn.length) return block.leftColumn.map(String);
+    if (Array.isArray(block.pairs)) return block.pairs.map((p: any) => String(p.left || ''));
+    return [];
+  }, [block]);
+
   const rightColumn: string[] = useMemo(() => {
     if (Array.isArray(block.rightColumn) && block.rightColumn.length) return block.rightColumn.map(String);
     if (Array.isArray(block.sentences) && block.sentences.length) return block.sentences.map(String);
@@ -322,6 +328,11 @@ export default function RussianPracticeBlock({
 
   const renderMatching = () => {
     const pairs = Array.isArray(block.pairs) ? block.pairs : [];
+    const rows = leftColumn.length ? leftColumn : pairs.map((p: any) => String(p.left || ''));
+    const effectivePairs = rows.map((left, idx) => ({
+      left: left || pairs[idx]?.left || '',
+      right: pairs[idx]?.right || '',
+    }));
     return (
       <div className="space-y-6">
         <div className={`grid grid-cols-1 ${rightColumn.length ? 'lg:grid-cols-2' : ''} gap-8 lg:gap-12`}>
@@ -333,7 +344,7 @@ export default function RussianPracticeBlock({
               {leftTitle}
             </p>
             <ol className="space-y-3">
-              {pairs.map((pair: any, idx: number) => (
+              {effectivePairs.map((pair: any, idx: number) => (
                 <li key={idx} className="flex gap-2 text-[15px] leading-snug text-gray-800">
                   <span className="font-black shrink-0" style={{ color: design.brandPurple }}>
                     {CYR_LETTERS[idx] || idx + 1})
@@ -364,7 +375,7 @@ export default function RussianPracticeBlock({
         </div>
 
         <div className="flex flex-wrap gap-3 pt-2">
-          {pairs.map((pair: any, idx: number) => {
+          {effectivePairs.map((pair: any, idx: number) => {
             const current = selected.find((s: string) => s.startsWith(`${pair.left}|||`));
             let value = current ? current.split('|||')[1] : '';
             if (serverSubmission?.answer && isLocked) {
@@ -575,7 +586,7 @@ export default function RussianPracticeBlock({
             <img
               src={block.questionImage || block.image}
               alt=""
-              className="mb-2 max-h-[min(28vh,12rem)] rounded-xl object-contain"
+              className="mb-2 w-full max-h-[min(40vh,16rem)] md:max-h-[min(28vh,12rem)] rounded-xl object-contain"
             />
           )}
         </>

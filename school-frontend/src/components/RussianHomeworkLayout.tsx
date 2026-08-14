@@ -266,12 +266,12 @@ export default function RussianHomeworkLayout({
           </div>
         </div>
 
-        <div className="flex flex-col xl:flex-row xl:items-center gap-3 justify-between">
-          <div className="flex flex-wrap gap-2">
+        <div className="flex flex-col gap-2.5 sm:gap-3">
+          <div className="flex gap-2 overflow-x-auto pb-0.5 custom-scrollbar flex-nowrap sm:flex-wrap sm:overflow-visible">
             <button
               type="button"
               onClick={() => onPartChange('theory')}
-              className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-full text-[12px] font-bold transition-all border-2 ${
+              className={`inline-flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 sm:py-2.5 rounded-full text-[11px] sm:text-[12px] font-bold transition-all border-2 shrink-0 whitespace-nowrap ${
                 activePart === 'theory' ? 'text-white' : 'bg-white'
               }`}
               style={
@@ -286,7 +286,7 @@ export default function RussianHomeworkLayout({
             <button
               type="button"
               onClick={() => onPartChange('practice')}
-              className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-full text-[12px] font-bold transition-all border-2 ${
+              className={`inline-flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 sm:py-2.5 rounded-full text-[11px] sm:text-[12px] font-bold transition-all border-2 shrink-0 whitespace-nowrap ${
                 activePart === 'practice' ? 'text-white' : 'bg-white'
               }`}
               style={
@@ -341,9 +341,9 @@ export default function RussianHomeworkLayout({
         className="bg-white rounded-[16px] shadow-sm flex-1 min-h-0 flex flex-col overflow-hidden border"
         style={{ borderColor: design.border }}
       >
-        <div className="shrink-0 px-4 pt-4 sm:px-5 sm:pt-5 md:px-8 md:pt-7 flex flex-wrap items-start justify-between gap-3">
+        <div className="shrink-0 px-3 pt-3 sm:px-5 sm:pt-5 md:px-8 md:pt-7 flex flex-wrap items-start justify-between gap-2.5">
           <h1
-            className="text-[clamp(1.05rem,2.2vw,1.75rem)] font-extrabold leading-tight tracking-tight"
+            className="hidden md:block text-[clamp(1.05rem,2.2vw,1.75rem)] font-extrabold leading-tight tracking-tight"
             style={{ color: design.textPrimary }}
           >
             {themeTitle}
@@ -352,7 +352,7 @@ export default function RussianHomeworkLayout({
             <button
               type="button"
               onClick={() => setTextOpen((v) => !v)}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-[10px] hover:bg-black text-white text-[11px] font-bold uppercase tracking-[0.04em]"
+              className="inline-flex items-center gap-2 w-full md:w-auto justify-center px-4 py-2.5 rounded-[10px] hover:bg-black text-white text-[11px] font-bold uppercase tracking-[0.04em]"
               style={{ backgroundColor: design.ink }}
             >
               <Menu className="w-4 h-4" />
@@ -363,14 +363,14 @@ export default function RussianHomeworkLayout({
 
         {!noText && passage && textOpen && activePart === 'practice' && (
           <div
-            className="shrink-0 mx-4 sm:mx-5 md:mx-8 mt-3 mb-1 p-3 md:p-5 rounded-[12px] bg-[#F8FAFC] text-[14px] md:text-[15px] leading-relaxed border max-h-[28vh] overflow-y-auto custom-scrollbar"
+            className="shrink-0 mx-3 sm:mx-5 md:mx-8 mt-2 mb-1 p-3 md:p-5 rounded-[12px] bg-[#F8FAFC] text-[14px] md:text-[15px] leading-relaxed border max-h-[32vh] overflow-y-auto custom-scrollbar"
             style={{ borderColor: design.border, color: design.textPrimary }}
           >
             {passage}
           </div>
         )}
 
-        <div className="flex-1 min-h-0 overflow-hidden px-4 pb-3 sm:px-5 sm:pb-4 md:px-8 md:pb-5 pt-3 md:pt-4">
+        <div className="flex-1 min-h-0 overflow-hidden px-3 pb-3 sm:px-5 sm:pb-4 md:px-8 md:pb-5 pt-2 md:pt-4">
           {activePart === 'theory' ? (
             <div className="h-full min-h-0 overflow-y-auto custom-scrollbar">{theoryBlocks}</div>
           ) : (

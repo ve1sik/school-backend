@@ -5,6 +5,12 @@ export const safeHtml = (text: unknown): string => {
   return text;
 };
 
+/** Сохраняет пустые строки из Quill (<p><br></p>) как видимые отступы в условии задания. */
+export const formatQuestionHtml = (text: unknown): string => {
+  if (!text || typeof text !== 'string') return '';
+  return text.replace(/<p>(\s|&nbsp;|<br\s*\/?>)*<\/p>/gi, '<p class="ql-blank-line">&nbsp;</p>');
+};
+
 export const hasRichText = (text: unknown): boolean =>
   typeof text === 'string' && /<[a-z][\s\S]*>/i.test(text);
 
@@ -26,9 +32,14 @@ export const LESSON_TEST_STYLES = `
     overflow-wrap: anywhere !important;
   }
   .test-prose .ql-editor p,
-  .test-prose-body p { margin-bottom: 0.65em !important; }
+  .test-prose-body p { margin-bottom: 0.85em !important; }
   .test-prose .ql-editor p:last-child,
   .test-prose-body p:last-child { margin-bottom: 0 !important; }
+  .test-prose .ql-editor p.ql-blank-line,
+  .test-prose-body p.ql-blank-line {
+    min-height: 1.1em !important;
+    margin-bottom: 0.85em !important;
+  }
   .test-prose .ql-editor strong,
   .test-prose-body strong { font-weight: 800 !important; color: #0f172a !important; }
   .test-prose .ql-editor em,
@@ -90,7 +101,7 @@ export function QuestionBlock({ content, mode = 'html', compact = false }: Quest
         </div>
       ) : (
         <div className="ql-snow test-prose">
-          <div className="ql-editor test-prose-body" dangerouslySetInnerHTML={{ __html: safeHtml(content) }} />
+          <div className="ql-editor test-prose-body" dangerouslySetInnerHTML={{ __html: formatQuestionHtml(content) }} />
         </div>
       )}
     </div>

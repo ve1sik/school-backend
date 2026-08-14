@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { useSearchParams, useNavigate } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import { Search, Send, User, Loader2, ArrowLeft, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
@@ -44,7 +44,6 @@ function Avatar({ contact, size = 'md' }: { contact: any; size?: 'sm' | 'md' | '
 
 export default function Messages() {
   const [searchParams] = useSearchParams();
-  const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState('');
   const [contacts, setContacts] = useState<any[]>([]);
   const [activeChatId, setActiveChatId] = useState<string | null>(searchParams.get('curator'));
@@ -162,15 +161,7 @@ export default function Messages() {
           }`}
           style={{ borderColor: design.border }}
         >
-          <div className="px-5 pt-5 pb-4 shrink-0">
-            <button
-              type="button"
-              onClick={() => navigate(-1)}
-              className="inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.08em] text-[#9CA3AF] hover:text-gray-700 transition-colors mb-3"
-            >
-              <ArrowLeft className="w-3.5 h-3.5" strokeWidth={2.5} />
-              Назад
-            </button>
+          <div className="px-4 md:px-5 pt-4 md:pt-5 pb-4 shrink-0">
             <h2 className="text-[20px] md:text-[22px] font-extrabold text-[#111827] mb-3.5 tracking-tight">
               Чаты
             </h2>
@@ -178,10 +169,10 @@ export default function Messages() {
               <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-[#9CA3AF]" strokeWidth={2} />
               <input
                 type="text"
-                placeholder="поиск диалога"
+                placeholder="ПОИСК ДИАЛОГА"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full bg-white border rounded-full py-2.5 pl-10 pr-4 outline-none transition-all text-[13px] text-[#111827] placeholder:text-[#9CA3AF] placeholder:lowercase focus:ring-2"
+                className="w-full bg-white border rounded-full py-2.5 pl-10 pr-4 outline-none transition-all text-[13px] text-[#111827] placeholder:text-[#9CA3AF] placeholder:uppercase placeholder:tracking-[0.04em] placeholder:font-semibold focus:ring-2"
                 style={{
                   borderColor: design.border,
                 }}
@@ -260,10 +251,11 @@ export default function Messages() {
                   <button
                     type="button"
                     onClick={() => setActiveChatId(null)}
-                    className="md:hidden p-1.5 -ml-1 text-gray-400 hover:text-gray-900 shrink-0"
+                    className="md:hidden inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.08em] text-[#9CA3AF] hover:text-gray-700 shrink-0"
                     aria-label="К списку чатов"
                   >
-                    <ArrowLeft className="w-5 h-5" />
+                    <ArrowLeft className="w-3.5 h-3.5" strokeWidth={2.5} />
+                    Назад
                   </button>
                   <Avatar contact={activeUser} size="md" />
                   <div className="min-w-0">
@@ -329,14 +321,14 @@ export default function Messages() {
                 <div ref={messagesEndRef} />
               </div>
 
-              <div className="p-4 md:p-5 shrink-0">
+              <div className="p-3 md:p-5 shrink-0 border-t border-[#F3F4F6]">
                 <form onSubmit={handleSendMessage} className="flex items-center gap-2.5 md:gap-3">
                   <input
                     type="text"
                     value={newMessage}
                     onChange={(e) => setNewMessage(e.target.value)}
                     placeholder="Напишите сообщение"
-                    className="flex-1 bg-white border rounded-[12px] py-3.5 px-4 outline-none transition-all text-[#111827] font-medium text-[15px] placeholder:text-[#9CA3AF]"
+                    className="flex-1 bg-white border rounded-[12px] py-3 md:py-3.5 px-4 outline-none transition-all text-[#111827] font-medium text-[15px] placeholder:text-[#9CA3AF]"
                     style={{ borderColor: design.border }}
                     onFocus={(e) => {
                       e.currentTarget.style.borderColor = design.brandPurple;
@@ -348,7 +340,7 @@ export default function Messages() {
                   <button
                     type="submit"
                     disabled={!newMessage.trim()}
-                    className="w-12 h-12 shrink-0 rounded-[10px] text-white flex items-center justify-center transition-all disabled:opacity-40 active:scale-95 hover:opacity-90"
+                    className="w-11 h-11 md:w-12 md:h-12 shrink-0 rounded-[10px] text-white flex items-center justify-center transition-all disabled:opacity-40 active:scale-95 hover:opacity-90"
                     style={{ backgroundColor: design.ink }}
                     aria-label="Отправить"
                   >
@@ -359,7 +351,8 @@ export default function Messages() {
             </>
           ) : (
             <div className="h-full flex items-center justify-center text-[#9CA3AF] flex-col px-6">
-              <p className="font-medium text-[14px] text-center">Выберите чат из списка слева</p>
+              <p className="font-medium text-[14px] text-center md:hidden">Выберите чат из списка</p>
+              <p className="font-medium text-[14px] text-center hidden md:block">Выберите чат из списка слева</p>
             </div>
           )}
         </section>

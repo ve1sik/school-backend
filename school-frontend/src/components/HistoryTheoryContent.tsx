@@ -17,6 +17,8 @@ const ACCENTS: Record<TheoryUiVariant, string> = {
 /** Figma Group 133: 156×26 (wide labels ≈183×26), radius 3px, #0E1829 */
 const BTN =
   'inline-flex items-center justify-center gap-1 h-[26px] min-w-[156px] px-2 rounded-[3px] text-white text-[10px] font-bold uppercase tracking-[0.02em] transition-colors hover:bg-black/90 leading-none whitespace-nowrap';
+const BTN_MOBILE =
+  'inline-flex items-center justify-center gap-1.5 w-full md:w-auto md:min-w-[156px] h-10 md:h-[26px] px-3 md:px-2 rounded-[6px] md:rounded-[3px] text-white text-[11px] md:text-[10px] font-bold uppercase tracking-[0.02em] transition-colors hover:bg-black/90 leading-none whitespace-nowrap';
 
 type Part = 'theory' | 'practice';
 
@@ -60,7 +62,8 @@ export function SubjectLessonShell({
   const [menuOpen, setMenuOpen] = useState(false);
   const [lessonMenuOpen, setLessonMenuOpen] = useState(false);
   const partMenuRef = useRef<HTMLDivElement>(null);
-  const lessonMenuRef = useRef<HTMLDivElement>(null);
+  const mobileLessonMenuRef = useRef<HTMLDivElement>(null);
+  const desktopLessonMenuRef = useRef<HTMLDivElement>(null);
   const label =
     activePart === 'theory'
       ? 'Часть 1. Теория'
@@ -73,17 +76,25 @@ export function SubjectLessonShell({
 
   useEffect(() => {
     if (!menuOpen && !lessonMenuOpen) return;
-    const onDoc = (e: MouseEvent) => {
+    const onDoc = (e: MouseEvent | TouchEvent) => {
       const t = e.target as Node;
       if (menuOpen && partMenuRef.current && !partMenuRef.current.contains(t)) {
         setMenuOpen(false);
       }
-      if (lessonMenuOpen && lessonMenuRef.current && !lessonMenuRef.current.contains(t)) {
-        setLessonMenuOpen(false);
+      if (lessonMenuOpen) {
+        const inMobile = mobileLessonMenuRef.current?.contains(t);
+        const inDesktop = desktopLessonMenuRef.current?.contains(t);
+        if (!inMobile && !inDesktop) {
+          setLessonMenuOpen(false);
+        }
       }
     };
     document.addEventListener('mousedown', onDoc);
-    return () => document.removeEventListener('mousedown', onDoc);
+    document.addEventListener('touchstart', onDoc);
+    return () => {
+      document.removeEventListener('mousedown', onDoc);
+      document.removeEventListener('touchstart', onDoc);
+    };
   }, [menuOpen, lessonMenuOpen]);
 
   const lessonIdx = useMemo(() => {
@@ -104,8 +115,120 @@ export function SubjectLessonShell({
 
   return (
     <div className="w-full h-full min-h-0 max-w-[829px] mx-auto flex flex-col gap-3 md:gap-4 overflow-hidden px-0 font-[Golos_Text,system-ui,sans-serif]">
+      {/* Mobile header — Figma: course card + ТЕОРИЯ / ПРАКТИКА pills */}
       <div
-        className="bg-white rounded-[16px] px-4 md:px-5 py-3 flex flex-col gap-2.5 shadow-sm shrink-0 border"
+        className={`md:hidden bg-white rounded-[16px] px-4 py-3 flex flex-col gap-3 shadow-sm shrink-0 border ${
+          lessonMenuOpen ? 'relative z-50' : ''
+        }`}
+        style={{ borderColor: design.border }}
+      >
+        {lessonMenuOpen && (
+          <button
+            type="button"
+            className="fixed inset-0 z-40 md:hidden bg-black/20"
+            aria-label="Закрыть список уроков"
+            onClick={() => setLessonMenuOpen(false)}
+          />
+        )}
+        <div className="relative z-50" ref={mobileLessonMenuRef}>
+          <button
+            type="button"
+            onClick={() => courseNav?.lessons?.length ? setLessonMenuOpen((v) => !v) : undefined}
+            className="w-full flex items-start justify-between gap-3 text-left"
+            aria-expanded={lessonMenuOpen}
+          >
+            <div className="min-w-0 flex-1">
+              <p className="text-[14px] font-bold leading-snug" style={{ color: design.ink }}>
+                {courseTitle || fallback}. Модуль {moduleIndex}
+              </p>
+              <p className="text-[13px] font-semibold mt-0.5 leading-snug" style={{ color: design.textPrimary }}>
+                {activeLessonMeta?.title || themeTitle}
+              </p>
+            </div>
+            {courseNav && courseNav.lessons.length > 0 && (
+              <ChevronDown
+                className={`w-5 h-5 shrink-0 mt-0.5 transition-transform ${lessonMenuOpen ? 'rotate-180' : ''}`}
+                style={{ color: accent }}
+                strokeWidth={2.5}
+              />
+            )}
+          </button>
+
+          {lessonMenuOpen && courseNav && (
+            <div
+              className="absolute left-0 right-0 top-[calc(100%+6px)] z-40 max-h-[min(50vh,320px)] overflow-y-auto custom-scrollbar rounded-[12px] border bg-white shadow-lg py-1.5"
+              style={{ borderColor: design.border }}
+              role="listbox"
+            >
+              {courseNav.lessons.map((item, i) => {
+                const active = String(item.id) === String(courseNav.activeLessonId);
+                return (
+                  <button
+                    key={String(item.id)}
+                    type="button"
+                    role="option"
+                    aria-selected={active}
+                    onClick={() => {
+                      courseNav.onSelectLesson(item.id);
+                      setLessonMenuOpen(false);
+                    }}
+                    className={`w-full text-left px-3.5 py-2.5 transition-colors ${
+                      active ? 'text-white' : 'hover:bg-gray-50'
+                    }`}
+                    style={active ? { backgroundColor: accent } : { color: design.textPrimary }}
+                  >
+                    <span
+                      className={`block text-[10px] font-bold uppercase tracking-wider mb-0.5 ${
+                        active ? 'text-white/80' : 'text-gray-400'
+                      }`}
+                    >
+                      Модуль {item.moduleIndex}
+                      {item.title && item.title !== item.themeTitle ? ` · Урок ${i + 1}` : ''}
+                    </span>
+                    <span className="block text-[13px] font-semibold leading-snug line-clamp-2">
+                      {item.title || item.themeTitle}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        <div
+          className="flex rounded-full p-1 gap-1 overflow-x-auto custom-scrollbar flex-nowrap"
+          style={{ backgroundColor: `${accent}18` }}
+        >
+          <button
+            type="button"
+            onClick={() => onPartChange('theory')}
+            className="flex-1 min-w-0 inline-flex items-center justify-center px-4 py-2.5 rounded-full text-[11px] font-black uppercase tracking-wide transition-colors shrink-0"
+            style={{
+              backgroundColor: activePart === 'theory' ? accent : 'transparent',
+              color: activePart === 'theory' ? 'white' : accent,
+            }}
+          >
+            Теория
+          </button>
+          {hasPractice && (
+            <button
+              type="button"
+              onClick={() => onPartChange('practice')}
+              className="flex-1 min-w-0 inline-flex items-center justify-center px-4 py-2.5 rounded-full text-[11px] font-black uppercase tracking-wide transition-colors shrink-0"
+              style={{
+                backgroundColor: activePart === 'practice' ? accent : 'transparent',
+                color: activePart === 'practice' ? 'white' : accent,
+              }}
+            >
+              Практика
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Desktop header */}
+      <div
+        className="hidden md:flex bg-white rounded-[16px] px-5 py-3 flex-col gap-2.5 shadow-sm shrink-0 border"
         style={{ borderColor: design.border }}
       >
         {courseNav && (
@@ -133,7 +256,7 @@ export function SubjectLessonShell({
                   <ChevronLeft className="w-4 h-4" strokeWidth={2.5} />
                 </button>
 
-                <div className="relative min-w-0" ref={lessonMenuRef}>
+                <div className="relative min-w-0" ref={desktopLessonMenuRef}>
                   <button
                     type="button"
                     onClick={() => setLessonMenuOpen((v) => !v)}
@@ -314,10 +437,21 @@ function RichText({ html }: { html?: string }) {
   );
 }
 
-/** Figma cover: 202×288, radius 4.34px */
-function Cover({ src, title, variant }: { src?: string; title?: string; variant: TheoryUiVariant }) {
-  const size =
-    'w-[clamp(148px,24.5vw,202px)] h-[clamp(211px,35vw,288px)] max-w-[202px] max-h-[288px] shrink-0';
+/** Figma cover: 202×288 desktop; mobile script — два в ряд */
+function Cover({
+  src,
+  title,
+  variant,
+  compact,
+}: {
+  src?: string;
+  title?: string;
+  variant: TheoryUiVariant;
+  compact?: boolean;
+}) {
+  const size = compact
+    ? 'w-[calc(50%-6px)] min-w-[130px] max-w-[160px] h-auto aspect-[202/288] shrink-0'
+    : 'w-[clamp(148px,24.5vw,202px)] h-[clamp(211px,35vw,288px)] max-w-[202px] max-h-[288px] shrink-0';
   const radius = 'rounded-[4.34px]';
   if (!src) {
     const placeholder =
@@ -345,14 +479,22 @@ function Cover({ src, title, variant }: { src?: string; title?: string; variant:
 function DownloadButtons({
   section,
   underCover = false,
+  align = 'left',
 }: {
   section: ResourceSection;
   underCover?: boolean;
+  align?: 'left' | 'right';
 }) {
   const items = section.items.filter((item) => item.url);
   if (!items.length) return null;
+  const alignClass =
+    align === 'right' ? 'justify-end md:justify-end' : 'justify-start md:justify-start';
   return (
-    <div className={`flex flex-wrap gap-2 ${underCover ? 'w-[202px] max-w-full' : ''}`}>
+    <div
+      className={`flex flex-col md:flex-row flex-wrap gap-2 w-full ${alignClass} ${
+        underCover ? 'md:w-[202px] md:max-w-full' : ''
+      }`}
+    >
       {items.map((item, i, arr) => {
         const label = item.buttonText || downloadLabel(section.kind, item.title, i, arr.length);
         const wide = label.length > 18;
@@ -363,11 +505,11 @@ function DownloadButtons({
             target="_blank"
             rel="noopener noreferrer"
             download
-            className={`${BTN}${wide ? ' min-w-[183px]' : ''}${underCover ? ' w-full max-w-[202px]' : ''}`}
+            className={`${BTN_MOBILE}${wide ? ' md:min-w-[183px]' : ''}${underCover ? ' md:max-w-[202px]' : ''}`}
             style={{ backgroundColor: '#0E1829' }}
           >
             {label}
-            <Download className="w-3 h-3 shrink-0" strokeWidth={2.5} />
+            <Download className="w-3.5 h-3.5 md:w-3 md:h-3 shrink-0" strokeWidth={2.5} />
           </a>
         );
       })}
@@ -552,7 +694,7 @@ export function SubjectTheoryContent({
       style={{ borderColor: design.border }}
     >
       <div className="w-full max-w-[778px] space-y-2">
-        <h1 className="theory-theme-title">{themeTitle}</h1>
+        <h1 className="theory-theme-title hidden md:block">{themeTitle}</h1>
         <p className="theory-greeting">{greeting}</p>
         {model.intro.length > 0 ? (
           <div className="space-y-2 theory-body-text">
@@ -576,28 +718,66 @@ export function SubjectTheoryContent({
       {model.sections.map((section, sIdx) => {
         const desc = section.description || section.items[0]?.content;
         const buttonsUnderCover = sectionButtonsUnderCover(section);
+        const buttonAlign: 'left' | 'right' =
+          section.kind === 'memo' || section.kind === 'script' ? 'right' : 'left';
+        const hasCovers = section.items.some((item) => item.image);
+        const isScript = section.kind === 'script';
 
         return (
           <div key={`${section.kind}-${sIdx}`} className="w-full max-w-[778px]">
-            <div className="flex flex-col sm:flex-row gap-4 sm:gap-[27px] items-start">
-              <div
-                className={`flex flex-col shrink-0 max-w-full ${
-                  section.kind === 'script' ? 'w-auto gap-2' : 'w-[202px] gap-2'
-                }`}
-              >
-                <div
-                  className={`flex flex-row flex-wrap ${section.kind === 'script' ? 'gap-3' : 'gap-0'}`}
-                >
+            {/* Mobile — Figma: колонка, кнопки под обложкой / справа под текстом */}
+            <div className="md:hidden space-y-3">
+              {hasCovers && (
+                <div className={`flex flex-row flex-wrap ${isScript ? 'gap-3' : 'gap-0'}`}>
                   {section.items.map((item) => (
-                    <Cover key={item.id} src={item.image} title={item.title} variant={variant} />
+                    <Cover
+                      key={item.id}
+                      src={item.image}
+                      title={item.title}
+                      variant={variant}
+                      compact={isScript && section.items.length > 1}
+                    />
                   ))}
                 </div>
-                {buttonsUnderCover && <DownloadButtons section={section} underCover />}
+              )}
+              {buttonsUnderCover && (
+                <DownloadButtons section={section} underCover align="left" />
+              )}
+              <h2 className="theory-section-title">{section.heading}</h2>
+              {desc ? <RichText html={desc} /> : null}
+              {!buttonsUnderCover && (
+                <DownloadButtons section={section} align={buttonAlign} />
+              )}
+            </div>
+
+            {/* Desktop — обложка слева, текст справа */}
+            <div className="hidden md:flex flex-row gap-[27px] items-start">
+              <div
+                className={`flex flex-col shrink-0 max-w-full ${
+                  isScript ? 'w-auto gap-2' : 'w-[202px] gap-2'
+                }`}
+              >
+                <div className={`flex flex-row flex-wrap ${isScript ? 'gap-3' : 'gap-0'}`}>
+                  {section.items.map((item) => (
+                    <Cover
+                      key={item.id}
+                      src={item.image}
+                      title={item.title}
+                      variant={variant}
+                      compact={isScript && section.items.length > 1}
+                    />
+                  ))}
+                </div>
+                {buttonsUnderCover && (
+                  <DownloadButtons section={section} underCover align="left" />
+                )}
               </div>
               <div className="min-w-0 flex-1 max-w-[542px] space-y-2 pt-0">
                 <h2 className="theory-section-title">{section.heading}</h2>
                 {desc ? <RichText html={desc} /> : null}
-                {!buttonsUnderCover && <DownloadButtons section={section} />}
+                {!buttonsUnderCover && (
+                  <DownloadButtons section={section} align={buttonAlign} />
+                )}
               </div>
             </div>
           </div>

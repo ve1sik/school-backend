@@ -1,23 +1,56 @@
-import { ExternalLink, Play } from 'lucide-react';
-import { useState } from 'react';
+import { ExternalLink, Loader2, Maximize2, Minimize2, Play } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { resolveUploadUrl } from '../lib/api';
 import { isDirectVideoFile, resolveVideoEmbed } from '../lib/videoEmbed';
+import { prefetchVideo, prefetchVideoBatch, type VideoPrefetch } from '../lib/videoPrefetch';
+
+function useVideoPrefetch(url: string, direct: boolean) {
+  const resolved = useMemo(
+    () =>
+      direct
+        ? {
+            embedUrl: resolveUploadUrl(url),
+            fallbackUrl: resolveUploadUrl(url),
+            kind: 'video' as const,
+            provider: 'file',
+          }
+        : resolveVideoEmbed(url),
+    [url, direct],
+  );
+
+  const [prefetch, setPrefetch] = useState<VideoPrefetch | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setPrefetch(null);
+
+    void prefetchVideo(url, resolved, direct).then((data) => {
+      if (!cancelled) {
+        setPrefetch(data);
+        setLoading(false);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [url, direct, resolved]);
+
+  return { prefetch, loading, resolved };
+}
 
 type Size = 'large' | 'half';
 
 type Props = {
   url: string;
   title?: string;
-  /** history orange / russian purple */
   accent?: string;
   size?: Size;
   type?: string;
 };
 
-/**
- * Figma lesson video tile: light panel + circular play.
- * 1 → large; 2 → half; 3 → large + 2 half (use TheoryVideoGrid).
- */
 export function TheoryVideoTile({
   url,
   title,
@@ -25,22 +58,90 @@ export function TheoryVideoTile({
   size = 'large',
   type,
 }: Props) {
-  const [playing, setPlaying] = useState(false);
-  const [embedFailed, setEmbedFailed] = useState(false);
+  const [active, setActive] = useState(false);
+  const [failed, setFailed] = useState(false);
+  const [thumbFailed, setThumbFailed] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const shellRef = useRef<HTMLDivElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
 
   const direct = isDirectVideoFile(url) || type === 'video_file';
-  const resolved = direct
-    ? { embedUrl: resolveUploadUrl(url), fallbackUrl: resolveUploadUrl(url), kind: 'video' as const, provider: 'file' }
-    : resolveVideoEmbed(url);
+  const { prefetch, loading, resolved } = useVideoPrefetch(url, direct);
 
-  const src = resolved.embedUrl;
-  const fallbackUrl = resolved.fallbackUrl || url;
-  const isExternalOnly = resolved.kind === 'external' || embedFailed;
+  useEffect(() => {
+    setActive(false);
+    setFailed(false);
+    setThumbFailed(false);
+    setIsFullscreen(false);
+  }, [url]);
+
+  useEffect(() => {
+    if (!active) return;
+
+    const syncFullscreen = () => {
+      const doc = document as Document & { webkitFullscreenElement?: Element | null };
+      setIsFullscreen(
+        document.fullscreenElement === shellRef.current ||
+          doc.webkitFullscreenElement === shellRef.current,
+      );
+    };
+
+    document.addEventListener('fullscreenchange', syncFullscreen);
+    document.addEventListener('webkitfullscreenchange', syncFullscreen);
+    return () => {
+      document.removeEventListener('fullscreenchange', syncFullscreen);
+      document.removeEventListener('webkitfullscreenchange', syncFullscreen);
+    };
+  }, [active]);
+
+  useEffect(() => {
+    if (!active || prefetch?.kind !== 'video') return;
+    const v = videoRef.current;
+    if (!v) return;
+    void v.play().catch(() => {});
+  }, [active, prefetch?.playUrl, prefetch?.kind]);
 
   const box =
     size === 'large'
       ? 'w-full aspect-[778/408] rounded-[8.97px]'
       : 'w-full aspect-[381/200] rounded-[8.97px]';
+
+  const fallbackUrl = prefetch?.fallbackUrl || resolved.fallbackUrl || url;
+  const canEmbed =
+    !!prefetch?.playUrl && prefetch.kind !== 'external' && !failed;
+
+  const toggleFullscreen = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    const el = shellRef.current;
+    if (!el) return;
+
+    const doc = document as Document & {
+      webkitFullscreenElement?: Element | null;
+      webkitExitFullscreen?: () => Promise<void> | void;
+    };
+    const fsEl = document.fullscreenElement || doc.webkitFullscreenElement;
+
+    if (fsEl === el) {
+      if (document.exitFullscreen) void document.exitFullscreen();
+      else doc.webkitExitFullscreen?.();
+      return;
+    }
+
+    const target = el as HTMLDivElement & { webkitRequestFullscreen?: () => Promise<void> | void };
+    if (target.requestFullscreen) void target.requestFullscreen();
+    else target.webkitRequestFullscreen?.();
+  };
+
+  const activate = () => {
+    if (loading) return;
+    if (!canEmbed) {
+      setFailed(true);
+      setActive(true);
+      return;
+    }
+    setActive(true);
+  };
 
   if (!url?.trim()) {
     return (
@@ -55,13 +156,15 @@ export function TheoryVideoTile({
     );
   }
 
-  if (playing && isExternalOnly) {
+  if (active && failed) {
     return (
       <div className={`${box} bg-[#F5F7FF] flex flex-col items-center justify-center gap-3 p-4 text-center`}>
         <p className="text-sm font-semibold text-gray-700 max-w-md">
           {resolved.provider === 'yandex-disk'
-            ? 'Яндекс.Диск не разрешает встроить плеер на сайт. Откройте видео по ссылке.'
-            : 'Это видео нельзя встроить — откройте по ссылке.'}
+            ? 'Не удалось воспроизвести с Яндекс.Диска на сайте. Убедитесь, что ссылка публичная.'
+            : resolved.provider === 'vk'
+              ? 'VK не отдал embed-код. Вставьте «Код для вставки» из VK Видео.'
+              : 'Это видео нельзя встроить — откройте по ссылке.'}
         </p>
         <a
           href={fallbackUrl}
@@ -77,67 +180,88 @@ export function TheoryVideoTile({
     );
   }
 
-  if (playing) {
-    if (resolved.kind === 'video' || direct) {
-      return (
+  const thumbnail = prefetch?.thumbnail;
+  const showPoster = !active && thumbnail && !thumbFailed;
+
+  return (
+    <div
+      ref={shellRef}
+      className={`${box} relative overflow-hidden bg-black group [&:fullscreen]:aspect-auto [&:fullscreen]:w-full [&:fullscreen]:h-full [&:fullscreen]:max-w-none [&:fullscreen]:rounded-none`}
+    >
+      {/* Warmup: плеер грузится до нажатия Play */}
+      {canEmbed && prefetch!.kind === 'video' && (
         <video
-          src={src}
-          controls
-          autoPlay
+          ref={videoRef}
+          src={prefetch!.playUrl}
+          controls={active}
           playsInline
-          className={`${box} bg-black object-contain`}
+          preload="auto"
+          className={`absolute inset-0 w-full h-full object-contain bg-black ${
+            active ? 'z-[1]' : 'opacity-0 pointer-events-none'
+          }`}
         />
-      );
-    }
-    return (
-      <div className={`${box} overflow-hidden bg-gray-900 relative`}>
+      )}
+      {canEmbed && prefetch!.kind === 'iframe' && (
         <iframe
-          src={src}
-          className="absolute inset-0 w-full h-full"
+          src={prefetch!.playUrl}
+          className={`absolute inset-0 w-full h-full border-0 ${
+            active ? 'z-[1]' : 'opacity-0 pointer-events-none'
+          }`}
           allowFullScreen
           allow="autoplay; fullscreen; picture-in-picture; encrypted-media"
           referrerPolicy="no-referrer-when-downgrade"
           title={title || 'Видео'}
-          onError={() => setEmbedFailed(true)}
         />
-        {embedFailed && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-[#F5F7FF] p-4 text-center">
-            <p className="text-sm font-semibold text-gray-700">Не удалось загрузить плеер</p>
-            <a
-              href={fallbackUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg text-white text-sm font-bold"
-              style={{ backgroundColor: accent }}
-            >
-              <ExternalLink className="w-4 h-4" />
-              Открыть видео
-            </a>
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  return (
-    <button
-      type="button"
-      onClick={() => setPlaying(true)}
-      className={`${box} bg-[#F5F7FF] hover:bg-[#EEF1FA] transition-colors flex items-center justify-center relative overflow-hidden`}
-      aria-label={title ? `Смотреть: ${title}` : 'Смотреть видео'}
-    >
-      <span
-        className="w-12 h-12 md:w-14 md:h-14 rounded-full border-[2.5px] flex items-center justify-center bg-white/90"
-        style={{ borderColor: accent }}
-      >
-        <Play className="w-5 h-5 md:w-6 md:h-6 fill-current ml-0.5" style={{ color: accent }} />
-      </span>
-      {resolved.provider === 'yandex-disk' && (
-        <span className="absolute bottom-2 left-2 right-2 text-[10px] font-semibold text-gray-500 bg-white/80 rounded px-2 py-1">
-          Яндекс.Диск — откроется в новой вкладке
-        </span>
       )}
-    </button>
+
+      {!active && (
+        <button
+          type="button"
+          onClick={activate}
+          disabled={loading && !canEmbed}
+          className="absolute inset-0 z-[2] flex items-center justify-center bg-[#F5F7FF] hover:bg-[#EEF1FA] transition-colors disabled:cursor-wait"
+          aria-label={title ? `Смотреть: ${title}` : 'Смотреть видео'}
+        >
+          {showPoster && (
+            <img
+              src={thumbnail!}
+              alt=""
+              className="absolute inset-0 w-full h-full object-cover"
+              loading="eager"
+              fetchPriority="high"
+              referrerPolicy="no-referrer"
+              onError={() => setThumbFailed(true)}
+            />
+          )}
+          <span className="absolute inset-0 bg-black/15 hover:bg-black/25 transition-colors" aria-hidden />
+          {loading ? (
+            <Loader2 className="relative z-[1] w-8 h-8 animate-spin" style={{ color: accent }} />
+          ) : (
+            <span
+              className="relative z-[1] w-12 h-12 md:w-14 md:h-14 rounded-full border-[2.5px] flex items-center justify-center bg-white/90 shadow-sm"
+              style={{ borderColor: accent }}
+            >
+              <Play className="w-5 h-5 md:w-6 md:h-6 fill-current ml-0.5" style={{ color: accent }} />
+            </span>
+          )}
+        </button>
+      )}
+
+      {active && canEmbed && (
+        <button
+          type="button"
+          onClick={toggleFullscreen}
+          className="absolute bottom-2.5 right-2.5 z-20 inline-flex items-center gap-1.5 px-2.5 py-2 rounded-lg bg-black/70 hover:bg-black/85 text-white shadow-lg transition-colors"
+          aria-label={isFullscreen ? 'Свернуть' : 'На весь экран'}
+          title={isFullscreen ? 'Свернуть' : 'На весь экран'}
+        >
+          {isFullscreen ? <Minimize2 className="w-4 h-4 shrink-0" /> : <Maximize2 className="w-4 h-4 shrink-0" />}
+          <span className="text-[10px] font-bold uppercase tracking-wide hidden sm:inline">
+            {isFullscreen ? 'Свернуть' : 'На весь экран'}
+          </span>
+        </button>
+      )}
+    </div>
   );
 }
 
@@ -146,9 +270,17 @@ type GridProps = {
   accent?: string;
 };
 
-/** 1 large / 2 side-by-side / 3 = 1 large + 2 small (Figma p.8–9). */
 export function TheoryVideoGrid({ videos, accent = '#6C63FF' }: GridProps) {
   const vids = videos.filter((v) => v.url?.trim());
+
+  useEffect(() => {
+    prefetchVideoBatch(
+      videos
+        .filter((v) => v.url?.trim())
+        .map((v) => ({ url: v.url!, type: v.type })),
+    );
+  }, [videos]);
+
   if (!vids.length) return null;
 
   if (vids.length === 1) {
