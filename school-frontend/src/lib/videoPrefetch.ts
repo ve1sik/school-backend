@@ -4,6 +4,7 @@ import {
   getDirectVideoThumbnail,
   isDirectVideoFile,
   needsPlaybackResolve,
+  needsVideoThumbnailFetch,
   resolveVideoEmbed,
   type VideoEmbedResult,
 } from './videoEmbed';
@@ -18,6 +19,8 @@ export type VideoPrefetch = {
 
 const inflight = new Map<string, Promise<VideoPrefetch>>();
 const ready = new Map<string, VideoPrefetch>();
+const thumbReady = new Map<string, string>();
+const thumbInflight = new Map<string, Promise<string | null>>();
 
 function cacheKey(raw: string) {
   return extractVideoUrl(raw) || raw.trim();
@@ -103,6 +106,37 @@ export function prefetchVideo(raw: string, resolved: VideoEmbedResult, direct: b
   return task;
 }
 
+/** Быстрое превью (VK, Rutube…) без ожидания resolve playback. */
+export function prefetchVideoThumbnail(raw: string): Promise<string | null> {
+  const source = extractVideoUrl(raw);
+  if (!source) return Promise.resolve(null);
+
+  const direct = getDirectVideoThumbnail(source);
+  if (direct) return Promise.resolve(direct);
+
+  if (!needsVideoThumbnailFetch(source)) return Promise.resolve(null);
+
+  const key = `thumb:${cacheKey(raw)}`;
+  const cached = thumbReady.get(key);
+  if (cached) return Promise.resolve(cached);
+
+  const pending = thumbInflight.get(key);
+  if (pending) return pending;
+
+  const task = api
+    .get<{ thumbnail: string | null }>('/video/thumbnail', { params: { url: source } })
+    .then((res) => {
+      const thumbnail = res.data.thumbnail || null;
+      if (thumbnail) thumbReady.set(key, thumbnail);
+      return thumbnail;
+    })
+    .catch(() => null);
+
+  thumbInflight.set(key, task);
+  void task.finally(() => thumbInflight.delete(key));
+  return task;
+}
+
 /** Prefetch all videos on a lesson page in parallel. */
 export function prefetchVideoBatch(
   items: { url: string; type?: string }[],
@@ -120,5 +154,6 @@ export function prefetchVideoBatch(
         }
       : resolveVideoEmbed(raw);
     void prefetchVideo(raw, resolved, direct);
+    void prefetchVideoThumbnail(raw);
   }
 }

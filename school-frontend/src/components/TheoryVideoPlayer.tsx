@@ -1,8 +1,8 @@
 import { ExternalLink, Loader2, Maximize2, Minimize2, Play } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { resolveUploadUrl } from '../lib/api';
-import { isDirectVideoFile, resolveVideoEmbed } from '../lib/videoEmbed';
-import { prefetchVideo, prefetchVideoBatch, type VideoPrefetch } from '../lib/videoPrefetch';
+import { getDirectVideoThumbnail, isDirectVideoFile, resolveVideoEmbed } from '../lib/videoEmbed';
+import { prefetchVideo, prefetchVideoBatch, prefetchVideoThumbnail, type VideoPrefetch } from '../lib/videoPrefetch';
 
 function useVideoPrefetch(url: string, direct: boolean) {
   const resolved = useMemo(
@@ -20,16 +20,23 @@ function useVideoPrefetch(url: string, direct: boolean) {
 
   const [prefetch, setPrefetch] = useState<VideoPrefetch | null>(null);
   const [loading, setLoading] = useState(true);
+  const [earlyThumb, setEarlyThumb] = useState<string | null>(() => getDirectVideoThumbnail(url));
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
     setPrefetch(null);
+    setEarlyThumb(getDirectVideoThumbnail(url));
+
+    void prefetchVideoThumbnail(url).then((thumb) => {
+      if (!cancelled && thumb) setEarlyThumb(thumb);
+    });
 
     void prefetchVideo(url, resolved, direct).then((data) => {
       if (!cancelled) {
         setPrefetch(data);
         setLoading(false);
+        if (data.thumbnail) setEarlyThumb(data.thumbnail);
       }
     });
 
@@ -38,7 +45,7 @@ function useVideoPrefetch(url: string, direct: boolean) {
     };
   }, [url, direct, resolved]);
 
-  return { prefetch, loading, resolved };
+  return { prefetch, loading, resolved, earlyThumb };
 }
 
 type Size = 'large' | 'half';
@@ -66,7 +73,7 @@ export function TheoryVideoTile({
   const videoRef = useRef<HTMLVideoElement>(null);
 
   const direct = isDirectVideoFile(url) || type === 'video_file';
-  const { prefetch, loading, resolved } = useVideoPrefetch(url, direct);
+  const { prefetch, loading, resolved, earlyThumb } = useVideoPrefetch(url, direct);
 
   useEffect(() => {
     setActive(false);
@@ -180,8 +187,9 @@ export function TheoryVideoTile({
     );
   }
 
-  const thumbnail = prefetch?.thumbnail;
-  const showPoster = !active && thumbnail && !thumbFailed;
+  const thumbnail = earlyThumb || prefetch?.thumbnail;
+  const showPoster = !active && !!thumbnail && !thumbFailed;
+  const showSpinner = loading && !canEmbed && !showPoster;
 
   return (
     <div
@@ -234,7 +242,7 @@ export function TheoryVideoTile({
             />
           )}
           <span className="absolute inset-0 bg-black/15 hover:bg-black/25 transition-colors" aria-hidden />
-          {loading ? (
+          {showSpinner ? (
             <Loader2 className="relative z-[1] w-8 h-8 animate-spin" style={{ color: accent }} />
           ) : (
             <span

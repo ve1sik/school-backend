@@ -276,8 +276,60 @@ export class VideoService {
   }
 
   private async vkPreview(oid: string, id: string): Promise<string | null> {
-    const pageUrl = `https://vk.com/video${oid}_${id}`;
-    return this.ogImageFromPage(pageUrl);
+    const pages = [
+      `https://vk.com/video${oid}_${id}`,
+      `https://vkvideo.ru/video${oid}_${id}`,
+      `https://vk.com/video_ext.php?oid=${oid}&id=${id}&hd=2`,
+    ];
+    for (const pageUrl of pages) {
+      const html = await this.fetchHtml(pageUrl);
+      if (!html) continue;
+      const thumb = this.extractVkThumbnail(html);
+      if (thumb) return thumb;
+      const og = this.extractOgImage(html);
+      if (og && !this.isGenericVkImage(og)) return og;
+    }
+    return null;
+  }
+
+  /** Превью из JSON/HTML страницы VK (mycdn.me / userapi). */
+  private extractVkThumbnail(html: string): string | null {
+    const decoded = html
+      .replace(/\\u002F/gi, '/')
+      .replace(/\\\//g, '/')
+      .replace(/\\u0026/gi, '&')
+      .replace(/&amp;/g, '&');
+
+    const mycdn = [
+      ...decoded.matchAll(/https:\/\/i\.mycdn\.me\/getVideoPreview[^"'\\\s<>]+/gi),
+    ].map((m) => m[0].replace(/\\+$/, ''));
+
+    if (mycdn.length) {
+      const prefer = ['fn=vid_w', 'fn=vid_u', 'fn=vid_x', 'fn=vid_l', 'fn=vid_m'];
+      for (const fn of prefer) {
+        const hit = mycdn.find((u) => u.includes(fn));
+        if (hit) return hit;
+      }
+      return mycdn[0];
+    }
+
+    const userapi = decoded.match(/https:\/\/sun\d+[^"'\\\s<>]+\.(?:jpg|jpeg|webp)(?:\?[^"'\\\s<>]*)?/i);
+    if (userapi?.[0] && !this.isGenericVkImage(userapi[0])) return userapi[0];
+
+    const jsonThumb = decoded.match(/"thumb(?:_photo)?"\s*:\s*"([^"]+)"/i)?.[1];
+    if (jsonThumb?.startsWith('http')) return jsonThumb.replace(/\\u0026/gi, '&');
+
+    return null;
+  }
+
+  private isGenericVkImage(url: string): boolean {
+    const u = url.toLowerCase();
+    return (
+      u.includes('/images/logotypes/') ||
+      u.includes('vk.com/images/') ||
+      u.includes('vk_logo') ||
+      u.endsWith('/logo.png')
+    );
   }
 
   private async rutubePreview(id: string): Promise<string | null> {
