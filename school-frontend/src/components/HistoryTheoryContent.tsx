@@ -178,14 +178,14 @@ export function SubjectLessonShell({
                     style={active ? { backgroundColor: accent } : { color: design.textPrimary }}
                   >
                     <span
-                      className={`block text-[10px] font-bold uppercase tracking-wider mb-0.5 ${
+                      className={`block text-[12px] font-bold uppercase tracking-wider mb-1 ${
                         active ? 'text-white/80' : 'text-gray-400'
                       }`}
                     >
                       Модуль {item.moduleIndex}
                       {item.title && item.title !== item.themeTitle ? ` · Урок ${i + 1}` : ''}
                     </span>
-                    <span className="block text-[13px] font-semibold leading-snug line-clamp-2">
+                    <span className="block text-[15px] font-semibold leading-snug line-clamp-2">
                       {item.title || item.themeTitle}
                     </span>
                   </button>
@@ -307,14 +307,14 @@ export function SubjectLessonShell({
                             }
                           >
                             <span
-                              className={`block text-[10px] font-bold uppercase tracking-wider mb-0.5 ${
+                              className={`block text-[12px] font-bold uppercase tracking-wider mb-1 ${
                                 active ? 'text-white/80' : 'text-gray-400'
                               }`}
                             >
                               Модуль {item.moduleIndex}
                               {item.title && item.title !== item.themeTitle ? ` · Урок ${i + 1}` : ''}
                             </span>
-                            <span className="block text-[13px] font-semibold leading-snug line-clamp-2">
+                            <span className="block text-[15px] font-semibold leading-snug line-clamp-2">
                               {item.title || item.themeTitle}
                             </span>
                           </button>

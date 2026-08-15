@@ -91,8 +91,8 @@
   /* Chip counts — Inter (Figma digit shape) */
   .hw-chip-num {
     font-family: Inter, "Golos Text", sans-serif !important;
-    font-weight: 500 !important;
-    font-size: 10px !important;
+    font-weight: 600 !important;
+    font-size: 11px !important;
     line-height: 1 !important;
     font-variant-numeric: lining-nums proportional-nums;
     font-feature-settings: "lnum" 1, "tnum" 0;
@@ -110,23 +110,40 @@
     color: #0e1829 !important;
   }
 
+  /* Figma: 10.85px base; «Тема N.» 800, текст темы 400 — чуть крупнее для читаемости */
   .hw-theme-title {
     font-family: "Merriweather Sans", "Golos Text", sans-serif !important;
-    font-weight: 800 !important;
-    font-size: 10.85px !important;
-    line-height: 87% !important;
+    font-weight: 400 !important;
+    font-size: 13px !important;
+    line-height: 1.15 !important;
     letter-spacing: 0 !important;
     color: #0e1829 !important;
   }
 
+  .hw-theme-title .font-extrabold {
+    font-weight: 800 !important;
+  }
+
+  .hw-theme-title .font-normal {
+    font-weight: 400 !important;
+  }
+
   .hw-card-title {
     font-family: "Merriweather Sans", "Golos Text", sans-serif !important;
-    font-weight: 800 !important;
+    font-weight: 400 !important;
     font-size: 14.98px !important;
-    line-height: 87% !important;
+    line-height: 1.15 !important;
     letter-spacing: 0 !important;
     color: #0e1829 !important;
     -webkit-font-smoothing: antialiased;
+  }
+
+  .hw-card-title .font-extrabold {
+    font-weight: 800 !important;
+  }
+
+  .hw-card-title .font-normal {
+    font-weight: 400 !important;
   }
 
   /*

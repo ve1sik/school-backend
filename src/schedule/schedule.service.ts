@@ -106,21 +106,25 @@ export class ScheduleService {
           courses.map((c) => subjectFromText(c.title)).filter((s) => s !== 'other'),
         );
         if (allowed.size > 0) {
+          const matchesSubject = (e: { title: string; description?: string | null; group?: { title: string } | null }) => {
+            const sub = subjectFromText(e.title, e.description, e.group?.title);
+            // Неизвестный предмет — не показываем (иначе история протекает через группы)
+            if (sub === 'other') return false;
+            return allowed.has(sub);
+          };
+
           const globalMatches = await this.prisma.event.findMany({
             where: { group_id: null },
             include: { group: { select: { id: true, title: true } } },
             orderBy: { date: 'asc' },
           });
-          const filteredGlobal = globalMatches.filter((e) => {
-            const sub = subjectFromText(e.title, e.description, e.group?.title);
-            return sub === 'other' || allowed.has(sub);
-          });
-          const merged = [...events];
-          for (const ev of filteredGlobal) {
-            if (!merged.some((m) => m.id === ev.id)) merged.push(ev);
-          }
-          merged.sort((a, b) => a.date.getTime() - b.date.getTime());
-          return merged;
+
+          const merged = [...events, ...globalMatches].filter(
+            (e, i, arr) => arr.findIndex((x) => x.id === e.id) === i,
+          );
+          const filtered = merged.filter(matchesSubject);
+          filtered.sort((a, b) => a.date.getTime() - b.date.getTime());
+          return filtered;
         }
       }
     }

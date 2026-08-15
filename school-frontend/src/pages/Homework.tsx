@@ -76,6 +76,25 @@ const STATUS_FILTERS: {
   },
 ];
 
+/** «Тема 3. Практика» → Тема 3. жирным, остальное regular (Figma span weight 400) */
+function ThemeLabel({ text, className = '' }: { text: string; className?: string }) {
+  const m = String(text || '').match(/^(Тема\s*\d+\.?|Модуль\s*\d+\.?)\s*(.*)$/i);
+  if (m) {
+    return (
+      <span className={className}>
+        <span className="font-extrabold">{m[1]}</span>
+        {m[2] ? (
+          <>
+            {' '}
+            <span className="font-normal">{m[2]}</span>
+          </>
+        ) : null}
+      </span>
+    );
+  }
+  return <span className={className}>{text}</span>;
+}
+
 export default function Homework() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -361,14 +380,14 @@ export default function Homework() {
                 setActiveTab(key);
                 setSearchParams(key === 'RON' ? { tab: 'ron' } : {});
               }}
-              className={`inline-flex items-center gap-[6px] h-7 md:h-6 pl-1 pr-2.5 rounded-full border-[0.5px] text-[12px] font-medium leading-none outline-none focus:outline-none transition-colors whitespace-nowrap shrink-0 ${
+              className={`inline-flex items-center gap-2 h-9 pl-1.5 pr-3.5 rounded-[17px] border-[0.5px] text-[13px] font-medium leading-none outline-none focus:outline-none transition-colors whitespace-nowrap shrink-0 ${
                 isActive
                   ? activeClass
                   : 'bg-white text-[#1A1D26] border-[#C0C6DD] hover:bg-[#F9FAFB]'
               }`}
             >
               <span
-                className={`hw-chip-num w-4 h-4 rounded-[3px] flex items-center justify-center shrink-0 ${
+                className={`hw-chip-num w-5 h-5 rounded-[4px] flex items-center justify-center shrink-0 ${
                   isActive ? activeCountClass : countClass
                 }`}
               >
@@ -398,7 +417,9 @@ export default function Homework() {
                   <div key={themeName}>
                     <div className="flex items-center gap-2 mb-3">
                       <FileText className="w-3.5 h-3.5 text-[#9CA3AF] shrink-0" strokeWidth={1.75} />
-                      <h3 className="hw-theme-title">{themeName}</h3>
+                      <h3 className="hw-theme-title">
+                        <ThemeLabel text={themeName} />
+                      </h3>
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 md:gap-4">
@@ -472,12 +493,12 @@ export default function Homework() {
                             >
                               <div className="flex justify-between items-start gap-2 shrink-0">
                                 <span
-                                  className={`px-2 py-[3px] rounded-full text-[10px] font-medium leading-none ${badgeClass}`}
+                                  className={`inline-flex items-center px-2.5 py-1.5 rounded-full text-[11px] font-medium leading-none ${badgeClass}`}
                                 >
                                   {statusText}
                                 </span>
                                 <span
-                                  className={`w-5 h-5 rounded-full border flex items-center justify-center shrink-0 ${iconWrap}`}
+                                  className={`w-6 h-6 rounded-full border flex items-center justify-center shrink-0 ${iconWrap}`}
                                 >
                                   {useBang ? (
                                     <span className="text-[11px] font-semibold leading-none">!</span>
@@ -489,7 +510,9 @@ export default function Homework() {
 
                               {/* Figma: title just above button */}
                               <div className="mt-auto shrink-0">
-                                <h3 className="hw-card-title line-clamp-2 pr-1 mb-2">{hw.title}</h3>
+                                <h3 className="hw-card-title line-clamp-2 pr-1 mb-2">
+                                  <ThemeLabel text={hw.title} />
+                                </h3>
                                 <div
                                   className={`w-full h-9 rounded-[10px] font-bold text-[10px] uppercase tracking-[0.04em] flex items-center justify-center gap-1 pointer-events-none ${buttonClass}`}
                                 >

@@ -1206,9 +1206,9 @@ export default function Dashboard() {
                           }`}
                           title={`Модуль ${m.orderIndex}. ${m.title}`}
                         >
-                          <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Модуль {m.orderIndex}</p>
+                          <p className="text-[12px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">Модуль {m.orderIndex}</p>
                           <div className="flex items-center justify-between gap-3">
-                            <p className="font-black text-gray-900 truncate">{m.title}</p>
+                            <p className="text-[15px] font-extrabold text-gray-900 truncate leading-snug">{m.title}</p>
                             <span className="text-sm font-black text-[#5A4BFF] shrink-0">{m.averageScore}/100</span>
                           </div>
                         </button>
