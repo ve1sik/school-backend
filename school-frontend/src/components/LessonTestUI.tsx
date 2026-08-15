@@ -5,10 +5,17 @@ export const safeHtml = (text: unknown): string => {
   return text;
 };
 
-/** Сохраняет пустые строки из Quill (<p><br></p>) как видимые отступы в условии задания. */
+/** Сохраняет пустые строки из Quill (<p><br></p>) как видимые отступы в условии задания.
+ *  Quill 2 показывает номера/буллеты через <span class="ql-ui"> + CSS counters;
+ *  при статическом HTML span часто отсутствует — без него цифры не видны. */
 export const formatQuestionHtml = (text: unknown): string => {
   if (!text || typeof text !== 'string') return '';
-  return text.replace(/<p>(\s|&nbsp;|<br\s*\/?>)*<\/p>/gi, '<p class="ql-blank-line">&nbsp;</p>');
+  let html = text.replace(/<p>(\s|&nbsp;|<br\s*\/?>)*<\/p>/gi, '<p class="ql-blank-line">&nbsp;</p>');
+  html = html.replace(/<li(\b[^>]*>)(\s*)(?!<span\b[^>]*\bql-ui\b)/gi, (_m, afterLt, ws) => {
+    if (!/\bdata-list\s*=/i.test(afterLt)) return `<li${afterLt}${ws}`;
+    return `<li${afterLt}${ws}<span class="ql-ui" contenteditable="false"></span>`;
+  });
+  return html;
 };
 
 export const hasRichText = (text: unknown): boolean =>
@@ -66,6 +73,23 @@ export const LESSON_TEST_STYLES = `
   }
   .test-prose .ql-editor li,
   .test-prose-body li { margin-bottom: 0.35em !important; }
+  /* Fallback if Quill list markers still missing */
+  .ql-editor ol:not(:has(li[data-list])) {
+    list-style-type: decimal;
+    padding-left: 1.5em;
+  }
+  .ql-editor ol:not(:has(li[data-list])) > li {
+    list-style-type: decimal;
+    padding-left: 0;
+  }
+  .ql-editor ul:not(:has(li[data-list])) {
+    list-style-type: disc;
+    padding-left: 1.5em;
+  }
+  .ql-editor ul:not(:has(li[data-list])) > li {
+    list-style-type: disc;
+    padding-left: 0;
+  }
   .test-option-text {
     flex: 1;
     min-width: 0;
