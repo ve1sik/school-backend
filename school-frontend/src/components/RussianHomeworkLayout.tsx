@@ -271,7 +271,7 @@ export default function RussianHomeworkLayout({
             <button
               type="button"
               onClick={() => onPartChange('theory')}
-              className={`inline-flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 sm:py-2.5 rounded-full text-[11px] sm:text-[12px] font-bold transition-all border-2 shrink-0 whitespace-nowrap ${
+              className={`inline-flex items-center gap-1.5 sm:gap-2 px-3.5 sm:px-5 py-2.5 sm:py-3 rounded-full text-[13px] sm:text-[14px] font-bold leading-none transition-all border-2 shrink-0 whitespace-nowrap ${
                 activePart === 'theory' ? 'text-white' : 'bg-white'
               }`}
               style={
@@ -280,13 +280,13 @@ export default function RussianHomeworkLayout({
                   : { color: resolvedAccent, borderColor: resolvedAccent }
               }
             >
-              <Play className="w-3.5 h-3.5 fill-current" />
+              <Play className="w-4 h-4 fill-current" />
               Часть 1. Теория
             </button>
             <button
               type="button"
               onClick={() => onPartChange('practice')}
-              className={`inline-flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 sm:py-2.5 rounded-full text-[11px] sm:text-[12px] font-bold transition-all border-2 shrink-0 whitespace-nowrap ${
+              className={`inline-flex items-center gap-1.5 sm:gap-2 px-3.5 sm:px-5 py-2.5 sm:py-3 rounded-full text-[13px] sm:text-[14px] font-bold leading-none transition-all border-2 shrink-0 whitespace-nowrap ${
                 activePart === 'practice' ? 'text-white' : 'bg-white'
               }`}
               style={
@@ -295,11 +295,11 @@ export default function RussianHomeworkLayout({
                   : { color: resolvedAccent, borderColor: resolvedAccent }
               }
             >
-              <Play className="w-3.5 h-3.5 fill-current" />
+              <Play className="w-4 h-4 fill-current" />
               Часть 2. Практика
               {practiceIsHomework && (
                 <span
-                  className={`ml-0.5 text-[9px] font-black uppercase tracking-wide px-1.5 py-0.5 rounded-md ${
+                  className={`ml-0.5 text-[10px] font-black uppercase tracking-wide px-1.5 py-0.5 rounded-md ${
                     activePart === 'practice' ? 'bg-white/20 text-white' : ''
                   }`}
                   style={activePart === 'practice' ? undefined : { color: resolvedAccent, backgroundColor: `${resolvedAccent}18` }}
