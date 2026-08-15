@@ -282,7 +282,7 @@ export default function RussianHomeworkLayout({
           </div>
         </div>
 
-        {/* Figma: part pills + pagination one row; history nav aligns to end */}
+        {/* Figma: part pills left, task pagination aligned to end */}
         <div className="flex flex-wrap items-center gap-2 sm:gap-2.5">
           <div className="flex gap-2 shrink-0">
             <button
@@ -342,11 +342,7 @@ export default function RussianHomeworkLayout({
           </div>
 
           {practiceCount > 0 && (
-            <div
-              className={`flex items-center gap-[3px] overflow-x-auto pb-0.5 custom-scrollbar min-w-0 ${
-                variant === 'history' ? 'ml-auto' : 'flex-1'
-              }`}
-            >
+            <div className="flex items-center gap-[3px] overflow-x-auto pb-0.5 custom-scrollbar min-w-0 ml-auto">
               <button
                 type="button"
                 onClick={() => scrollNav(-1)}
