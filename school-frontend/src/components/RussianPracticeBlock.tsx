@@ -10,9 +10,9 @@ import type { SpellError } from '../utils/spellCheck';
 import { design } from '../lib/designTokens';
 
 const CYR_LETTERS = ['А', 'Б', 'В', 'Г', 'Д', 'Е', 'Ж', 'З', 'И', 'К', 'Л', 'М', 'Н', 'О'];
-/** Figma Group 19: 105×28, radius 3px, #0E1829 */
+/** Figma Group 19: ДАЛЕЕ 105×26, radius 3px, #0E1829 */
 const BTN =
-  'inline-flex items-center justify-center gap-1 h-10 md:h-[28px] min-w-[105px] px-2 rounded-[6px] md:rounded-[3px] text-white text-[11px] md:text-[10px] font-bold uppercase tracking-[0.02em] transition-colors hover:bg-black/90 leading-none whitespace-nowrap shrink-0 disabled:opacity-40';
+  'inline-flex items-center justify-center gap-1 h-10 md:h-[26px] w-auto md:w-[105px] min-w-[105px] px-2 rounded-[6px] md:rounded-[3px] text-white text-[11px] md:text-[10px] font-bold uppercase tracking-[0.02em] transition-colors hover:bg-black/90 leading-none whitespace-nowrap shrink-0 disabled:opacity-40';
 const INPUT =
   'w-full px-4 py-3.5 rounded-[10px] border bg-white text-[15px] placeholder:text-[#9CA3AF] outline-none focus:ring-2 transition-all';
 
@@ -382,9 +382,21 @@ export default function RussianPracticeBlock({
           )}
         </div>
 
-        {/* Figma: squares left; ДАЛЕЕ 105×28 centered on card, bottom-aligned with inputs */}
-        <div className={`relative pt-2 ${hasRight ? 'lg:min-h-[88px]' : ''}`}>
+        {/* Figma: letters above; inputs + ДАЛЕЕ on one baseline; button at end of sentences col */}
+        <div className="pt-2 space-y-2">
           <div className="flex flex-wrap gap-3">
+            {effectivePairs.map((pair: any, idx: number) => (
+              <div key={`L-${idx}`} className="w-[56px] flex justify-center">
+                <span
+                  className="w-10 h-10 rounded-[8px] text-white text-[14px] font-bold flex items-center justify-center"
+                  style={{ backgroundColor: design.brandPurple }}
+                >
+                  {CYR_LETTERS[idx] || idx + 1}
+                </span>
+              </div>
+            ))}
+          </div>
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-3">
             {effectivePairs.map((pair: any, idx: number) => {
               const current = selected.find((s: string) => s.startsWith(`${pair.left}|||`));
               let value = current ? current.split('|||')[1] : '';
@@ -394,50 +406,39 @@ export default function RussianPracticeBlock({
                 if (serverMatch) value = serverMatch.split(' - ').slice(1).join(' - ');
               }
               return (
-                <div key={idx} className="flex flex-col items-center gap-2 w-[56px]">
-                  <span
-                    className="w-10 h-10 rounded-[8px] text-white text-[14px] font-bold flex items-center justify-center"
-                    style={{ backgroundColor: design.brandPurple }}
-                  >
-                    {CYR_LETTERS[idx] || idx + 1}
-                  </span>
-                  <input
-                    id={`ru-match-${block.id}-${idx}`}
-                    type="text"
-                    disabled={isLocked}
-                    value={value}
-                    onChange={(e) => {
-                      if (!isLocked) handleMatchingChange(block.id, pair.left, e.target.value);
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === 'ArrowRight') {
-                        e.preventDefault();
-                        (document.getElementById(`ru-match-${block.id}-${idx + 1}`) as HTMLInputElement | null)?.focus();
-                      } else if (e.key === 'ArrowLeft') {
-                        e.preventDefault();
-                        (document.getElementById(`ru-match-${block.id}-${idx - 1}`) as HTMLInputElement | null)?.focus();
-                      }
-                    }}
-                    className="w-full h-11 text-center font-bold text-[16px] rounded-[8px] border outline-none disabled:bg-gray-50"
-                    style={{ borderColor: design.border }}
-                    onFocus={(e) => {
-                      e.currentTarget.style.borderColor = design.brandPurple;
-                    }}
-                    onBlur={(e) => {
-                      e.currentTarget.style.borderColor = design.border;
-                    }}
-                  />
-                </div>
+                <input
+                  key={`I-${idx}`}
+                  id={`ru-match-${block.id}-${idx}`}
+                  type="text"
+                  disabled={isLocked}
+                  value={value}
+                  onChange={(e) => {
+                    if (!isLocked) handleMatchingChange(block.id, pair.left, e.target.value);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'ArrowRight') {
+                      e.preventDefault();
+                      (document.getElementById(`ru-match-${block.id}-${idx + 1}`) as HTMLInputElement | null)?.focus();
+                    } else if (e.key === 'ArrowLeft') {
+                      e.preventDefault();
+                      (document.getElementById(`ru-match-${block.id}-${idx - 1}`) as HTMLInputElement | null)?.focus();
+                    }
+                  }}
+                  className="w-[56px] h-11 text-center font-bold text-[16px] rounded-[8px] border outline-none disabled:bg-gray-50"
+                  style={{ borderColor: design.border }}
+                  onFocus={(e) => {
+                    e.currentTarget.style.borderColor = design.brandPurple;
+                  }}
+                  onBlur={(e) => {
+                    e.currentTarget.style.borderColor = design.border;
+                  }}
+                />
               );
             })}
-          </div>
-          {hasRight ? (
-            <div className="mt-5 flex justify-center lg:mt-0 lg:absolute lg:left-1/2 lg:bottom-0 lg:-translate-x-1/2">
+            <div className={`${hasRight ? 'w-full lg:w-auto lg:ml-auto' : 'w-full'} flex ${hasRight ? 'justify-end' : 'justify-start'} pt-1 lg:pt-0`}>
               {nextBtn}
             </div>
-          ) : (
-            <div className="mt-5">{nextBtn}</div>
-          )}
+          </div>
         </div>
       </div>
     );
