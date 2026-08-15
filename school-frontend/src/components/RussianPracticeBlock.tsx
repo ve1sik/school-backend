@@ -334,9 +334,15 @@ export default function RussianPracticeBlock({
       left: left || pairs[idx]?.left || '',
       right: pairs[idx]?.right || '',
     }));
+    const hasRight = rightColumn.length > 0;
+    const nextBtn = (
+      <button type="button" onClick={goNext} className={BTN} style={{ backgroundColor: '#0E1829' }}>
+        {stepIndex >= totalSteps - 1 ? (isLocked ? 'ГОТОВО' : 'ОТПРАВИТЬ') : 'ДАЛЕЕ >'}
+      </button>
+    );
     return (
       <div className="space-y-6">
-        <div className={`grid grid-cols-1 ${rightColumn.length ? 'lg:grid-cols-2' : ''} gap-8 lg:gap-12`}>
+        <div className={`grid grid-cols-1 ${hasRight ? 'lg:grid-cols-2' : ''} gap-8 lg:gap-12`}>
           <div>
             <p
               className="text-[11px] font-black uppercase tracking-[0.14em] mb-3"
@@ -355,7 +361,7 @@ export default function RussianPracticeBlock({
               ))}
             </ol>
           </div>
-          {rightColumn.length > 0 && (
+          {hasRight && (
             <div>
               <p
                 className="text-[11px] font-black uppercase tracking-[0.14em] mb-3"
@@ -375,58 +381,62 @@ export default function RussianPracticeBlock({
           )}
         </div>
 
-        <div className="flex flex-wrap gap-3 pt-2">
-          {effectivePairs.map((pair: any, idx: number) => {
-            const current = selected.find((s: string) => s.startsWith(`${pair.left}|||`));
-            let value = current ? current.split('|||')[1] : '';
-            if (serverSubmission?.answer && isLocked) {
-              const serverPairs = String(serverSubmission.answer).split(', ');
-              const serverMatch = serverPairs.find((s: string) => s.startsWith(`${pair.left} - `));
-              if (serverMatch) value = serverMatch.split(' - ').slice(1).join(' - ');
-            }
-            return (
-              <div key={idx} className="flex flex-col items-center gap-2 w-[56px]">
-                <span
-                  className="w-10 h-10 rounded-[8px] text-white text-[14px] font-bold flex items-center justify-center"
-                  style={{ backgroundColor: design.brandPurple }}
-                >
-                  {CYR_LETTERS[idx] || idx + 1}
-                </span>
-                <input
-                  id={`ru-match-${block.id}-${idx}`}
-                  type="text"
-                  disabled={isLocked}
-                  value={value}
-                  onChange={(e) => {
-                    if (!isLocked) handleMatchingChange(block.id, pair.left, e.target.value);
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === 'ArrowRight') {
-                      e.preventDefault();
-                      (document.getElementById(`ru-match-${block.id}-${idx + 1}`) as HTMLInputElement | null)?.focus();
-                    } else if (e.key === 'ArrowLeft') {
-                      e.preventDefault();
-                      (document.getElementById(`ru-match-${block.id}-${idx - 1}`) as HTMLInputElement | null)?.focus();
-                    }
-                  }}
-                  className="w-full h-11 text-center font-bold text-[16px] rounded-[8px] border outline-none disabled:bg-gray-50"
-                  style={{ borderColor: design.border }}
-                  onFocus={(e) => {
-                    e.currentTarget.style.borderColor = design.brandPurple;
-                  }}
-                  onBlur={(e) => {
-                    e.currentTarget.style.borderColor = design.border;
-                  }}
-                />
-              </div>
-            );
-          })}
-        </div>
-
-        <div className="pt-5">
-          <button type="button" onClick={goNext} className={BTN} style={{ backgroundColor: '#0E1829' }}>
-            {stepIndex >= totalSteps - 1 ? (isLocked ? 'ГОТОВО' : 'ОТПРАВИТЬ') : 'ДАЛЕЕ >'}
-          </button>
+        {/* Figma: squares under left col, ДАЛЕЕ centered under right col */}
+        <div
+          className={`grid grid-cols-1 ${hasRight ? 'lg:grid-cols-2' : ''} gap-8 lg:gap-12 items-end pt-2`}
+        >
+          <div className="flex flex-wrap gap-3">
+            {effectivePairs.map((pair: any, idx: number) => {
+              const current = selected.find((s: string) => s.startsWith(`${pair.left}|||`));
+              let value = current ? current.split('|||')[1] : '';
+              if (serverSubmission?.answer && isLocked) {
+                const serverPairs = String(serverSubmission.answer).split(', ');
+                const serverMatch = serverPairs.find((s: string) => s.startsWith(`${pair.left} - `));
+                if (serverMatch) value = serverMatch.split(' - ').slice(1).join(' - ');
+              }
+              return (
+                <div key={idx} className="flex flex-col items-center gap-2 w-[56px]">
+                  <span
+                    className="w-10 h-10 rounded-[8px] text-white text-[14px] font-bold flex items-center justify-center"
+                    style={{ backgroundColor: design.brandPurple }}
+                  >
+                    {CYR_LETTERS[idx] || idx + 1}
+                  </span>
+                  <input
+                    id={`ru-match-${block.id}-${idx}`}
+                    type="text"
+                    disabled={isLocked}
+                    value={value}
+                    onChange={(e) => {
+                      if (!isLocked) handleMatchingChange(block.id, pair.left, e.target.value);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'ArrowRight') {
+                        e.preventDefault();
+                        (document.getElementById(`ru-match-${block.id}-${idx + 1}`) as HTMLInputElement | null)?.focus();
+                      } else if (e.key === 'ArrowLeft') {
+                        e.preventDefault();
+                        (document.getElementById(`ru-match-${block.id}-${idx - 1}`) as HTMLInputElement | null)?.focus();
+                      }
+                    }}
+                    className="w-full h-11 text-center font-bold text-[16px] rounded-[8px] border outline-none disabled:bg-gray-50"
+                    style={{ borderColor: design.border }}
+                    onFocus={(e) => {
+                      e.currentTarget.style.borderColor = design.brandPurple;
+                    }}
+                    onBlur={(e) => {
+                      e.currentTarget.style.borderColor = design.border;
+                    }}
+                  />
+                </div>
+              );
+            })}
+          </div>
+          {hasRight ? (
+            <div className="flex justify-center pb-1">{nextBtn}</div>
+          ) : (
+            <div className="pt-2">{nextBtn}</div>
+          )}
         </div>
       </div>
     );
