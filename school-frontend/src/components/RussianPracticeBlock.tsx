@@ -10,7 +10,7 @@ import type { SpellError } from '../utils/spellCheck';
 import { design } from '../lib/designTokens';
 
 const CYR_LETTERS = ['А', 'Б', 'В', 'Г', 'Д', 'Е', 'Ж', 'З', 'И', 'К', 'Л', 'М', 'Н', 'О'];
-/** Figma Group 19: ДАЛЕЕ 105×28, radius 3px, #0E1829 */
+/** Figma Group 19: 105×28, radius 3px, #0E1829 */
 const BTN =
   'inline-flex items-center justify-center gap-1 h-10 md:h-[28px] min-w-[105px] px-2 rounded-[6px] md:rounded-[3px] text-white text-[11px] md:text-[10px] font-bold uppercase tracking-[0.02em] transition-colors hover:bg-black/90 leading-none whitespace-nowrap shrink-0 disabled:opacity-40';
 const INPUT =
@@ -335,9 +335,10 @@ export default function RussianPracticeBlock({
       right: pairs[idx]?.right || '',
     }));
     const hasRight = rightColumn.length > 0;
+    const nextLabel = stepIndex >= totalSteps - 1 ? (isLocked ? 'ГОТОВО' : 'ОТПРАВИТЬ') : 'ДАЛЕЕ >';
     const nextBtn = (
       <button type="button" onClick={goNext} className={BTN} style={{ backgroundColor: '#0E1829' }}>
-        {stepIndex >= totalSteps - 1 ? (isLocked ? 'ГОТОВО' : 'ОТПРАВИТЬ') : 'ДАЛЕЕ >'}
+        {nextLabel}
       </button>
     );
     return (
@@ -381,10 +382,8 @@ export default function RussianPracticeBlock({
           )}
         </div>
 
-        {/* Figma: squares under left col, ДАЛЕЕ centered under right col */}
-        <div
-          className={`grid grid-cols-1 ${hasRight ? 'lg:grid-cols-2' : ''} gap-8 lg:gap-12 items-end pt-2`}
-        >
+        {/* Figma: squares left; ДАЛЕЕ 105×28 centered on card, bottom-aligned with inputs */}
+        <div className={`relative pt-2 ${hasRight ? 'lg:min-h-[88px]' : ''}`}>
           <div className="flex flex-wrap gap-3">
             {effectivePairs.map((pair: any, idx: number) => {
               const current = selected.find((s: string) => s.startsWith(`${pair.left}|||`));
@@ -433,9 +432,11 @@ export default function RussianPracticeBlock({
             })}
           </div>
           {hasRight ? (
-            <div className="flex justify-center pb-1">{nextBtn}</div>
+            <div className="mt-5 flex justify-center lg:mt-0 lg:absolute lg:left-1/2 lg:bottom-0 lg:-translate-x-1/2">
+              {nextBtn}
+            </div>
           ) : (
-            <div className="pt-2">{nextBtn}</div>
+            <div className="mt-5">{nextBtn}</div>
           )}
         </div>
       </div>
