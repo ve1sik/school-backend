@@ -10,7 +10,7 @@ import type { SpellError } from '../utils/spellCheck';
 import { design } from '../lib/designTokens';
 
 const CYR_LETTERS = ['А', 'Б', 'В', 'Г', 'Д', 'Е', 'Ж', 'З', 'И', 'К', 'Л', 'М', 'Н', 'О'];
-/** Figma Group 19: ДАЛЕЕ 105×28, radius 3px, #0E1829 — сразу под ответами по центру */
+/** Figma Group 19: ДАЛЕЕ 105×28, radius 3px, #0E1829 */
 const BTN =
   'inline-flex items-center justify-center gap-1 h-10 md:h-[28px] min-w-[105px] px-2 rounded-[6px] md:rounded-[3px] text-white text-[11px] md:text-[10px] font-bold uppercase tracking-[0.02em] transition-colors hover:bg-black/90 leading-none whitespace-nowrap shrink-0 disabled:opacity-40';
 const INPUT =
@@ -422,6 +422,12 @@ export default function RussianPracticeBlock({
             );
           })}
         </div>
+
+        <div className="pt-5">
+          <button type="button" onClick={goNext} className={BTN} style={{ backgroundColor: '#0E1829' }}>
+            {stepIndex >= totalSteps - 1 ? (isLocked ? 'ГОТОВО' : 'ОТПРАВИТЬ') : 'ДАЛЕЕ >'}
+          </button>
+        </div>
       </div>
     );
   };
@@ -649,11 +655,13 @@ export default function RussianPracticeBlock({
         <ExplanationBlock content={block.explanation || ''} mode="html" />
       )}
 
-      <div className="flex justify-center pt-6 pb-2">
-        <button type="button" onClick={goNext} className={BTN} style={{ backgroundColor: '#0E1829' }}>
-          {stepIndex >= totalSteps - 1 ? (isLocked ? 'ГОТОВО' : 'ОТПРАВИТЬ') : 'ДАЛЕЕ >'}
-        </button>
-      </div>
+      {block.type !== 'matching' && (
+        <div className="pt-5">
+          <button type="button" onClick={goNext} className={BTN} style={{ backgroundColor: '#0E1829' }}>
+            {stepIndex >= totalSteps - 1 ? (isLocked ? 'ГОТОВО' : 'ОТПРАВИТЬ') : 'ДАЛЕЕ >'}
+          </button>
+        </div>
+      )}
       </div>
     </div>
   );
