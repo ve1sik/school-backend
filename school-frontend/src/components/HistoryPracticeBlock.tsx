@@ -387,6 +387,16 @@ export default function HistoryPracticeBlock({
     </div>
   ) : null;
 
+  const nextLabel =
+    stepIndex >= totalSteps - 1 ? (isLocked ? 'ГОТОВО' : 'ОТПРАВИТЬ') : 'ДАЛЕЕ >';
+
+  /** Figma: ДАЛЕЕ under answer column (not under map) */
+  const nextBtn = (
+    <button type="button" onClick={goNext} className={`${BTN} mt-1`} style={{ backgroundColor: design.ink }}>
+      {nextLabel}
+    </button>
+  );
+
   let body: ReactNode;
 
   if (isEssay) {
@@ -409,23 +419,25 @@ export default function HistoryPracticeBlock({
     );
   } else if (imageSrc && hasOptions && block.type === 'test') {
     body = (
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 xl:gap-8 items-start">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-8 items-start">
         {mapFrame}
         <div className="space-y-3 min-w-0">
           {taskLabel}
           <QuestionHtml content={block.question || ''} />
           {renderCheckboxes()}
+          {nextBtn}
         </div>
       </div>
     );
   } else if (imageSrc && (block.type === 'test_short' || block.type === 'written' || (block.type === 'test' && !hasOptions))) {
     body = (
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 xl:gap-8 items-start">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-8 items-start">
         {mapFrame}
         <div className="space-y-3 min-w-0">
           {taskLabel}
           <QuestionHtml content={block.question || ''} />
           {answerInput(4, 'min-h-[min(18vh,120px)] max-h-[28vh]')}
+          {nextBtn}
         </div>
       </div>
     );
@@ -433,7 +445,7 @@ export default function HistoryPracticeBlock({
     body = (
       <div className="space-y-4">
         {taskLabel}
-        <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1.35fr)_minmax(220px,1fr)] gap-4 xl:gap-6 items-start">
+        <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1.35fr)_minmax(220px,1fr)] gap-4 lg:gap-6 items-start">
           <div className="min-w-0 space-y-3">
             <QuestionHtml content={block.question || ''} />
             {imageSrc && !/<table/i.test(block.question || '') && (
@@ -444,6 +456,7 @@ export default function HistoryPracticeBlock({
             {renderMissingElements()}
             {renderMatchingInputs()}
             {(block.type !== 'matching' || !block.pairs?.length) && answerInput(3, 'min-h-[min(12vh,72px)] max-h-[22vh]')}
+            {nextBtn}
           </div>
         </div>
       </div>
@@ -454,6 +467,7 @@ export default function HistoryPracticeBlock({
         {taskLabel}
         <QuestionHtml content={block.question || ''} />
         {renderCheckboxes()}
+        {nextBtn}
       </div>
     );
   } else {
@@ -468,6 +482,7 @@ export default function HistoryPracticeBlock({
         {courseSpellCheck && spellErrors?.[block.id]?.length > 0 && (
           <SpellErrorsPanel errors={spellErrors[block.id]} />
         )}
+        {nextBtn}
       </div>
     );
   }
@@ -475,9 +490,6 @@ export default function HistoryPracticeBlock({
   void setTestAnswers;
   void answersKey;
   void setSafeLocal;
-
-  const nextLabel =
-    stepIndex >= totalSteps - 1 ? (isLocked ? 'ГОТОВО' : 'ОТПРАВИТЬ') : 'ДАЛЕЕ >';
 
   return (
     <div className="w-full h-full min-h-0 flex flex-col font-[Golos_Text,system-ui,sans-serif]">
@@ -517,11 +529,7 @@ export default function HistoryPracticeBlock({
         <ExplanationBlock content={block.explanation || ''} mode="html" />
       )}
 
-      <div className="pt-5">
-        <button type="button" onClick={goNext} className={BTN} style={{ backgroundColor: '#0E1829' }}>
-          {nextLabel}
-        </button>
-      </div>
+      {isEssay && <div className="pt-2">{nextBtn}</div>}
       </div>
     </div>
   );

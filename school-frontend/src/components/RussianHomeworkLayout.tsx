@@ -66,7 +66,11 @@ export default function RussianHomeworkLayout({
   const navActiveBg =
     variant === 'russian'
       ? `linear-gradient(180deg, ${design.russianPurpleGradFrom} 0%, ${design.russianPurpleGradTo} 100%)`
-      : resolvedAccent;
+      : `linear-gradient(180deg, ${design.historyOrangeGradFrom} 0%, ${design.historyOrangeGradTo} 100%)`;
+  const partActiveStyle =
+    variant === 'russian'
+      ? { backgroundColor: resolvedAccent, borderColor: resolvedAccent }
+      : { background: navActiveBg, borderColor: 'transparent' };
   const noText = hideTextControls ?? variant === 'history';
   const [textOpen, setTextOpen] = useState(false);
   const [lessonMenuOpen, setLessonMenuOpen] = useState(false);
@@ -278,7 +282,7 @@ export default function RussianHomeworkLayout({
           </div>
         </div>
 
-        {/* Figma: part pills + pagination on one row */}
+        {/* Figma: part pills + pagination one row; history nav aligns to end */}
         <div className="flex flex-wrap items-center gap-2 sm:gap-2.5">
           <div className="flex gap-2 shrink-0">
             <button
@@ -289,7 +293,7 @@ export default function RussianHomeworkLayout({
               }`}
               style={
                 activePart === 'theory'
-                  ? { backgroundColor: resolvedAccent, borderColor: resolvedAccent }
+                  ? partActiveStyle
                   : { color: resolvedAccent, borderColor: resolvedAccent }
               }
             >
@@ -309,7 +313,7 @@ export default function RussianHomeworkLayout({
               }`}
               style={
                 activePart === 'practice'
-                  ? { backgroundColor: resolvedAccent, borderColor: resolvedAccent }
+                  ? partActiveStyle
                   : { color: resolvedAccent, borderColor: resolvedAccent }
               }
             >
@@ -338,7 +342,11 @@ export default function RussianHomeworkLayout({
           </div>
 
           {practiceCount > 0 && (
-            <div className="flex items-center gap-[3px] overflow-x-auto pb-0.5 custom-scrollbar min-w-0 flex-1">
+            <div
+              className={`flex items-center gap-[3px] overflow-x-auto pb-0.5 custom-scrollbar min-w-0 ${
+                variant === 'history' ? 'ml-auto' : 'flex-1'
+              }`}
+            >
               <button
                 type="button"
                 onClick={() => scrollNav(-1)}

@@ -16,6 +16,9 @@ export const design = {
   russianPurpleGradTo: '#5C38A3',
   historyOrange: '#D3412E',
   historyOrangeAlt: '#EF6C35',
+  /** Figma «Оранж градиент» — active pills / pagination */
+  historyOrangeGradFrom: '#EF7F39',
+  historyOrangeGradTo: '#D54936',
   russianBorder: '#5C38A3',
 
   /** Neutrals */
