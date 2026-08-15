@@ -279,7 +279,9 @@ export default function HistoryPracticeBlock({
     />
   );
 
-  const renderCheckboxes = () => (
+  const renderCheckboxes = () => {
+    const selectedBg = `linear-gradient(90deg, ${design.historyOrangeGradFrom} 0%, ${design.historyOrangeGradTo} 100%)`;
+    return (
     <div className="space-y-2.5">
       {block.options.map((opt: any, idx: number) => {
         const checked = selected.includes(opt.text);
@@ -291,10 +293,14 @@ export default function HistoryPracticeBlock({
             onClick={() => {
               if (!isLocked) handleAnswerToggle(block.id, opt.text);
             }}
-            className={`w-full flex items-start gap-3 px-3.5 py-3.5 rounded-[10px] border text-left transition-all disabled:opacity-70 ${
-              checked ? 'border-transparent text-white' : 'bg-white border-[#E5E7EB] text-[#111827] hover:border-gray-300'
+            className={`w-full flex items-start gap-3 px-3.5 py-3 rounded-[3px] border text-left transition-all disabled:opacity-70 min-h-[46px] ${
+              checked ? 'text-white' : 'bg-white text-[#111827] hover:border-gray-300'
             }`}
-            style={checked ? { backgroundColor: ACCENT } : undefined}
+            style={
+              checked
+                ? { background: selectedBg, borderWidth: 0.5, borderColor: design.stroke }
+                : { borderWidth: 0.5, borderColor: design.stroke }
+            }
           >
             <span
               className={`mt-0.5 w-[18px] h-[18px] shrink-0 rounded-[4px] border-2 flex items-center justify-center ${
@@ -311,7 +317,8 @@ export default function HistoryPracticeBlock({
         );
       })}
     </div>
-  );
+    );
+  };
 
   const renderMissingElements = () => {
     const items = hasOptions
