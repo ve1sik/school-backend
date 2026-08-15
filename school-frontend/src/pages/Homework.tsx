@@ -422,7 +422,7 @@ export default function Homework() {
                       </h3>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 md:gap-4">
+                    <div className="flex flex-wrap gap-3">
                       <AnimatePresence mode="popLayout">
                         {hws.map((hw) => {
                           let statusText = '';
@@ -489,7 +489,7 @@ export default function Homework() {
                                   navigate(`/homework/${hw.id}`);
                                 }
                               }}
-                              className="bg-white rounded-[18px] border border-[#E5E7EB] w-full max-w-none md:max-w-[324px] min-h-[149px] h-auto md:h-[149px] px-3 md:px-2 pt-4 pb-4 flex flex-col hover:shadow-[0_6px_18px_rgba(17,24,39,0.05)] transition-shadow cursor-pointer group"
+                              className="hw-lesson-card bg-white rounded-[18px] border border-[#E5E7EB] w-full max-w-[324px] sm:w-[324px] h-[149px] px-2.5 pt-3 pb-3 flex flex-col hover:shadow-[0_6px_18px_rgba(17,24,39,0.05)] transition-shadow cursor-pointer group"
                             >
                               <div className="flex justify-between items-start gap-2 shrink-0">
                                 <span
@@ -508,8 +508,7 @@ export default function Homework() {
                                 </span>
                               </div>
 
-                              {/* Figma: title just above button */}
-                              <div className="mt-auto shrink-0">
+                              <div className="mt-3 flex flex-col flex-1 min-h-0 justify-end">
                                 <h3 className="hw-card-title line-clamp-2 pr-1 mb-2">
                                   <ThemeLabel text={hw.title} />
                                 </h3>
