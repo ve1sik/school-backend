@@ -382,10 +382,10 @@ export default function RussianPracticeBlock({
           )}
         </div>
 
-        {/* Figma: letters above; inputs + ДАЛЕЕ on one baseline; button at end of sentences col */}
-        <div className="pt-2 space-y-2">
+        {/* Figma: letters under left; inputs + ДАЛЕЕ one baseline; button at START of sentences col */}
+        <div className={`pt-2 grid grid-cols-1 ${hasRight ? 'lg:grid-cols-2' : ''} gap-x-8 lg:gap-x-12 gap-y-2`}>
           <div className="flex flex-wrap gap-3">
-            {effectivePairs.map((pair: any, idx: number) => (
+            {effectivePairs.map((_pair: any, idx: number) => (
               <div key={`L-${idx}`} className="w-[56px] flex justify-center">
                 <span
                   className="w-10 h-10 rounded-[8px] text-white text-[14px] font-bold flex items-center justify-center"
@@ -396,7 +396,8 @@ export default function RussianPracticeBlock({
               </div>
             ))}
           </div>
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-3">
+          {hasRight && <div className="hidden lg:block" aria-hidden />}
+          <div className="flex flex-wrap gap-3 items-center">
             {effectivePairs.map((pair: any, idx: number) => {
               const current = selected.find((s: string) => s.startsWith(`${pair.left}|||`));
               let value = current ? current.split('|||')[1] : '';
@@ -435,10 +436,9 @@ export default function RussianPracticeBlock({
                 />
               );
             })}
-            <div className={`${hasRight ? 'w-full lg:w-auto lg:ml-auto' : 'w-full'} flex ${hasRight ? 'justify-end' : 'justify-start'} pt-1 lg:pt-0`}>
-              {nextBtn}
-            </div>
+            {!hasRight && nextBtn}
           </div>
+          {hasRight && <div className="flex items-center justify-start">{nextBtn}</div>}
         </div>
       </div>
     );
