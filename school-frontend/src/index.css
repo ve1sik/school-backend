@@ -151,16 +151,30 @@
     -webkit-font-smoothing: antialiased;
   }
 
-  /* Schedule — Figma gradient hero + subject pills (sampled from Figma export) */
-  .sched-hero-panel {
-    background: linear-gradient(
-      180deg,
-      #d5e0ef 0%,
-      #e0e9f4 18%,
-      #ebf1f8 42%,
-      #f4f7fe 68%,
-      #ffffff 100%
-    );
+  /* Figma Groups 15–18 — card exactly 327×100, r=5, border 0.5px, pad 8×10 */
+  .sched-event-card {
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    width: 327px;
+    max-width: 100%;
+    height: 100px;
+    min-height: 100px;
+    max-height: 100px;
+    border-radius: 5px;
+    border-width: 0.5px;
+    border-style: solid;
+    padding: 8px 10px;
+    background: #ffffff;
+  }
+
+  .sched-event-card__body {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+    margin-top: 6px;
+    justify-content: flex-end;
   }
 
   /* Card subject badge — Figma Groups 15–18, horizontal gradient */
@@ -265,35 +279,30 @@
     background: linear-gradient(90deg, #f1945e 0%, #de5c37 100%);
   }
 
-  /* Card title — Figma Groups 15–18: Merriweather Sans 800, ~14.98px */
+  /* Card title — Figma Groups 15–18: Merriweather Sans 800, 14.98px / 100% */
   .sched-card-title {
     font-family: "Merriweather Sans", "Golos Text", sans-serif !important;
     font-weight: 800 !important;
     font-size: 14.98px !important;
-    line-height: 1.1 !important;
-    letter-spacing: 0.02em !important;
+    line-height: 14.98px !important;
+    letter-spacing: 0.01em !important;
     -webkit-font-smoothing: antialiased;
   }
 
   .sched-card-title--russian {
-    background: linear-gradient(180deg, #9b82ce 0%, #5c38a3 100%);
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
+    color: #5c38a3;
   }
 
   .sched-card-title--history {
-    background: linear-gradient(180deg, #e36738 0%, #c4432e 100%);
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
+    color: #d3412e;
   }
 
   .sched-card-type {
-    font-size: 11px;
+    font-size: 10px;
     font-weight: 500;
-    line-height: 1;
+    line-height: 10px;
     color: #0e1829;
+    margin-top: 4px;
   }
 
   /* Theory lesson (Figma p.8 history) — Merriweather Sans, narrow 778px column */

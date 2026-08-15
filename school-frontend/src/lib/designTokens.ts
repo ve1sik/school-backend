@@ -65,8 +65,10 @@ export const design = {
   schedCard: {
     w: 327,
     h: 100,
-    radius: 13,
+    radius: 5,
     borderW: 0.5,
+    padX: 10,
+    padY: 8,
   },
 
   /** Schedule calendar cell — Rectangle 185 */

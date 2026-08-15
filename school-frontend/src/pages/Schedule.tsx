@@ -26,7 +26,7 @@ const getEventTypeLabel = (ev: any) => {
 const WEEKDAYS = ['ПН', 'ВТ', 'СР', 'ЧТ', 'ПТ', 'СБ', 'ВС'];
 const WEEKDAYS_MOBILE = ['пн', 'вт', 'ср', 'чт', 'пт', 'сб', 'вс'];
 
-/** Figma Inspect Groups 15–18 — card 327×100; cal pill h=16 r=23 */
+/** Figma Inspect Groups 15–18 — card 327×100, r=5; cal pill h=16 r=23 */
 const subjectFromEventText = (...parts: (string | null | undefined)[]) => {
   const hay = parts.filter(Boolean).join(' ').toLowerCase();
   if (/истор/i.test(hay)) return 'history' as const;
@@ -319,8 +319,8 @@ export default function Schedule() {
 
   return (
     <div className="w-full h-full min-h-0 px-0 pt-0.5 flex flex-col gap-3 md:gap-4 overflow-y-auto md:overflow-hidden pb-4 md:pb-0 font-[Golos_Text,system-ui,sans-serif] scrollbar-hide">
-      {/* Figma: gradient panel — заголовок + карточки семинаров */}
-      <div className="sched-hero-panel shrink-0 rounded-[16px] md:rounded-[20px] px-3 py-3 md:px-5 md:py-4 flex flex-col gap-3 md:gap-[clamp(0.75rem,1.5vw,1rem)]">
+      {/* Figma: заголовок + карточки 327×100 — без градиентной подложки */}
+      <div className="shrink-0 flex flex-col gap-3 md:gap-3">
       <div className="flex flex-col md:flex-row md:flex-wrap md:items-center gap-2.5 md:gap-3">
         <h1 className="hidden md:block sched-page-title text-[clamp(1.35rem,2vw,1.75rem)] font-extrabold tracking-tight text-[#0E1829] leading-none">
           Расписание
@@ -336,11 +336,11 @@ export default function Schedule() {
         )}
       </div>
 
-      {/* Cards — mobile: одна карточка (Figma); desktop: до 4 в ряд */}
+      {/* Cards — Figma Groups 15–18: фиксированные 327×100 */}
       {upcomingEvents.length > 0 && (
         <>
           {mobileFeaturedEvent && (
-            <div className="md:hidden shrink-0 w-full">
+            <div className="md:hidden shrink-0 w-full max-w-[327px]">
               {(() => {
                 const ev = mobileFeaturedEvent;
                 const theme = getSubjectTheme(ev);
@@ -359,7 +359,7 @@ export default function Schedule() {
                       setSelectedDateTitle(`${d.getDate()} ${monthNames[d.getMonth()].toLowerCase()}`);
                       setShowDayModal(true);
                     }}
-                    className={`text-left bg-white border-[0.5px] ${theme.border} rounded-[13px] w-full min-h-[100px] px-2 py-4 hover:shadow-sm transition-shadow flex flex-col gap-2`}
+                    className={`sched-event-card text-left hover:shadow-sm transition-shadow ${theme.border}`}
                   >
                     <div className="flex items-center justify-between gap-2 shrink-0">
                       <span className={`sched-subject-badge sched-subject-badge--card-mobile ${theme.badge}`}>
@@ -369,17 +369,19 @@ export default function Schedule() {
                         {formatEventCardDate(evDate)}
                       </span>
                     </div>
-                    <p className={`${theme.title} uppercase line-clamp-2 mt-1`}>
-                      {ev.title}
-                    </p>
-                    <p className="sched-card-type">{getEventTypeLabel(ev)}</p>
+                    <div className="sched-event-card__body">
+                      <p className={`${theme.title} uppercase line-clamp-2`}>
+                        {ev.title}
+                      </p>
+                      <p className="sched-card-type">{getEventTypeLabel(ev)}</p>
+                    </div>
                   </button>
                 );
               })()}
             </div>
           )}
 
-          <div className="hidden md:grid grid-cols-2 xl:grid-cols-4 gap-[clamp(0.5rem,1vw,0.75rem)] shrink-0 w-full">
+          <div className="hidden md:flex flex-wrap gap-3 shrink-0">
             {upcomingEvents.map((ev) => {
               const theme = getSubjectTheme(ev);
               const evDate = parseSafeDate(ev.date);
@@ -397,7 +399,7 @@ export default function Schedule() {
                     setSelectedDateTitle(`${d.getDate()} ${monthNames[d.getMonth()].toLowerCase()}`);
                     setShowDayModal(true);
                   }}
-                  className={`text-left bg-white border-[0.5px] ${theme.border} rounded-[13px] w-full aspect-[327/100] min-h-[88px] max-h-[110px] px-[clamp(0.5rem,1.2vw,1rem)] py-[clamp(0.5rem,1vw,0.75rem)] hover:shadow-sm transition-shadow flex flex-col`}
+                  className={`sched-event-card text-left hover:shadow-sm transition-shadow ${theme.border}`}
                 >
                   <div className="flex items-center justify-between gap-2 shrink-0">
                     <span className={`sched-subject-badge sched-subject-badge--card-desktop ${theme.badge}`}>
@@ -407,10 +409,12 @@ export default function Schedule() {
                       {formatEventCardDate(evDate)}
                     </span>
                   </div>
-                  <p className={`${theme.title} mt-auto uppercase line-clamp-2`}>
-                    {ev.title}
-                  </p>
-                  <p className="sched-card-type mt-1">{getEventTypeLabel(ev)}</p>
+                  <div className="sched-event-card__body">
+                    <p className={`${theme.title} uppercase line-clamp-2`}>
+                      {ev.title}
+                    </p>
+                    <p className="sched-card-type">{getEventTypeLabel(ev)}</p>
+                  </div>
                 </button>
               );
             })}
