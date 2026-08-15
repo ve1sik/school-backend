@@ -380,7 +380,7 @@ export default function Homework() {
                 setActiveTab(key);
                 setSearchParams(key === 'RON' ? { tab: 'ron' } : {});
               }}
-              className={`inline-flex items-center gap-2 h-9 pl-1.5 pr-3.5 rounded-[17px] border-[0.5px] text-[13px] font-medium leading-none outline-none focus:outline-none transition-colors whitespace-nowrap shrink-0 ${
+              className={`inline-flex items-center gap-2 h-9 pl-2.5 pr-3.5 rounded-[17px] border-[0.5px] text-[13px] font-medium leading-none outline-none focus:outline-none transition-colors whitespace-nowrap shrink-0 ${
                 isActive
                   ? activeClass
                   : 'bg-white text-[#1A1D26] border-[#C0C6DD] hover:bg-[#F9FAFB]'
