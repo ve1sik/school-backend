@@ -109,7 +109,7 @@ function QuestionHtml({ content }: { content: string }) {
   return (
     <div className="ql-snow mb-5">
       <div
-        className="ql-editor !p-0 text-[15px] md:text-[16px] leading-relaxed text-[#111827] font-bold [&_p]:mb-3 [&_p.ql-blank-line]:min-h-[1.1em] [&_strong]:font-extrabold"
+        className="ql-editor !p-0 text-[15px] md:text-[16.69px] leading-[1.34] text-[#0E1829] font-extrabold [&_p]:mb-3 [&_p.ql-blank-line]:min-h-[1.1em] [&_strong]:font-extrabold"
         dangerouslySetInnerHTML={{ __html: formatQuestionHtml(content) }}
       />
     </div>
@@ -337,7 +337,7 @@ export default function RussianPracticeBlock({
     const hasRight = rightColumn.length > 0;
     const nextLabel = stepIndex >= totalSteps - 1 ? (isLocked ? 'ГОТОВО' : 'ОТПРАВИТЬ') : 'ДАЛЕЕ >';
     const nextBtn = (
-      <button type="button" onClick={goNext} className={BTN} style={{ backgroundColor: '#0E1829' }}>
+      <button type="button" onClick={goNext} className={BTN} style={{ backgroundColor: design.ink }}>
         {nextLabel}
       </button>
     );
@@ -346,15 +346,15 @@ export default function RussianPracticeBlock({
         <div className={`grid grid-cols-1 ${hasRight ? 'lg:grid-cols-2' : ''} gap-8 lg:gap-12`}>
           <div>
             <p
-              className="text-[11px] font-black uppercase tracking-[0.14em] mb-3"
-              style={{ color: design.brandPurple }}
+              className="text-[12px] font-bold uppercase tracking-[0.04em] mb-3"
+              style={{ color: design.russianPurple }}
             >
               {leftTitle}
             </p>
             <ol className="space-y-3">
               {effectivePairs.map((pair: any, idx: number) => (
-                <li key={idx} className="flex gap-2 text-[15px] leading-snug text-gray-800">
-                  <span className="font-black shrink-0" style={{ color: design.brandPurple }}>
+                <li key={idx} className="flex gap-2 text-[15px] leading-[1.2] text-[#0E1829]">
+                  <span className="font-bold shrink-0" style={{ color: design.russianPurple }}>
                     {CYR_LETTERS[idx] || idx + 1})
                   </span>
                   <span>{pair.left}</span>
@@ -365,15 +365,15 @@ export default function RussianPracticeBlock({
           {hasRight && (
             <div>
               <p
-                className="text-[11px] font-black uppercase tracking-[0.14em] mb-3"
-                style={{ color: design.brandPurple }}
+                className="text-[12px] font-bold uppercase tracking-[0.04em] mb-3"
+                style={{ color: design.russianPurple }}
               >
                 {rightTitle}
               </p>
               <ol className="space-y-3">
                 {rightColumn.map((item, idx) => (
-                  <li key={idx} className="flex gap-2 text-[15px] leading-snug text-gray-800">
-                    <span className="font-black text-gray-900 shrink-0">{idx + 1})</span>
+                  <li key={idx} className="flex gap-2 text-[15px] leading-[1.31] text-[#0E1829]">
+                    <span className="font-bold text-[#0E1829] shrink-0">{idx + 1})</span>
                     <span>{item}</span>
                   </li>
                 ))}
@@ -382,22 +382,9 @@ export default function RussianPracticeBlock({
           )}
         </div>
 
-        {/* Figma: letters under left; inputs + ДАЛЕЕ one baseline; button at START of sentences col */}
+        {/* Figma Group 103: 42×36 cells, r=3, stroke #98A1B0; ДАЛЕЕ under sentences start */}
         <div className={`pt-2 grid grid-cols-1 ${hasRight ? 'lg:grid-cols-2' : ''} gap-x-8 lg:gap-x-12 gap-y-2`}>
-          <div className="flex flex-wrap gap-3">
-            {effectivePairs.map((_pair: any, idx: number) => (
-              <div key={`L-${idx}`} className="w-[56px] flex justify-center">
-                <span
-                  className="w-10 h-10 rounded-[8px] text-white text-[14px] font-bold flex items-center justify-center"
-                  style={{ backgroundColor: design.brandPurple }}
-                >
-                  {CYR_LETTERS[idx] || idx + 1}
-                </span>
-              </div>
-            ))}
-          </div>
-          {hasRight && <div className="hidden lg:block" aria-hidden />}
-          <div className="flex flex-wrap gap-3 items-center">
+          <div className="flex flex-wrap gap-[6px]">
             {effectivePairs.map((pair: any, idx: number) => {
               const current = selected.find((s: string) => s.startsWith(`${pair.left}|||`));
               let value = current ? current.split('|||')[1] : '';
@@ -407,38 +394,68 @@ export default function RussianPracticeBlock({
                 if (serverMatch) value = serverMatch.split(' - ').slice(1).join(' - ');
               }
               return (
-                <input
-                  key={`I-${idx}`}
-                  id={`ru-match-${block.id}-${idx}`}
-                  type="text"
-                  disabled={isLocked}
-                  value={value}
-                  onChange={(e) => {
-                    if (!isLocked) handleMatchingChange(block.id, pair.left, e.target.value);
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === 'ArrowRight') {
-                      e.preventDefault();
-                      (document.getElementById(`ru-match-${block.id}-${idx + 1}`) as HTMLInputElement | null)?.focus();
-                    } else if (e.key === 'ArrowLeft') {
-                      e.preventDefault();
-                      (document.getElementById(`ru-match-${block.id}-${idx - 1}`) as HTMLInputElement | null)?.focus();
-                    }
-                  }}
-                  className="w-[56px] h-11 text-center font-bold text-[16px] rounded-[8px] border outline-none disabled:bg-gray-50"
-                  style={{ borderColor: design.border }}
-                  onFocus={(e) => {
-                    e.currentTarget.style.borderColor = design.brandPurple;
-                  }}
-                  onBlur={(e) => {
-                    e.currentTarget.style.borderColor = design.border;
-                  }}
-                />
+                <div
+                  key={idx}
+                  className="flex flex-col gap-[6px] shrink-0"
+                  style={{ width: design.matchCell.w }}
+                >
+                  <span
+                    className="text-white flex items-center justify-center"
+                    style={{
+                      width: design.matchCell.w,
+                      height: design.matchCell.letterH,
+                      borderRadius: design.matchCell.radius,
+                      backgroundColor: design.russianPurple,
+                      fontSize: 10.85,
+                      lineHeight: 1.2,
+                    }}
+                  >
+                    {CYR_LETTERS[idx] || idx + 1}
+                  </span>
+                  <input
+                    id={`ru-match-${block.id}-${idx}`}
+                    type="text"
+                    disabled={isLocked}
+                    value={value}
+                    placeholder="0"
+                    onChange={(e) => {
+                      if (!isLocked) handleMatchingChange(block.id, pair.left, e.target.value);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'ArrowRight') {
+                        e.preventDefault();
+                        (document.getElementById(`ru-match-${block.id}-${idx + 1}`) as HTMLInputElement | null)?.focus();
+                      } else if (e.key === 'ArrowLeft') {
+                        e.preventDefault();
+                        (document.getElementById(`ru-match-${block.id}-${idx - 1}`) as HTMLInputElement | null)?.focus();
+                      }
+                    }}
+                    className="text-center outline-none disabled:bg-gray-50 placeholder:text-[#98A1B0]"
+                    style={{
+                      width: design.matchCell.w,
+                      height: design.matchCell.inputH,
+                      borderRadius: design.matchCell.radius,
+                      border: `${design.matchCell.strokeW}px solid ${design.matchCell.stroke}`,
+                      fontSize: 10.85,
+                      lineHeight: 1.2,
+                      color: design.ink,
+                    }}
+                    onFocus={(e) => {
+                      e.currentTarget.style.borderColor = design.russianPurple;
+                    }}
+                    onBlur={(e) => {
+                      e.currentTarget.style.borderColor = design.matchCell.stroke;
+                    }}
+                  />
+                </div>
               );
             })}
-            {!hasRight && nextBtn}
           </div>
-          {hasRight && <div className="flex items-center justify-start">{nextBtn}</div>}
+          {hasRight ? (
+            <div className="flex items-end justify-start pb-[5px]">{nextBtn}</div>
+          ) : (
+            <div className="pt-2">{nextBtn}</div>
+          )}
         </div>
       </div>
     );
@@ -669,7 +686,7 @@ export default function RussianPracticeBlock({
 
       {block.type !== 'matching' && (
         <div className="pt-5">
-          <button type="button" onClick={goNext} className={BTN} style={{ backgroundColor: '#0E1829' }}>
+          <button type="button" onClick={goNext} className={BTN} style={{ backgroundColor: design.ink }}>
             {stepIndex >= totalSteps - 1 ? (isLocked ? 'ГОТОВО' : 'ОТПРАВИТЬ') : 'ДАЛЕЕ >'}
           </button>
         </div>

@@ -10,15 +10,21 @@ export const design = {
   /** Brand / subject accents */
   brandPurple: '#6C63FF',
   brandPurpleDark: '#5A4BFF',
+  /** Figma Russian practice — headers, active pills, matching letters */
+  russianPurple: '#5C38A3',
+  russianPurpleGradFrom: '#8767CA',
+  russianPurpleGradTo: '#5C38A3',
   historyOrange: '#D3412E',
   historyOrangeAlt: '#EF6C35',
   russianBorder: '#5C38A3',
 
   /** Neutrals */
-  ink: '#1A1D26',
+  ink: '#0E1829',
   textPrimary: '#111827',
   textMuted: '#6B7280',
   textSubtle: '#9CA3AF',
+  /** Figma stroke on practice cards / cells / pagination */
+  stroke: '#98A1B0',
   border: '#E5E7EB',
   borderLight: '#F3F4F6',
 
@@ -46,6 +52,27 @@ export const design = {
   radiusPill: '9999px',
   radiusBtn: '10px',
   radiusCount: '3px',
+  /** Small controls: pagination, matching cells */
+  radiusSm: '3px',
+
+  /** Practice matching grid — Figma Group 102/103 */
+  matchCell: {
+    w: 42,
+    letterH: 36,
+    inputH: 36,
+    radius: 3,
+    stroke: '#98A1B0',
+    strokeW: 0.5,
+  },
+
+  /** Practice pagination square — Figma Rectangle 198/201 */
+  practiceNav: {
+    size: 21,
+    radius: 3,
+    stroke: '#98A1B0',
+    strokeW: 0.5,
+    fontSize: 10.85,
+  },
 
   /** Homework card — Figma Group 33 */
   hwCard: {
@@ -98,5 +125,3 @@ export const design = {
   contentGutter: 'clamp(1rem, 2.9vw, 2.625rem)',
   headerH: '64px',
 } as const;
-
-export type DesignTokens = typeof design;

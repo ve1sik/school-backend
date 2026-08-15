@@ -61,7 +61,12 @@ export default function RussianHomeworkLayout({
   practiceIsHomework = false,
 }: Props) {
   const resolvedAccent =
-    accent || (variant === 'history' ? design.historyOrange : design.brandPurple);
+    accent || (variant === 'history' ? design.historyOrange : design.russianPurple);
+  const cardStroke = variant === 'russian' ? design.stroke : design.border;
+  const navActiveBg =
+    variant === 'russian'
+      ? `linear-gradient(180deg, ${design.russianPurpleGradFrom} 0%, ${design.russianPurpleGradTo} 100%)`
+      : resolvedAccent;
   const noText = hideTextControls ?? variant === 'history';
   const [textOpen, setTextOpen] = useState(false);
   const [lessonMenuOpen, setLessonMenuOpen] = useState(false);
@@ -109,6 +114,7 @@ export default function RussianHomeworkLayout({
   const navBtn = (i: number) => {
     const active = activePart === 'practice' && i === activePracticeIndex;
     const done = !!completedSteps[i] && !active;
+    const nav = design.practiceNav;
     return (
       <button
         key={i}
@@ -117,23 +123,23 @@ export default function RussianHomeworkLayout({
           onPartChange('practice');
           onPracticeIndexChange(i);
         }}
-        className={`w-8 h-8 shrink-0 rounded-[8px] text-[12px] font-bold border transition-colors ${
+        className={`shrink-0 flex items-center justify-center font-normal leading-none transition-colors ${
           active
-            ? 'text-white border-transparent'
+            ? 'text-white'
             : done
-              ? 'bg-gray-100 text-gray-500 border-gray-200'
-              : 'bg-white hover:border-gray-300'
+              ? 'bg-gray-100 text-gray-500'
+              : 'bg-white text-[#0E1829]'
         }`}
-        style={
-          active
-            ? { backgroundColor: resolvedAccent, borderColor: resolvedAccent }
-            : done
-              ? undefined
-              : {
-                  color: variant === 'history' ? design.textPrimary : resolvedAccent,
-                  borderColor: design.border,
-                }
-        }
+        style={{
+          width: nav.size,
+          height: nav.size,
+          borderRadius: nav.radius,
+          fontSize: nav.fontSize,
+          borderWidth: nav.strokeW,
+          borderStyle: 'solid',
+          borderColor: active ? 'transparent' : nav.stroke,
+          background: active ? navActiveBg : done ? undefined : '#FFFFFF',
+        }}
       >
         {i + 1}
       </button>
@@ -143,8 +149,8 @@ export default function RussianHomeworkLayout({
   return (
     <div className="w-full h-full min-h-0 flex flex-col gap-2.5 sm:gap-3.5 overflow-hidden font-[Golos_Text,system-ui,sans-serif]">
       <div
-        className="bg-white rounded-[16px] px-3 py-2.5 sm:px-4 sm:py-3.5 md:px-5 md:py-4 space-y-2.5 sm:space-y-3.5 shrink-0 border"
-        style={{ borderColor: design.border }}
+        className="bg-white rounded-[16px] px-3 py-2.5 sm:px-4 sm:py-3.5 md:px-5 md:py-4 space-y-2.5 sm:space-y-3.5 shrink-0"
+        style={{ border: `0.5px solid ${cardStroke}` }}
       >
         {courseNav && (
           <div className="flex flex-wrap items-center justify-between gap-2 pb-0.5">
@@ -311,24 +317,34 @@ export default function RussianHomeworkLayout({
           </div>
 
           {practiceCount > 0 && (
-            <div className="flex items-center gap-1 overflow-x-auto pb-0.5 custom-scrollbar max-w-full">
+            <div className="flex items-center gap-[3px] overflow-x-auto pb-0.5 custom-scrollbar max-w-full">
               <button
                 type="button"
                 onClick={() => scrollNav(-1)}
-                className="w-8 h-8 shrink-0 rounded-[8px] flex items-center justify-center text-white"
-                style={{ backgroundColor: resolvedAccent }}
+                className="shrink-0 flex items-center justify-center text-white"
+                style={{
+                  width: design.practiceNav.size,
+                  height: design.practiceNav.size,
+                  borderRadius: design.practiceNav.radius,
+                  background: navActiveBg,
+                }}
                 aria-label="Предыдущее"
               >
-                <ChevronLeft className="w-4 h-4" strokeWidth={2.5} />
+                <ChevronLeft className="w-3 h-3" strokeWidth={2.5} />
               </button>
               <button
                 type="button"
                 onClick={() => scrollNav(1)}
-                className="w-8 h-8 shrink-0 rounded-[8px] flex items-center justify-center text-white"
-                style={{ backgroundColor: resolvedAccent }}
+                className="shrink-0 flex items-center justify-center text-white"
+                style={{
+                  width: design.practiceNav.size,
+                  height: design.practiceNav.size,
+                  borderRadius: design.practiceNav.radius,
+                  background: navActiveBg,
+                }}
                 aria-label="Следующее"
               >
-                <ChevronRight className="w-4 h-4" strokeWidth={2.5} />
+                <ChevronRight className="w-3 h-3" strokeWidth={2.5} />
               </button>
 
               {numbers.map((i) => navBtn(i))}
@@ -338,13 +354,13 @@ export default function RussianHomeworkLayout({
       </div>
 
       <div
-        className="bg-white rounded-[16px] shadow-sm flex-1 min-h-0 flex flex-col overflow-hidden border"
-        style={{ borderColor: design.border }}
+        className="bg-white rounded-[16px] flex-1 min-h-0 flex flex-col overflow-hidden"
+        style={{ border: `0.5px solid ${cardStroke}` }}
       >
         <div className="shrink-0 px-3 pt-3 sm:px-5 sm:pt-5 md:px-8 md:pt-7 flex flex-wrap items-start justify-between gap-2.5">
           <h1
             className="hidden md:block text-[clamp(1.05rem,2.2vw,1.75rem)] font-extrabold leading-tight tracking-tight"
-            style={{ color: design.textPrimary }}
+            style={{ color: design.ink }}
           >
             {themeTitle}
           </h1>
