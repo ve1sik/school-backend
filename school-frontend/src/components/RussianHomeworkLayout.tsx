@@ -252,32 +252,39 @@ export default function RussianHomeworkLayout({
           </div>
         )}
 
-        <div className="flex flex-wrap items-center gap-2.5 md:gap-3">
+        <div className="flex flex-wrap items-center gap-2 md:gap-2.5">
           <span
-            className="px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-[0.06em]"
+            className="text-[11px] font-bold uppercase tracking-[0.08em] shrink-0"
             style={
               variant === 'history'
-                ? { color: resolvedAccent, border: `1.5px solid ${resolvedAccent}`, backgroundColor: 'white' }
-                : { backgroundColor: resolvedAccent, color: 'white' }
+                ? {
+                    color: resolvedAccent,
+                    border: `1.5px solid ${resolvedAccent}`,
+                    backgroundColor: 'white',
+                    padding: '4px 10px',
+                    borderRadius: 8,
+                  }
+                : { color: resolvedAccent }
             }
           >
             модуль {moduleIndex}
           </span>
           <div
-            className="flex items-center gap-2 min-w-0 text-[14px] font-semibold"
-            style={{ color: design.textPrimary }}
+            className="flex items-center gap-1.5 min-w-0 text-[14px] font-semibold"
+            style={{ color: design.ink }}
           >
-            <BookOpen className="w-4 h-4 shrink-0" style={{ color: resolvedAccent }} strokeWidth={2} />
+            <BookOpen className="w-4 h-4 shrink-0" style={{ color: design.stroke }} strokeWidth={2} />
             <span className="truncate">{themeTitle}</span>
           </div>
         </div>
 
-        <div className="flex flex-col gap-2.5 sm:gap-3">
-          <div className="flex gap-2 overflow-x-auto pb-0.5 custom-scrollbar flex-nowrap sm:flex-wrap sm:overflow-visible">
+        {/* Figma: part pills + pagination on one row */}
+        <div className="flex flex-wrap items-center gap-2 sm:gap-2.5">
+          <div className="flex gap-2 shrink-0">
             <button
               type="button"
               onClick={() => onPartChange('theory')}
-              className={`inline-flex items-center gap-1.5 sm:gap-2 px-3.5 sm:px-5 py-2.5 sm:py-3 rounded-full text-[13px] sm:text-[14px] font-bold leading-none transition-all border-2 shrink-0 whitespace-nowrap ${
+              className={`inline-flex items-center gap-1.5 px-3.5 sm:px-4 py-1.5 sm:py-2 rounded-full text-[12px] sm:text-[13px] font-bold leading-none transition-all border shrink-0 whitespace-nowrap ${
                 activePart === 'theory' ? 'text-white' : 'bg-white'
               }`}
               style={
@@ -286,13 +293,18 @@ export default function RussianHomeworkLayout({
                   : { color: resolvedAccent, borderColor: resolvedAccent }
               }
             >
-              <Play className="w-4 h-4 fill-current" />
+              <span
+                className="w-[16px] h-[16px] rounded-full border border-current flex items-center justify-center shrink-0"
+                aria-hidden
+              >
+                <Play className="w-2 h-2 fill-current" />
+              </span>
               Часть 1. Теория
             </button>
             <button
               type="button"
               onClick={() => onPartChange('practice')}
-              className={`inline-flex items-center gap-1.5 sm:gap-2 px-3.5 sm:px-5 py-2.5 sm:py-3 rounded-full text-[13px] sm:text-[14px] font-bold leading-none transition-all border-2 shrink-0 whitespace-nowrap ${
+              className={`inline-flex items-center gap-1.5 px-3.5 sm:px-4 py-1.5 sm:py-2 rounded-full text-[12px] sm:text-[13px] font-bold leading-none transition-all border shrink-0 whitespace-nowrap ${
                 activePart === 'practice' ? 'text-white' : 'bg-white'
               }`}
               style={
@@ -301,14 +313,23 @@ export default function RussianHomeworkLayout({
                   : { color: resolvedAccent, borderColor: resolvedAccent }
               }
             >
-              <Play className="w-4 h-4 fill-current" />
+              <span
+                className="w-[16px] h-[16px] rounded-full border border-current flex items-center justify-center shrink-0"
+                aria-hidden
+              >
+                <Play className="w-2 h-2 fill-current" />
+              </span>
               Часть 2. Практика
               {practiceIsHomework && (
                 <span
-                  className={`ml-0.5 text-[10px] font-black uppercase tracking-wide px-1.5 py-0.5 rounded-md ${
+                  className={`ml-0.5 text-[9px] font-black uppercase tracking-wide px-1.5 py-0.5 rounded-md ${
                     activePart === 'practice' ? 'bg-white/20 text-white' : ''
                   }`}
-                  style={activePart === 'practice' ? undefined : { color: resolvedAccent, backgroundColor: `${resolvedAccent}18` }}
+                  style={
+                    activePart === 'practice'
+                      ? undefined
+                      : { color: resolvedAccent, backgroundColor: `${resolvedAccent}18` }
+                  }
                 >
                   ДЗ
                 </span>
@@ -317,7 +338,7 @@ export default function RussianHomeworkLayout({
           </div>
 
           {practiceCount > 0 && (
-            <div className="flex items-center gap-[3px] overflow-x-auto pb-0.5 custom-scrollbar max-w-full">
+            <div className="flex items-center gap-[3px] overflow-x-auto pb-0.5 custom-scrollbar min-w-0 flex-1">
               <button
                 type="button"
                 onClick={() => scrollNav(-1)}
