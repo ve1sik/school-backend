@@ -356,7 +356,7 @@ export function SubjectLessonShell({
 
           <div className="flex flex-wrap items-center gap-3 min-w-0">
             <span
-              className="truncate text-[13.87px] font-normal leading-[0.87] tracking-[-0.04em] max-w-[min(100%,280px)] sm:max-w-[360px] font-[Merriweather_Sans,Golos_Text,sans-serif]"
+              className="truncate text-[14px] font-normal leading-normal tracking-tight max-w-[min(100%,280px)] sm:max-w-[360px] font-[Merriweather_Sans,Golos_Text,sans-serif]"
               style={{ color: design.ink }}
             >
               {themeTitle}
