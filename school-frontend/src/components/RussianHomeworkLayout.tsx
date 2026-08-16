@@ -258,18 +258,10 @@ export default function RussianHomeworkLayout({
 
         <div className="flex flex-wrap items-center gap-2 md:gap-2.5">
           <span
-            className="text-[11px] font-bold uppercase tracking-[0.08em] shrink-0"
-            style={
-              variant === 'history'
-                ? {
-                    color: resolvedAccent,
-                    border: `1.5px solid ${resolvedAccent}`,
-                    backgroundColor: 'white',
-                    padding: '4px 10px',
-                    borderRadius: 8,
-                  }
-                : { color: resolvedAccent }
-            }
+            className="shrink-0 text-[9.5px] font-bold uppercase leading-[1.35] tracking-[0.04em]"
+            style={{
+              color: variant === 'history' ? design.historyOrange : design.russianPurple,
+            }}
           >
             модуль {moduleIndex}
           </span>
