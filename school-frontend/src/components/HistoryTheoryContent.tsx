@@ -11,7 +11,12 @@ export type TheoryUiVariant = 'history' | 'russian';
 
 const ACCENTS: Record<TheoryUiVariant, string> = {
   history: design.historyOrange,
-  russian: design.brandPurple,
+  russian: design.russianPurple,
+};
+
+const ACCENT_GRADS: Record<TheoryUiVariant, string> = {
+  history: `linear-gradient(90deg, ${design.historyOrangeGradFrom} 0%, ${design.historyOrangeGradTo} 100%)`,
+  russian: `linear-gradient(90deg, ${design.russianPurpleGradFrom} 0%, ${design.russianPurpleGradTo} 100%)`,
 };
 
 /** Figma Group 133: 156×26 (wide labels ≈183×26), radius 3px, #0E1829 */
@@ -59,6 +64,7 @@ export function SubjectLessonShell({
   courseNav,
 }: ShellProps) {
   const accent = ACCENTS[variant];
+  const accentGrad = ACCENT_GRADS[variant];
   const [menuOpen, setMenuOpen] = useState(false);
   const [lessonMenuOpen, setLessonMenuOpen] = useState(false);
   const partMenuRef = useRef<HTMLDivElement>(null);
@@ -202,9 +208,9 @@ export function SubjectLessonShell({
           <button
             type="button"
             onClick={() => onPartChange('theory')}
-            className="flex-1 min-w-0 inline-flex items-center justify-center px-4 py-2.5 rounded-full text-[11px] font-black uppercase tracking-wide transition-colors shrink-0"
+            className="flex-1 min-w-0 inline-flex items-center justify-center px-4 py-2.5 rounded-full text-[11px] font-extrabold uppercase tracking-wide transition-colors shrink-0 font-[Merriweather_Sans,Golos_Text,sans-serif]"
             style={{
-              backgroundColor: activePart === 'theory' ? accent : 'transparent',
+              background: activePart === 'theory' ? accentGrad : 'transparent',
               color: activePart === 'theory' ? 'white' : accent,
             }}
           >
@@ -214,9 +220,9 @@ export function SubjectLessonShell({
             <button
               type="button"
               onClick={() => onPartChange('practice')}
-              className="flex-1 min-w-0 inline-flex items-center justify-center px-4 py-2.5 rounded-full text-[11px] font-black uppercase tracking-wide transition-colors shrink-0"
+              className="flex-1 min-w-0 inline-flex items-center justify-center px-4 py-2.5 rounded-full text-[11px] font-extrabold uppercase tracking-wide transition-colors shrink-0 font-[Merriweather_Sans,Golos_Text,sans-serif]"
               style={{
-                backgroundColor: activePart === 'practice' ? accent : 'transparent',
+                background: activePart === 'practice' ? accentGrad : 'transparent',
                 color: activePart === 'practice' ? 'white' : accent,
               }}
             >
@@ -341,14 +347,17 @@ export function SubjectLessonShell({
         )}
 
         <div className="flex flex-wrap items-center gap-3 justify-between">
-          <span className="min-w-0 truncate text-sm font-bold" style={{ color: design.ink }}>
+          <span
+            className="min-w-0 truncate text-sm font-extrabold font-[Merriweather_Sans,Golos_Text,sans-serif]"
+            style={{ color: design.ink }}
+          >
             {courseTitle || fallback}. Модуль {moduleIndex}
           </span>
 
           <div className="flex flex-wrap items-center gap-3 min-w-0">
             <span
-              className="truncate text-sm font-semibold max-w-[min(100%,280px)] sm:max-w-[360px]"
-              style={{ color: design.textPrimary }}
+              className="truncate text-[13.87px] font-normal leading-[0.87] tracking-[-0.04em] max-w-[min(100%,280px)] sm:max-w-[360px] font-[Merriweather_Sans,Golos_Text,sans-serif]"
+              style={{ color: design.ink }}
             >
               {themeTitle}
             </span>
@@ -356,11 +365,11 @@ export function SubjectLessonShell({
               <button
                 type="button"
                 onClick={() => setMenuOpen((v) => !v)}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-[11px] font-black uppercase tracking-wide text-white"
-                style={{ backgroundColor: accent }}
+                className="inline-flex items-center justify-center gap-1.5 h-[23px] min-w-[149px] px-3 rounded-[23px] text-[10px] font-extrabold uppercase tracking-wide text-white leading-none font-[Merriweather_Sans,Golos_Text,sans-serif]"
+                style={{ background: accentGrad }}
               >
                 {label}
-                <ChevronDown className={`w-4 h-4 transition-transform ${menuOpen ? 'rotate-180' : ''}`} />
+                <ChevronDown className={`w-3.5 h-3.5 transition-transform ${menuOpen ? 'rotate-180' : ''}`} />
               </button>
               {menuOpen && (
                 <div
