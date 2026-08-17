@@ -57,26 +57,45 @@ export default function Login() {
     setIsLoading(true);
     setError('');
 
+    const postAuth = async (url: string, body: object) => {
+      try {
+        return await publicApi.post(url, body);
+      } catch (err: any) {
+        const status = err?.response?.status;
+        if (status >= 500 || !err?.response) {
+          await new Promise((r) => setTimeout(r, 700));
+          return publicApi.post(url, body);
+        }
+        throw err;
+      }
+    };
+
     try {
       let res;
       if (mode === 'login') {
-        res = await publicApi.post('/auth/login', { email: formData.email, password: formData.password });
+        res = await postAuth('/auth/login', { email: formData.email, password: formData.password });
       } else if (mode === 'register_student') {
-        res = await publicApi.post('/auth/register', {
+        res = await postAuth('/auth/register', {
           email: formData.email,
           password: formData.password,
           name: formData.name,
           surname: formData.surname,
         });
       } else {
-        res = await publicApi.post('/auth/register-parent', formData);
+        res = await postAuth('/auth/register-parent', formData);
       }
 
       setAuthTokens(res.data.access_token, res.data.refresh_token);
       const payload = decodeJwtPayload<{ role?: string }>(res.data.access_token);
       navigate(payload?.role === 'PARENT' ? '/parent-dashboard' : '/');
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Ошибка доступа');
+      const raw = err?.response?.data?.message;
+      const msg = Array.isArray(raw) ? raw[0] : raw;
+      if (typeof msg === 'string' && msg && !/^internal server error$/i.test(msg)) {
+        setError(msg);
+      } else {
+        setError('Сервер временно недоступен. Подождите минуту и попробуйте снова.');
+      }
     } finally {
       setIsLoading(false);
     }

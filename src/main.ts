@@ -3,6 +3,7 @@ import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { AppModule } from './app.module';
 import { json, urlencoded } from 'express';
+import { AllExceptionsFilter } from './http-exception.filter';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -24,6 +25,8 @@ async function bootstrap() {
       forbidNonWhitelisted: false, // не валим запрос из-за лишних полей (безопасно для текущего фронта)
     }),
   );
+
+  app.useGlobalFilters(new AllExceptionsFilter());
 
   const port = Number(process.env.PORT) || 3000;
   await app.listen(port, '0.0.0.0');

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Flame, Star, RotateCcw, ChevronLeft, ChevronRight, Layers, BookOpen, Loader2, Trophy, Zap } from 'lucide-react';
+import { Flame, Star, RotateCcw, ChevronLeft, ChevronRight, Layers, BookOpen, Loader2, Trophy, Zap, X } from 'lucide-react';
 import axios from 'axios';
 import { getTokenConfig } from '../lib/auth';
 import { useSearchParams } from 'react-router-dom';
@@ -60,6 +60,59 @@ function shuffle<T>(arr: T[]): T[] {
     [a[i], a[j]] = [a[j], a[i]];
   }
   return a;
+}
+
+const TEXT_SHADOW =
+  '0 2px 12px rgba(0,0,0,0.9), 0 0 4px rgba(0,0,0,1), 0 1px 0 #000';
+
+function CardFaceBody({
+  text,
+  image,
+  dark,
+}: {
+  text?: string;
+  image?: string;
+  dark?: boolean;
+}) {
+  const hasImage = !!image;
+  const hasText = !!(text && text.trim());
+
+  if (hasImage) {
+    return (
+      <div className="flex-1 min-h-0 relative w-full flex items-center justify-center overflow-hidden">
+        <img
+          src={cardImageUrl(image)}
+          alt=""
+          className="max-w-full max-h-full object-contain rounded-xl"
+        />
+        {hasText && (
+          <div className="absolute inset-x-0 bottom-0 px-4 pt-14 pb-4 bg-gradient-to-t from-black/80 via-black/45 to-transparent">
+            <p
+              className="text-white text-xl md:text-2xl font-extrabold text-center leading-snug whitespace-pre-wrap max-h-[40%] overflow-y-auto"
+              style={{ textShadow: TEXT_SHADOW }}
+            >
+              {text}
+            </p>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  if (!hasText) {
+    return <p className={`font-bold ${dark ? 'text-white/50' : 'text-gray-300'}`}>—</p>;
+  }
+
+  return (
+    <p
+      className={`text-center leading-snug whitespace-pre-wrap px-2 max-h-full overflow-y-auto font-extrabold ${
+        dark ? 'text-white text-2xl md:text-3xl' : 'text-gray-900 text-xl md:text-2xl'
+      }`}
+      style={dark ? { textShadow: TEXT_SHADOW } : undefined}
+    >
+      {text}
+    </p>
+  );
 }
 
 export default function FlashcardStudy() {
@@ -216,6 +269,16 @@ export default function FlashcardStudy() {
         setCurrentIdx((i) => i + 1);
       }
     }, 150);
+  };
+
+  const goPrevCard = () => {
+    if (currentIdx > 0) {
+      setIsFlipped(false);
+      setCurrentIdx((i) => i - 1);
+      return;
+    }
+    setPhase('home');
+    fetchHome();
   };
 
   const current = queue[currentIdx];
@@ -397,14 +460,28 @@ export default function FlashcardStudy() {
 
       {/* TOP BAR */}
       <div className="flex items-center gap-4 p-3 md:p-4 shrink-0">
-        <button type="button" onClick={() => { setPhase('home'); fetchHome(); }}
-          className="p-2 text-white/60 hover:text-white transition-colors">
+        <button
+          type="button"
+          onClick={goPrevCard}
+          className="p-2 text-white/60 hover:text-white transition-colors"
+          title={currentIdx > 0 ? 'Предыдущая карточка' : 'К колодам'}
+          aria-label={currentIdx > 0 ? 'Предыдущая карточка' : 'К колодам'}
+        >
           <ChevronLeft className="w-6 h-6" />
         </button>
         <div className="flex-1 h-2 bg-white/10 rounded-full overflow-hidden">
           <motion.div className="h-full bg-indigo-400 rounded-full" animate={{ width: `${progress}%` }} transition={{ duration: 0.4 }} />
         </div>
-        <span className="text-white/60 font-bold text-sm">{currentIdx + 1}/{queue.length}</span>
+        <span className="text-white/60 font-bold text-sm tabular-nums">{currentIdx + 1}/{queue.length}</span>
+        <button
+          type="button"
+          onClick={() => { setPhase('home'); fetchHome(); }}
+          className="p-2 text-white/60 hover:text-white transition-colors"
+          title="К колодам"
+          aria-label="К колодам"
+        >
+          <X className="w-5 h-5" />
+        </button>
       </div>
 
       {/* CARD AREA */}
@@ -443,22 +520,7 @@ export default function FlashcardStudy() {
                     )}
                   </div>
                   <div className="flex-1 min-h-0 flex flex-col items-center justify-center gap-3 px-5 py-4 overflow-hidden">
-                    {current.front_image && (
-                      <div className={`w-full flex items-center justify-center min-h-0 ${current.front ? 'max-h-[62%]' : 'flex-1'}`}>
-                        <img
-                          src={cardImageUrl(current.front_image)}
-                          alt=""
-                          className="max-w-full max-h-[min(42vh,320px)] object-contain rounded-xl bg-gray-50 border border-gray-100"
-                        />
-                      </div>
-                    )}
-                    {current.front ? (
-                      <p className="text-xl md:text-2xl font-extrabold text-gray-900 text-center leading-snug whitespace-pre-wrap px-2 max-h-full overflow-y-auto">
-                        {current.front}
-                      </p>
-                    ) : !current.front_image ? (
-                      <p className="text-gray-300 font-bold">—</p>
-                    ) : null}
+                    <CardFaceBody text={current.front} image={current.front_image} />
                   </div>
                 </div>
 
@@ -477,22 +539,7 @@ export default function FlashcardStudy() {
                     </span>
                   </div>
                   <div className="flex-1 min-h-0 flex flex-col items-center justify-center gap-3 px-5 py-4 overflow-hidden">
-                    {current.back_image && (
-                      <div className={`w-full flex items-center justify-center min-h-0 ${current.back ? 'max-h-[58%]' : 'flex-1'}`}>
-                        <img
-                          src={cardImageUrl(current.back_image)}
-                          alt=""
-                          className="max-w-full max-h-[min(42vh,320px)] object-contain rounded-xl bg-white/10 border border-white/20"
-                        />
-                      </div>
-                    )}
-                    {current.back ? (
-                      <p className="text-2xl md:text-3xl font-extrabold text-white text-center leading-snug whitespace-pre-wrap px-2 max-h-full overflow-y-auto">
-                        {current.back}
-                      </p>
-                    ) : !current.back_image ? (
-                      <p className="text-white/50 font-bold">—</p>
-                    ) : null}
+                    <CardFaceBody text={current.back} image={current.back_image} dark />
                   </div>
                 </div>
               </motion.div>
