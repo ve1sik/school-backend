@@ -314,6 +314,7 @@ export default function Layout() {
     location.pathname === '/homework' ||
     location.pathname.startsWith('/homework/') ||
     location.pathname === '/messages' ||
+    location.pathname === '/flashcards' ||
     /^\/course\//.test(location.pathname);
 
   useEffect(() => {

@@ -280,10 +280,10 @@ export default function FlashcardStudy() {
 
   // ── HOME SCREEN ──
   if (phase === 'home') return (
-    <div className="bg-[#F4F7FE] flex flex-col lg:flex-row gap-3 lg:gap-4 p-3 md:p-4 max-h-[calc(100dvh-5.5rem)] overflow-hidden">
+    <div className="h-full min-h-0 bg-[#F4F7FE] flex flex-col lg:flex-row gap-3 lg:gap-4 p-3 md:p-4 overflow-hidden">
 
       {/* БОКОВАЯ ПАНЕЛЬ — как в CourseView */}
-      <aside className="w-full lg:w-[260px] xl:w-[280px] bg-white rounded-3xl border border-gray-100 flex flex-col h-auto max-h-[38vh] lg:max-h-full lg:h-full shrink-0 shadow-sm overflow-hidden">
+      <aside className="w-full lg:w-[260px] xl:w-[280px] bg-white rounded-3xl border border-gray-100 flex flex-col min-h-0 h-[min(42vh,360px)] lg:h-full shrink-0 shadow-sm overflow-hidden">
         <div className="p-4 border-b border-gray-100 shrink-0">
           <div className="flex items-center gap-3 mb-2">
             <div className="w-12 h-12 bg-indigo-600 rounded-2xl flex items-center justify-center shadow-md shadow-indigo-200 shrink-0">
@@ -318,7 +318,7 @@ export default function FlashcardStudy() {
         )}
 
         {/* Список колод */}
-        <div className="flex-1 overflow-y-auto p-4">
+        <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-4 custom-scrollbar">
           <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3">Колоды</p>
           <div className="space-y-2">
             {decks.map((deck) => (
@@ -348,7 +348,7 @@ export default function FlashcardStudy() {
       </aside>
 
       {/* ГЛАВНАЯ ОБЛАСТЬ */}
-      <main className="flex-1 w-full bg-white rounded-3xl lg:rounded-[2rem] border border-gray-100 shadow-sm flex flex-col items-center justify-center p-6 md:p-8 overflow-visible lg:overflow-auto min-h-[50vh] lg:min-h-0">
+      <main className="flex-1 min-h-0 w-full bg-white rounded-3xl lg:rounded-[2rem] border border-gray-100 shadow-sm flex flex-col items-center justify-center p-6 md:p-8 overflow-y-auto custom-scrollbar">
         <div className="max-w-lg w-full text-center">
           <div className="w-24 h-24 bg-indigo-600 rounded-[2rem] flex items-center justify-center shadow-xl shadow-indigo-200 mx-auto mb-8">
             <Layers className="w-12 h-12 text-white" />
