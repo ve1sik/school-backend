@@ -266,7 +266,7 @@ export default function RussianHomeworkLayout({
             модуль {moduleIndex}
           </span>
           <div
-            className="flex items-center gap-1.5 min-w-0 text-[14px] font-semibold"
+            className="flex items-center gap-1.5 min-w-0 text-[16px] font-semibold"
             style={{ color: design.ink }}
           >
             <BookOpen className="w-4 h-4 shrink-0" style={{ color: design.stroke }} strokeWidth={2} />

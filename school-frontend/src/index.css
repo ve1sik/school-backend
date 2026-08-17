@@ -110,12 +110,12 @@
     color: #0e1829 !important;
   }
 
-  /* Figma: 10.85px base; «Тема N.» 800, текст темы 400 — чуть крупнее для читаемости */
+  /* Theme / paragraph labels — readable size, «Тема N.» 800, rest 400 */
   .hw-theme-title {
     font-family: "Merriweather Sans", "Golos Text", sans-serif !important;
     font-weight: 400 !important;
-    font-size: 13px !important;
-    line-height: 1.15 !important;
+    font-size: 17px !important;
+    line-height: 1.25 !important;
     letter-spacing: 0 !important;
     color: #0e1829 !important;
   }
@@ -131,8 +131,8 @@
   .hw-card-title {
     font-family: "Merriweather Sans", "Golos Text", sans-serif !important;
     font-weight: 400 !important;
-    font-size: 14.98px !important;
-    line-height: 1.15 !important;
+    font-size: 17px !important;
+    line-height: 1.25 !important;
     letter-spacing: 0 !important;
     color: #0e1829 !important;
     -webkit-font-smoothing: antialiased;
@@ -351,22 +351,21 @@
 
   .theory-greeting {
     font-weight: 800 !important;
-    font-size: 10.85px !important;
+    font-size: 16px !important;
     line-height: 141% !important;
   }
 
-  /* Figma body: 10.85px / 400 / 120% */
   .theory-body-text {
     font-weight: 400 !important;
-    font-size: 10.85px !important;
-    line-height: 120% !important;
+    font-size: 16px !important;
+    line-height: 145% !important;
   }
 
   .theory-read-only .ql-editor {
     font-family: "Merriweather Sans", "Golos Text", sans-serif !important;
     font-weight: 400 !important;
-    font-size: 10.85px !important;
-    line-height: 120% !important;
+    font-size: 16px !important;
+    line-height: 145% !important;
     color: #0e1829 !important;
     -webkit-font-smoothing: antialiased;
     padding: 0 !important;

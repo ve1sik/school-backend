@@ -147,7 +147,7 @@ export function SubjectLessonShell({
               <p className="text-[14px] font-bold leading-snug" style={{ color: design.ink }}>
                 {courseTitle || fallback}. Модуль {moduleIndex}
               </p>
-              <p className="text-[13px] font-semibold mt-0.5 leading-snug" style={{ color: design.textPrimary }}>
+              <p className="text-[16px] font-semibold mt-0.5 leading-snug" style={{ color: design.textPrimary }}>
                 {activeLessonMeta?.title || themeTitle}
               </p>
             </div>
@@ -356,7 +356,7 @@ export function SubjectLessonShell({
 
           <div className="flex flex-wrap items-center gap-3 min-w-0">
             <span
-              className="truncate text-[14px] font-normal leading-normal tracking-tight max-w-[min(100%,280px)] sm:max-w-[360px] font-[Merriweather_Sans,Golos_Text,sans-serif]"
+              className="truncate text-[16px] font-normal leading-normal tracking-tight max-w-[min(100%,280px)] sm:max-w-[360px] font-[Merriweather_Sans,Golos_Text,sans-serif]"
               style={{ color: design.ink }}
             >
               {themeTitle}

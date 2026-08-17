@@ -416,7 +416,7 @@ export default function Homework() {
                 {Object.entries(themes).map(([themeName, hws]) => (
                   <div key={themeName}>
                     <div className="flex items-center gap-2 mb-3">
-                      <FileText className="w-3.5 h-3.5 text-[#9CA3AF] shrink-0" strokeWidth={1.75} />
+                      <FileText className="w-[18px] h-[18px] text-[#9CA3AF] shrink-0" strokeWidth={1.75} />
                       <h3 className="hw-theme-title">
                         <ThemeLabel text={themeName} />
                       </h3>

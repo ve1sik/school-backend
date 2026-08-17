@@ -1106,6 +1106,21 @@ export default function HomeworkView() {
     isRussianStepDone(b, testAnswers, testResults, submissions),
   );
 
+  const openLessonTheory = () => {
+    if (hwTheoryBlocks.length > 0) {
+      setRussianPart('theory');
+      return;
+    }
+    if (sourceCourseId && sourceThemeId) {
+      navigate(`/course/${sourceCourseId}/theme/${sourceThemeId}?lesson=${homework.id}`, {
+        state: { lessonId: homework.id },
+      });
+      return;
+    }
+    if (window.history.length > 1) navigate(-1);
+    else if (sourceCourseId) navigate(`/course/${sourceCourseId}`);
+  };
+
   if (isSubjectUi) {
     const hwThemeTitle = homework.themeTitle || homework.title || 'Тема';
     const hwActivePart = hwTheoryBlocks.length === 0 ? 'practice' : russianPart;
@@ -1224,7 +1239,10 @@ export default function HomeworkView() {
               moduleIndex={moduleIndex}
               themeTitle={hwThemeTitle}
               activePart="theory"
-              onPartChange={setRussianPart}
+              onPartChange={(p) => {
+                if (p === 'theory') openLessonTheory();
+                else setRussianPart(p);
+              }}
               hasPractice={practiceBlocksFlat.length > 0 || isSubjectUi}
               practiceIsHomework={hwPracticeIsHomework}
               theoryContent={theoryNode}
@@ -1237,7 +1255,10 @@ export default function HomeworkView() {
               themeTitle={hwThemeTitle}
               practiceCount={practiceBlocksFlat.length}
               activePart={hwActivePart}
-              onPartChange={setRussianPart}
+              onPartChange={(p) => {
+                if (p === 'theory') openLessonTheory();
+                else setRussianPart(p);
+              }}
               practiceIsHomework={hwPracticeIsHomework}
               activePracticeIndex={russianStepSafe}
               onPracticeIndexChange={setRussianStep}

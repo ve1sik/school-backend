@@ -287,9 +287,9 @@ export default function AdminDecks() {
                       <textarea
                         value={card.front}
                         onChange={(e) => handleCardChange(idx, 'front', e.target.value)}
-                        placeholder="Вопрос / термин / дата…"
-                        rows={2}
-                        className="w-full p-3 bg-gray-50 rounded-xl resize-none outline-none focus:bg-white focus:ring-2 focus:ring-indigo-200 transition-all text-sm font-medium text-gray-800 placeholder:text-gray-300 border border-transparent focus:border-indigo-400"
+                        placeholder={"Вопрос / термин / дата…\nEnter — новая строка на карточке"}
+                        rows={4}
+                        className="w-full p-3 bg-gray-50 rounded-xl resize-y outline-none focus:bg-white focus:ring-2 focus:ring-indigo-200 transition-all text-sm font-medium text-gray-800 placeholder:text-gray-300 border border-transparent focus:border-indigo-400 whitespace-pre-wrap"
                       />
                       <label className="flex items-center gap-2 px-3 py-2 bg-indigo-50 border border-indigo-100 rounded-xl text-xs font-bold text-indigo-500 cursor-pointer hover:bg-indigo-100 transition-colors w-fit">
                         <ImageIcon className="w-3.5 h-3.5" />
@@ -314,9 +314,9 @@ export default function AdminDecks() {
                       <textarea
                         value={card.back}
                         onChange={(e) => handleCardChange(idx, 'back', e.target.value)}
-                        placeholder="Ответ…"
-                        rows={2}
-                        className="w-full p-3 bg-gray-50 rounded-xl resize-none outline-none focus:bg-white focus:ring-2 focus:ring-emerald-200 transition-all text-sm font-medium text-gray-800 placeholder:text-gray-300 border border-transparent focus:border-emerald-400"
+                        placeholder={"Ответ…\nEnter — новая строка на карточке"}
+                        rows={4}
+                        className="w-full p-3 bg-gray-50 rounded-xl resize-y outline-none focus:bg-white focus:ring-2 focus:ring-emerald-200 transition-all text-sm font-medium text-gray-800 placeholder:text-gray-300 border border-transparent focus:border-emerald-400 whitespace-pre-wrap"
                       />
                       <label className="flex items-center gap-2 px-3 py-2 bg-emerald-50 border border-emerald-100 rounded-xl text-xs font-bold text-emerald-500 cursor-pointer hover:bg-emerald-100 transition-colors w-fit">
                         <ImageIcon className="w-3.5 h-3.5" />

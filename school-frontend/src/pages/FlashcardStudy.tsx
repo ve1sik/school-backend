@@ -453,7 +453,7 @@ export default function FlashcardStudy() {
                       </div>
                     )}
                     {current.front ? (
-                      <p className="text-xl md:text-2xl font-extrabold text-gray-900 text-center leading-snug shrink-0 px-2">
+                      <p className="text-xl md:text-2xl font-extrabold text-gray-900 text-center leading-snug whitespace-pre-wrap px-2 max-h-full overflow-y-auto">
                         {current.front}
                       </p>
                     ) : !current.front_image ? (
@@ -487,7 +487,7 @@ export default function FlashcardStudy() {
                       </div>
                     )}
                     {current.back ? (
-                      <p className="text-2xl md:text-3xl font-extrabold text-white text-center leading-snug shrink-0 px-2">
+                      <p className="text-2xl md:text-3xl font-extrabold text-white text-center leading-snug whitespace-pre-wrap px-2 max-h-full overflow-y-auto">
                         {current.back}
                       </p>
                     ) : !current.back_image ? (

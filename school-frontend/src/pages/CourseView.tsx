@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { parseSafeDate, parseSafeDateMs } from '../lib/parseDate';
 import axios from 'axios';
 import { 
@@ -679,6 +679,11 @@ const TaskGroup = ({ group, testAnswers, testResults, attemptsUsed, handleAnswer
 export default function CourseView() {
   const { courseId, themeId } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
+  const [searchParams] = useSearchParams();
+  const wantedLessonId =
+    searchParams.get('lesson') ||
+    (location.state as { lessonId?: string } | null)?.lessonId;
   const [course, setCourse] = useState<any>(null);
   const [activeLesson, setActiveLesson] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -745,13 +750,39 @@ export default function CourseView() {
         setCourseSpellCheck(courseData?.spell_check === true);
 
         if (courseData && courseData.themes) {
+          const pickLesson = (lessons: any[] | undefined) => {
+            if (!lessons?.length) return null;
+            if (wantedLessonId) {
+              const match = lessons.find((l: any) => String(l.id) === String(wantedLessonId));
+              if (match) return match;
+            }
+            return lessons[0];
+          };
+
           const targetTheme = courseData.themes.find((t: any) => String(t.id) === String(themeId));
-          if (targetTheme && targetTheme.lessons && targetTheme.lessons.length > 0) {
-            setActiveLesson(targetTheme.lessons[0]);
-            setExpandedThemes({ [targetTheme.id]: true }); 
-          } else if (courseData.themes[0]?.lessons?.[0]) {
-            setActiveLesson(courseData.themes[0].lessons[0]);
-            setExpandedThemes({ [courseData.themes[0].id]: true }); 
+          const fromTheme = pickLesson(targetTheme?.lessons);
+          if (fromTheme && targetTheme) {
+            setActiveLesson(fromTheme);
+            setExpandedThemes({ [targetTheme.id]: true });
+          } else {
+            let foundTheme = targetTheme;
+            let foundLesson: any = null;
+            if (wantedLessonId) {
+              for (const theme of courseData.themes) {
+                foundLesson = theme.lessons?.find((l: any) => String(l.id) === String(wantedLessonId));
+                if (foundLesson) {
+                  foundTheme = theme;
+                  break;
+                }
+              }
+            }
+            if (foundLesson && foundTheme) {
+              setActiveLesson(foundLesson);
+              setExpandedThemes({ [foundTheme.id]: true });
+            } else if (courseData.themes[0]?.lessons?.[0]) {
+              setActiveLesson(courseData.themes[0].lessons[0]);
+              setExpandedThemes({ [courseData.themes[0].id]: true });
+            }
           }
         }
       } catch (err) { 
@@ -761,7 +792,7 @@ export default function CourseView() {
       }
     };
     fetchCourseData();
-  }, [courseId, themeId]);
+  }, [courseId, themeId, wantedLessonId]);
 
   useEffect(() => {
     setAreTestsRevealed(false);
